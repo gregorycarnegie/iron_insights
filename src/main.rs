@@ -175,8 +175,11 @@ fn load_and_preprocess_data() -> PolarsResult<DataFrame> {
         ])
         .filter(
             col("Best3SquatKg").gt(0)
-                .or(col("Best3BenchKg").gt(0))
-                .or(col("Best3DeadliftKg").gt(0))
+                .and(col("Best3BenchKg").gt(0))
+                .and(col("Best3DeadliftKg").gt(0))
+        )
+        .filter(
+            col("BodyweightKg").gt(0)
         )
         .with_columns([
             // Pre-calculate weight classes
@@ -504,9 +507,134 @@ fn create_scatter_data(data: &DataFrame, lift_type: &str, use_wilks: bool) -> Sc
     }
 }
 
-fn calculate_user_percentile(_data: &DataFrame, _params: &FilterParams) -> Option<f64> {
-    // Placeholder - implement percentile calculation
-    Some(75.0)
+fn calculate_user_percentile(data: &DataFrame, params: &FilterParams) -> Option<f64> {
+    // Get the user's lift value based on lift type
+    let user_lift = match params.lift_type.as_deref().unwrap_or("squat") {
+        "squat" => params.squat?,
+        "bench" => params.bench?,
+        "deadlift" => params.deadlift?,
+        "total" => {
+            // For total, we need squat + bench + deadlift
+            let squat = params.squat.unwrap_or(0.0);
+            let bench = params.bench.unwrap_or(0.0);
+            let deadlift = params.deadlift.unwrap_or(0.0);
+            
+            // Only calculate if we have at least one lift
+            if squat > 0.0 || bench > 0.0 || deadlift > 0.0 {
+                squat + bench + deadlift
+            } else {
+                return None;
+            }
+        }
+        _ => return None,
+    };
+
+    // Get the appropriate column name
+    let column_name = match params.lift_type.as_deref().unwrap_or("squat") {
+        "squat" => "Best3SquatKg",
+        "bench" => "Best3BenchKg", 
+        "deadlift" => "Best3DeadliftKg",
+        "total" => "TotalKg",
+        _ => return None,
+    };
+
+    // Extract the lift values from the filtered data
+    let lift_values: Vec<f64> = data.column(column_name)
+        .ok()?
+        .f64()
+        .ok()?
+        .into_no_null_iter()
+        .filter(|&x| x > 0.0) // Only include valid lifts
+        .collect();
+
+    if lift_values.is_empty() {
+        return None;
+    }
+
+    // Count how many lifts are below the user's lift
+    let below_count = lift_values.iter()
+        .filter(|&&lift| lift < user_lift)
+        .count();
+
+    // Calculate percentile: (number below / total) * 100
+    let percentile = (below_count as f64 / lift_values.len() as f64) * 100.0;
+    
+    Some(percentile.round())
+}
+
+// Alternative implementation using Wilks score for more accurate comparison
+fn calculate_user_percentile_wilks(data: &DataFrame, params: &FilterParams) -> Option<f64> {
+    // Get user's bodyweight and lift
+    let user_bodyweight = params.bodyweight?;
+    let user_lift = match params.lift_type.as_deref().unwrap_or("squat") {
+        "squat" => params.squat?,
+        "bench" => params.bench?,
+        "deadlift" => params.deadlift?,
+        "total" => {
+            let squat = params.squat.unwrap_or(0.0);
+            let bench = params.bench.unwrap_or(0.0);
+            let deadlift = params.deadlift.unwrap_or(0.0);
+            
+            if squat > 0.0 || bench > 0.0 || deadlift > 0.0 {
+                squat + bench + deadlift
+            } else {
+                return None;
+            }
+        }
+        _ => return None,
+    };
+
+    // Calculate user's Wilks score
+    let user_sex = params.sex.as_deref().unwrap_or("M");
+    let user_wilks = calculate_wilks_score(user_lift, user_bodyweight, user_sex);
+
+    // Get the appropriate Wilks column
+    let wilks_column = match params.lift_type.as_deref().unwrap_or("squat") {
+        "squat" => "SquatWilks",
+        "bench" => "BenchWilks",
+        "deadlift" => "DeadliftWilks", 
+        "total" => "TotalWilks",
+        _ => return None,
+    };
+
+    // Extract Wilks scores from the data
+    let wilks_values: Vec<f64> = data.column(wilks_column)
+        .ok()?
+        .f64()
+        .ok()?
+        .into_no_null_iter()
+        .filter(|&x| x > 0.0)
+        .collect();
+
+    if wilks_values.is_empty() {
+        return None;
+    }
+
+    // Count how many Wilks scores are below the user's Wilks
+    let below_count = wilks_values.iter()
+        .filter(|&&wilks| wilks < user_wilks)
+        .count();
+
+    let percentile = (below_count as f64 / wilks_values.len() as f64) * 100.0;
+    Some(percentile.round())
+}
+
+// Helper function to calculate Wilks score
+fn calculate_wilks_score(lift_kg: f64, bodyweight_kg: f64, sex: &str) -> f64 {
+    let coefficients = if sex == "M" {
+        [47.46178854, 8.472061379, 0.07369410346, -0.001395833811, 7.07665973070743e-06, -1.20804336482315e-08]
+    } else {
+        [-125.4255398, 13.71219419, -0.03307250631, -0.001050400051, 9.38773881462799e-06, -2.3334613884954e-08]
+    };
+
+    let denominator = coefficients[0] + 
+        coefficients[1] * bodyweight_kg +
+        coefficients[2] * bodyweight_kg.powi(2) +
+        coefficients[3] * bodyweight_kg.powi(3) +
+        coefficients[4] * bodyweight_kg.powi(4) +
+        coefficients[5] * bodyweight_kg.powi(5);
+
+    lift_kg * 600.0 / denominator
 }
 
 async fn serve_index() -> Html<&'static str> {
