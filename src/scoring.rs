@@ -3,11 +3,11 @@ use polars::prelude::*;
 
 /// DOTS coefficients (gender-neutral)
 pub struct DotsCoefficients {
-    pub a: f64,
-    pub b: f64,
-    pub c: f64,
-    pub d: f64,
-    pub e: f64,
+    pub a: f32,
+    pub b: f32,
+    pub c: f32,
+    pub d: f32,
+    pub e: f32,
 }
 
 impl Default for DotsCoefficients {
@@ -23,7 +23,7 @@ impl Default for DotsCoefficients {
 }
 
 /// Calculate DOTS score for a given lift and bodyweight
-pub fn calculate_dots_score(lift_kg: f64, bodyweight_kg: f64) -> f64 {
+pub fn calculate_dots_score(lift_kg: f32, bodyweight_kg: f32) -> f32 {
     let coeffs = DotsCoefficients::default();
     
     let denominator = coeffs.a + 

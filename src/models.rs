@@ -34,10 +34,10 @@ pub struct FilterParams {
     pub sex: Option<String>,
     pub equipment: Option<Vec<String>>,
     pub weight_class: Option<String>,
-    pub squat: Option<f64>,
-    pub bench: Option<f64>,
-    pub deadlift: Option<f64>,
-    pub bodyweight: Option<f64>,
+    pub squat: Option<f32>,
+    pub bench: Option<f32>,
+    pub deadlift: Option<f32>,
+    pub bodyweight: Option<f32>,
     pub units: Option<String>,
     pub lift_type: Option<String>, // "squat", "bench", "deadlift", "total"
 }
@@ -48,25 +48,25 @@ pub struct VisualizationResponse {
     pub scatter_data: ScatterData,
     pub dots_histogram_data: HistogramData,
     pub dots_scatter_data: ScatterData,
-    pub user_percentile: Option<f64>,
-    pub user_dots_percentile: Option<f64>,
+    pub user_percentile: Option<f32>,
+    pub user_dots_percentile: Option<f32>,
     pub processing_time_ms: u64,
     pub total_records: usize,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct HistogramData {
-    pub values: Vec<f64>,
+    pub values: Vec<f32>,
     pub counts: Vec<u32>,
-    pub bins: Vec<f64>,
-    pub min_val: f64,
-    pub max_val: f64,
+    pub bins: Vec<f32>,
+    pub min_val: f32,
+    pub max_val: f32,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct ScatterData {
-    pub x: Vec<f64>, // bodyweight
-    pub y: Vec<f64>, // lift values
+    pub x: Vec<f32>, // bodyweight
+    pub y: Vec<f32>, // lift values
     pub sex: Vec<String>,
 }
 

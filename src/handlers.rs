@@ -108,9 +108,9 @@ fn create_histogram_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool)
         lift_type.raw_column()
     };
     
-    let values: Vec<f64> = data.column(column)
+    let values: Vec<f32> = data.column(column)
         .map(|col| {
-            col.f64()
+            col.f32()
                 .map(|s| s.into_no_null_iter().filter(|&x| x > 0.0).collect())
                 .unwrap_or_default()
         })
@@ -128,11 +128,11 @@ fn create_histogram_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool)
     
     // Fast parallel histogram calculation
     let (min_val, max_val) = values.par_iter()
-        .fold(|| (f64::INFINITY, f64::NEG_INFINITY), |acc, &x| (acc.0.min(x), acc.1.max(x)))
-        .reduce(|| (f64::INFINITY, f64::NEG_INFINITY), |a, b| (a.0.min(b.0), a.1.max(b.1)));
-    
+        .fold(|| (f32::INFINITY, f32::NEG_INFINITY), |acc, &x| (acc.0.min(x), acc.1.max(x)))
+        .reduce(|| (f32::INFINITY, f32::NEG_INFINITY), |a, b| (a.0.min(b.0), a.1.max(b.1)));
+
     let num_bins = 50;
-    let bin_width = (max_val - min_val) / num_bins as f64;
+    let bin_width = (max_val - min_val) / num_bins as f32;
     let mut bins = vec![0u32; num_bins];
     
     // Sequential binning for correctness
@@ -141,9 +141,9 @@ fn create_histogram_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool)
         let bin_idx = bin_idx.min(num_bins - 1);
         bins[bin_idx] += 1;
     }
-    
-    let bin_edges: Vec<f64> = (0..=num_bins)
-        .map(|i| min_val + i as f64 * bin_width)
+
+    let bin_edges: Vec<f32> = (0..=num_bins)
+        .map(|i| min_val + i as f32 * bin_width)
         .collect();
     
     HistogramData {
@@ -161,13 +161,13 @@ fn create_scatter_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool) -
     } else {
         lift_type.raw_column()
     };
-    
-    let bodyweight: Vec<f64> = data.column("BodyweightKg")
-        .map(|col| col.f64().map(|s| s.into_no_null_iter().collect()).unwrap_or_default())
+
+    let bodyweight: Vec<f32> = data.column("BodyweightKg")
+        .map(|col| col.f32().map(|s| s.into_no_null_iter().collect()).unwrap_or_default())
         .unwrap_or_default();
-    
-    let y_values: Vec<f64> = data.column(y_column)
-        .map(|col| col.f64().map(|s| s.into_no_null_iter().collect()).unwrap_or_default())
+
+    let y_values: Vec<f32> = data.column(y_column)
+        .map(|col| col.f32().map(|s| s.into_no_null_iter().collect()).unwrap_or_default())
         .unwrap_or_default();
     
     let sex: Vec<String> = data.column("Sex")
@@ -185,13 +185,13 @@ fn create_scatter_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool) -
     }
 }
 
-fn calculate_user_percentile(data: &DataFrame, params: &FilterParams, lift_type: &LiftType) -> Option<f64> {
+fn calculate_user_percentile(data: &DataFrame, params: &FilterParams, lift_type: &LiftType) -> Option<f32> {
     let user_lift = get_user_lift_value(params, lift_type)?;
     let column_name = lift_type.raw_column();
 
-    let lift_values: Vec<f64> = data.column(column_name)
+    let lift_values: Vec<f32> = data.column(column_name)
         .ok()?
-        .f64()
+        .f32()
         .ok()?
         .into_no_null_iter()
         .filter(|&x| x > 0.0)
@@ -205,20 +205,20 @@ fn calculate_user_percentile(data: &DataFrame, params: &FilterParams, lift_type:
         .filter(|&&lift| lift < user_lift)
         .count();
 
-    let percentile = (below_count as f64 / lift_values.len() as f64) * 100.0;
+    let percentile = (below_count as f32 / lift_values.len() as f32) * 100.0 as f32;
     Some(percentile.round())
 }
 
-fn calculate_user_percentile_dots(data: &DataFrame, params: &FilterParams, lift_type: &LiftType) -> Option<f64> {
+fn calculate_user_percentile_dots(data: &DataFrame, params: &FilterParams, lift_type: &LiftType) -> Option<f32> {
     let user_bodyweight = params.bodyweight?;
     let user_lift = get_user_lift_value(params, lift_type)?;
 
     let user_dots = calculate_dots_score(user_lift, user_bodyweight);
     let dots_column = lift_type.dots_column();
 
-    let dots_values: Vec<f64> = data.column(dots_column)
+    let dots_values: Vec<f32> = data.column(dots_column)
         .ok()?
-        .f64()
+        .f32()
         .ok()?
         .into_no_null_iter()
         .filter(|&x| x > 0.0)
@@ -232,11 +232,11 @@ fn calculate_user_percentile_dots(data: &DataFrame, params: &FilterParams, lift_
         .filter(|&&dots| dots < user_dots)
         .count();
 
-    let percentile = (below_count as f64 / dots_values.len() as f64) * 100.0;
+    let percentile = (below_count as f32 / dots_values.len() as f32) * 100.0 as f32;
     Some(percentile.round())
 }
 
-fn get_user_lift_value(params: &FilterParams, lift_type: &LiftType) -> Option<f64> {
+fn get_user_lift_value(params: &FilterParams, lift_type: &LiftType) -> Option<f32> {
     match lift_type {
         LiftType::Squat => params.squat,
         LiftType::Bench => params.bench,

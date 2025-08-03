@@ -70,11 +70,11 @@ impl DataProcessor {
             Field::new("Name".into(), DataType::String),
             Field::new("Sex".into(), DataType::String),
             Field::new("Equipment".into(), DataType::String),
-            Field::new("BodyweightKg".into(), DataType::Float64),
-            Field::new("Best3SquatKg".into(), DataType::Float64),
-            Field::new("Best3BenchKg".into(), DataType::Float64),
-            Field::new("Best3DeadliftKg".into(), DataType::Float64),
-            Field::new("TotalKg".into(), DataType::Float64),
+            Field::new("BodyweightKg".into(), DataType::Float32),
+            Field::new("Best3SquatKg".into(), DataType::Float32),
+            Field::new("Best3BenchKg".into(), DataType::Float32),
+            Field::new("Best3DeadliftKg".into(), DataType::Float32),
+            Field::new("TotalKg".into(), DataType::Float32),
         ]);
         
         let df = LazyCsvReader::new(path)
@@ -155,11 +155,11 @@ struct SampleDataBuilder {
     names: Vec<String>,
     sexes: Vec<String>,
     equipment: Vec<String>,
-    bodyweights: Vec<f64>,
-    squats: Vec<f64>,
-    benches: Vec<f64>,
-    deadlifts: Vec<f64>,
-    totals: Vec<f64>,
+    bodyweights: Vec<f32>,
+    squats: Vec<f32>,
+    benches: Vec<f32>,
+    deadlifts: Vec<f32>,
+    totals: Vec<f32>,
 }
 
 impl SampleDataBuilder {
@@ -185,11 +185,11 @@ impl SampleDataBuilder {
             (65.0, 12.0, 1.4, 0.8, 1.8) // Female averages
         };
         
-        let bodyweight_sample: f64 = Normal::new(bw_mean, bw_std).unwrap().sample(rng);
+        let bodyweight_sample: f32 = Normal::new(bw_mean, bw_std).unwrap().sample(rng);
         let bodyweight = bodyweight_sample.clamp(40.0, 200.0);
-        let squat: f64 = (bodyweight * sq_ratio * rng.random_range(0.7..1.3)).max(50.0);
-        let bench: f64 = (bodyweight * bp_ratio * rng.random_range(0.7..1.3)).max(30.0);
-        let deadlift: f64 = (bodyweight * dl_ratio * rng.random_range(0.7..1.3)).max(60.0);
+        let squat: f32 = (bodyweight * sq_ratio * rng.random_range(0.7..1.3)).max(50.0);
+        let bench: f32 = (bodyweight * bp_ratio * rng.random_range(0.7..1.3)).max(30.0);
+        let deadlift: f32 = (bodyweight * dl_ratio * rng.random_range(0.7..1.3)).max(60.0);
         let total = squat + bench + deadlift;
         
         SampleLifter {
@@ -242,9 +242,9 @@ struct SampleLifter {
     name: String,
     sex: String,
     equipment: String,
-    bodyweight: f64,
-    squat: f64,
-    bench: f64,
-    deadlift: f64,
-    total: f64,
+    bodyweight: f32,
+    squat: f32,
+    bench: f32,
+    deadlift: f32,
+    total: f32,
 }
