@@ -10,9 +10,12 @@ tokio = { version = "1.0", features = ["full"] }
 
 # Data processing - use a stable version with correct features
 polars = { version = "0.49.1", features = [
-    "lazy", "csv", "parquet", 
+    "lazy", "csv", "parquet",  "compression",
     "temporal", "strings", "dtype-date"
 ] }
+
+# For timestamps in Parquet file names
+chrono = { version = "0.4.41", features = ["serde"] }
 
 # SIMD-optimized math
 rayon = "1.8"
