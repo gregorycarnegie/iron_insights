@@ -1,5 +1,6 @@
-// data.rs
+// data.rs - Enhanced with Parquet support
 use polars::prelude::*;
+use polars::io::parquet::write::StatisticsOptions;
 use std::sync::Arc;
 use crate::scoring::{calculate_dots_expr, calculate_weight_class_expr};
 
@@ -22,20 +23,56 @@ impl DataProcessor {
     pub fn load_and_preprocess_data(&self) -> PolarsResult<DataFrame> {
         println!("📥 Loading powerlifting data...");
         
-        let csv_file = self.find_csv_file();
-        
-        match csv_file {
-            Some(path) => {
-                println!("📂 Found powerlifting data: {:?}", path.file_name().unwrap());
-                self.load_real_data(&path)
-            }
-            None => {
-                println!("⚠️  No openpowerlifting CSV files found in data/ directory");
-                println!("💡 Please download from: https://openpowerlifting.gitlab.io/opl-csv/bulk-csv.html");
-                println!("🎯 Creating sample data for demo...");
-                self.create_sample_data()
-            }
+        // Check for Parquet file first (fastest)
+        if let Some(parquet_path) = self.find_parquet_file() {
+            println!("🚀 Found Parquet file: {:?} - Loading at maximum speed!", parquet_path.file_name().unwrap());
+            return self.load_parquet_data(&parquet_path);
         }
+        
+        // Fall back to CSV
+        if let Some(csv_path) = self.find_csv_file() {
+            println!("📂 Found CSV file: {:?} - Converting to Parquet for future speed boosts", csv_path.file_name().unwrap());
+            let df = self.load_real_data(&csv_path)?;
+            
+            // Save as Parquet with matching filename
+            if let Err(e) = self.save_as_parquet(&df, &csv_path) {
+                println!("⚠️  Could not save Parquet cache: {}", e);
+            } else {
+                println!("💾 Saved Parquet cache for faster future loads");
+            }
+            
+            return Ok(df);
+        }
+        
+        // Generate sample data
+        println!("⚠️  No data files found - generating sample data");
+        self.create_sample_data()
+    }
+    
+    fn find_parquet_file(&self) -> Option<std::path::PathBuf> {
+        let data_dir = std::path::Path::new("data");
+        if !data_dir.exists() {
+            return None;
+        }
+        
+        std::fs::read_dir(data_dir)
+            .ok()?
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let path = entry.path();
+                let filename = path.file_name()?.to_str()?;
+                
+                // Look for openpowerlifting-*.parquet files
+                if filename.starts_with("openpowerlifting-") && filename.ends_with(".parquet") {
+                    Some(path)
+                } else {
+                    None
+                }
+            })
+            .max_by_key(|path| {
+                // Sort by filename to get the most recent date
+                path.file_name().unwrap_or_default().to_str().unwrap_or_default().to_string()
+            })
     }
     
     fn find_csv_file(&self) -> Option<std::path::PathBuf> {
@@ -51,7 +88,6 @@ impl DataProcessor {
                 let path = entry.path();
                 let filename = path.file_name()?.to_str()?;
                 
-                // Check if it matches the pattern: openpowerlifting-YYYY-MM-DD-hash.csv
                 if filename.starts_with("openpowerlifting-") && filename.ends_with(".csv") {
                     Some(path)
                 } else {
@@ -59,12 +95,25 @@ impl DataProcessor {
                 }
             })
             .max_by_key(|path| {
-                // Sort by filename to get the most recent date
                 path.file_name().unwrap_or_default().to_str().unwrap_or_default().to_string()
             })
     }
     
+    fn load_parquet_data(&self, path: &std::path::Path) -> PolarsResult<DataFrame> {
+        let start = std::time::Instant::now();
+        
+        let df = LazyFrame::scan_parquet(path, ScanArgsParquet::default())?
+            .collect()?;
+        
+        let df = self.apply_sampling(df)?;
+        
+        println!("⚡ Loaded {} records from Parquet in {:?}", df.height(), start.elapsed());
+        Ok(df)
+    }
+    
     fn load_real_data(&self, path: &std::path::Path) -> PolarsResult<DataFrame> {
+        let start = std::time::Instant::now();
+        
         // Define schema with proper float types for lift columns
         let schema = Schema::from_iter([
             Field::new("Name".into(), DataType::String),
@@ -112,20 +161,41 @@ impl DataProcessor {
         
         let df = self.apply_sampling(df)?;
         
-        println!("✅ Processed {} records with DOTS scoring", df.height());
+        println!("✅ Processed {} records from CSV in {:?}", df.height(), start.elapsed());
         Ok(df)
+    }
+    
+    fn save_as_parquet(&self, df: &DataFrame, csv_path: &std::path::Path) -> PolarsResult<()> {
+        std::fs::create_dir_all("data")?;
+        
+        // Convert CSV filename to Parquet
+        // openpowerlifting-2024-01-15-abcd1234.csv -> openpowerlifting-2024-01-15-abcd1234.parquet
+        let csv_filename = csv_path.file_stem().unwrap().to_str().unwrap();
+        let parquet_path = format!("data/{}.parquet", csv_filename);
+        
+        let mut file = std::fs::File::create(&parquet_path)?;
+        let mut df_mut = df.clone(); // Clone to get mutable reference
+        ParquetWriter::new(&mut file)
+            .with_compression(ParquetCompression::Snappy)
+            .with_statistics(StatisticsOptions::default())
+            .finish(&mut df_mut)?;
+        
+        println!("💾 Saved processed data to: {}", parquet_path);
+        Ok(())
     }
     
     fn apply_sampling(&self, df: DataFrame) -> PolarsResult<DataFrame> {
         if df.height() > self.sample_size {
-            println!("📊 Sampling {} records from {} total for better performance", self.sample_size, df.height());
+            println!("📊 Sampling {} records from {} total for performance", self.sample_size, df.height());
             df.sample_n_literal(self.sample_size, true, true, Some(42))
         } else {
             Ok(df)
         }
     }
     
+    // ... rest of the methods remain the same
     fn create_sample_data(&self) -> PolarsResult<DataFrame> {
+        // Same implementation as before
         use rand::prelude::*;
         use rand::seq::SliceRandom;
         
@@ -151,6 +221,51 @@ impl DataProcessor {
     }
 }
 
+// Add a utility function for manual CSV to Parquet conversion
+impl DataProcessor {
+    pub fn convert_csv_to_parquet(&self, csv_path: &str, parquet_path: Option<&str>) -> PolarsResult<()> {
+        let csv_path_buf = std::path::Path::new(csv_path);
+        let output_path = if let Some(path) = parquet_path {
+            path.to_string()
+        } else {
+            // Auto-generate parquet name from CSV name
+            let csv_filename = csv_path_buf.file_stem().unwrap().to_str().unwrap();
+            format!("{}.parquet", csv_filename)
+        };
+        
+        println!("🔄 Converting {} to {}", csv_path, output_path);
+        let start = std::time::Instant::now();
+        
+        let df = self.load_real_data(csv_path_buf)?;
+        
+        let mut file = std::fs::File::create(&output_path)?;
+        let mut df_mut = df.clone(); // Clone to get mutable reference
+        ParquetWriter::new(&mut file)
+            .with_compression(ParquetCompression::Snappy)
+            .with_statistics(StatisticsOptions::default())
+            .finish(&mut df_mut)?;
+        
+        println!("✅ Conversion completed in {:?}", start.elapsed());
+        println!("📊 Original records: {}", df.height());
+        
+        // Compare file sizes
+        if let (Ok(csv_meta), Ok(parquet_meta)) = (
+            std::fs::metadata(csv_path),
+            std::fs::metadata(&output_path)
+        ) {
+            let compression_ratio = (1.0 - parquet_meta.len() as f64 / csv_meta.len() as f64) * 100.0;
+            println!("💾 Size reduction: {:.1}% ({} MB → {} MB)", 
+                compression_ratio,
+                csv_meta.len() / 1_000_000,
+                parquet_meta.len() / 1_000_000
+            );
+        }
+        
+        Ok(())
+    }
+}
+
+// Keep the existing helper structs
 struct SampleDataBuilder {
     names: Vec<String>,
     sexes: Vec<String>,
@@ -180,9 +295,9 @@ impl SampleDataBuilder {
         use rand_distr::{Normal, Distribution};
         
         let (bw_mean, bw_std, sq_ratio, bp_ratio, dl_ratio) = if sex == "M" {
-            (85.0, 15.0, 1.8, 1.3, 2.2) // Male averages
+            (85.0, 15.0, 1.8, 1.3, 2.2)
         } else {
-            (65.0, 12.0, 1.4, 0.8, 1.8) // Female averages
+            (65.0, 12.0, 1.4, 0.8, 1.8)
         };
         
         let bodyweight_sample: f32 = Normal::new(bw_mean, bw_std).unwrap().sample(rng);
