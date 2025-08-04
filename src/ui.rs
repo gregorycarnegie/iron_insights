@@ -1,4 +1,4 @@
-// ui.rs
+// ui.rs - Updated with improved DOTS debugging frontend
 pub const HTML_TEMPLATE: &str = r#"
 <!DOCTYPE html>
 <html lang="en">
@@ -42,6 +42,16 @@ pub const HTML_TEMPLATE: &str = r#"
             margin: 10px 0;
             font-size: 14px;
         }
+        .debug-info {
+            background: #fff3cd;
+            padding: 10px 15px;
+            border-radius: 5px;
+            border-left: 4px solid #ffc107;
+            margin: 10px 0;
+            font-size: 12px;
+            font-family: monospace;
+            display: none;
+        }
         .controls { 
             display: grid; 
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
@@ -71,6 +81,7 @@ pub const HTML_TEMPLATE: &str = r#"
             border: 1px solid #ddd;
             border-radius: 5px;
             background: white;
+            position: relative;
         }
         .chart-title {
             font-weight: 600;
@@ -79,6 +90,15 @@ pub const HTML_TEMPLATE: &str = r#"
             border-bottom: 1px solid #ddd;
             margin: 0;
             font-size: 16px;
+        }
+        .chart-error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #dc3545;
+            text-align: center;
+            font-size: 14px;
         }
         button { 
             background: #007bff; 
@@ -92,6 +112,12 @@ pub const HTML_TEMPLATE: &str = r#"
         }
         button:hover {
             background: #0056b3;
+        }
+        button.debug-toggle {
+            background: #ffc107;
+            color: #212529;
+            font-size: 12px;
+            padding: 8px 16px;
         }
         input, select { 
             padding: 10px; 
@@ -165,6 +191,8 @@ pub const HTML_TEMPLATE: &str = r#"
             <div class="dots-info">
                 <strong>DOTS (Dots Total)</strong> is the modern replacement for Wilks, providing more accurate strength comparisons across different bodyweights and genders using a single, unified formula.
             </div>
+            <div id="debugInfo" class="debug-info"></div>
+            <button class="debug-toggle" onclick="toggleDebug()">Toggle Debug Info</button>
         </div>
         
         <div class="controls">
@@ -201,19 +229,35 @@ pub const HTML_TEMPLATE: &str = r#"
         <div class="chart-grid">
             <div>
                 <h3 class="chart-title">Raw Weight Distribution</h3>
-                <div id="histogram" class="chart"></div>
+                <div id="histogram" class="chart">
+                    <div id="histogramError" class="chart-error" style="display: none;">
+                        No data available for this lift type
+                    </div>
+                </div>
             </div>
             <div>
                 <h3 class="chart-title">DOTS Score Distribution</h3>
-                <div id="dotsHistogram" class="chart"></div>
+                <div id="dotsHistogram" class="chart">
+                    <div id="dotsHistogramError" class="chart-error" style="display: none;">
+                        No DOTS data available - check data processing
+                    </div>
+                </div>
             </div>
             <div>
                 <h3 class="chart-title">Raw Weight vs Bodyweight</h3>
-                <div id="scatter" class="chart"></div>
+                <div id="scatter" class="chart">
+                    <div id="scatterError" class="chart-error" style="display: none;">
+                        No scatter data available
+                    </div>
+                </div>
             </div>
             <div>
                 <h3 class="chart-title">DOTS vs Bodyweight</h3>
-                <div id="dotsScatter" class="chart"></div>
+                <div id="dotsScatter" class="chart">
+                    <div id="dotsScatterError" class="chart-error" style="display: none;">
+                        No DOTS scatter data available
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -222,6 +266,64 @@ pub const HTML_TEMPLATE: &str = r#"
     </div>
     
     <script>
+        let debugMode = false;
+        let lastResponse = null;
+        
+        function toggleDebug() {
+            debugMode = !debugMode;
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.style.display = debugMode ? 'block' : 'none';
+            
+            if (debugMode && lastResponse) {
+                showDebugInfo(lastResponse);
+            }
+        }
+        
+        function showDebugInfo(data) {
+            if (!debugMode) return;
+            
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.innerHTML = `
+                <strong>Debug Information:</strong><br>
+                Raw histogram values: ${data.histogram_data.values.length}<br>
+                DOTS histogram values: ${data.dots_histogram_data.values.length}<br>
+                Raw scatter points: ${data.scatter_data.x.length}<br>
+                DOTS scatter points: ${data.dots_scatter_data.x.length}<br>
+                Processing time: ${data.processing_time_ms}ms<br>
+                Total records: ${data.total_records}<br>
+                User percentile: ${data.user_percentile}<br>
+                User DOTS percentile: ${data.user_dots_percentile}
+            `;
+        }
+        
+        function showError(chartId, message) {
+            const errorElement = document.getElementById(chartId + 'Error');
+            if (errorElement) {
+                errorElement.style.display = 'block';
+                errorElement.textContent = message;
+            }
+        }
+        
+        function hideError(chartId) {
+            const errorElement = document.getElementById(chartId + 'Error');
+            if (errorElement) {
+                errorElement.style.display = 'none';
+            }
+        }
+        
+        function createPlot(chartId, traces, layout, errorMessage = 'No data available') {
+            if (!traces || traces.length === 0 || 
+                (traces[0].x && traces[0].x.length === 0) ||
+                (traces[0].values && traces[0].values.length === 0)) {
+                showError(chartId, errorMessage);
+                return false;
+            }
+            
+            hideError(chartId);
+            Plotly.newPlot(chartId, traces, layout);
+            return true;
+        }
+        
         async function updateCharts() {
             const liftType = document.getElementById('liftType').value;
             const bodyweight = parseFloat(document.getElementById('bodyweight').value);
@@ -239,9 +341,7 @@ pub const HTML_TEMPLATE: &str = r#"
             
             // Handle total lift type
             if (liftType === 'total' && userLift) {
-                // For demo, assume the entered value is the total
-                // In a real app, you'd want separate inputs for each lift
-                params.squat = userLift * 0.35; // Rough approximation
+                params.squat = userLift * 0.35;
                 params.bench = userLift * 0.25;
                 params.deadlift = userLift * 0.40;
             }
@@ -253,10 +353,19 @@ pub const HTML_TEMPLATE: &str = r#"
                     body: JSON.stringify(params)
                 });
                 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
+                lastResponse = data;
+                
+                if (debugMode) {
+                    showDebugInfo(data);
+                }
                 
                 // Create raw weight histogram
-                Plotly.newPlot('histogram', [{
+                const histogramSuccess = createPlot('histogram', [{
                     x: data.histogram_data.values,
                     type: 'histogram',
                     nbinsx: 50,
@@ -267,10 +376,10 @@ pub const HTML_TEMPLATE: &str = r#"
                     xaxis: { title: 'Weight (kg)' },
                     yaxis: { title: 'Frequency' },
                     margin: { t: 20 }
-                });
+                }, 'No raw weight data available for this lift type');
                 
                 // Create DOTS histogram
-                Plotly.newPlot('dotsHistogram', [{
+                const dotsHistogramSuccess = createPlot('dotsHistogram', [{
                     x: data.dots_histogram_data.values,
                     type: 'histogram',
                     nbinsx: 50,
@@ -281,91 +390,65 @@ pub const HTML_TEMPLATE: &str = r#"
                     xaxis: { title: 'DOTS Score' },
                     yaxis: { title: 'Frequency' },
                     margin: { t: 20 }
-                });
+                }, 'No DOTS data available - check data processing or try different filters');
                 
-                // Create raw weight scatter plot
+                // Create scatter plots
                 const maleData = data.scatter_data.x.map((x, i) => ({
-                    x: x,
-                    y: data.scatter_data.y[i],
-                    sex: data.scatter_data.sex[i]
+                    x: x, y: data.scatter_data.y[i], sex: data.scatter_data.sex[i]
                 })).filter(d => d.sex === 'M');
                 
                 const femaleData = data.scatter_data.x.map((x, i) => ({
-                    x: x,
-                    y: data.scatter_data.y[i],
-                    sex: data.scatter_data.sex[i]
+                    x: x, y: data.scatter_data.y[i], sex: data.scatter_data.sex[i]
                 })).filter(d => d.sex === 'F');
                 
                 const scatterTraces = [];
                 if (maleData.length > 0) {
                     scatterTraces.push({
-                        x: maleData.map(d => d.x),
-                        y: maleData.map(d => d.y),
-                        mode: 'markers',
-                        type: 'scatter',
-                        marker: { size: 3, opacity: 0.6, color: '#3498db' },
-                        name: 'Male'
+                        x: maleData.map(d => d.x), y: maleData.map(d => d.y),
+                        mode: 'markers', type: 'scatter',
+                        marker: { size: 3, opacity: 0.6, color: '#3498db' }, name: 'Male'
                     });
                 }
                 if (femaleData.length > 0) {
                     scatterTraces.push({
-                        x: femaleData.map(d => d.x),
-                        y: femaleData.map(d => d.y),
-                        mode: 'markers',
-                        type: 'scatter',
-                        marker: { size: 3, opacity: 0.6, color: '#e91e63' },
-                        name: 'Female'
+                        x: femaleData.map(d => d.x), y: femaleData.map(d => d.y),
+                        mode: 'markers', type: 'scatter',
+                        marker: { size: 3, opacity: 0.6, color: '#e91e63' }, name: 'Female'
                     });
                 }
                 
-                Plotly.newPlot('scatter', scatterTraces, {
-                    title: '',
-                    xaxis: { title: 'Bodyweight (kg)' },
-                    yaxis: { title: 'Weight (kg)' },
-                    margin: { t: 20 }
-                });
+                const scatterSuccess = createPlot('scatter', scatterTraces, {
+                    title: '', xaxis: { title: 'Bodyweight (kg)' }, yaxis: { title: 'Weight (kg)' }, margin: { t: 20 }
+                }, 'No scatter plot data available');
                 
                 // Create DOTS scatter plot
                 const maleDotsData = data.dots_scatter_data.x.map((x, i) => ({
-                    x: x,
-                    y: data.dots_scatter_data.y[i],
-                    sex: data.dots_scatter_data.sex[i]
+                    x: x, y: data.dots_scatter_data.y[i], sex: data.dots_scatter_data.sex[i]
                 })).filter(d => d.sex === 'M');
                 
                 const femaleDotsData = data.dots_scatter_data.x.map((x, i) => ({
-                    x: x,
-                    y: data.dots_scatter_data.y[i],
-                    sex: data.dots_scatter_data.sex[i]
+                    x: x, y: data.dots_scatter_data.y[i], sex: data.dots_scatter_data.sex[i]
                 })).filter(d => d.sex === 'F');
                 
                 const dotsScatterTraces = [];
                 if (maleDotsData.length > 0) {
                     dotsScatterTraces.push({
-                        x: maleDotsData.map(d => d.x),
-                        y: maleDotsData.map(d => d.y),
-                        mode: 'markers',
-                        type: 'scatter',
-                        marker: { size: 3, opacity: 0.6, color: '#3498db' },
-                        name: 'Male'
+                        x: maleDotsData.map(d => d.x), y: maleDotsData.map(d => d.y),
+                        mode: 'markers', type: 'scatter',
+                        marker: { size: 3, opacity: 0.6, color: '#3498db' }, name: 'Male'
                     });
                 }
                 if (femaleDotsData.length > 0) {
                     dotsScatterTraces.push({
-                        x: femaleDotsData.map(d => d.x),
-                        y: femaleDotsData.map(d => d.y),
-                        mode: 'markers',
-                        type: 'scatter',
-                        marker: { size: 3, opacity: 0.6, color: '#e91e63' },
-                        name: 'Female'
+                        x: femaleDotsData.map(d => d.x), y: femaleDotsData.map(d => d.y),
+                        mode: 'markers', type: 'scatter',
+                        marker: { size: 3, opacity: 0.6, color: '#e91e63' }, name: 'Female'
                     });
                 }
                 
-                Plotly.newPlot('dotsScatter', dotsScatterTraces, {
-                    title: '',
-                    xaxis: { title: 'Bodyweight (kg)' },
-                    yaxis: { title: 'DOTS Score' },
-                    margin: { t: 20 }
-                });
+                const dotsScatterSuccess = createPlot('dotsScatter', dotsScatterTraces, {
+                    title: '', xaxis: { title: 'Bodyweight (kg)' }, yaxis: { title: 'DOTS Score' }, margin: { t: 20 }
+                }, 'No DOTS scatter data available - check DOTS calculations');
                 
                 // Show percentile comparison
                 let percentilesHtml = '';
@@ -388,7 +471,8 @@ pub const HTML_TEMPLATE: &str = r#"
                 }
                 document.getElementById('percentiles').innerHTML = percentilesHtml;
                 
-                // Show stats
+                // Show stats with DOTS status
+                const dotsStatus = dotsHistogramSuccess && dotsScatterSuccess ? '✅ Working' : '❌ No Data';
                 document.getElementById('stats').innerHTML = `
                     <div class="stats">
                         <div class="stat-card">
@@ -403,12 +487,22 @@ pub const HTML_TEMPLATE: &str = r#"
                             <div class="stat-value">${liftType.charAt(0).toUpperCase() + liftType.slice(1)}</div>
                             <div class="stat-label">Current Lift</div>
                         </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${dotsStatus}</div>
+                            <div class="stat-label">DOTS Charts</div>
+                        </div>
                     </div>
                 `;
                 
             } catch (error) {
                 console.error('Error:', error);
-                document.getElementById('stats').innerHTML = '<p>Error loading data</p>';
+                document.getElementById('stats').innerHTML = `<p style="color: red;">Error loading data: ${error.message}</p>`;
+                
+                // Show errors on all charts
+                showError('histogram', 'Failed to load data');
+                showError('dotsHistogram', 'Failed to load data');
+                showError('scatter', 'Failed to load data');
+                showError('dotsScatter', 'Failed to load data');
             }
         }
         

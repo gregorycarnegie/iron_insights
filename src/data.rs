@@ -1,4 +1,4 @@
-// data.rs - Enhanced with Parquet support
+// data.rs - Simplified with better error handling
 use polars::prelude::*;
 use polars::io::parquet::write::StatisticsOptions;
 use std::sync::Arc;
@@ -106,6 +106,7 @@ impl DataProcessor {
             .collect()?;
         
         let df = self.apply_sampling(df)?;
+        self.validate_dots_data(&df);
         
         println!("⚡ Loaded {} records from Parquet in {:?}", df.height(), start.elapsed());
         Ok(df)
@@ -114,7 +115,9 @@ impl DataProcessor {
     fn load_real_data(&self, path: &std::path::Path) -> PolarsResult<DataFrame> {
         let start = std::time::Instant::now();
         
-        // Define schema with proper float types for lift columns
+        println!("🔄 Reading CSV and calculating DOTS...");
+        
+        // Step 1: Load the basic data
         let schema = Schema::from_iter([
             Field::new("Name".into(), DataType::String),
             Field::new("Sex".into(), DataType::String),
@@ -126,7 +129,7 @@ impl DataProcessor {
             Field::new("TotalKg".into(), DataType::Float32),
         ]);
         
-        let df = LazyCsvReader::new(path)
+        let mut df = LazyCsvReader::new(path)
             .with_has_header(true)
             .with_separator(b',')
             .with_dtype_overwrite(Some(Arc::new(schema)))
@@ -145,36 +148,156 @@ impl DataProcessor {
                 col("TotalKg"),
             ])
             .filter(
-                col("Best3SquatKg").gt(0)
-                    .and(col("Best3BenchKg").gt(0))
-                    .and(col("Best3DeadliftKg").gt(0))
+                col("Best3SquatKg").gt(0.0)
+                    .and(col("Best3BenchKg").gt(0.0))
+                    .and(col("Best3DeadliftKg").gt(0.0))
+                    .and(col("BodyweightKg").gt(30.0))
+                    .and(col("BodyweightKg").lt(300.0))
+                    .and(col("TotalKg").gt(0.0))
             )
-            .filter(col("BodyweightKg").gt(0))
+            .collect()?;
+
+        println!("✅ Loaded {} records, now calculating DOTS scores...", df.height());
+
+        // Step 2: Add weight class and DOTS calculations
+        df = df
+            .lazy()
             .with_columns([
                 calculate_weight_class_expr(),
-                calculate_dots_expr("Best3SquatKg", "SquatDOTS"),
-                calculate_dots_expr("Best3BenchKg", "BenchDOTS"), 
-                calculate_dots_expr("Best3DeadliftKg", "DeadliftDOTS"),
-                calculate_dots_expr("TotalKg", "TotalDOTS"),
             ])
             .collect()?;
-        
+
+        println!("✅ Weight classes calculated, adding DOTS...");
+
+        // Step 3: Add DOTS calculations one by one to catch errors
+        df = df
+            .lazy()
+            .with_columns([
+                calculate_dots_expr("Best3SquatKg", "SquatDOTS"),
+            ])
+            .collect()
+            .map_err(|e| {
+                println!("❌ Error calculating SquatDOTS: {}", e);
+                e
+            })?;
+
+        println!("✅ SquatDOTS calculated");
+
+        df = df
+            .lazy()
+            .with_columns([
+                calculate_dots_expr("Best3BenchKg", "BenchDOTS"),
+            ])
+            .collect()
+            .map_err(|e| {
+                println!("❌ Error calculating BenchDOTS: {}", e);
+                e
+            })?;
+
+        println!("✅ BenchDOTS calculated");
+
+        df = df
+            .lazy()
+            .with_columns([
+                calculate_dots_expr("Best3DeadliftKg", "DeadliftDOTS"),
+            ])
+            .collect()
+            .map_err(|e| {
+                println!("❌ Error calculating DeadliftDOTS: {}", e);
+                e
+            })?;
+
+        println!("✅ DeadliftDOTS calculated");
+
+        df = df
+            .lazy()
+            .with_columns([
+                calculate_dots_expr("TotalKg", "TotalDOTS"),
+            ])
+            .collect()
+            .map_err(|e| {
+                println!("❌ Error calculating TotalDOTS: {}", e);
+                e
+            })?;
+
+        println!("✅ TotalDOTS calculated");
+
+        // Step 4: Filter out any invalid DOTS values
+        df = df
+            .lazy()
+            .filter(
+                col("SquatDOTS").is_finite()
+                    .and(col("BenchDOTS").is_finite())
+                    .and(col("DeadliftDOTS").is_finite())
+                    .and(col("TotalDOTS").is_finite())
+                    .and(col("SquatDOTS").gt(0.0))
+                    .and(col("BenchDOTS").gt(0.0))
+                    .and(col("DeadliftDOTS").gt(0.0))
+                    .and(col("TotalDOTS").gt(0.0))
+            )
+            .collect()?;
+
+        self.validate_dots_data(&df);
         let df = self.apply_sampling(df)?;
         
         println!("✅ Processed {} records from CSV in {:?}", df.height(), start.elapsed());
         Ok(df)
     }
     
+    fn validate_dots_data(&self, df: &DataFrame) {
+        println!("🔍 Validating DOTS data...");
+        
+        // Check each DOTS column
+        for (lift_name, column_name) in [
+            ("Squat", "SquatDOTS"),
+            ("Bench", "BenchDOTS"),
+            ("Deadlift", "DeadliftDOTS"),
+            ("Total", "TotalDOTS"),
+        ] {
+            if let Ok(column) = df.column(column_name) {
+                if let Ok(f32_series) = column.f32() {
+                    let all_count = f32_series.len();
+                    let null_count = f32_series.null_count();
+                    let finite_count = f32_series.into_no_null_iter()
+                        .filter(|&x| x.is_finite())
+                        .count();
+                    let positive_count = f32_series.into_no_null_iter()
+                        .filter(|&x| x.is_finite() && x > 0.0)
+                        .count();
+                    let reasonable_count = f32_series.into_no_null_iter()
+                        .filter(|&x| x.is_finite() && x > 0.0 && x < 1000.0)
+                        .count();
+                    
+                    println!("📊 {} DOTS: {} total, {} null, {} finite, {} positive, {} reasonable",
+                        lift_name, all_count, null_count, finite_count, positive_count, reasonable_count);
+                    
+                    if reasonable_count > 0 {
+                        let values: Vec<f32> = f32_series.into_no_null_iter()
+                            .filter(|&x| x.is_finite() && x > 0.0 && x < 1000.0)
+                            .collect();
+                        let avg = values.iter().sum::<f32>() / values.len() as f32;
+                        let min = values.iter().cloned().fold(f32::INFINITY, f32::min);
+                        let max = values.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+                        println!("📈 {} DOTS range: {:.1} - {:.1}, avg: {:.1}", 
+                            lift_name, min, max, avg);
+                    }
+                } else {
+                    println!("❌ {} DOTS column is not f32 type", lift_name);
+                }
+            } else {
+                println!("❌ {} DOTS column not found", lift_name);
+            }
+        }
+    }
+    
     fn save_as_parquet(&self, df: &DataFrame, csv_path: &std::path::Path) -> PolarsResult<()> {
         std::fs::create_dir_all("data")?;
         
-        // Convert CSV filename to Parquet
-        // openpowerlifting-2024-01-15-abcd1234.csv -> openpowerlifting-2024-01-15-abcd1234.parquet
         let csv_filename = csv_path.file_stem().unwrap().to_str().unwrap();
         let parquet_path = format!("data/{}.parquet", csv_filename);
         
         let mut file = std::fs::File::create(&parquet_path)?;
-        let mut df_mut = df.clone(); // Clone to get mutable reference
+        let mut df_mut = df.clone();
         ParquetWriter::new(&mut file)
             .with_compression(ParquetCompression::Snappy)
             .with_statistics(StatisticsOptions::default())
@@ -193,9 +316,7 @@ impl DataProcessor {
         }
     }
     
-    // ... rest of the methods remain the same
     fn create_sample_data(&self) -> PolarsResult<DataFrame> {
-        // Same implementation as before
         use rand::prelude::*;
         use rand::seq::SliceRandom;
         
@@ -215,20 +336,17 @@ impl DataProcessor {
         }
         
         let df = data.build()?;
+        self.validate_dots_data(&df);
         
         println!("✅ Generated {} sample records with DOTS scoring", df.height());
         Ok(df)
     }
-}
 
-// Add a utility function for manual CSV to Parquet conversion
-impl DataProcessor {
     pub fn convert_csv_to_parquet(&self, csv_path: &str, parquet_path: Option<&str>) -> PolarsResult<()> {
         let csv_path_buf = std::path::Path::new(csv_path);
         let output_path = if let Some(path) = parquet_path {
             path.to_string()
         } else {
-            // Auto-generate parquet name from CSV name
             let csv_filename = csv_path_buf.file_stem().unwrap().to_str().unwrap();
             format!("{}.parquet", csv_filename)
         };
@@ -239,7 +357,7 @@ impl DataProcessor {
         let df = self.load_real_data(csv_path_buf)?;
         
         let mut file = std::fs::File::create(&output_path)?;
-        let mut df_mut = df.clone(); // Clone to get mutable reference
+        let mut df_mut = df.clone();
         ParquetWriter::new(&mut file)
             .with_compression(ParquetCompression::Snappy)
             .with_statistics(StatisticsOptions::default())
@@ -248,7 +366,6 @@ impl DataProcessor {
         println!("✅ Conversion completed in {:?}", start.elapsed());
         println!("📊 Original records: {}", df.height());
         
-        // Compare file sizes
         if let (Ok(csv_meta), Ok(parquet_meta)) = (
             std::fs::metadata(csv_path),
             std::fs::metadata(&output_path)
@@ -265,7 +382,6 @@ impl DataProcessor {
     }
 }
 
-// Keep the existing helper structs
 struct SampleDataBuilder {
     names: Vec<String>,
     sexes: Vec<String>,
@@ -331,7 +447,7 @@ impl SampleDataBuilder {
     }
     
     fn build(self) -> PolarsResult<DataFrame> {
-        df! {
+        let df = df! {
             "Name" => self.names,
             "Sex" => self.sexes,
             "Equipment" => self.equipment,
@@ -340,16 +456,25 @@ impl SampleDataBuilder {
             "Best3BenchKg" => self.benches,
             "Best3DeadliftKg" => self.deadlifts,
             "TotalKg" => self.totals,
-        }?
-        .lazy()
-        .with_columns([
-            calculate_weight_class_expr(),
-            calculate_dots_expr("Best3SquatKg", "SquatDOTS"),
-            calculate_dots_expr("Best3BenchKg", "BenchDOTS"), 
-            calculate_dots_expr("Best3DeadliftKg", "DeadliftDOTS"),
-            calculate_dots_expr("TotalKg", "TotalDOTS"),
-        ])
-        .collect()
+        }?;
+
+        // Add calculations step by step
+        let df = df
+            .lazy()
+            .with_columns([calculate_weight_class_expr()])
+            .collect()?;
+
+        let df = df
+            .lazy()
+            .with_columns([
+                calculate_dots_expr("Best3SquatKg", "SquatDOTS"),
+                calculate_dots_expr("Best3BenchKg", "BenchDOTS"), 
+                calculate_dots_expr("Best3DeadliftKg", "DeadliftDOTS"),
+                calculate_dots_expr("TotalKg", "TotalDOTS"),
+            ])
+            .collect()?;
+
+        Ok(df)
     }
 }
 

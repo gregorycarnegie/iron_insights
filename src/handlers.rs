@@ -1,4 +1,4 @@
-// handlers.rs
+// handlers.rs - Fixed with better DOTS data handling and debugging
 use axum::{
     extract::State,
     http::StatusCode,
@@ -33,6 +33,26 @@ pub async fn create_visualizations(
     // Apply filters
     let filtered_data = apply_filters_fast(&state.data, &params);
     
+    // Debug: Print filtered data info
+    println!("🔍 Filtered data: {} records", filtered_data.height());
+    if filtered_data.height() > 0 {
+        // Check if DOTS columns exist and have valid data
+        for col_name in ["SquatDOTS", "BenchDOTS", "DeadliftDOTS", "TotalDOTS"] {
+            if let Ok(col) = filtered_data.column(col_name) {
+                if let Ok(f32_series) = col.f32() {
+                    let valid_count = f32_series.into_no_null_iter()
+                        .filter(|&x| x.is_finite() && x > 0.0)
+                        .count();
+                    println!("📊 {}: {} valid values", col_name, valid_count);
+                } else {
+                    println!("❌ {} column is not f32", col_name);
+                }
+            } else {
+                println!("❌ {} column missing", col_name);
+            }
+        }
+    }
+    
     // Determine which lift to visualize (default to squat)
     let lift_type = LiftType::from_str(params.lift_type.as_deref().unwrap_or("squat"));
     
@@ -41,6 +61,13 @@ pub async fn create_visualizations(
     let scatter_data = create_scatter_data(&filtered_data, &lift_type, false);
     let dots_histogram_data = create_histogram_data(&filtered_data, &lift_type, true);
     let dots_scatter_data = create_scatter_data(&filtered_data, &lift_type, true);
+    
+    // Debug DOTS data
+    println!("📈 Raw histogram: {} values", histogram_data.values.len());
+    println!("📈 DOTS histogram: {} values", dots_histogram_data.values.len());
+    println!("📊 Raw scatter: {} points", scatter_data.x.len());
+    println!("📊 DOTS scatter: {} points", dots_scatter_data.x.len());
+    
     let user_percentile = calculate_user_percentile(&filtered_data, &params, &lift_type);
     let user_dots_percentile = calculate_user_percentile_dots(&filtered_data, &params, &lift_type);
     
@@ -70,11 +97,31 @@ pub async fn serve_index() -> Html<&'static str> {
 }
 
 pub async fn get_stats(State(state): State<AppState>) -> Json<serde_json::Value> {
+    // Add more detailed stats including DOTS data health
+    let mut dots_stats = std::collections::HashMap::new();
+    
+    for (lift, col) in [
+        ("squat", "SquatDOTS"),
+        ("bench", "BenchDOTS"), 
+        ("deadlift", "DeadliftDOTS"),
+        ("total", "TotalDOTS")
+    ] {
+        if let Ok(column) = state.data.column(col) {
+            if let Ok(f32_series) = column.f32() {
+                let valid_count = f32_series.into_no_null_iter()
+                    .filter(|&x| x.is_finite() && x > 0.0)
+                    .count();
+                dots_stats.insert(lift, valid_count);
+            }
+        }
+    }
+    
     serde_json::json!({
         "total_records": state.data.height(),
         "cache_size": state.cache.entry_count(),
         "scoring_system": "DOTS",
-        "uptime": "running"
+        "uptime": "running",
+        "dots_valid_records": dots_stats
     }).into()
 }
 
@@ -98,7 +145,22 @@ fn apply_filters_fast(data: &DataFrame, params: &FilterParams) -> DataFrame {
         }
     }
     
-    df.collect().unwrap_or_else(|_| data.clone())
+    // IMPORTANT: Filter out invalid DOTS values that might cause plotting issues
+    df = df.filter(
+        col("BodyweightKg").gt(0.0)
+            .and(col("BodyweightKg").lt(300.0)) // Reasonable bodyweight range
+            .and(col("Best3SquatKg").gt(0.0))
+            .and(col("Best3BenchKg").gt(0.0))
+            .and(col("Best3DeadliftKg").gt(0.0))
+    );
+    
+    let result = df.collect().unwrap_or_else(|e| {
+        println!("❌ Filter error: {}", e);
+        data.clone()
+    });
+    
+    println!("🔍 Applied filters: {} -> {} records", data.height(), result.height());
+    result
 }
 
 fn create_histogram_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool) -> HistogramData {
@@ -108,15 +170,30 @@ fn create_histogram_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool)
         lift_type.raw_column()
     };
     
+    println!("📊 Creating histogram for column: {}", column);
+    
     let values: Vec<f32> = data.column(column)
         .map(|col| {
             col.f32()
-                .map(|s| s.into_no_null_iter().filter(|&x| x > 0.0).collect())
-                .unwrap_or_default()
+                .map(|s| {
+                    let filtered: Vec<f32> = s.into_no_null_iter()
+                        .filter(|&x| x.is_finite() && x > 0.0)
+                        .collect();
+                    println!("📈 Column {}: {} valid values (finite and > 0)", column, filtered.len());
+                    filtered
+                })
+                .unwrap_or_else(|e| {
+                    println!("❌ Error reading column {}: {}", column, e);
+                    vec![]
+                })
         })
-        .unwrap_or_default();
+        .unwrap_or_else(|e| {
+            println!("❌ Column {} not found: {}", column, e);
+            vec![]
+        });
     
     if values.is_empty() {
+        println!("⚠️  No valid data for histogram in column: {}", column);
         return HistogramData { 
             values: vec![], 
             counts: vec![], 
@@ -131,6 +208,8 @@ fn create_histogram_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool)
         .fold(|| (f32::INFINITY, f32::NEG_INFINITY), |acc, &x| (acc.0.min(x), acc.1.max(x)))
         .reduce(|| (f32::INFINITY, f32::NEG_INFINITY), |a, b| (a.0.min(b.0), a.1.max(b.1)));
 
+    println!("📊 Range for {}: {:.1} - {:.1}", column, min_val, max_val);
+    
     let num_bins = 50;
     let bin_width = (max_val - min_val) / num_bins as f32;
     let mut bins = vec![0u32; num_bins];
@@ -145,6 +224,8 @@ fn create_histogram_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool)
     let bin_edges: Vec<f32> = (0..=num_bins)
         .map(|i| min_val + i as f32 * bin_width)
         .collect();
+    
+    println!("✅ Histogram created with {} values, {} bins", values.len(), bins.len());
     
     HistogramData {
         values,
@@ -162,12 +243,24 @@ fn create_scatter_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool) -
         lift_type.raw_column()
     };
 
+    println!("📊 Creating scatter plot for column: {}", y_column);
+
     let bodyweight: Vec<f32> = data.column("BodyweightKg")
         .map(|col| col.f32().map(|s| s.into_no_null_iter().collect()).unwrap_or_default())
         .unwrap_or_default();
 
     let y_values: Vec<f32> = data.column(y_column)
-        .map(|col| col.f32().map(|s| s.into_no_null_iter().collect()).unwrap_or_default())
+        .map(|col| {
+            col.f32()
+                .map(|s| {
+                    let values: Vec<f32> = s.into_no_null_iter()
+                        .filter(|&x| x.is_finite() && x > 0.0)
+                        .collect();
+                    println!("📊 Scatter Y values ({}): {} valid", y_column, values.len());
+                    values
+                })
+                .unwrap_or_default()
+        })
         .unwrap_or_default();
     
     let sex: Vec<String> = data.column("Sex")
@@ -178,10 +271,16 @@ fn create_scatter_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool) -
         })
         .unwrap_or_default();
     
+    // Ensure all vectors have the same length by taking the minimum
+    let min_len = bodyweight.len().min(y_values.len()).min(sex.len());
+    
+    println!("📊 Scatter data lengths - BW: {}, Y: {}, Sex: {}, Min: {}", 
+             bodyweight.len(), y_values.len(), sex.len(), min_len);
+    
     ScatterData {
-        x: bodyweight,
-        y: y_values,
-        sex,
+        x: bodyweight.into_iter().take(min_len).collect(),
+        y: y_values.into_iter().take(min_len).collect(),
+        sex: sex.into_iter().take(min_len).collect(),
     }
 }
 
@@ -216,13 +315,18 @@ fn calculate_user_percentile_dots(data: &DataFrame, params: &FilterParams, lift_
     let user_dots = calculate_dots_score(user_lift, user_bodyweight);
     let dots_column = lift_type.dots_column();
 
+    println!("🎯 User DOTS calculation: lift={}, bw={}, dots={:.2}", 
+             user_lift, user_bodyweight, user_dots);
+
     let dots_values: Vec<f32> = data.column(dots_column)
         .ok()?
         .f32()
         .ok()?
         .into_no_null_iter()
-        .filter(|&x| x > 0.0)
+        .filter(|&x| x.is_finite() && x > 0.0)
         .collect();
+
+    println!("📊 DOTS percentile calculation: {} valid values", dots_values.len());
 
     if dots_values.is_empty() {
         return None;
@@ -233,6 +337,7 @@ fn calculate_user_percentile_dots(data: &DataFrame, params: &FilterParams, lift_
         .count();
 
     let percentile = (below_count as f32 / dots_values.len() as f32) * 100.0 as f32;
+    println!("📊 User DOTS percentile: {:.1}%", percentile);
     Some(percentile.round())
 }
 
