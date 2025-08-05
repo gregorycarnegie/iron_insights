@@ -365,13 +365,35 @@ pub const HTML_TEMPLATE: &str = r#"
                 }
                 
                 // Create raw weight histogram
-                const histogramSuccess = createPlot('histogram', [{
+                const histogramTraces = [{
                     x: data.histogram_data.values,
                     type: 'histogram',
                     nbinsx: 50,
                     name: 'Distribution',
                     marker: { color: '#3498db' }
-                }], {
+                }];
+                
+                // Add user input indicator line if user has entered a lift value
+                if (userLift && !isNaN(userLift)) {
+                    // Calculate approximate max height for the line
+                    const maxValue = Math.max(...data.histogram_data.values);
+                    const minValue = Math.min(...data.histogram_data.values);
+                    const range = maxValue - minValue;
+                    const binSize = range / 50; // nbinsx is 50
+                    const estimatedMaxCount = data.histogram_data.values.length / 10; // Rough estimate
+                    
+                    histogramTraces.push({
+                        x: [userLift, userLift],
+                        y: [0, estimatedMaxCount],
+                        mode: 'lines',
+                        type: 'scatter',
+                        name: 'Your Lift',
+                        line: { color: '#e74c3c', width: 3, dash: 'dash' },
+                        showlegend: true
+                    });
+                }
+                
+                const histogramSuccess = createPlot('histogram', histogramTraces, {
                     title: '',
                     xaxis: { title: 'Weight (kg)' },
                     yaxis: { title: 'Frequency' },
@@ -379,13 +401,32 @@ pub const HTML_TEMPLATE: &str = r#"
                 }, 'No raw weight data available for this lift type');
                 
                 // Create DOTS histogram
-                const dotsHistogramSuccess = createPlot('dotsHistogram', [{
+                const dotsHistogramTraces = [{
                     x: data.dots_histogram_data.values,
                     type: 'histogram',
                     nbinsx: 50,
                     name: 'DOTS Distribution',
                     marker: { color: '#e74c3c' }
-                }], {
+                }];
+                
+                // Add user DOTS score indicator line if user has entered values
+                if (userLift && bodyweight && !isNaN(userLift) && !isNaN(bodyweight)) {
+                    const userDotsScore = calculateDOTS(userLift, bodyweight);
+                    // Calculate approximate max height for the line
+                    const estimatedMaxCount = data.dots_histogram_data.values.length / 10; // Rough estimate
+                    
+                    dotsHistogramTraces.push({
+                        x: [userDotsScore, userDotsScore],
+                        y: [0, estimatedMaxCount],
+                        mode: 'lines',
+                        type: 'scatter',
+                        name: 'Your DOTS',
+                        line: { color: '#f39c12', width: 3, dash: 'dash' },
+                        showlegend: true
+                    });
+                }
+                
+                const dotsHistogramSuccess = createPlot('dotsHistogram', dotsHistogramTraces, {
                     title: '',
                     xaxis: { title: 'DOTS Score' },
                     yaxis: { title: 'Frequency' },
@@ -417,6 +458,24 @@ pub const HTML_TEMPLATE: &str = r#"
                     });
                 }
                 
+                // Add user point to scatter plot if both values are provided
+                if (bodyweight && userLift && !isNaN(bodyweight) && !isNaN(userLift)) {
+                    scatterTraces.push({
+                        x: [bodyweight],
+                        y: [userLift],
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: 'Your Lift',
+                        marker: { 
+                            size: 12, 
+                            color: '#e74c3c', 
+                            symbol: 'star',
+                            line: { width: 2, color: '#fff' }
+                        },
+                        showlegend: true
+                    });
+                }
+                
                 const scatterSuccess = createPlot('scatter', scatterTraces, {
                     title: '', xaxis: { title: 'Bodyweight (kg)' }, yaxis: { title: 'Weight (kg)' }, margin: { t: 20 }
                 }, 'No scatter plot data available');
@@ -443,6 +502,25 @@ pub const HTML_TEMPLATE: &str = r#"
                         x: femaleDotsData.map(d => d.x), y: femaleDotsData.map(d => d.y),
                         mode: 'markers', type: 'scatter',
                         marker: { size: 3, opacity: 0.6, color: '#e91e63' }, name: 'Female'
+                    });
+                }
+                
+                // Add user point to DOTS scatter plot if both values are provided
+                if (bodyweight && userLift && !isNaN(bodyweight) && !isNaN(userLift)) {
+                    const userDotsScore = calculateDOTS(userLift, bodyweight);
+                    dotsScatterTraces.push({
+                        x: [bodyweight],
+                        y: [userDotsScore],
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: 'Your DOTS',
+                        marker: { 
+                            size: 12, 
+                            color: '#f39c12', 
+                            symbol: 'star',
+                            line: { width: 2, color: '#fff' }
+                        },
+                        showlegend: true
                     });
                 }
                 
