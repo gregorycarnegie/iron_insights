@@ -34,7 +34,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Starting Iron Insights - High-Performance Powerlifting Analyzer with DOTS...");
     
     let config = AppConfig::default();
-    let data_processor = DataProcessor::new();
+    let data_processor = DataProcessor::new()
+        .with_sample_size(config.sample_size);
     
     // Check for data updates first
     println!("🔄 Checking for OpenPowerlifting data updates...");

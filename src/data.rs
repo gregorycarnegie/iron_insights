@@ -472,7 +472,6 @@ impl DataProcessor {
     
     fn create_sample_data(&self) -> PolarsResult<DataFrame> {
         use rand::prelude::*;
-        use rand::seq::SliceRandom;
         
         println!("🎯 Creating sample powerlifting data for demo...");
         
