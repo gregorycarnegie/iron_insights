@@ -2,6 +2,7 @@
 use polars::prelude::*;
 use polars::io::parquet::write::StatisticsOptions;
 use std::sync::Arc;
+use std::path::Path;
 use crate::scoring::{calculate_dots_expr, calculate_weight_class_expr};
 
 pub struct DataProcessor {
@@ -47,6 +48,159 @@ impl DataProcessor {
         // Generate sample data
         println!("⚠️  No data files found - generating sample data");
         self.create_sample_data()
+    }
+    
+    pub async fn check_and_update_data(&self) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        println!("🔍 Checking for OpenPowerlifting data updates...");
+        
+        let current_revision = self.get_current_revision();
+        let latest_revision = self.fetch_latest_revision().await?;
+        
+        println!("📊 Current revision: {:?}", current_revision);
+        println!("🌐 Latest revision: {}", latest_revision);
+        
+        if current_revision.as_ref() != Some(&latest_revision) {
+            println!("📥 New data available! Downloading...");
+            self.download_and_extract_data().await?;
+            println!("✅ Data updated successfully!");
+            return Ok(true);
+        } else {
+            println!("✅ Data is up to date!");
+            return Ok(false);
+        }
+    }
+    
+    fn get_current_revision(&self) -> Option<String> {
+        // Extract revision from current CSV filename
+        if let Some(csv_path) = self.find_csv_file() {
+            let filename = csv_path.file_name()?.to_str()?;
+            // Extract revision from format: openpowerlifting-YYYY-MM-DD-REVISION.csv
+            if let Some(revision_part) = filename.strip_prefix("openpowerlifting-")?.strip_suffix(".csv") {
+                if let Some(revision) = revision_part.split('-').last() {
+                    return Some(revision.to_string());
+                }
+            }
+        }
+        None
+    }
+    
+    async fn fetch_latest_revision(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        use scraper::{Html, Selector};
+        
+        let url = "https://openpowerlifting.gitlab.io/opl-csv/bulk-csv.html";
+        let client = reqwest::Client::new();
+        let response = client.get(url).send().await?;
+        let html = response.text().await?;
+        
+        let document = Html::parse_document(&html);
+        
+        // Look for <li> elements that contain "Revision:" text
+        let li_selector = Selector::parse("li").map_err(|e| format!("CSS selector error: {:?}", e))?;
+        
+        for li_element in document.select(&li_selector) {
+            let text = li_element.text().collect::<Vec<_>>().join(" ");
+            
+            // Check if this <li> contains "Revision:"
+            if text.trim().starts_with("Revision:") {
+                // Look for a link within this <li> element
+                let link_selector = Selector::parse("a").map_err(|e| format!("CSS selector error: {:?}", e))?;
+                
+                if let Some(link) = li_element.select(&link_selector).next() {
+                    let revision = link.text().collect::<String>();
+                    println!("🔍 Found revision in HTML: {}", revision);
+                    return Ok(revision);
+                }
+            }
+        }
+        
+        // If we can't find the revision, we should fail rather than generate one
+        Err("Could not find revision number on OpenPowerlifting website. Please check the site structure or try again later.".into())
+    }
+    
+    async fn download_and_extract_data(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        use tokio::fs::File;
+        use tokio::io::AsyncWriteExt;
+        
+        // First, get the actual revision from the website
+        let revision = self.fetch_latest_revision().await?;
+        
+        let url = "https://openpowerlifting.gitlab.io/opl-csv/files/openpowerlifting-latest.zip";
+        let client = reqwest::Client::new();
+        
+        println!("📥 Downloading: {}", url);
+        let response = client.get(url).send().await?;
+        let zip_data = response.bytes().await?;
+        
+        // Save zip temporarily
+        std::fs::create_dir_all("data")?;
+        let zip_path = "data/openpowerlifting-latest.zip";
+        let mut zip_file = File::create(zip_path).await?;
+        zip_file.write_all(&zip_data).await?;
+        zip_file.sync_all().await?;
+        drop(zip_file);
+        
+        // Extract CSV from zip using the actual revision
+        self.extract_csv_from_zip(zip_path, &revision).await?;
+        
+        // Clean up zip file
+        tokio::fs::remove_file(zip_path).await?;
+        
+        Ok(())
+    }
+    
+    async fn extract_csv_from_zip(&self, zip_path: &str, revision: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        use std::fs::File;
+        use std::io::Read;
+        use ::zip::read::ZipArchive;
+        
+        let file = File::open(zip_path)?;
+        let mut archive = ZipArchive::new(file)?;
+        
+        // Find the CSV file in the archive
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)?;
+            if file.name().ends_with(".csv") && file.name().contains("openpowerlifting") {
+                let mut contents = Vec::new();
+                file.read_to_end(&mut contents)?;
+                
+                // Generate filename with today's date and the actual revision from the website
+                use chrono::Utc;
+                let date_str = Utc::now().format("%Y-%m-%d").to_string();
+                let csv_filename = format!("data/openpowerlifting-{}-{}.csv", date_str, revision);
+                
+                // Remove old files
+                self.cleanup_old_data_files()?;
+                
+                // Write new CSV
+                std::fs::write(&csv_filename, contents)?;
+                println!("📁 Extracted to: {}", csv_filename);
+                break;
+            }
+        }
+        
+        Ok(())
+    }
+    
+    fn cleanup_old_data_files(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let data_dir = Path::new("data");
+        if !data_dir.exists() {
+            return Ok(());
+        }
+        
+        let entries = std::fs::read_dir(data_dir)?;
+        for entry in entries {
+            let entry = entry?;
+            let path = entry.path();
+            if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+                if filename.starts_with("openpowerlifting-") && 
+                   (filename.ends_with(".csv") || filename.ends_with(".parquet")) {
+                    println!("🗑️  Removing old file: {}", filename);
+                    std::fs::remove_file(&path)?;
+                }
+            }
+        }
+        
+        Ok(())
     }
     
     fn find_parquet_file(&self) -> Option<std::path::PathBuf> {
@@ -381,6 +535,7 @@ impl DataProcessor {
         Ok(())
     }
 }
+
 
 struct SampleDataBuilder {
     names: Vec<String>,

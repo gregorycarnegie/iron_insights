@@ -25,11 +25,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return handle_convert_command(&args).await;
     }
     
+    // Handle update command
+    if args.len() >= 2 && args[1] == "update" {
+        return handle_update_command().await;
+    }
+    
     // Normal server startup
     println!("🚀 Starting Iron Insights - High-Performance Powerlifting Analyzer with DOTS...");
     
     let config = AppConfig::default();
     let data_processor = DataProcessor::new();
+    
+    // Check for data updates first
+    println!("🔄 Checking for OpenPowerlifting data updates...");
+    match data_processor.check_and_update_data().await {
+        Ok(updated) => {
+            if updated {
+                println!("✅ Data has been updated to latest version!");
+            } else {
+                println!("✅ Using current data (already up to date)");
+            }
+        }
+        Err(e) => {
+            println!("⚠️  Could not check for updates: {}", e);
+            println!("📦 Continuing with existing data...");
+        }
+    }
     
     let start = std::time::Instant::now();
     let data = tokio::task::spawn_blocking(move || data_processor.load_and_preprocess_data()).await??;
@@ -47,8 +68,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     println!("🌐 Server running on http://localhost:3000");
-    println!("💡 Place your openpowerlifting-*.csv in /data/ directory");
-    println!("⚡ Parquet files will be auto-generated for faster subsequent loads");
+    println!("💡 Data updates are checked automatically on startup");
+    println!("📋 Commands available:");
+    println!("   {} update          - Manually check and download latest OpenPowerlifting data", args[0]);
+    println!("   {} convert <csv>   - Convert CSV to Parquet format for faster loading", args[0]);
     
     axum::serve(listener, app).await?;
     Ok(())
@@ -85,6 +108,31 @@ async fn handle_convert_command(args: &[String]) -> Result<(), Box<dyn std::erro
     
     println!("✅ Conversion completed successfully!");
     println!("💡 Next time you start the server, it will automatically use the Parquet file for faster loading");
+    
+    Ok(())
+}
+
+async fn handle_update_command() -> Result<(), Box<dyn std::error::Error>> {
+    println!("🔄 Manually updating OpenPowerlifting data...");
+    
+    let data_processor = DataProcessor::new();
+    
+    match data_processor.check_and_update_data().await {
+        Ok(updated) => {
+            if updated {
+                println!("✅ Data has been updated to latest version!");
+                println!("🚀 You can now restart the server to use the new data.");
+            } else {
+                println!("✅ Data is already up to date!");
+                println!("📊 No update needed.");
+            }
+        }
+        Err(e) => {
+            println!("❌ Failed to update data: {}", e);
+            println!("🌐 Please check your internet connection and try again.");
+            std::process::exit(1);
+        }
+    }
     
     Ok(())
 }

@@ -31,6 +31,15 @@ serde_json = "1.0"
 # Caching
 moka = { version = "0.12", features = ["future"] }
 
+# HTTP client for downloading data
+reqwest = { version = "0.12", features = ["stream"] }
+
+# HTML parsing for revision checking
+scraper = "0.23.1"
+
+# Zip extraction
+zip = "4.3.0"
+
 # Static file serving
 tower = "0.5.2"
 tower-http = { version = "0.6", features = ["fs", "compression-br", "compression-gzip"] }
