@@ -72,7 +72,7 @@ For real data analysis, download the OpenPowerlifting dataset:
 
 1. **Download CSV data**
    - Visit [OpenPowerlifting Bulk CSV](https://openpowerlifting.gitlab.io/opl-csv/bulk-csv.html)
-   - Download the latest `openpowerlifting-YYYY-MM-DD-hash.csv` file
+   - Download the latest `openpowerlifting-YYYY-MM-DD-REVISION.csv` file
 
 2. **Place in data directory**
 
@@ -322,4 +322,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## Built with ❤️ and ⚡ by the Iron Insights team
+## Vibe coded with ❤️ and ⚡ by the Iron Insights team
