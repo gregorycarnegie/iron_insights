@@ -8,6 +8,13 @@ A blazing-fast web application for analyzing powerlifting performance data using
 ![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?style=for-the-badge&logo=WebAssembly&logoColor=white)
 ![Chart.js](https://img.shields.io/badge/chart.js-F5788D.svg?style=for-the-badge&logo=chart.js&logoColor=white)
 
+### 🚀 **WebAssembly Integration**
+
+- **⚡ Instant calculations** - Client-side DOTS calculations using compiled Rust
+- **🎯 Strength classification** - Real-time strength level assessment (Beginner to World Class)
+- **🔧 Consistent precision** - Same calculation logic on client and server
+- **📱 Responsive UI** - Immediate feedback when users enter their lifts
+
 ## ✨ Features
 
 ### 🎯 **Modern DOTS Scoring**

@@ -6,7 +6,7 @@ pub const HTML_TEMPLATE: &str = r#"
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iron Insights - Powerlifting Analytics with DOTS</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-3.0.3.min.js"></script>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
@@ -148,6 +148,46 @@ pub const HTML_TEMPLATE: &str = r#"
             color: #666;
             margin-top: 5px;
         }
+        .strength-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+            color: white;
+            margin: 10px 0;
+            text-align: center;
+        }
+        .user-input-section {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .user-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .metric-display {
+            text-align: center;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .metric-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
         .percentile-comparison {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -261,6 +301,21 @@ pub const HTML_TEMPLATE: &str = r#"
             </div>
         </div>
         
+        <div id="userMetrics" class="user-input-section" style="display: none;">
+            <h3>Your Performance</h3>
+            <div id="strengthBadge"></div>
+            <div class="user-metrics">
+                <div class="metric-display">
+                    <div id="userDotsValue" class="metric-value">-</div>
+                    <div class="metric-label">DOTS Score</div>
+                </div>
+                <div class="metric-display">
+                    <div id="userStrengthLevel" class="metric-value">-</div>
+                    <div class="metric-label">Strength Level</div>
+                </div>
+            </div>
+        </div>
+        
         <div id="percentiles"></div>
         <div id="stats"></div>
     </div>
@@ -268,6 +323,32 @@ pub const HTML_TEMPLATE: &str = r#"
     <script>
         let debugMode = false;
         let lastResponse = null;
+        let wasmModule = null;
+        let calculate_dots_wasm = null;
+        let calculate_strength_level_wasm = null;
+        let get_strength_level_color_wasm = null;
+        let calculate_dots_and_level_wasm = null;
+        
+        // Initialize WASM module
+        async function initWasm() {
+            try {
+                const wasmModule = await import('/static/wasm/iron_insights_wasm.js');
+                await wasmModule.default();
+                
+                // Store WASM functions globally
+                calculate_dots_wasm = wasmModule.calculate_dots;
+                calculate_strength_level_wasm = wasmModule.calculate_strength_level;
+                get_strength_level_color_wasm = wasmModule.get_strength_level_color;
+                calculate_dots_and_level_wasm = wasmModule.calculate_dots_and_level;
+                
+                console.log('✅ WASM module loaded successfully');
+                return true;
+            } catch (error) {
+                console.error('❌ Failed to load WASM module:', error);
+                console.log('📋 Falling back to JavaScript implementation');
+                return false;
+            }
+        }
         
         function toggleDebug() {
             debugMode = !debugMode;
@@ -283,17 +364,15 @@ pub const HTML_TEMPLATE: &str = r#"
             if (!debugMode) return;
             
             const debugInfo = document.getElementById('debugInfo');
-            debugInfo.innerHTML = `
-                <strong>Debug Information:</strong><br>
-                Raw histogram values: ${data.histogram_data.values.length}<br>
-                DOTS histogram values: ${data.dots_histogram_data.values.length}<br>
-                Raw scatter points: ${data.scatter_data.x.length}<br>
-                DOTS scatter points: ${data.dots_scatter_data.x.length}<br>
-                Processing time: ${data.processing_time_ms}ms<br>
-                Total records: ${data.total_records}<br>
-                User percentile: ${data.user_percentile}<br>
-                User DOTS percentile: ${data.user_dots_percentile}
-            `;
+            debugInfo.innerHTML = '<strong>Debug Information:</strong><br>' +
+                'Raw histogram values: ' + data.histogram_data.values.length + '<br>' +
+                'DOTS histogram values: ' + data.dots_histogram_data.values.length + '<br>' +
+                'Raw scatter points: ' + data.scatter_data.x.length + '<br>' +
+                'DOTS scatter points: ' + data.dots_scatter_data.x.length + '<br>' +
+                'Processing time: ' + data.processing_time_ms + 'ms<br>' +
+                'Total records: ' + data.total_records + '<br>' +
+                'User percentile: ' + data.user_percentile + '<br>' +
+                'User DOTS percentile: ' + data.user_dots_percentile;
         }
         
         function showError(chartId, message) {
@@ -354,7 +433,7 @@ pub const HTML_TEMPLATE: &str = r#"
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    throw new Error('HTTP error! status: ' + response.status);
                 }
                 
                 const data = await response.json();
@@ -425,6 +504,9 @@ pub const HTML_TEMPLATE: &str = r#"
                         showlegend: true
                     });
                 }
+                
+                // Update user metrics display
+                updateUserMetrics(bodyweight, userLift);
                 
                 const dotsHistogramSuccess = createPlot('dotsHistogram', dotsHistogramTraces, {
                     title: '',
@@ -533,48 +615,44 @@ pub const HTML_TEMPLATE: &str = r#"
                 if (data.user_percentile !== null && data.user_dots_percentile !== null) {
                     const userDots = bodyweight && userLift ? calculateDOTS(userLift, bodyweight) : null;
                     
-                    percentilesHtml = `
-                        <div class="percentile-comparison">
-                            <div class="percentile-card">
-                                <div class="percentile-value">${data.user_percentile}%</div>
-                                <div class="percentile-label">Raw Weight Percentile</div>
-                            </div>
-                            <div class="percentile-card dots">
-                                <div class="percentile-value">${data.user_dots_percentile}%</div>
-                                <div class="percentile-label">DOTS Percentile</div>
-                            </div>
-                        </div>
-                        ${userDots ? `<p style="text-align: center; margin-top: 10px;"><strong>Your DOTS Score: ${userDots.toFixed(1)}</strong></p>` : ''}
-                    `;
+                    percentilesHtml = '<div class="percentile-comparison">' +
+                            '<div class="percentile-card">' +
+                                '<div class="percentile-value">' + data.user_percentile + '%</div>' +
+                                '<div class="percentile-label">Raw Weight Percentile</div>' +
+                            '</div>' +
+                            '<div class="percentile-card dots">' +
+                                '<div class="percentile-value">' + data.user_dots_percentile + '%</div>' +
+                                '<div class="percentile-label">DOTS Percentile</div>' +
+                            '</div>' +
+                        '</div>' +
+                        (userDots ? '<p style="text-align: center; margin-top: 10px;"><strong>Your DOTS Score: ' + userDots.toFixed(1) + '</strong></p>' : '');
                 }
                 document.getElementById('percentiles').innerHTML = percentilesHtml;
                 
                 // Show stats with DOTS status
                 const dotsStatus = dotsHistogramSuccess && dotsScatterSuccess ? '✅ Working' : '❌ No Data';
-                document.getElementById('stats').innerHTML = `
-                    <div class="stats">
-                        <div class="stat-card">
-                            <div class="stat-value">${data.processing_time_ms}ms</div>
-                            <div class="stat-label">Processing Time</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">${data.total_records.toLocaleString()}</div>
-                            <div class="stat-label">Records Analyzed</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">${liftType.charAt(0).toUpperCase() + liftType.slice(1)}</div>
-                            <div class="stat-label">Current Lift</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">${dotsStatus}</div>
-                            <div class="stat-label">DOTS Charts</div>
-                        </div>
-                    </div>
-                `;
+                document.getElementById('stats').innerHTML = '<div class="stats">' +
+                        '<div class="stat-card">' +
+                            '<div class="stat-value">' + data.processing_time_ms + 'ms</div>' +
+                            '<div class="stat-label">Processing Time</div>' +
+                        '</div>' +
+                        '<div class="stat-card">' +
+                            '<div class="stat-value">' + data.total_records.toLocaleString() + '</div>' +
+                            '<div class="stat-label">Records Analyzed</div>' +
+                        '</div>' +
+                        '<div class="stat-card">' +
+                            '<div class="stat-value">' + (liftType.charAt(0).toUpperCase() + liftType.slice(1)) + '</div>' +
+                            '<div class="stat-label">Current Lift</div>' +
+                        '</div>' +
+                        '<div class="stat-card">' +
+                            '<div class="stat-value">' + dotsStatus + '</div>' +
+                            '<div class="stat-label">DOTS Charts</div>' +
+                        '</div>' +
+                    '</div>';
                 
             } catch (error) {
                 console.error('Error:', error);
-                document.getElementById('stats').innerHTML = `<p style="color: red;">Error loading data: ${error.message}</p>`;
+                document.getElementById('stats').innerHTML = '<p style="color: red;">Error loading data: ' + error.message + '</p>';
                 
                 // Show errors on all charts
                 showError('histogram', 'Failed to load data');
@@ -584,25 +662,93 @@ pub const HTML_TEMPLATE: &str = r#"
             }
         }
         
-        // Helper function to calculate DOTS score
+        // Helper function to calculate DOTS score using WASM
         function calculateDOTS(liftKg, bodyweightKg) {
-            const a = -307.75076;
-            const b = 24.0900756;
-            const c = -0.1918759221;
-            const d = 0.0007391293;
-            const e = -0.000001093;
-            
-            const denominator = a + 
-                b * bodyweightKg +
-                c * Math.pow(bodyweightKg, 2) +
-                d * Math.pow(bodyweightKg, 3) +
-                e * Math.pow(bodyweightKg, 4);
-            
-            return liftKg * 500.0 / denominator;
+            if (calculate_dots_wasm) {
+                return calculate_dots_wasm(liftKg, bodyweightKg);
+            } else {
+                // Fallback JavaScript implementation
+                const a = -307.75076;
+                const b = 24.0900756;
+                const c = -0.1918759221;
+                const d = 0.0007391293;
+                const e = -0.000001093;
+                
+                const denominator = a + 
+                    b * bodyweightKg +
+                    c * Math.pow(bodyweightKg, 2) +
+                    d * Math.pow(bodyweightKg, 3) +
+                    e * Math.pow(bodyweightKg, 4);
+                
+                return liftKg * 500.0 / denominator;
+            }
         }
         
-        // Load initial data
-        updateCharts();
+        // Function to update user metrics display
+        function updateUserMetrics(bodyweight, userLift) {
+            const userMetricsSection = document.getElementById('userMetrics');
+            const strengthBadge = document.getElementById('strengthBadge');
+            const userDotsValue = document.getElementById('userDotsValue');
+            const userStrengthLevel = document.getElementById('userStrengthLevel');
+            
+            if (bodyweight && userLift && !isNaN(bodyweight) && !isNaN(userLift)) {
+                try {
+                    let dots, level, color;
+                    
+                    if (calculate_dots_and_level_wasm) {
+                        const result = calculate_dots_and_level_wasm(userLift, bodyweight);
+                        dots = result.dots;
+                        level = result.level;
+                        color = result.color;
+                    } else {
+                        // Fallback calculation
+                        dots = calculateDOTS(userLift, bodyweight);
+                        level = getStrengthLevel(dots);
+                        color = getStrengthLevelColor(level);
+                    }
+                    
+                    userDotsValue.textContent = dots.toFixed(1);
+                    userStrengthLevel.textContent = level;
+                    
+                    strengthBadge.innerHTML = '<div class=\"strength-badge\" style=\"background-color: ' + color + ';\">🏋️ ' + level + '</div>';
+                    
+                    userMetricsSection.style.display = 'block';
+                } catch (error) {
+                    console.error('Error calculating user metrics:', error);
+                    userMetricsSection.style.display = 'none';
+                }
+            } else {
+                userMetricsSection.style.display = 'none';
+            }
+        }
+        
+        // Fallback strength level calculation
+        function getStrengthLevel(dotsScore) {
+            if (dotsScore < 200.0) return "Beginner";
+            else if (dotsScore < 300.0) return "Novice";
+            else if (dotsScore < 400.0) return "Intermediate";
+            else if (dotsScore < 500.0) return "Advanced";
+            else if (dotsScore < 600.0) return "Elite";
+            else return "World Class";
+        }
+        
+        // Fallback strength level color
+        function getStrengthLevelColor(level) {
+            return level === "Elite" ? "orange" : "blue";
+        }
+        
+        // Initialize WASM and load initial data
+        async function init() {
+            await initWasm();
+            updateCharts();
+        }
+        
+        // Start the application when page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     </script>
 </body>
 </html>
