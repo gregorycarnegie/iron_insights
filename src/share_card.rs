@@ -34,24 +34,18 @@ pub fn generate_themed_share_card_svg(data: &ShareCardData, theme: CardTheme) ->
 
 fn generate_default_card(data: &ShareCardData) -> String {
     let card_width = 800;
-    let card_height = 600;
+    let card_height = 700; // Increased height for all lifts
     
     // Colors as string constants to avoid parsing issues
     let bg_start = "#667eea";
     let bg_end = "#764ba2";
     let accent = "#4facfe";
 
-    let main_lift_value = match data.lift_type.as_str() {
-        "squat" => data.squat,
-        "bench" => data.bench, 
-        "deadlift" => data.deadlift,
-        "total" => data.total,
-        _ => data.squat,
-    };
-
-    let main_lift_display = main_lift_value
-        .map(|v| format!("{:.0} kg", v))
-        .unwrap_or_else(|| "-".to_string());
+    // Format all lift values
+    let squat_display = data.squat.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
+    let bench_display = data.bench.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
+    let deadlift_display = data.deadlift.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
+    let total_display = data.total.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
 
     let dots_display = data.dots_score
         .map(|d| format!("{:.1}", d))
@@ -60,14 +54,6 @@ fn generate_default_card(data: &ShareCardData) -> String {
     let percentile_display = data.percentile
         .map(|p| format!("{:.0}%", p))
         .unwrap_or_else(|| "-".to_string());
-
-    let lift_emoji = match data.lift_type.as_str() {
-        "squat" => "🏋️",
-        "bench" => "💪", 
-        "deadlift" => "⬆️",
-        "total" => "🏆",
-        _ => "🏋️",
-    };
 
     format!(
         r##"<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg">
@@ -88,82 +74,120 @@ fn generate_default_card(data: &ShareCardData) -> String {
     🏋️ Iron Insights
   </text>
   
-  <rect x="40" y="140" width="720" height="420" fill="white" rx="15" filter="url(#shadow)" opacity="0.95"/>
+  <rect x="40" y="140" width="720" height="520" fill="white" rx="15" filter="url(#shadow)" opacity="0.95"/>
   
   <text x="400" y="190" font-family="Arial" font-size="36" font-weight="bold" text-anchor="middle" fill="#333">
     {}
   </text>
   
-  <g transform="translate(100, 240)">
-    <rect x="0" y="0" width="150" height="100" fill="{}" rx="10" opacity="0.2"/>
-    <text x="75" y="30" font-family="Arial" font-size="14" text-anchor="middle" fill="#666">
-      {} {}
+  <!-- Main Lifts Grid -->
+  <g transform="translate(80, 220)">
+    <!-- Squat -->
+    <rect x="0" y="0" width="160" height="90" fill="{}" rx="10" opacity="0.2"/>
+    <text x="80" y="25" font-family="Arial" font-size="14" text-anchor="middle" fill="#666" font-weight="600">
+      🏋️ SQUAT
     </text>
-    <text x="75" y="60" font-family="Arial" font-size="28" text-anchor="middle" fill="#333" font-weight="bold">
+    <text x="80" y="55" font-family="Arial" font-size="32" text-anchor="middle" fill="#333" font-weight="bold">
       {}
+    </text>
+    <text x="80" y="75" font-family="Arial" font-size="12" text-anchor="middle" fill="#888">
+      kg
     </text>
     
-    <rect x="170" y="0" width="150" height="100" fill="{}" rx="10" opacity="0.2"/>
-    <text x="245" y="30" font-family="Arial" font-size="14" text-anchor="middle" fill="#666">
-      DOTS Score
+    <!-- Bench -->
+    <rect x="180" y="0" width="160" height="90" fill="{}" rx="10" opacity="0.2"/>
+    <text x="260" y="25" font-family="Arial" font-size="14" text-anchor="middle" fill="#666" font-weight="600">
+      💪 BENCH
     </text>
-    <text x="245" y="60" font-family="Arial" font-size="28" text-anchor="middle" fill="#333" font-weight="bold">
+    <text x="260" y="55" font-family="Arial" font-size="32" text-anchor="middle" fill="#333" font-weight="bold">
       {}
+    </text>
+    <text x="260" y="75" font-family="Arial" font-size="12" text-anchor="middle" fill="#888">
+      kg
     </text>
     
-    <rect x="340" y="0" width="150" height="100" fill="{}" rx="10" opacity="0.2"/>
-    <text x="415" y="30" font-family="Arial" font-size="14" text-anchor="middle" fill="#666">
-      Level
+    <!-- Deadlift -->
+    <rect x="360" y="0" width="160" height="90" fill="{}" rx="10" opacity="0.2"/>
+    <text x="440" y="25" font-family="Arial" font-size="14" text-anchor="middle" fill="#666" font-weight="600">
+      ⬆️ DEADLIFT
     </text>
-    <text x="415" y="60" font-family="Arial" font-size="20" text-anchor="middle" fill="#333" font-weight="bold">
+    <text x="440" y="55" font-family="Arial" font-size="32" text-anchor="middle" fill="#333" font-weight="bold">
       {}
+    </text>
+    <text x="440" y="75" font-family="Arial" font-size="12" text-anchor="middle" fill="#888">
+      kg
+    </text>
+    
+    <!-- Total -->
+    <rect x="540" y="0" width="160" height="90" fill="#ff6b6b" rx="10" opacity="0.3"/>
+    <text x="620" y="25" font-family="Arial" font-size="14" text-anchor="middle" fill="#666" font-weight="600">
+      🏆 TOTAL
+    </text>
+    <text x="620" y="55" font-family="Arial" font-size="32" text-anchor="middle" fill="#333" font-weight="bold">
+      {}
+    </text>
+    <text x="620" y="75" font-family="Arial" font-size="12" text-anchor="middle" fill="#888">
+      kg
     </text>
   </g>
   
-  <g transform="translate(100, 380)">
-    <text x="0" y="20" font-family="Arial" font-size="14" fill="#666">
-      Bodyweight: {:.1}kg | Percentile: {} | Category: {}
+  <!-- DOTS and Level Section -->
+  <g transform="translate(150, 340)">
+    <rect x="0" y="0" width="200" height="100" fill="{}" rx="10" opacity="0.2"/>
+    <text x="100" y="25" font-family="Arial" font-size="16" text-anchor="middle" fill="#666" font-weight="600">
+      🎯 DOTS SCORE
     </text>
-    <text x="0" y="50" font-family="Arial" font-size="12" fill="#999">
+    <text x="100" y="65" font-family="Arial" font-size="36" text-anchor="middle" fill="#333" font-weight="bold">
+      {}
+    </text>
+    
+    <rect x="220" y="0" width="200" height="100" fill="{}" rx="10" opacity="0.2"/>
+    <text x="320" y="25" font-family="Arial" font-size="16" text-anchor="middle" fill="#666" font-weight="600">
+      💪 STRENGTH LEVEL
+    </text>
+    <text x="320" y="60" font-family="Arial" font-size="22" text-anchor="middle" fill="#333" font-weight="bold">
+      {}
+    </text>
+    <text x="320" y="80" font-family="Arial" font-size="14" text-anchor="middle" fill="#888">
+      {}th Percentile
+    </text>
+  </g>
+  
+  <!-- Footer Info -->
+  <g transform="translate(100, 480)">
+    <text x="300" y="20" font-family="Arial" font-size="14" text-anchor="middle" fill="#666">
+      {} • {:.1}kg Bodyweight • {} Class
+    </text>
+    <text x="300" y="45" font-family="Arial" font-size="12" text-anchor="middle" fill="#999">
       Generated by Iron Insights - Powerlifting Analytics
     </text>
   </g>
   
 </svg>"##,
         card_width, card_height, bg_start, bg_end, accent,
-        data.name, accent, lift_emoji, data.lift_type.to_uppercase(), main_lift_display,
-        accent, dots_display, accent, data.strength_level,
-        data.bodyweight, percentile_display, data.sex
+        data.name, accent, squat_display, accent, bench_display, accent, deadlift_display, total_display,
+        accent, dots_display, accent, data.strength_level, percentile_display,
+        data.strength_level, data.bodyweight, data.sex
     )
 }
 
 fn generate_dark_card(data: &ShareCardData) -> String {
     let card_width = 800;
-    let card_height = 600;
+    let card_height = 700;
 
-    let main_lift_value = match data.lift_type.as_str() {
-        "squat" => data.squat,
-        "bench" => data.bench, 
-        "deadlift" => data.deadlift,
-        "total" => data.total,
-        _ => data.squat,
-    };
-
-    let main_lift_display = main_lift_value
-        .map(|v| format!("{:.0} kg", v))
-        .unwrap_or_else(|| "-".to_string());
+    // Format all lift values
+    let squat_display = data.squat.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
+    let bench_display = data.bench.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
+    let deadlift_display = data.deadlift.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
+    let total_display = data.total.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
 
     let dots_display = data.dots_score
         .map(|d| format!("{:.1}", d))
         .unwrap_or_else(|| "-".to_string());
 
-    let lift_emoji = match data.lift_type.as_str() {
-        "squat" => "🏋️",
-        "bench" => "💪", 
-        "deadlift" => "⬆️",
-        "total" => "🏆",
-        _ => "🏋️",
-    };
+    let percentile_display = data.percentile
+        .map(|p| format!("{:.0}%", p))
+        .unwrap_or_else(|| "-".to_string());
 
     format!(
         r##"<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg">
@@ -181,67 +205,107 @@ fn generate_dark_card(data: &ShareCardData) -> String {
     🏋️ Iron Insights
   </text>
   
-  <rect x="40" y="140" width="720" height="420" fill="#0f0e17" rx="15" opacity="0.9"/>
+  <rect x="40" y="140" width="720" height="520" fill="#0f0e17" rx="15" opacity="0.9"/>
   
   <text x="400" y="190" font-family="Arial" font-size="36" font-weight="bold" text-anchor="middle" fill="white">
     {}
   </text>
   
-  <g transform="translate(100, 240)">
-    <rect x="0" y="0" width="150" height="100" fill="#e94560" rx="10" opacity="0.3"/>
-    <text x="75" y="30" font-family="Arial" font-size="14" text-anchor="middle" fill="#a7a9be">
-      {} {}
+  <!-- Main Lifts Grid Dark Theme -->
+  <g transform="translate(80, 220)">
+    <!-- Squat -->
+    <rect x="0" y="0" width="160" height="90" fill="#e94560" rx="10" opacity="0.3"/>
+    <text x="80" y="25" font-family="Arial" font-size="14" text-anchor="middle" fill="#a7a9be">
+      🏋️ SQUAT
     </text>
-    <text x="75" y="60" font-family="Arial" font-size="28" text-anchor="middle" fill="white" font-weight="bold">
+    <text x="80" y="55" font-family="Arial" font-size="32" text-anchor="middle" fill="white" font-weight="bold">
       {}
+    </text>
+    <text x="80" y="75" font-family="Arial" font-size="12" text-anchor="middle" fill="#a7a9be">
+      kg
     </text>
     
-    <rect x="170" y="0" width="150" height="100" fill="#00d2ff" rx="10" opacity="0.3"/>
-    <text x="245" y="30" font-family="Arial" font-size="14" text-anchor="middle" fill="#a7a9be">
-      DOTS Score
+    <!-- Bench -->
+    <rect x="180" y="0" width="160" height="90" fill="#00d2ff" rx="10" opacity="0.3"/>
+    <text x="260" y="25" font-family="Arial" font-size="14" text-anchor="middle" fill="#a7a9be">
+      💪 BENCH
     </text>
-    <text x="245" y="60" font-family="Arial" font-size="28" text-anchor="middle" fill="white" font-weight="bold">
+    <text x="260" y="55" font-family="Arial" font-size="32" text-anchor="middle" fill="white" font-weight="bold">
       {}
+    </text>
+    <text x="260" y="75" font-family="Arial" font-size="12" text-anchor="middle" fill="#a7a9be">
+      kg
     </text>
     
-    <rect x="340" y="0" width="150" height="100" fill="#f25f4c" rx="10" opacity="0.3"/>
-    <text x="415" y="30" font-family="Arial" font-size="14" text-anchor="middle" fill="#a7a9be">
-      Level
+    <!-- Deadlift -->
+    <rect x="360" y="0" width="160" height="90" fill="#f25f4c" rx="10" opacity="0.3"/>
+    <text x="440" y="25" font-family="Arial" font-size="14" text-anchor="middle" fill="#a7a9be">
+      ⬆️ DEADLIFT
     </text>
-    <text x="415" y="60" font-family="Arial" font-size="20" text-anchor="middle" fill="white" font-weight="bold">
+    <text x="440" y="55" font-family="Arial" font-size="32" text-anchor="middle" fill="white" font-weight="bold">
       {}
+    </text>
+    <text x="440" y="75" font-family="Arial" font-size="12" text-anchor="middle" fill="#a7a9be">
+      kg
+    </text>
+    
+    <!-- Total -->
+    <rect x="540" y="0" width="160" height="90" fill="#ff6b95" rx="10" opacity="0.4"/>
+    <text x="620" y="25" font-family="Arial" font-size="14" text-anchor="middle" fill="#a7a9be">
+      🏆 TOTAL
+    </text>
+    <text x="620" y="55" font-family="Arial" font-size="32" text-anchor="middle" fill="white" font-weight="bold">
+      {}
+    </text>
+    <text x="620" y="75" font-family="Arial" font-size="12" text-anchor="middle" fill="#a7a9be">
+      kg
     </text>
   </g>
   
-  <text x="400" y="500" font-family="Arial" font-size="14" text-anchor="middle" fill="#a7a9be">
-    {:.1}kg • {} • {} • Generated by Iron Insights
+  <!-- DOTS and Level Section Dark -->
+  <g transform="translate(150, 340)">
+    <rect x="0" y="0" width="200" height="100" fill="#4c6ef5" rx="10" opacity="0.3"/>
+    <text x="100" y="25" font-family="Arial" font-size="16" text-anchor="middle" fill="#a7a9be">
+      🎯 DOTS SCORE
+    </text>
+    <text x="100" y="65" font-family="Arial" font-size="36" text-anchor="middle" fill="white" font-weight="bold">
+      {}
+    </text>
+    
+    <rect x="220" y="0" width="200" height="100" fill="#20c997" rx="10" opacity="0.3"/>
+    <text x="320" y="25" font-family="Arial" font-size="16" text-anchor="middle" fill="#a7a9be">
+      💪 STRENGTH LEVEL
+    </text>
+    <text x="320" y="60" font-family="Arial" font-size="22" text-anchor="middle" fill="white" font-weight="bold">
+      {}
+    </text>
+    <text x="320" y="80" font-family="Arial" font-size="14" text-anchor="middle" fill="#a7a9be">
+      {}th Percentile
+    </text>
+  </g>
+  
+  <text x="400" y="580" font-family="Arial" font-size="14" text-anchor="middle" fill="#a7a9be">
+    {} • {:.1}kg • {} • Generated by Iron Insights
   </text>
   
 </svg>"##,
         card_width, card_height,
         data.name,
-        lift_emoji, data.lift_type.to_uppercase(), main_lift_display,
-        dots_display,
-        data.strength_level,
-        data.bodyweight, data.percentile.map(|p| format!("{:.0}%", p)).unwrap_or_else(|| "-".to_string()), data.sex
+        squat_display, bench_display, deadlift_display, total_display,
+        dots_display, data.strength_level, percentile_display,
+        data.strength_level, data.bodyweight, data.sex
     )
 }
 
 fn generate_minimal_card(data: &ShareCardData) -> String {
     let card_width = 800;
-    let card_height = 400;
+    let card_height = 500;
 
-    let main_lift_value = match data.lift_type.as_str() {
-        "squat" => data.squat,
-        "bench" => data.bench, 
-        "deadlift" => data.deadlift,
-        "total" => data.total,
-        _ => data.squat,
-    };
-
-    let main_lift_display = main_lift_value
-        .map(|v| format!("{:.0} kg", v))
-        .unwrap_or_else(|| "-".to_string());
+    // Format all lift values
+    let squat_display = data.squat.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
+    let bench_display = data.bench.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
+    let deadlift_display = data.deadlift.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
+    let total_display = data.total.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
 
     let dots_display = data.dots_score
         .map(|d| format!("{:.1}", d))
@@ -262,40 +326,42 @@ fn generate_minimal_card(data: &ShareCardData) -> String {
     {}
   </text>
   
-  <g transform="translate(100, 180)">
-    <text x="0" y="0" font-family="Arial" font-size="14" fill="#666">
-      {}
-    </text>
-    <text x="0" y="30" font-family="Arial" font-size="48" fill="#333">
-      {}
-    </text>
+  <!-- Clean Minimal Lifts Layout -->
+  <g transform="translate(50, 160)">
+    <text x="0" y="20" font-family="Arial" font-size="14" fill="#666" font-weight="600">SQUAT</text>
+    <text x="0" y="45" font-family="Arial" font-size="36" fill="#333" font-weight="300">{}</text>
     
-    <text x="250" y="0" font-family="Arial" font-size="14" fill="#666">
-      DOTS SCORE
-    </text>
-    <text x="250" y="30" font-family="Arial" font-size="48" fill="#333">
-      {}
-    </text>
+    <text x="180" y="20" font-family="Arial" font-size="14" fill="#666" font-weight="600">BENCH</text>
+    <text x="180" y="45" font-family="Arial" font-size="36" fill="#333" font-weight="300">{}</text>
     
-    <text x="500" y="0" font-family="Arial" font-size="14" fill="#666">
-      STRENGTH LEVEL
-    </text>
-    <text x="500" y="30" font-family="Arial" font-size="28" fill="#333" font-weight="bold">
-      {}
-    </text>
+    <text x="360" y="20" font-family="Arial" font-size="14" fill="#666" font-weight="600">DEADLIFT</text>
+    <text x="360" y="45" font-family="Arial" font-size="36" fill="#333" font-weight="300">{}</text>
+    
+    <text x="540" y="20" font-family="Arial" font-size="14" fill="#666" font-weight="600">TOTAL</text>
+    <text x="540" y="45" font-family="Arial" font-size="36" fill="#333" font-weight="bold">{}</text>
   </g>
   
-  <text x="60" y="350" font-family="Arial" font-size="12" fill="#999">
+  <!-- Separator Line -->
+  <line x1="60" y1="240" x2="740" y2="240" stroke="#eee" stroke-width="1"/>
+  
+  <!-- DOTS and Level -->
+  <g transform="translate(150, 270)">
+    <text x="0" y="20" font-family="Arial" font-size="14" fill="#666" font-weight="600">DOTS SCORE</text>
+    <text x="0" y="50" font-family="Arial" font-size="42" fill="#333" font-weight="300">{}</text>
+    
+    <text x="300" y="20" font-family="Arial" font-size="14" fill="#666" font-weight="600">STRENGTH LEVEL</text>
+    <text x="300" y="50" font-family="Arial" font-size="32" fill="#333" font-weight="600">{}</text>
+  </g>
+  
+  <text x="60" y="420" font-family="Arial" font-size="12" fill="#999">
     Generated by Iron Insights • Powerlifting Analytics
   </text>
   
 </svg>"##,
         card_width, card_height,
         data.name,
-        data.lift_type.to_uppercase(),
-        main_lift_display,
-        dots_display,
-        data.strength_level,
+        squat_display, bench_display, deadlift_display, total_display,
+        dots_display, data.strength_level
     )
 }
 

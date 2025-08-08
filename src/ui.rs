@@ -416,6 +416,14 @@ pub const HTML_TEMPLATE: &str = r#"
                     <label>Your Name:</label>
                     <input type="text" id="shareCardName" placeholder="Enter your name" maxlength="30">
                 </div>
+                <div class="control-group" style="grid-column: span 2;">
+                    <label>Your Powerlifting Numbers (kg):</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 5px;">
+                        <input type="number" id="shareSquat" placeholder="Squat" step="0.5" min="0">
+                        <input type="number" id="shareBench" placeholder="Bench" step="0.5" min="0">
+                        <input type="number" id="shareDeadlift" placeholder="Deadlift" step="0.5" min="0">
+                    </div>
+                </div>
                 <div class="control-group">
                     <label>Card Theme:</label>
                     <select id="shareCardTheme">
@@ -853,6 +861,9 @@ pub const HTML_TEMPLATE: &str = r#"
                     const shareCardSection = document.getElementById('shareCardSection');
                     shareCardSection.style.display = 'block';
                     
+                    // Auto-populate share card inputs
+                    populateShareCardInputs();
+                    
                 } catch (error) {
                     console.error('Error calculating user metrics:', error);
                     userMetricsSection.style.display = 'none';
@@ -1038,27 +1049,63 @@ pub const HTML_TEMPLATE: &str = r#"
         // Share Card Generation
         let currentShareCardSvg = null;
         
+        // Auto-populate share card inputs when user metrics are updated
+        function populateShareCardInputs() {
+            const bodyweight = parseFloat(document.getElementById('bodyweight').value);
+            const userLift = parseFloat(document.getElementById('userLift').value);
+            const liftType = document.getElementById('liftType').value;
+            
+            if (!bodyweight || !userLift) return;
+            
+            // Auto-populate the current lift based on what user entered in main form
+            if (liftType === 'squat') {
+                document.getElementById('shareSquat').value = userLift;
+            } else if (liftType === 'bench') {
+                document.getElementById('shareBench').value = userLift;
+            } else if (liftType === 'deadlift') {
+                document.getElementById('shareDeadlift').value = userLift;
+            }
+        }
+
         async function generateShareCard() {
             const name = document.getElementById('shareCardName').value.trim();
             const theme = document.getElementById('shareCardTheme').value;
             const bodyweight = parseFloat(document.getElementById('bodyweight').value);
-            const userLift = parseFloat(document.getElementById('userLift').value);
-            const liftType = document.getElementById('liftType').value;
             const sex = document.getElementById('sex').value;
+            
+            // Get individual lift values from share card inputs
+            const squat = parseFloat(document.getElementById('shareSquat').value) || null;
+            const bench = parseFloat(document.getElementById('shareBench').value) || null;
+            const deadlift = parseFloat(document.getElementById('shareDeadlift').value) || null;
             
             if (!name) {
                 alert('Please enter your name');
                 return;
             }
             
-            if (!bodyweight || !userLift) {
-                alert('Please enter your bodyweight and lift values first');
+            if (!bodyweight) {
+                alert('Please enter your bodyweight');
+                return;
+            }
+            
+            if (!squat && !bench && !deadlift) {
+                alert('Please enter at least one lift value');
                 return;
             }
             
             try {
-                // Calculate DOTS score
-                const dotsScore = calculateDOTS(userLift, bodyweight);
+                // Calculate total
+                const total = (squat || 0) + (bench || 0) + (deadlift || 0);
+                
+                // Calculate DOTS score using the highest single lift or total if all lifts provided
+                let bestLift = total;
+                if (squat && bench && deadlift) {
+                    bestLift = total; // Use total when all lifts are provided
+                } else {
+                    bestLift = Math.max(squat || 0, bench || 0, deadlift || 0);
+                }
+                
+                const dotsScore = calculateDOTS(bestLift, bodyweight);
                 let strengthLevel;
                 
                 if (calculate_strength_level_wasm) {
@@ -1074,14 +1121,14 @@ pub const HTML_TEMPLATE: &str = r#"
                 const shareCardData = {
                     name: name,
                     bodyweight: bodyweight,
-                    squat: liftType === 'squat' ? userLift : null,
-                    bench: liftType === 'bench' ? userLift : null,
-                    deadlift: liftType === 'deadlift' ? userLift : null,
-                    total: liftType === 'total' ? userLift : null,
+                    squat: squat,
+                    bench: bench,
+                    deadlift: deadlift,
+                    total: total > 0 ? total : null,
                     dots_score: dotsScore,
                     strength_level: strengthLevel,
                     percentile: percentile,
-                    lift_type: liftType,
+                    lift_type: 'total', // Always show as total for comprehensive view
                     sex: sex === 'All' ? 'M' : sex,
                     theme: theme
                 };
