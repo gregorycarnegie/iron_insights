@@ -9,11 +9,13 @@ mod handlers;
 mod models;
 mod scoring;
 mod ui;
+mod websocket;
 
 use config::AppConfig;
 use data::DataProcessor;
 use handlers::*;
 use models::AppState;
+use websocket::{WebSocketState, websocket_handler};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -57,18 +59,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let data = tokio::task::spawn_blocking(move || data_processor.load_and_preprocess_data()).await??;
     println!("📊 Data loaded in {:?}", start.elapsed());
     
-    let state = AppState::new(Arc::new(data), config.cache_config());
+    let mut state = AppState::new(Arc::new(data), config.cache_config());
+    state.websocket_state = Some(WebSocketState::new());
     
     let app = Router::new()
         .route("/", get(serve_index))
         .route("/api/visualize", axum::routing::post(create_visualizations))
         .route("/api/stats", get(get_stats))
+        .route("/ws", get(websocket_handler))
         .nest_service("/static", ServeDir::new("static"))
         .layer(CompressionLayer::new())
         .with_state(state);
     
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     println!("🌐 Server running on http://localhost:3000");
+    println!("🔗 WebSocket endpoint available at ws://localhost:3000/ws");
     println!("💡 Data updates are checked automatically on startup");
     println!("📋 Commands available:");
     println!("   {} update          - Manually check and download latest OpenPowerlifting data", args[0]);

@@ -9,6 +9,7 @@ use std::{sync::Arc, time::Instant};
 pub struct AppState {
     pub data: Arc<DataFrame>,
     pub cache: Cache<String, CachedResult>,
+    pub websocket_state: Option<crate::websocket::WebSocketState>,
 }
 
 impl AppState {
@@ -18,7 +19,7 @@ impl AppState {
             .time_to_live(cache_config.1)
             .build();
         
-        Self { data, cache }
+        Self { data, cache, websocket_state: None }
     }
 }
 

@@ -188,6 +188,68 @@ pub const HTML_TEMPLATE: &str = r#"
             color: #666;
             margin-top: 5px;
         }
+        .realtime-panel {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .realtime-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .connection-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #28a745;
+            margin-right: 8px;
+        }
+        .connection-status.disconnected {
+            background: #dc3545;
+        }
+        .activity-feed {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .activity-item {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+        }
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+        .live-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .live-stat {
+            text-align: center;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+        }
+        .live-stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .live-stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
         .percentile-comparison {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -316,6 +378,31 @@ pub const HTML_TEMPLATE: &str = r#"
             </div>
         </div>
         
+        <div id="realtimePanel" class="realtime-panel">
+            <div class="realtime-title">
+                <span class="connection-status" id="connectionStatus"></span>
+                🌐 Live Activity Feed
+                <span id="userCount" style="margin-left: auto; font-size: 14px;">- users online</span>
+            </div>
+            <div class="activity-feed" id="activityFeed">
+                <div class="activity-item">Connecting to real-time updates...</div>
+            </div>
+            <div class="live-stats" id="liveStats">
+                <div class="live-stat">
+                    <div class="live-stat-value" id="totalConnections">-</div>
+                    <div class="live-stat-label">Total Connections</div>
+                </div>
+                <div class="live-stat">
+                    <div class="live-stat-value" id="calculationsCount">-</div>
+                    <div class="live-stat-label">Recent Calculations</div>
+                </div>
+                <div class="live-stat">
+                    <div class="live-stat-value" id="serverLoad">-</div>
+                    <div class="live-stat-label">Server Load</div>
+                </div>
+            </div>
+        </div>
+        
         <div id="percentiles"></div>
         <div id="stats"></div>
     </div>
@@ -328,6 +415,13 @@ pub const HTML_TEMPLATE: &str = r#"
         let calculate_strength_level_wasm = null;
         let get_strength_level_color_wasm = null;
         let calculate_dots_and_level_wasm = null;
+        
+        // WebSocket state
+        let websocket = null;
+        let isConnected = false;
+        let reconnectAttempts = 0;
+        let maxReconnectAttempts = 5;
+        let sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         
         // Initialize WASM module
         async function initWasm() {
@@ -507,6 +601,13 @@ pub const HTML_TEMPLATE: &str = r#"
                 
                 // Update user metrics display
                 updateUserMetrics(bodyweight, userLift);
+                
+                // Send user update via WebSocket for real-time activity
+                sendUserUpdate(bodyweight, 
+                    liftType === 'squat' ? userLift : null,
+                    liftType === 'bench' ? userLift : null,
+                    liftType === 'deadlift' ? userLift : null,
+                    liftType);
                 
                 const dotsHistogramSuccess = createPlot('dotsHistogram', dotsHistogramTraces, {
                     title: '',
@@ -737,9 +838,166 @@ pub const HTML_TEMPLATE: &str = r#"
             return level === "Elite" ? "orange" : "blue";
         }
         
+        // Initialize WebSocket connection
+        function initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.host + '/ws';
+            
+            try {
+                websocket = new WebSocket(wsUrl);
+                
+                websocket.onopen = function(event) {
+                    console.log('🔗 WebSocket connected');
+                    isConnected = true;
+                    reconnectAttempts = 0;
+                    updateConnectionStatus(true);
+                    
+                    // Send connection message
+                    const connectMsg = {
+                        type: 'Connect',
+                        session_id: sessionId,
+                        user_agent: navigator.userAgent
+                    };
+                    websocket.send(JSON.stringify(connectMsg));
+                };
+                
+                websocket.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleWebSocketMessage(data);
+                    } catch (error) {
+                        console.error('Failed to parse WebSocket message:', error);
+                    }
+                };
+                
+                websocket.onclose = function(event) {
+                    console.log('🔌 WebSocket disconnected');
+                    isConnected = false;
+                    updateConnectionStatus(false);
+                    
+                    // Attempt to reconnect
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        console.log('🔄 Attempting to reconnect... (' + reconnectAttempts + '/' + maxReconnectAttempts + ')');
+                        setTimeout(initWebSocket, 2000 * reconnectAttempts);
+                    }
+                };
+                
+                websocket.onerror = function(error) {
+                    console.error('❌ WebSocket error:', error);
+                };
+                
+            } catch (error) {
+                console.error('❌ Failed to initialize WebSocket:', error);
+                updateConnectionStatus(false);
+            }
+        }
+        
+        // Handle incoming WebSocket messages
+        function handleWebSocketMessage(data) {
+            switch (data.type) {
+                case 'StatsUpdate':
+                    updateLiveStats(data.active_users, data.total_connections, data.server_load);
+                    break;
+                    
+                case 'UserActivity':
+                    updateActivityFeed(data.recent_calculations);
+                    updateUserCount(data.user_count);
+                    break;
+                    
+                case 'ServerMetrics':
+                    updateServerMetrics(data);
+                    break;
+                    
+                case 'DotsCalculation':
+                    // Handle real-time DOTS calculations from other users
+                    addActivityItem('🏋️ ' + data.strength_level + ' lifter: ' + data.dots_score.toFixed(1) + ' DOTS');
+                    break;
+                    
+                default:
+                    console.log('Unknown WebSocket message type:', data.type);
+            }
+        }
+        
+        // Send user update via WebSocket
+        function sendUserUpdate(bodyweight, squat, bench, deadlift, liftType) {
+            if (isConnected && websocket) {
+                const updateMsg = {
+                    type: 'UserUpdate',
+                    bodyweight: bodyweight,
+                    squat: squat,
+                    bench: bench,
+                    deadlift: deadlift,
+                    lift_type: liftType
+                };
+                websocket.send(JSON.stringify(updateMsg));
+            }
+        }
+        
+        // Update connection status indicator
+        function updateConnectionStatus(connected) {
+            const statusElement = document.getElementById('connectionStatus');
+            if (statusElement) {
+                statusElement.className = 'connection-status' + (connected ? '' : ' disconnected');
+            }
+        }
+        
+        // Update live statistics
+        function updateLiveStats(activeUsers, totalConnections, serverLoad) {
+            document.getElementById('totalConnections').textContent = totalConnections;
+            document.getElementById('serverLoad').textContent = (serverLoad * 100).toFixed(1) + '%';
+        }
+        
+        // Update user count
+        function updateUserCount(count) {
+            document.getElementById('userCount').textContent = count + ' users online';
+        }
+        
+        // Update activity feed
+        function updateActivityFeed(recentCalculations) {
+            const feed = document.getElementById('activityFeed');
+            if (recentCalculations && recentCalculations.length > 0) {
+                document.getElementById('calculationsCount').textContent = recentCalculations.length;
+                
+                // Show recent 10 calculations
+                const recent = recentCalculations.slice(-10).reverse();
+                feed.innerHTML = recent.map(calc => {
+                    const timeAgo = getTimeAgo(calc.timestamp * 1000);
+                    return '<div class="activity-item">🏋️ ' + calc.strength_level + ': ' + calc.dots_score.toFixed(1) + ' DOTS (' + calc.lift_type + ') - ' + timeAgo + '</div>';
+                }).join('');
+            }
+        }
+        
+        // Add single activity item
+        function addActivityItem(text) {
+            const feed = document.getElementById('activityFeed');
+            const item = document.createElement('div');
+            item.className = 'activity-item';
+            item.textContent = text + ' - just now';
+            feed.insertBefore(item, feed.firstChild);
+            
+            // Keep only 10 items
+            while (feed.children.length > 10) {
+                feed.removeChild(feed.lastChild);
+            }
+        }
+        
+        // Get human-readable time ago
+        function getTimeAgo(timestamp) {
+            const now = Date.now();
+            const diff = now - timestamp;
+            const seconds = Math.floor(diff / 1000);
+            
+            if (seconds < 60) return 'just now';
+            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+            if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+            return Math.floor(seconds / 86400) + 'd ago';
+        }
+        
         // Initialize WASM and load initial data
         async function init() {
             await initWasm();
+            initWebSocket();
             updateCharts();
         }
         
