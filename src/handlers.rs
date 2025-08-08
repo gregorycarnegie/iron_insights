@@ -1,8 +1,8 @@
 // handlers.rs - Fixed with better DOTS data handling and debugging
 use axum::{
     extract::State,
-    http::StatusCode,
-    response::{Html, Json},
+    http::{StatusCode, header},
+    response::{Html, Json, Response},
 };
 use polars::prelude::*;
 use rayon::prelude::*;
@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use crate::models::*;
 use crate::scoring::calculate_dots_score;
+use crate::share_card::{ShareCardData, CardTheme, generate_themed_share_card_svg};
 use crate::ui::HTML_TEMPLATE;
 
 pub async fn create_visualizations(
@@ -358,4 +359,38 @@ fn get_user_lift_value(params: &FilterParams, lift_type: &LiftType) -> Option<f3
             }
         }
     }
+}
+
+#[derive(serde::Deserialize)]
+pub struct ShareCardRequest {
+    #[serde(flatten)]
+    pub card_data: ShareCardData,
+    pub theme: Option<String>,
+}
+
+pub async fn generate_share_card(
+    State(_state): State<AppState>,
+    Json(request): Json<ShareCardRequest>,
+) -> Result<Response, StatusCode> {
+    // Determine theme based on request or default to standard
+    let theme = match request.theme.as_deref() {
+        Some("dark") => CardTheme::Dark,
+        Some("minimal") => CardTheme::Minimal,
+        Some("powerlifting") => CardTheme::Powerlifting,
+        _ => CardTheme::Default,
+    };
+    
+    // Generate the SVG
+    let svg_content = generate_themed_share_card_svg(&request.card_data, theme);
+    
+    // Return SVG with proper headers
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "image/svg+xml")
+        .header(header::CACHE_CONTROL, "no-cache")
+        .header("Content-Disposition", "inline; filename=\"powerlifting-card.svg\"")
+        .body(svg_content.into())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    Ok(response)
 }

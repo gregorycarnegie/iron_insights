@@ -8,6 +8,7 @@ mod data;
 mod handlers;
 mod models;
 mod scoring;
+mod share_card;
 mod ui;
 mod websocket;
 
@@ -66,6 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(serve_index))
         .route("/api/visualize", axum::routing::post(create_visualizations))
         .route("/api/stats", get(get_stats))
+        .route("/api/share-card", axum::routing::post(generate_share_card))
         .route("/ws", get(websocket_handler))
         .nest_service("/static", ServeDir::new("static"))
         .layer(CompressionLayer::new())

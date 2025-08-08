@@ -405,6 +405,40 @@ pub const HTML_TEMPLATE: &str = r#"
         
         <div id="percentiles"></div>
         <div id="stats"></div>
+        
+        <!-- Share Card Generator Section -->
+        <div id="shareCardSection" class="user-input-section" style="display: none;">
+            <h3>🎨 Generate Share Card</h3>
+            <p>Create a beautiful social media card to share your powerlifting achievements!</p>
+            
+            <div class="user-metrics">
+                <div class="control-group">
+                    <label>Your Name:</label>
+                    <input type="text" id="shareCardName" placeholder="Enter your name" maxlength="30">
+                </div>
+                <div class="control-group">
+                    <label>Card Theme:</label>
+                    <select id="shareCardTheme">
+                        <option value="default">Default</option>
+                        <option value="dark">Dark Mode</option>
+                        <option value="minimal">Minimal</option>
+                        <option value="powerlifting">Competition Style</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <button onclick="generateShareCard()" style="width: 100%;">Generate Share Card 🎨</button>
+                </div>
+                <div class="control-group">
+                    <button onclick="downloadShareCard()" id="downloadButton" style="width: 100%; background: #28a745;" disabled>Download SVG 📥</button>
+                </div>
+            </div>
+            
+            <!-- Share Card Preview -->
+            <div id="shareCardPreview" style="margin-top: 20px; text-align: center; display: none;">
+                <h4>Preview:</h4>
+                <div id="shareCardContainer" style="border: 2px solid #ddd; border-radius: 8px; padding: 20px; background: #f8f9fa; display: inline-block;"></div>
+            </div>
+        </div>
     </div>
     
     <script>
@@ -814,12 +848,19 @@ pub const HTML_TEMPLATE: &str = r#"
                     strengthBadge.innerHTML = '<div class=\"strength-badge\" style=\"background-color: ' + color + ';\">🏋️ ' + level + '</div>';
                     
                     userMetricsSection.style.display = 'block';
+                    
+                    // Show share card section when user has entered data
+                    const shareCardSection = document.getElementById('shareCardSection');
+                    shareCardSection.style.display = 'block';
+                    
                 } catch (error) {
                     console.error('Error calculating user metrics:', error);
                     userMetricsSection.style.display = 'none';
+                    document.getElementById('shareCardSection').style.display = 'none';
                 }
             } else {
                 userMetricsSection.style.display = 'none';
+                document.getElementById('shareCardSection').style.display = 'none';
             }
         }
         
@@ -992,6 +1033,121 @@ pub const HTML_TEMPLATE: &str = r#"
             if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
             if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
             return Math.floor(seconds / 86400) + 'd ago';
+        }
+        
+        // Share Card Generation
+        let currentShareCardSvg = null;
+        
+        async function generateShareCard() {
+            const name = document.getElementById('shareCardName').value.trim();
+            const theme = document.getElementById('shareCardTheme').value;
+            const bodyweight = parseFloat(document.getElementById('bodyweight').value);
+            const userLift = parseFloat(document.getElementById('userLift').value);
+            const liftType = document.getElementById('liftType').value;
+            const sex = document.getElementById('sex').value;
+            
+            if (!name) {
+                alert('Please enter your name');
+                return;
+            }
+            
+            if (!bodyweight || !userLift) {
+                alert('Please enter your bodyweight and lift values first');
+                return;
+            }
+            
+            try {
+                // Calculate DOTS score
+                const dotsScore = calculateDOTS(userLift, bodyweight);
+                let strengthLevel;
+                
+                if (calculate_strength_level_wasm) {
+                    strengthLevel = calculate_strength_level_wasm(dotsScore);
+                } else {
+                    strengthLevel = getStrengthLevel(dotsScore);
+                }
+                
+                // Get percentile from last response if available
+                const percentile = lastResponse ? lastResponse.user_dots_percentile : null;
+                
+                // Prepare share card data
+                const shareCardData = {
+                    name: name,
+                    bodyweight: bodyweight,
+                    squat: liftType === 'squat' ? userLift : null,
+                    bench: liftType === 'bench' ? userLift : null,
+                    deadlift: liftType === 'deadlift' ? userLift : null,
+                    total: liftType === 'total' ? userLift : null,
+                    dots_score: dotsScore,
+                    strength_level: strengthLevel,
+                    percentile: percentile,
+                    lift_type: liftType,
+                    sex: sex === 'All' ? 'M' : sex,
+                    theme: theme
+                };
+                
+                // Send request to generate share card
+                const response = await fetch('/api/share-card', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(shareCardData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to generate share card');
+                }
+                
+                const svgContent = await response.text();
+                currentShareCardSvg = svgContent;
+                
+                // Display preview
+                const container = document.getElementById('shareCardContainer');
+                container.innerHTML = svgContent;
+                document.getElementById('shareCardPreview').style.display = 'block';
+                
+                // Enable download button
+                document.getElementById('downloadButton').disabled = false;
+                
+                console.log('✅ Share card generated successfully');
+                
+            } catch (error) {
+                console.error('❌ Error generating share card:', error);
+                alert('Failed to generate share card: ' + error.message);
+            }
+        }
+        
+        function downloadShareCard() {
+            if (!currentShareCardSvg) {
+                alert('Please generate a share card first');
+                return;
+            }
+            
+            try {
+                // Create blob and download
+                const blob = new Blob([currentShareCardSvg], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+                
+                const name = document.getElementById('shareCardName').value.trim() || 'powerlifter';
+                const liftType = document.getElementById('liftType').value;
+                const theme = document.getElementById('shareCardTheme').value;
+                
+                const filename = name.toLowerCase().replace(/\s+/g, '-') + '-' + liftType + '-' + theme + '-card.svg';
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                URL.revokeObjectURL(url);
+                
+                console.log('✅ Share card downloaded: ' + filename);
+                
+            } catch (error) {
+                console.error('❌ Error downloading share card:', error);
+                alert('Failed to download share card');
+            }
         }
         
         // Initialize WASM and load initial data
