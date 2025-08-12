@@ -7,6 +7,7 @@ pub const HTML_TEMPLATE: &str = r#"
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iron Insights - Powerlifting Analytics with DOTS</title>
     <script src="https://cdn.plot.ly/plotly-3.0.3.min.js"></script>
+    <!-- Apache Arrow will be loaded dynamically -->
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
@@ -539,6 +540,100 @@ pub const HTML_TEMPLATE: &str = r#"
             return true;
         }
         
+        // Function to fetch and parse comprehensive Arrow data
+        async function fetchArrowData(params) {
+            // Check if Arrow is available
+            if (!Arrow || typeof Arrow.tableFromIPC !== 'function') {
+                throw new Error('Apache Arrow library not loaded or tableFromIPC not available');
+            }
+            
+            try {
+                const response = await fetch('/api/visualize-arrow', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(params)
+                });
+                
+                if (!response.ok) {
+                    throw new Error('HTTP error! status: ' + response.status);
+                }
+                
+                const arrayBuffer = await response.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+                
+                // Parse Arrow IPC stream
+                const table = Arrow.tableFromIPC(uint8Array);
+                
+                if (!table || table.length === 0) {
+                    throw new Error('No Arrow data received');
+                }
+                
+                // Parse data by data_type
+                const result = {
+                    histogram_data: { values: [], counts: [], bins: [], min_val: 0, max_val: 0 },
+                    scatter_data: { x: [], y: [], sex: [] },
+                    dots_histogram_data: { values: [], counts: [], bins: [], min_val: 0, max_val: 0 },
+                    dots_scatter_data: { x: [], y: [], sex: [] },
+                    user_percentile: parseFloat(response.headers.get('X-User-Percentile')) || null,
+                    user_dots_percentile: parseFloat(response.headers.get('X-User-Dots-Percentile')) || null,
+                    processing_time_ms: parseInt(response.headers.get('X-Processing-Time-Ms')) || 0,
+                    total_records: parseInt(response.headers.get('X-Total-Records')) || 0
+                };
+                
+                // Get column arrays from the table using getChildAt
+                const dataTypes = table.getChildAt(0).toArray();  // data_type column
+                const histValues = table.getChildAt(1).toArray(); // hist_values column
+                const histCounts = table.getChildAt(2).toArray(); // hist_counts column  
+                const histBins = table.getChildAt(3).toArray();   // hist_bins column
+                const scatterX = table.getChildAt(4).toArray();   // scatter_x column
+                const scatterY = table.getChildAt(5).toArray();   // scatter_y column
+                const scatterSex = table.getChildAt(6).toArray(); // scatter_sex column
+                
+                for (let i = 0; i < dataTypes.length; i++) {
+                    const dataType = dataTypes[i];
+                    
+                    if (dataType === 'raw_histogram') {
+                        if (histValues[i] > 0) result.histogram_data.values.push(histValues[i]);
+                        if (histCounts[i] > 0) result.histogram_data.counts.push(histCounts[i]);
+                        if (histBins[i] > 0) result.histogram_data.bins.push(histBins[i]);
+                    } else if (dataType === 'raw_scatter') {
+                        if (scatterX[i] > 0 && scatterY[i] > 0) {
+                            result.scatter_data.x.push(scatterX[i]);
+                            result.scatter_data.y.push(scatterY[i]);
+                            result.scatter_data.sex.push(scatterSex[i]);
+                        }
+                    } else if (dataType === 'dots_histogram') {
+                        if (histValues[i] > 0) result.dots_histogram_data.values.push(histValues[i]);
+                        if (histCounts[i] > 0) result.dots_histogram_data.counts.push(histCounts[i]);
+                        if (histBins[i] > 0) result.dots_histogram_data.bins.push(histBins[i]);
+                    } else if (dataType === 'dots_scatter') {
+                        if (scatterX[i] > 0 && scatterY[i] > 0) {
+                            result.dots_scatter_data.x.push(scatterX[i]);
+                            result.dots_scatter_data.y.push(scatterY[i]);
+                            result.dots_scatter_data.sex.push(scatterSex[i]);
+                        }
+                    }
+                }
+                
+                // Calculate min/max for histograms
+                if (result.histogram_data.values.length > 0) {
+                    result.histogram_data.min_val = Math.min(...result.histogram_data.values);
+                    result.histogram_data.max_val = Math.max(...result.histogram_data.values);
+                }
+                if (result.dots_histogram_data.values.length > 0) {
+                    result.dots_histogram_data.min_val = Math.min(...result.dots_histogram_data.values);
+                    result.dots_histogram_data.max_val = Math.max(...result.dots_histogram_data.values);
+                }
+                
+                console.log('✅ Arrow IPC data parsed successfully:', result);
+                return result;
+                
+            } catch (error) {
+                console.error('❌ Arrow data fetch error:', error);
+                throw error;
+            }
+        }
+
         async function updateCharts() {
             const liftType = document.getElementById('liftType').value;
             const bodyweight = parseFloat(document.getElementById('bodyweight').value);
@@ -562,17 +657,8 @@ pub const HTML_TEMPLATE: &str = r#"
             }
             
             try {
-                const response = await fetch('/api/visualize', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(params)
-                });
-                
-                if (!response.ok) {
-                    throw new Error('HTTP error! status: ' + response.status);
-                }
-                
-                const data = await response.json();
+                console.log('📊 Fetching data using Arrow IPC exclusively...');
+                const data = await fetchArrowData(params);
                 lastResponse = data;
                 
                 if (debugMode) {
@@ -1197,8 +1283,52 @@ pub const HTML_TEMPLATE: &str = r#"
             }
         }
         
+        // Load Apache Arrow dynamically
+        let Arrow;
+        async function loadArrow() {
+            console.log('🔄 Loading Apache Arrow library...');
+            try {
+                // Try multiple CDNs
+                const cdnUrls = [
+                    'https://cdn.jsdelivr.net/npm/apache-arrow/Arrow.es2015.min.js',
+                    'https://unpkg.com/apache-arrow@21.0.0/Arrow.es2015.min.js',
+                    'https://unpkg.com/apache-arrow@14.0.2/dist/umd/Arrow.js'
+                ];
+                
+                for (const url of cdnUrls) {
+                    try {
+                        console.log('🔄 Trying to load Arrow from:', url);
+                        await loadScript(url);
+                        if (typeof window.Arrow !== 'undefined') {
+                            Arrow = window.Arrow;
+                            console.log('✅ Apache Arrow library loaded successfully from:', url);
+                            return true;
+                        }
+                    } catch (e) {
+                        console.log('⚠️  Failed to load from', url, ':', e.message);
+                    }
+                }
+                throw new Error('All CDNs failed');
+            } catch (error) {
+                console.error('❌ Failed to load Apache Arrow library:', error);
+                return false;
+            }
+        }
+        
+        // Helper function to load script
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
         // Initialize WASM and load initial data
         async function init() {
+            await loadArrow();
             await initWasm();
             initWebSocket();
             updateCharts();

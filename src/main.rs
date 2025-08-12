@@ -3,6 +3,7 @@ use axum::{routing::get, Router};
 use std::sync::Arc;
 use tower_http::{compression::CompressionLayer, services::ServeDir};
 
+mod arrow_utils;
 mod config;
 mod data;
 mod handlers;
@@ -66,6 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/", get(serve_index))
         .route("/api/visualize", axum::routing::post(create_visualizations))
+        .route("/api/visualize-arrow", axum::routing::post(create_visualizations_arrow))
         .route("/api/stats", get(get_stats))
         .route("/api/share-card", axum::routing::post(generate_share_card))
         .route("/ws", get(websocket_handler))

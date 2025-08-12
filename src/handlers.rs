@@ -8,6 +8,7 @@ use polars::prelude::*;
 use rayon::prelude::*;
 use std::time::Instant;
 
+use crate::arrow_utils::serialize_all_visualization_data;
 use crate::models::*;
 use crate::scoring::calculate_dots_score;
 use crate::share_card::{ShareCardData, CardTheme, generate_themed_share_card_svg};
@@ -91,6 +92,87 @@ pub async fn create_visualizations(
     }).await;
     
     Ok(Json(response))
+}
+
+pub async fn create_visualizations_arrow(
+    State(state): State<AppState>,
+    Json(params): Json<FilterParams>,
+) -> Result<Response, StatusCode> {
+    let start = Instant::now();
+    
+    // Generate cache key with arrow suffix to separate from JSON cache
+    let cache_key = format!("{:?}_arrow", params);
+    
+    // Check cache first
+    if let Some(cached) = state.cache.get(&cache_key).await {
+        if cached.computed_at.elapsed().as_secs() < 300 { // 5-minute cache
+            return Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")
+                .header(header::CACHE_CONTROL, "public, max-age=300")
+                .body(cached.data.clone().into())
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+    
+    // Apply filters (reuse existing logic)
+    let filtered_data = apply_filters_fast(&state.data, &params);
+    
+    // Debug: Print filtered data info
+    println!("🔍 Filtered data (Arrow): {} records", filtered_data.height());
+    
+    // Determine which lift to visualize (default to squat)
+    let lift_type = LiftType::from_str(params.lift_type.as_deref().unwrap_or("squat"));
+    
+    // Generate visualizations (reuse existing logic)
+    let histogram_data = create_histogram_data(&filtered_data, &lift_type, false);
+    let scatter_data = create_scatter_data(&filtered_data, &lift_type, false);
+    let dots_histogram_data = create_histogram_data(&filtered_data, &lift_type, true);
+    let dots_scatter_data = create_scatter_data(&filtered_data, &lift_type, true);
+    
+    let user_percentile = calculate_user_percentile(&filtered_data, &params, &lift_type);
+    let user_dots_percentile = calculate_user_percentile_dots(&filtered_data, &params, &lift_type);
+    
+    // Convert to Arrow IPC format
+    let arrow_response = serialize_all_visualization_data(
+        &histogram_data,
+        &scatter_data,
+        &dots_histogram_data,
+        &dots_scatter_data,
+        user_percentile,
+        user_dots_percentile,
+        start.elapsed().as_millis() as u64,
+        filtered_data.height(),
+    ).map_err(|e| {
+        eprintln!("Arrow conversion error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let response_data = arrow_response.data;
+    
+    // Cache the result
+    state.cache.insert(cache_key, CachedResult {
+        data: response_data.clone(),
+        computed_at: Instant::now(),
+    }).await;
+    
+    let mut response_builder = Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")
+        .header(header::CACHE_CONTROL, "public, max-age=300")
+        .header("X-Processing-Time-Ms", arrow_response.processing_time_ms.to_string())
+        .header("X-Total-Records", arrow_response.total_records.to_string());
+
+    if let Some(percentile) = arrow_response.user_percentile {
+        response_builder = response_builder.header("X-User-Percentile", percentile.to_string());
+    }
+    if let Some(dots_percentile) = arrow_response.user_dots_percentile {
+        response_builder = response_builder.header("X-User-Dots-Percentile", dots_percentile.to_string());
+    }
+
+    response_builder
+        .body(response_data.into())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 pub async fn serve_index() -> Html<&'static str> {
