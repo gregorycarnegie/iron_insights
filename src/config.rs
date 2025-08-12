@@ -15,7 +15,7 @@ impl Default for AppConfig {
         Self {
             cache_max_capacity: 1000,
             cache_ttl_seconds: 3600, // 1 hour
-            sample_size: 50000,
+            sample_size: 100000,
             histogram_bins: 50,
             cache_refresh_seconds: 300, // 5 minutes
         }
