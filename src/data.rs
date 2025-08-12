@@ -283,7 +283,7 @@ impl DataProcessor {
             Field::new("TotalKg".into(), DataType::Float32),
         ]);
         
-        let mut df = LazyCsvReader::new(path)
+        let df = LazyCsvReader::new(path)
             .with_has_header(true)
             .with_separator(b',')
             .with_dtype_overwrite(Some(Arc::new(schema)))
@@ -309,76 +309,13 @@ impl DataProcessor {
                     .and(col("BodyweightKg").lt(300.0))
                     .and(col("TotalKg").gt(0.0))
             )
-            .collect()?;
-
-        println!("✅ Loaded {} records, now calculating DOTS scores...", df.height());
-
-        // Step 2: Add weight class and DOTS calculations
-        df = df
-            .lazy()
             .with_columns([
                 calculate_weight_class_expr(),
-            ])
-            .collect()?;
-
-        println!("✅ Weight classes calculated, adding DOTS...");
-
-        // Step 3: Add DOTS calculations one by one to catch errors
-        df = df
-            .lazy()
-            .with_columns([
                 calculate_dots_expr("Best3SquatKg", "SquatDOTS"),
-            ])
-            .collect()
-            .map_err(|e| {
-                println!("❌ Error calculating SquatDOTS: {}", e);
-                e
-            })?;
-
-        println!("✅ SquatDOTS calculated");
-
-        df = df
-            .lazy()
-            .with_columns([
                 calculate_dots_expr("Best3BenchKg", "BenchDOTS"),
-            ])
-            .collect()
-            .map_err(|e| {
-                println!("❌ Error calculating BenchDOTS: {}", e);
-                e
-            })?;
-
-        println!("✅ BenchDOTS calculated");
-
-        df = df
-            .lazy()
-            .with_columns([
                 calculate_dots_expr("Best3DeadliftKg", "DeadliftDOTS"),
-            ])
-            .collect()
-            .map_err(|e| {
-                println!("❌ Error calculating DeadliftDOTS: {}", e);
-                e
-            })?;
-
-        println!("✅ DeadliftDOTS calculated");
-
-        df = df
-            .lazy()
-            .with_columns([
                 calculate_dots_expr("TotalKg", "TotalDOTS"),
             ])
-            .collect()
-            .map_err(|e| {
-                println!("❌ Error calculating TotalDOTS: {}", e);
-                e
-            })?;
-
-        println!("✅ TotalDOTS calculated");
-
-        // Step 4: Filter out any invalid DOTS values
-        df = df
-            .lazy()
             .filter(
                 col("SquatDOTS").is_finite()
                     .and(col("BenchDOTS").is_finite())
@@ -388,8 +325,11 @@ impl DataProcessor {
                     .and(col("BenchDOTS").gt(0.0))
                     .and(col("DeadliftDOTS").gt(0.0))
                     .and(col("TotalDOTS").gt(0.0))
-            )
-            .collect()?;
+            ).collect()
+            .map_err(|e| {
+                println!("❌ Error loading data: {}", e);
+                e
+            })?;
 
         self.validate_dots_data(&df);
         let df = self.apply_sampling(df)?;
@@ -615,12 +555,8 @@ impl SampleDataBuilder {
         // Add calculations step by step
         let df = df
             .lazy()
-            .with_columns([calculate_weight_class_expr()])
-            .collect()?;
-
-        let df = df
-            .lazy()
             .with_columns([
+                calculate_weight_class_expr(),
                 calculate_dots_expr("Best3SquatKg", "SquatDOTS"),
                 calculate_dots_expr("Best3BenchKg", "BenchDOTS"), 
                 calculate_dots_expr("Best3DeadliftKg", "DeadliftDOTS"),
