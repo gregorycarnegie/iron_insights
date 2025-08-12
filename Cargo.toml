@@ -12,7 +12,7 @@ tokio = { version = "1.47.1", features = ["full"] }
 axum-extra = { version = "0.10.1", features = ["typed-header"] }
 futures = "0.3.31"
 futures-util = "0.3.31"
-uuid = { version = "1.17.0", features = ["v4", "serde"] }
+uuid = { version = "1.18.0", features = ["v4", "serde"] }
 
 # Real-time messaging
 dashmap = "6.1.0"
@@ -38,14 +38,14 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 
 # Apache Arrow for binary data serialization
-arrow = "54.0.0"
-arrow-ipc = "54.0.0"
+arrow = "56.0.0"
+arrow-ipc = "56.0.0"
 
 # Caching
 moka = { version = "0.12.10", features = ["future"] }
 
 # HTTP client for downloading data
-reqwest = { version = "0.12.22", features = ["stream"] }
+reqwest = { version = "0.12.23", features = ["stream"] }
 
 # HTML parsing for revision checking
 scraper = "0.23.1"
