@@ -260,7 +260,9 @@ fn create_histogram_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool)
         .map(|col| {
             col.f32()
                 .map(|s| {
+                    // Use parallel iterator for filtering
                     let filtered: Vec<f32> = s.into_no_null_iter()
+                        .par_bridge()
                         .filter(|&x| x.is_finite() && x > 0.0)
                         .collect();
                     println!("📈 Column {}: {} valid values (finite and > 0)", column, filtered.len());
@@ -296,14 +298,21 @@ fn create_histogram_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool)
     
     let config = AppConfig::default();
     let bin_width = (max_val - min_val) / config.histogram_bins as f32;
-    let mut bins = vec![0u32; config.histogram_bins];
     
-    // Sequential binning for correctness
-    for &val in &values {
-        let bin_idx = ((val - min_val) / bin_width).floor() as usize;
-        let bin_idx = bin_idx.min(config.histogram_bins - 1);
-        bins[bin_idx] += 1;
-    }
+    // Parallel binning using reduce
+    let bins: Vec<u32> = values.par_iter()
+        .fold(|| vec![0u32; config.histogram_bins], |mut acc, &val| {
+            let bin_idx = ((val - min_val) / bin_width).floor() as usize;
+            let bin_idx = bin_idx.min(config.histogram_bins - 1);
+            acc[bin_idx] += 1;
+            acc
+        })
+        .reduce(|| vec![0u32; config.histogram_bins], |mut a, b| {
+            for (i, &count) in b.iter().enumerate() {
+                a[i] += count;
+            }
+            a
+        });
 
     let bin_edges: Vec<f32> = (0..=config.histogram_bins)
         .map(|i| min_val + i as f32 * bin_width)
@@ -329,31 +338,43 @@ fn create_scatter_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool) -
 
     println!("📊 Creating scatter plot for column: {}", y_column);
 
-    let bodyweight: Vec<f32> = data.column("BodyweightKg")
-        .map(|col| col.f32().map(|s| s.into_no_null_iter().collect()).unwrap_or_default())
-        .unwrap_or_default();
-
-    let y_values: Vec<f32> = data.column(y_column)
-        .map(|col| {
-            col.f32()
-                .map(|s| {
-                    let values: Vec<f32> = s.into_no_null_iter()
-                        .filter(|&x| x.is_finite() && x > 0.0)
-                        .collect();
-                    println!("📊 Scatter Y values ({}): {} valid", y_column, values.len());
-                    values
-                })
-                .unwrap_or_default()
-        })
-        .unwrap_or_default();
+    // Parallel processing for data extraction
+    let (bodyweight, y_values_and_sex) = rayon::join(
+        || data.column("BodyweightKg")
+            .map(|col| col.f32().map(|s| s.into_no_null_iter().collect::<Vec<f32>>()).unwrap_or_default())
+            .unwrap_or_default(),
+        || {
+            rayon::join(
+                || data.column(y_column)
+                    .map(|col| {
+                        col.f32()
+                            .map(|s| {
+                                // Use parallel filtering for y values
+                                let values: Vec<f32> = s.into_no_null_iter()
+                                    .par_bridge()
+                                    .filter(|&x| x.is_finite() && x > 0.0)
+                                    .collect();
+                                println!("📊 Scatter Y values ({}): {} valid", y_column, values.len());
+                                values
+                            })
+                            .unwrap_or_default()
+                    })
+                    .unwrap_or_default(),
+                || data.column("Sex")
+                    .map(|col| {
+                        col.str()
+                            .map(|s| s.into_no_null_iter()
+                                .par_bridge()
+                                .map(|s| s.to_string())
+                                .collect::<Vec<String>>())
+                            .unwrap_or_default()
+                    })
+                    .unwrap_or_default()
+            )
+        }
+    );
     
-    let sex: Vec<String> = data.column("Sex")
-        .map(|col| {
-            col.str()
-                .map(|s| s.into_no_null_iter().map(|s| s.to_string()).collect())
-                .unwrap_or_default()
-        })
-        .unwrap_or_default();
+    let (y_values, sex) = y_values_and_sex;
     
     // Ensure all vectors have the same length by taking the minimum
     let min_len = bodyweight.len().min(y_values.len()).min(sex.len());
@@ -361,11 +382,19 @@ fn create_scatter_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool) -
     println!("📊 Scatter data lengths - BW: {}, Y: {}, Sex: {}, Min: {}", 
              bodyweight.len(), y_values.len(), sex.len(), min_len);
     
-    ScatterData {
-        x: bodyweight.into_iter().take(min_len).collect(),
-        y: y_values.into_iter().take(min_len).collect(),
-        sex: sex.into_iter().take(min_len).collect(),
-    }
+    // Parallel truncation to min_len
+    let (x, y_and_sex) = rayon::join(
+        || bodyweight.into_iter().take(min_len).collect(),
+        || {
+            rayon::join(
+                || y_values.into_iter().take(min_len).collect(),
+                || sex.into_iter().take(min_len).collect()
+            )
+        }
+    );
+    let (y, sex_data) = y_and_sex;
+    
+    ScatterData { x, y, sex: sex_data }
 }
 
 fn calculate_user_percentile(data: &DataFrame, params: &FilterParams, lift_type: &LiftType) -> Option<f32> {
@@ -377,6 +406,7 @@ fn calculate_user_percentile(data: &DataFrame, params: &FilterParams, lift_type:
         .f32()
         .ok()?
         .into_no_null_iter()
+        .par_bridge()
         .filter(|&x| x > 0.0)
         .collect();
 
@@ -384,7 +414,7 @@ fn calculate_user_percentile(data: &DataFrame, params: &FilterParams, lift_type:
         return None;
     }
 
-    let below_count = lift_values.iter()
+    let below_count = lift_values.par_iter()
         .filter(|&&lift| lift < user_lift)
         .count();
 
@@ -407,6 +437,7 @@ fn calculate_user_percentile_dots(data: &DataFrame, params: &FilterParams, lift_
         .f32()
         .ok()?
         .into_no_null_iter()
+        .par_bridge()
         .filter(|&x| x.is_finite() && x > 0.0)
         .collect();
 
@@ -416,7 +447,7 @@ fn calculate_user_percentile_dots(data: &DataFrame, params: &FilterParams, lift_
         return None;
     }
 
-    let below_count = dots_values.iter()
+    let below_count = dots_values.par_iter()
         .filter(|&&dots| dots < user_dots)
         .count();
 

@@ -536,7 +536,7 @@ pub const HTML_TEMPLATE: &str = r#"
             }
             
             hideError(chartId);
-            Plotly.newPlot(chartId, traces, layout);
+            Plotly.react(chartId, traces, layout);
             return true;
         }
         

@@ -1,5 +1,5 @@
 // arrow_utils.rs - Arrow IPC serialization utilities
-use arrow::array::{Float32Array, StringArray, UInt32Array, UInt64Array};
+use arrow::array::{Float32Array, StringArray, UInt32Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use arrow_ipc::writer::StreamWriter;
