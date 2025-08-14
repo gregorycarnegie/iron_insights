@@ -9,6 +9,7 @@ use rayon::prelude::*;
 use std::time::Instant;
 
 use crate::arrow_utils::serialize_all_visualization_data;
+use crate::config::AppConfig;
 use crate::models::*;
 use crate::scoring::calculate_dots_score;
 use crate::share_card::{ShareCardData, CardTheme, generate_themed_share_card_svg};
@@ -293,18 +294,18 @@ fn create_histogram_data(data: &DataFrame, lift_type: &LiftType, use_dots: bool)
 
     println!("📊 Range for {}: {:.1} - {:.1}", column, min_val, max_val);
     
-    let num_bins = 50;
-    let bin_width = (max_val - min_val) / num_bins as f32;
-    let mut bins = vec![0u32; num_bins];
+    let config = AppConfig::default();
+    let bin_width = (max_val - min_val) / config.histogram_bins as f32;
+    let mut bins = vec![0u32; config.histogram_bins];
     
     // Sequential binning for correctness
     for &val in &values {
         let bin_idx = ((val - min_val) / bin_width).floor() as usize;
-        let bin_idx = bin_idx.min(num_bins - 1);
+        let bin_idx = bin_idx.min(config.histogram_bins - 1);
         bins[bin_idx] += 1;
     }
 
-    let bin_edges: Vec<f32> = (0..=num_bins)
+    let bin_edges: Vec<f32> = (0..=config.histogram_bins)
         .map(|i| min_val + i as f32 * bin_width)
         .collect();
     
