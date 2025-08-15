@@ -1,4 +1,4 @@
-// models.rs
+// models.rs - Updated with new filter parameters
 use moka::future::Cache;
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -25,11 +25,11 @@ impl AppState {
 
 #[derive(Clone, Debug)]
 pub struct CachedResult {
-    pub data: Vec<u8>, // Pre-serialized JSON
+    pub data: Vec<u8>, // Pre-serialized JSON or Arrow
     pub computed_at: Instant,
 }
 
-// API request/response types
+// Enhanced filter parameters with additional fields
 #[derive(Deserialize, Debug)]
 pub struct FilterParams {
     pub sex: Option<String>,
@@ -41,6 +41,8 @@ pub struct FilterParams {
     pub bodyweight: Option<f32>,
     pub units: Option<String>,
     pub lift_type: Option<String>, // "squat", "bench", "deadlift", "total"
+    pub min_bodyweight: Option<f32>, // New: minimum bodyweight filter
+    pub max_bodyweight: Option<f32>, // New: maximum bodyweight filter
 }
 
 #[derive(Serialize, Deserialize)]
@@ -55,7 +57,7 @@ pub struct VisualizationResponse {
     pub total_records: usize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct HistogramData {
     pub values: Vec<f32>,
     pub counts: Vec<u32>,
@@ -64,10 +66,10 @@ pub struct HistogramData {
     pub max_val: f32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ScatterData {
     pub x: Vec<f32>, // bodyweight
-    pub y: Vec<f32>, // lift values
+    pub y: Vec<f32>, // lift values or DOTS scores
     pub sex: Vec<String>,
 }
 
@@ -81,12 +83,12 @@ pub enum LiftType {
 
 impl LiftType {
     pub fn from_str(s: &str) -> Self {
-        match s {
+        match s.to_lowercase().as_str() {
             "squat" => Self::Squat,
             "bench" => Self::Bench,
             "deadlift" => Self::Deadlift,
             "total" => Self::Total,
-            _ => Self::Squat,
+            _ => Self::Squat, // Default to squat
         }
     }
     
@@ -105,6 +107,15 @@ impl LiftType {
             Self::Bench => "BenchDOTS",
             Self::Deadlift => "DeadliftDOTS",
             Self::Total => "TotalDOTS",
+        }
+    }
+    
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Squat => "Squat",
+            Self::Bench => "Bench Press",
+            Self::Deadlift => "Deadlift",
+            Self::Total => "Total",
         }
     }
 }

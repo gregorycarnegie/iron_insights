@@ -1,0 +1,199 @@
+// src/viz.rs - Centralized visualization computation
+use polars::prelude::*;
+use std::time::Instant;
+use crate::{
+    filters::apply_filters_lazy,
+    models::{FilterParams, LiftType, HistogramData, ScatterData},
+    percentiles::percentile_rank,
+    config::AppConfig,
+    scoring::calculate_dots_score,
+};
+
+/// Unified data carrier for all visualization data
+pub struct VizData {
+    pub hist: HistogramData,
+    pub scatter: ScatterData,
+    pub dots_hist: HistogramData,
+    pub dots_scatter: ScatterData,
+    pub user_percentile: Option<f32>,
+    pub user_dots_percentile: Option<f32>,
+    pub total_records: usize,
+    pub processing_time_ms: u64,
+}
+
+/// Main compute function - single source of truth for visualization logic
+pub fn compute_viz(
+    data: &DataFrame,
+    params: &FilterParams,
+    config: &AppConfig,
+) -> PolarsResult<VizData> {
+    let t0 = Instant::now();
+    
+    // Single collect() point for the entire filter pipeline
+    let filtered = apply_filters_lazy(data, params)?.collect()?;
+    
+    println!("🔍 Filtered to {} records", filtered.height());
+    
+    // Determine lift type
+    let lift_type = LiftType::from_str(params.lift_type.as_deref().unwrap_or("squat"));
+    
+    // Generate all visualizations
+    let hist = create_histogram_data(&filtered, &lift_type, false, config);
+    let scatter = create_scatter_data(&filtered, &lift_type, false);
+    let dots_hist = create_histogram_data(&filtered, &lift_type, true, config);
+    let dots_scatter = create_scatter_data(&filtered, &lift_type, true);
+    
+    // Calculate percentiles if user data provided
+    let user_percentile = if let Some(lift_value) = get_user_lift_value(params, &lift_type) {
+        percentile_rank(&filtered, lift_type.raw_column(), Some(lift_value))
+    } else {
+        None
+    };
+    
+    let user_dots_percentile = if let (Some(bw), Some(lift)) = 
+        (params.bodyweight, get_user_lift_value(params, &lift_type)) {
+        let user_dots = calculate_dots_score(lift, bw);
+        percentile_rank(&filtered, lift_type.dots_column(), Some(user_dots))
+    } else {
+        None
+    };
+    
+    Ok(VizData {
+        hist,
+        scatter,
+        dots_hist,
+        dots_scatter,
+        user_percentile,
+        user_dots_percentile,
+        total_records: filtered.height(),
+        processing_time_ms: t0.elapsed().as_millis() as u64,
+    })
+}
+
+/// Helper to select the right column based on DOTS flag
+pub fn y_col(lift: &LiftType, use_dots: bool) -> &str {
+    if use_dots {
+        lift.dots_column()
+    } else {
+        lift.raw_column()
+    }
+}
+
+/// Create histogram data with optimized binning
+fn create_histogram_data(
+    df: &DataFrame,
+    lift_type: &LiftType,
+    use_dots: bool,
+    config: &AppConfig,
+) -> HistogramData {
+    let column = y_col(lift_type, use_dots);
+    
+    let values: Vec<f32> = df.column(column)
+        .ok()
+        .and_then(|col| col.f32().ok())
+        .map(|s| {
+            s.into_no_null_iter()
+                .filter(|&x| x.is_finite() && x > 0.0)
+                .collect()
+        })
+        .unwrap_or_default();
+    
+    if values.is_empty() {
+        return HistogramData {
+            values: vec![],
+            counts: vec![],
+            bins: vec![],
+            min_val: 0.0,
+            max_val: 0.0,
+        };
+    }
+    
+    // Calculate range
+    let min_val = values.iter().cloned().fold(f32::INFINITY, f32::min);
+    let max_val = values.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+    
+    // Create bins
+    let bin_width = (max_val - min_val) / config.histogram_bins as f32;
+    let mut bins = vec![0u32; config.histogram_bins];
+    
+    for &val in &values {
+        let bin_idx = ((val - min_val) / bin_width).floor() as usize;
+        let bin_idx = bin_idx.min(config.histogram_bins - 1);
+        bins[bin_idx] += 1;
+    }
+    
+    let bin_edges: Vec<f32> = (0..=config.histogram_bins)
+        .map(|i| min_val + i as f32 * bin_width)
+        .collect();
+    
+    HistogramData {
+        values,
+        counts: bins,
+        bins: bin_edges,
+        min_val,
+        max_val,
+    }
+}
+
+/// Create scatter plot data with column selection
+fn create_scatter_data(df: &DataFrame, lift_type: &LiftType, use_dots: bool) -> ScatterData {
+    let yc = y_col(lift_type, use_dots);
+    
+    // Select only needed columns once
+    let mini = df.select(["BodyweightKg", yc, "Sex"])
+        .unwrap_or_else(|_| df.clone())
+        .lazy()
+        .filter(
+            col("BodyweightKg").is_finite()
+                .and(col(yc).is_finite())
+                .and(col(yc).gt(lit(0.0)))
+        )
+        .collect()
+        .unwrap_or_else(|_| DataFrame::empty());
+    
+    let x: Vec<f32> = mini.column("BodyweightKg")
+        .ok()
+        .and_then(|s| s.f32().ok())
+        .map(|s| s.into_no_null_iter().collect())
+        .unwrap_or_default();
+    
+    let y: Vec<f32> = mini.column(yc)
+        .ok()
+        .and_then(|s| s.f32().ok())
+        .map(|s| s.into_no_null_iter().collect())
+        .unwrap_or_default();
+    
+    let sex: Vec<String> = mini.column("Sex")
+        .ok()
+        .and_then(|s| s.str().ok())
+        .map(|s| s.into_no_null_iter().map(|s| s.to_string()).collect())
+        .unwrap_or_default();
+    
+    // Ensure equal lengths
+    let min_len = x.len().min(y.len()).min(sex.len());
+    
+    ScatterData {
+        x: x.into_iter().take(min_len).collect(),
+        y: y.into_iter().take(min_len).collect(),
+        sex: sex.into_iter().take(min_len).collect(),
+    }
+}
+
+/// Get user's lift value based on lift type
+fn get_user_lift_value(params: &FilterParams, lift_type: &LiftType) -> Option<f32> {
+    match lift_type {
+        LiftType::Squat => params.squat,
+        LiftType::Bench => params.bench,
+        LiftType::Deadlift => params.deadlift,
+        LiftType::Total => {
+            let s = params.squat.unwrap_or(0.0);
+            let b = params.bench.unwrap_or(0.0);
+            let d = params.deadlift.unwrap_or(0.0);
+            if s > 0.0 || b > 0.0 || d > 0.0 {
+                Some(s + b + d)
+            } else {
+                None
+            }
+        }
+    }
+}
