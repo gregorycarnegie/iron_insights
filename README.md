@@ -96,22 +96,52 @@ For real data analysis, download the OpenPowerlifting dataset:
 
 ```text
 src/
-├── main.rs          # Application entry point
-├── config.rs        # Configuration management
-├── models.rs        # Data structures and API types
-├── data.rs          # Data loading and preprocessing
-├── scoring.rs       # DOTS calculation engine
-├── handlers.rs      # HTTP request handlers
-└── ui.rs           # Frontend HTML template
+├── main.rs           # Application entry point and server setup
+├── config.rs         # Configuration management
+├── models.rs         # Data structures and API types
+├── data.rs           # Data loading and preprocessing
+├── scoring.rs        # DOTS calculation engine
+├── handlers.rs       # HTTP request handlers
+├── cache.rs          # Caching layer implementation
+├── filters.rs        # Data filtering logic
+├── percentiles.rs    # Percentile calculations
+├── viz.rs            # Data visualization utilities
+├── share_card.rs     # Social sharing card generation
+├── websocket.rs      # WebSocket real-time communication
+├── arrow_utils.rs    # Apache Arrow utilities
+├── debug_dots.rs     # DOTS calculation debugging
+├── ui/               # Frontend UI components
+│   ├── mod.rs        # UI module organization
+│   └── components/   # Reusable UI components
+│       ├── charts.rs     # Chart rendering
+│       ├── controls.rs   # User input controls
+│       ├── head.rs       # HTML head section
+│       ├── header.rs     # Page header
+│       ├── metrics.rs    # Performance metrics display
+│       ├── realtime.rs   # Real-time updates
+│       ├── scripts.rs    # JavaScript integration
+│       ├── share_card.rs # Share card component
+│       └── styles.rs     # CSS styling
+└── wasm/             # WebAssembly module
+    ├── Cargo.toml    # WASM-specific dependencies
+    └── lib.rs        # WASM bindings for client-side calculations
+
+static/
+└── wasm/             # Compiled WebAssembly assets
+    ├── iron_insights_wasm.js
+    ├── iron_insights_wasm_bg.wasm
+    └── *.d.ts        # TypeScript definitions
 ```
 
 ### 🧱 **Core Components**
 
-- **Data Layer** - Polars-based CSV processing with schema validation
-- **Scoring Engine** - Vectorized DOTS calculations
-- **Cache Layer** - Moka-powered intelligent caching
-- **Web Layer** - Axum async HTTP server
-- **Frontend** - Vanilla JavaScript with Plotly.js
+- **Data Layer** - Apache Arrow/Polars-based processing with Parquet support
+- **Scoring Engine** - Vectorized DOTS calculations (server + WASM)
+- **Cache Layer** - Multi-tier caching with intelligent invalidation
+- **Web Layer** - Axum async HTTP server with WebSocket support
+- **Visualization** - Interactive charts with real-time updates
+- **WebAssembly** - Client-side calculations for instant feedback
+- **UI Components** - Modular, reusable frontend architecture
 
 ## 📊 DOTS Scoring
 

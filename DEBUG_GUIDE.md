@@ -3,8 +3,10 @@
 ## Quick Fixes for Empty DOTS Charts
 
 ### 1. **Check Server Logs**
+
 When you run `cargo run --release`, look for these debug messages:
-```
+
+```text
 🔍 Filtered data: X records
 📊 SquatDOTS: X valid values
 📊 BenchDOTS: X valid values
@@ -15,6 +17,7 @@ When you run `cargo run --release`, look for these debug messages:
 If you see `0 valid values`, that's your problem!
 
 ### 2. **Enable Frontend Debug Mode**
+
 1. Click "Toggle Debug Info" button in the web interface
 2. Update the charts
 3. Check if DOTS histogram/scatter show `0 values`
@@ -22,8 +25,10 @@ If you see `0 valid values`, that's your problem!
 ### 3. **Common Issues & Solutions**
 
 #### Issue: "No DOTS data available"
+
 **Cause**: DOTS calculations are producing NaN/infinite values
 **Solutions**:
+
 ```bash
 # Check your data
 cargo run --bin debug_dots  # If you add the debug script
@@ -33,8 +38,10 @@ cargo test test_sample_data_generation -- --nocapture
 ```
 
 #### Issue: "Column not found" errors
+
 **Cause**: DOTS columns not being created
 **Solution**: Check your `scoring.rs` - make sure `DotsCoefficients` is public:
+
 ```rust
 pub struct DotsCoefficients {
     pub a: f32,
@@ -43,8 +50,10 @@ pub struct DotsCoefficients {
 ```
 
 #### Issue: All DOTS values are 0 or NaN
+
 **Cause**: Invalid bodyweight or lift values
 **Solution**: Add better filtering in `data.rs`:
+
 ```rust
 .filter(
     col("BodyweightKg").gt(30.0)
@@ -57,6 +66,7 @@ pub struct DotsCoefficients {
 ### 4. **Test DOTS Calculation Manually**
 
 Add this to your `main.rs` for quick testing:
+
 ```rust
 use crate::scoring::calculate_dots_score;
 
@@ -66,6 +76,7 @@ println!("Test DOTS: {}", calculate_dots_score(180.0, 75.0)); // Should be ~310
 ### 5. **Check Your Data Pipeline**
 
 Verify each step:
+
 1. **Data Loading**: Are lift values > 0?
 2. **DOTS Calculation**: Are bodyweights reasonable (30-300kg)?
 3. **Filtering**: Are you filtering out all the data accidentally?
@@ -74,6 +85,7 @@ Verify each step:
 ### 6. **Sample Data Troubleshooting**
 
 If using generated sample data, ensure:
+
 ```rust
 // In SampleDataBuilder::generate_lifter()
 let bodyweight = bodyweight_sample.clamp(40.0, 200.0); // Reasonable range
@@ -99,9 +111,11 @@ cargo run convert your_data.csv  # This also validates
 ### 8. **Frontend Network Tab**
 
 Open browser dev tools → Network tab → refresh page:
+
 - Look for `/api/visualize` request
 - Check the response - does it contain DOTS data?
 - Example good response:
+
 ```json
 {
   "dots_histogram_data": {
@@ -123,6 +137,7 @@ Open browser dev tools → Network tab → refresh page:
 ### 10. **Emergency Sample Data Fix**
 
 If nothing works, force sample data generation:
+
 ```rust
 // In main.rs, temporarily comment out real data loading
 // let data = data_processor.load_and_preprocess_data()
