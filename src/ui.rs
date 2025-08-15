@@ -417,7 +417,7 @@ pub const HTML_TEMPLATE: &str = r#"
                     <label>Your Name:</label>
                     <input type="text" id="shareCardName" placeholder="Enter your name" maxlength="30">
                 </div>
-                <div class="control-group" style="grid-column: span 2;">
+                <div class="control-group" style="grid-column: span 3;">
                     <label>Your Powerlifting Numbers (kg):</label>
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 5px;">
                         <input type="number" id="shareSquat" placeholder="Squat" step="0.5" min="0">
@@ -425,6 +425,9 @@ pub const HTML_TEMPLATE: &str = r#"
                         <input type="number" id="shareDeadlift" placeholder="Deadlift" step="0.5" min="0">
                     </div>
                 </div>
+            </div>
+            
+            <div class="user-metrics" style="margin-top: 15px;">
                 <div class="control-group">
                     <label>Card Theme:</label>
                     <select id="shareCardTheme">
