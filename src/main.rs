@@ -1,4 +1,4 @@
-// main.rs - Updated with new modular structure
+// main.rs - Updated with maud HTML templating
 use axum::{routing::get, Router};
 use std::sync::Arc;
 use tower_http::{compression::CompressionLayer, services::ServeDir};
@@ -47,6 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Normal server startup
     tracing::info!("🚀 Starting Iron Insights - High-Performance Powerlifting Analyzer with DOTS...");
+    tracing::info!("🎨 Using maud for compile-time HTML templating");
     
     let config = AppConfig::default();
     let data_processor = DataProcessor::new()
@@ -87,6 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     
     let app = Router::new()
+        // Main page now returns maud Markup instead of static HTML
         .route("/", get(serve_index))
         .route("/api/visualize", axum::routing::post(create_visualizations))
         .route("/api/visualize-arrow", axum::routing::post(create_visualizations_arrow))

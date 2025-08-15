@@ -1,12 +1,15 @@
 [package]
 name = "iron_insights"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
 # Ultra-fast web framework
 axum = { version = "0.8.4", features = ["macros", "ws"] }
 tokio = { version = "1.47.1", features = ["full"] }
+
+# HTML templating with compile-time safety
+maud = { version = "0.27.0", features = ["axum"] }
 
 # WebSocket support
 axum-extra = { version = "0.10.1", features = ["typed-header"] }

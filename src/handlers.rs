@@ -1,9 +1,10 @@
-// src/handlers.rs - Refactored slim handlers
+// src/handlers.rs - Refactored with maud HTML templating
 use axum::{
     extract::State,
     http::{StatusCode, header},
-    response::{Html, Json, Response},
+    response::{Json, Response},
 };
+use maud::Markup;
 use tracing::{info, instrument, error};
 
 use crate::{
@@ -11,9 +12,15 @@ use crate::{
     cache::{cache_get, cache_put, make_cache_key},
     models::*,
     share_card::{ShareCardData, CardTheme, generate_themed_share_card_svg},
-    ui::HTML_TEMPLATE,
+    ui::render_index,
     viz::compute_viz,
 };
+
+/// Main HTML page - now using maud templating
+#[instrument(skip(_state))]
+pub async fn serve_index(State(_state): State<AppState>) -> Markup {
+    render_index()
+}
 
 /// Main JSON visualization endpoint - thin I/O wrapper
 #[instrument(skip(state))]
@@ -107,11 +114,6 @@ pub async fn create_visualizations_arrow(
         .header("X-Total-Records", arrow_response.total_records.to_string())
         .body(arrow_response.data.into())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-}
-
-/// Serve the main HTML page
-pub async fn serve_index() -> Html<&'static str> {
-    Html(HTML_TEMPLATE)
 }
 
 /// Get application statistics
