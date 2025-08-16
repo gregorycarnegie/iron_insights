@@ -89,7 +89,14 @@ pub fn render_scripts() -> Markup {
             }
             
             hideError(chartId);
-            Plotly.react(chartId, traces, layout);
+            // Enhanced Plotly config for GPU acceleration
+            const config = {
+                displayModeBar: false,
+                staticPlot: false,
+                responsive: true,
+                webGlRenderer: true
+            };
+            Plotly.react(chartId, traces, layout, config);
             return true;
         }
         
@@ -304,14 +311,14 @@ pub fn render_scripts() -> Markup {
                 if (maleData.length > 0) {
                     scatterTraces.push({
                         x: maleData.map(d => d.x), y: maleData.map(d => d.y),
-                        mode: 'markers', type: 'scatter',
+                        mode: 'markers', type: 'scattergl',
                         marker: { size: 3, opacity: 0.6, color: '#3498db' }, name: 'Male'
                     });
                 }
                 if (femaleData.length > 0) {
                     scatterTraces.push({
                         x: femaleData.map(d => d.x), y: femaleData.map(d => d.y),
-                        mode: 'markers', type: 'scatter',
+                        mode: 'markers', type: 'scattergl',
                         marker: { size: 3, opacity: 0.6, color: '#e91e63' }, name: 'Female'
                     });
                 }
@@ -351,14 +358,14 @@ pub fn render_scripts() -> Markup {
                 if (maleDotsData.length > 0) {
                     dotsScatterTraces.push({
                         x: maleDotsData.map(d => d.x), y: maleDotsData.map(d => d.y),
-                        mode: 'markers', type: 'scatter',
+                        mode: 'markers', type: 'scattergl',
                         marker: { size: 3, opacity: 0.6, color: '#3498db' }, name: 'Male'
                     });
                 }
                 if (femaleDotsData.length > 0) {
                     dotsScatterTraces.push({
                         x: femaleDotsData.map(d => d.x), y: femaleDotsData.map(d => d.y),
-                        mode: 'markers', type: 'scatter',
+                        mode: 'markers', type: 'scattergl',
                         marker: { size: 3, opacity: 0.6, color: '#e91e63' }, name: 'Female'
                     });
                 }

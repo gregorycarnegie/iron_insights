@@ -77,6 +77,9 @@ pub fn render_styles() -> Markup {
             border-radius: 5px;
             background: white;
             position: relative;
+            transform: translateZ(0);
+            will-change: transform;
+            backface-visibility: hidden;
         }
         .chart-title {
             font-weight: 600;
@@ -132,6 +135,9 @@ pub fn render_styles() -> Markup {
             border-radius: 5px;
             border-left: 4px solid #28a745;
             text-align: center;
+            transform: translateZ(0);
+            will-change: transform;
+            backface-visibility: hidden;
         }
         .stat-value {
             font-size: 24px;
@@ -189,6 +195,9 @@ pub fn render_styles() -> Markup {
             padding: 20px;
             border-radius: 8px;
             margin: 20px 0;
+            transform: translateZ(0);
+            will-change: transform;
+            backface-visibility: hidden;
         }
         .realtime-title {
             font-size: 18px;
@@ -257,6 +266,9 @@ pub fn render_styles() -> Markup {
             padding: 20px;
             border-radius: 8px;
             text-align: center;
+            transform: translateZ(0);
+            will-change: transform;
+            backface-visibility: hidden;
         }
         .percentile-card.dots {
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
@@ -270,12 +282,105 @@ pub fn render_styles() -> Markup {
             font-size: 16px;
             opacity: 0.9;
         }
+        /* GPU-accelerated hover animations */
+        .chart:hover {
+            transform: translateZ(0) scale(1.02);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .stat-card:hover {
+            transform: translateZ(0) translateY(-2px);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .percentile-card:hover {
+            transform: translateZ(0) scale(1.05);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+        
+        button:hover {
+            background: #0056b3;
+            transform: translateZ(0) translateY(-1px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+        }
+        
+        .realtime-panel {
+            animation: pulse 4s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { 
+                transform: translateZ(0) scale(1); 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            }
+            50% { 
+                transform: translateZ(0) scale(1.01); 
+                background: linear-gradient(135deg, #6c7ae0 0%, #7f52b3 100%);
+            }
+        }
+        
+        .connection-status {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateZ(0);
+        }
+        
+        .connection-status:not(.disconnected) {
+            animation: statusPulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes statusPulse {
+            0%, 100% { transform: translateZ(0) scale(1); opacity: 1; }
+            50% { transform: translateZ(0) scale(1.2); opacity: 0.8; }
+        }
+        
+        .activity-item {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateZ(0);
+        }
+        
+        .activity-item:hover {
+            transform: translateZ(0) translateX(5px);
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            padding-left: 5px;
+        }
+        
+        .live-stat {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateZ(0);
+        }
+        
+        .live-stat:hover {
+            transform: translateZ(0) scale(1.1);
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .metric-display {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateZ(0);
+        }
+        
+        .metric-display:hover {
+            transform: translateZ(0) translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-color: #007bff;
+        }
+        
         @media (max-width: 768px) {
             .chart-grid {
                 grid-template-columns: 1fr;
             }
             .percentile-comparison {
                 grid-template-columns: 1fr;
+            }
+            /* Reduce animations on mobile for performance */
+            .chart:hover, .stat-card:hover, .percentile-card:hover {
+                transform: none;
+                transition: none;
             }
         }
     "#.to_string())
