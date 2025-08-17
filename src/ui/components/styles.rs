@@ -7,15 +7,23 @@ pub fn render_styles() -> Markup {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
             margin: 0; 
             padding: 20px; 
-            background: #f5f5f5; 
+            background: linear-gradient(-45deg, #f5f5f5, #e8f4f8, #f0f8ff, #f5f5f5);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            min-height: 100vh;
+            transform: translateZ(0);
         }
         .container { 
             max-width: 1400px; 
             margin: 0 auto; 
-            background: white; 
+            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.95) 50%, rgba(255,255,255,0.95) 100%); 
             border-radius: 8px; 
             padding: 20px; 
             box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transform: translateZ(0);
+            will-change: transform;
         }
         .header { 
             text-align: center; 
@@ -52,9 +60,13 @@ pub fn render_styles() -> Markup {
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
             gap: 15px; 
             margin-bottom: 30px;
-            background: #f8f9fa;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #f8f9fa 100%);
+            background-size: 200% 200%;
+            animation: subtleGradientShift 8s ease infinite;
             padding: 20px;
             border-radius: 5px;
+            transform: translateZ(0);
+            border: 1px solid rgba(255,255,255,0.3);
         }
         .control-group {
             display: flex;
@@ -75,19 +87,25 @@ pub fn render_styles() -> Markup {
             height: 400px; 
             border: 1px solid #ddd;
             border-radius: 5px;
-            background: white;
+            background: linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 50%, rgba(255,255,255,0.98) 100%);
+            background-size: 200% 200%;
+            animation: chartGradientShift 12s ease infinite;
             position: relative;
             transform: translateZ(0);
             will-change: transform;
             backface-visibility: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
         .chart-title {
             font-weight: 600;
             padding: 10px;
-            background: #f8f9fa;
+            background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 50%, #f8f9fa 100%);
+            background-size: 200% 100%;
+            animation: titleGradientShift 6s ease infinite;
             border-bottom: 1px solid #ddd;
             margin: 0;
             font-size: 16px;
+            transform: translateZ(0);
         }
         .chart-error {
             position: absolute;
@@ -130,7 +148,9 @@ pub fn render_styles() -> Markup {
             margin-top: 20px;
         }
         .stat-card {
-            background: #f8f9fa;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 25%, #f1f3f4 50%, #e9ecef 75%, #f8f9fa 100%);
+            background-size: 300% 300%;
+            animation: statCardGradient 10s ease infinite;
             padding: 15px;
             border-radius: 5px;
             border-left: 4px solid #28a745;
@@ -138,6 +158,7 @@ pub fn render_styles() -> Markup {
             transform: translateZ(0);
             will-change: transform;
             backface-visibility: hidden;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
         }
         .stat-value {
             font-size: 24px;
@@ -190,7 +211,9 @@ pub fn render_styles() -> Markup {
             margin-top: 5px;
         }
         .realtime-panel {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(-45deg, #667eea 0%, #764ba2 25%, #5a67d8 50%, #667eea 75%, #764ba2 100%);
+            background-size: 400% 400%;
+            animation: realtimeGradientShift 8s ease infinite;
             color: white;
             padding: 20px;
             border-radius: 8px;
@@ -198,6 +221,7 @@ pub fn render_styles() -> Markup {
             transform: translateZ(0);
             will-change: transform;
             backface-visibility: hidden;
+            box-shadow: 0 4px 15px rgba(102,126,234,0.3);
         }
         .realtime-title {
             font-size: 18px;
@@ -242,8 +266,11 @@ pub fn render_styles() -> Markup {
         .live-stat {
             text-align: center;
             padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.1) 100%);
+            background-size: 200% 200%;
+            animation: liveStatGradient 7s ease infinite;
             border-radius: 5px;
+            transform: translateZ(0);
         }
         .live-stat-value {
             font-size: 24px;
@@ -261,7 +288,9 @@ pub fn render_styles() -> Markup {
             margin: 20px 0;
         }
         .percentile-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(-45deg, #667eea 0%, #764ba2 25%, #5a67d8 50%, #667eea 75%, #764ba2 100%);
+            background-size: 300% 300%;
+            animation: percentileGradientShift 9s ease infinite;
             color: white;
             padding: 20px;
             border-radius: 8px;
@@ -269,9 +298,13 @@ pub fn render_styles() -> Markup {
             transform: translateZ(0);
             will-change: transform;
             backface-visibility: hidden;
+            box-shadow: 0 4px 12px rgba(102,126,234,0.25);
         }
         .percentile-card.dots {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            background: linear-gradient(-45deg, #f093fb 0%, #f5576c 25%, #ff6b9d 50%, #f093fb 75%, #f5576c 100%);
+            background-size: 300% 300%;
+            animation: dotsPercentileGradientShift 9s ease infinite;
+            box-shadow: 0 4px 12px rgba(240,147,251,0.25);
         }
         .percentile-value {
             font-size: 32px;
@@ -308,19 +341,66 @@ pub fn render_styles() -> Markup {
             box-shadow: 0 4px 12px rgba(0,123,255,0.3);
         }
         
-        .realtime-panel {
-            animation: pulse 4s ease-in-out infinite;
+        /* GPU-accelerated gradient animations */
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
         
-        @keyframes pulse {
-            0%, 100% { 
-                transform: translateZ(0) scale(1); 
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            }
-            50% { 
-                transform: translateZ(0) scale(1.01); 
-                background: linear-gradient(135deg, #6c7ae0 0%, #7f52b3 100%);
-            }
+        @keyframes subtleGradientShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 100% 100%; }
+            100% { background-position: 0% 0%; }
+        }
+        
+        @keyframes chartGradientShift {
+            0% { background-position: 0% 50%; }
+            33% { background-position: 100% 50%; }
+            66% { background-position: 50% 100%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes titleGradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes statCardGradient {
+            0% { background-position: 0% 0%; }
+            25% { background-position: 100% 0%; }
+            50% { background-position: 100% 100%; }
+            75% { background-position: 0% 100%; }
+            100% { background-position: 0% 0%; }
+        }
+        
+        @keyframes realtimeGradientShift {
+            0% { background-position: 0% 50%; }
+            25% { background-position: 25% 75%; }
+            50% { background-position: 100% 50%; }
+            75% { background-position: 75% 25%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes liveStatGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes percentileGradientShift {
+            0% { background-position: 0% 50%; }
+            33% { background-position: 100% 50%; }
+            66% { background-position: 50% 100%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes dotsPercentileGradientShift {
+            0% { background-position: 0% 50%; }
+            33% { background-position: 100% 50%; }
+            66% { background-position: 50% 100%; }
+            100% { background-position: 0% 50%; }
         }
         
         .connection-status {
