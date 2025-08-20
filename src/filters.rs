@@ -1,10 +1,35 @@
-// src/filters.rs - Centralized lazy filtering logic
+// src/filters.rs - Centralized lazy filtering logic with column pruning
 use polars::prelude::*;
-use crate::models::FilterParams;
+use lazy_static::lazy_static;
+use crate::models::{FilterParams, LiftType};
 
-/// Apply all filters lazily - single collect() point for performance
+// Pre-compiled filter expressions for maximum performance
+lazy_static! {
+    static ref VALIDITY_EXPR: Expr = col("BodyweightKg").gt(lit(30.0))
+        .and(col("BodyweightKg").lt(lit(300.0)))
+        .and(col("Best3SquatKg").gt(lit(0.0)))
+        .and(col("Best3BenchKg").gt(lit(0.0)))
+        .and(col("Best3DeadliftKg").gt(lit(0.0)))
+        .and(col("TotalKg").gt(lit(0.0)))
+        .and(col("SquatDOTS").is_finite())
+        .and(col("BenchDOTS").is_finite())
+        .and(col("DeadliftDOTS").is_finite())
+        .and(col("TotalDOTS").is_finite())
+        .and(col("SquatDOTS").gt(lit(0.0)))
+        .and(col("BenchDOTS").gt(lit(0.0)))
+        .and(col("DeadliftDOTS").gt(lit(0.0)))
+        .and(col("TotalDOTS").gt(lit(0.0)));
+}
+
+/// Optimized lazy filtering with column pruning and pre-compiled expressions
 pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult<LazyFrame> {
-    let mut lf = df.clone().lazy();
+    // Column pruning: only select required columns based on lift type
+    let required_cols = get_required_columns(params);
+    
+    let mut lf = df.clone().lazy()
+        .select(required_cols); // Prune columns early for I/O efficiency
+    
+    // Apply user filters first (most selective)
     
     // Sex filter
     if let Some(sex) = &params.sex {
@@ -13,7 +38,7 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
         }
     }
     
-    // Equipment filter using is_in() for efficiency
+    // Equipment filter using OR chains (is_in not available in this version)
     if let Some(equipment) = &params.equipment {
         if !equipment.is_empty() {
             // Build OR expression for multiple equipment types
@@ -40,31 +65,46 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
         }
     }
     
-    // Single validity gate - all records must have reasonable values
-    lf = lf.filter(
-        col("BodyweightKg").gt(lit(30.0))
-            .and(col("BodyweightKg").lt(lit(300.0)))
-            .and(col("Best3SquatKg").gt(lit(0.0)))
-            .and(col("Best3BenchKg").gt(lit(0.0)))
-            .and(col("Best3DeadliftKg").gt(lit(0.0)))
-            .and(col("TotalKg").gt(lit(0.0)))
-            // Ensure DOTS values are valid
-            .and(col("SquatDOTS").is_finite())
-            .and(col("BenchDOTS").is_finite())
-            .and(col("DeadliftDOTS").is_finite())
-            .and(col("TotalDOTS").is_finite())
-            .and(col("SquatDOTS").gt(lit(0.0)))
-            .and(col("BenchDOTS").gt(lit(0.0)))
-            .and(col("DeadliftDOTS").gt(lit(0.0)))
-            .and(col("TotalDOTS").gt(lit(0.0)))
-    );
+    // Apply pre-compiled validity filter (most expensive, applied last)
+    lf = lf.filter(VALIDITY_EXPR.clone());
     
     Ok(lf)
 }
 
-/// Create a filter expression from parameters (for advanced use)
+/// Get minimal required columns based on parameters to reduce I/O
+fn get_required_columns(params: &FilterParams) -> Vec<Expr> {
+    let lift_type = LiftType::from_str(params.lift_type.as_deref().unwrap_or("squat"));
+    
+    let mut cols = vec![
+        col("BodyweightKg"),
+        col("Sex"),
+        col("Best3SquatKg"),
+        col("Best3BenchKg"),
+        col("Best3DeadliftKg"),
+        col("TotalKg"),
+        col("SquatDOTS"),
+        col("BenchDOTS"), 
+        col("DeadliftDOTS"),
+        col("TotalDOTS"),
+    ];
+    
+    // Only include additional columns if filters use them
+    if params.equipment.is_some() {
+        cols.push(col("Equipment"));
+    }
+    
+    if params.weight_class.is_some() {
+        cols.push(col("WeightClassKg"));
+    }
+    
+    // Return all required columns (duplicates handled by Polars)
+    
+    cols
+}
+
+/// Create optimized filter expression from parameters (using pre-compiled base)
 pub fn build_filter_expr(params: &FilterParams) -> Expr {
-    let mut expr = lit(true);
+    let mut expr = VALIDITY_EXPR.clone(); // Start with pre-compiled validity
     
     // Build composite filter expression
     if let Some(sex) = &params.sex {

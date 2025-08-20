@@ -92,6 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(serve_index))
         .route("/api/visualize", axum::routing::post(create_visualizations))
         .route("/api/visualize-arrow", axum::routing::post(create_visualizations_arrow))
+        .route("/api/visualize-arrow-stream", axum::routing::post(create_visualizations_arrow_stream))
         .route("/api/stats", get(get_stats))
         .route("/api/share-card", axum::routing::post(generate_share_card))
         .route("/ws", get(websocket_handler))
