@@ -1,5 +1,5 @@
 // arrow_utils.rs - Arrow IPC serialization utilities
-use arrow::array::{Float32Array, StringArray, UInt32Array};
+use arrow::array::{Array, Float32Array, StringArray, UInt32Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use arrow_ipc::writer::StreamWriter;
@@ -7,7 +7,7 @@ use serde::Serialize;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use crate::models::{HistogramData, ScatterData};
+use crate::models::{HistogramData, ScatterData, VisualizationResponse};
 
 #[derive(Serialize)]
 pub struct ArrowVisualizationResponse {
@@ -18,7 +18,7 @@ pub struct ArrowVisualizationResponse {
     pub total_records: usize,
 }
 
-pub fn serialize_histogram_to_arrow(data: &HistogramData) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn serialize_histogram_to_arrow(data: &HistogramData) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
     let schema = Schema::new(vec![
         Field::new("values", DataType::Float32, false),
         Field::new("counts", DataType::UInt32, false),
@@ -60,7 +60,7 @@ pub fn serialize_histogram_to_arrow(data: &HistogramData) -> Result<Vec<u8>, Box
     Ok(buffer.into_inner())
 }
 
-pub fn serialize_scatter_to_arrow(data: &ScatterData) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn serialize_scatter_to_arrow(data: &ScatterData) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
     let schema = Schema::new(vec![
         Field::new("x", DataType::Float32, false),
         Field::new("y", DataType::Float32, false),
@@ -102,7 +102,7 @@ pub fn serialize_all_visualization_data(
     user_dots_percentile: Option<f32>,
     processing_time_ms: u64,
     total_records: usize,
-) -> Result<ArrowVisualizationResponse, Box<dyn std::error::Error>> {
+) -> Result<ArrowVisualizationResponse, Box<dyn std::error::Error + Send + Sync>> {
     // Create a comprehensive schema that includes all data types
     let schema = Schema::new(vec![
         // Data type indicator
@@ -210,6 +210,127 @@ pub fn serialize_all_visualization_data(
 
     Ok(ArrowVisualizationResponse {
         data: buffer.into_inner(),
+        user_percentile,
+        user_dots_percentile,
+        processing_time_ms,
+        total_records,
+    })
+}
+
+/// Serialize any VisualizationResponse to Arrow IPC binary format
+pub fn serialize_visualization_response_to_arrow(response: &VisualizationResponse) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+    serialize_all_visualization_data(
+        &response.histogram_data,
+        &response.scatter_data,
+        &response.dots_histogram_data,
+        &response.dots_scatter_data,
+        response.user_percentile,
+        response.user_dots_percentile,
+        response.processing_time_ms,
+        response.total_records,
+    ).map(|arrow_response| arrow_response.data)
+}
+
+/// Deserialize Arrow IPC binary format back to VisualizationResponse
+pub fn deserialize_visualization_response_from_arrow(data: &[u8]) -> Result<VisualizationResponse, Box<dyn std::error::Error + Send + Sync>> {
+    use arrow_ipc::reader::StreamReader;
+    use std::io::Cursor;
+    
+    let cursor = Cursor::new(data);
+    let mut reader = StreamReader::try_new(cursor, None)?;
+    
+    let mut histogram_data = HistogramData {
+        values: Vec::new(),
+        counts: Vec::new(),
+        bins: Vec::new(),
+        min_val: 0.0,
+        max_val: 0.0,
+    };
+    let mut scatter_data = ScatterData {
+        x: Vec::new(),
+        y: Vec::new(),
+        sex: Vec::new(),
+    };
+    let mut dots_histogram_data = histogram_data.clone();
+    let mut dots_scatter_data = scatter_data.clone();
+    
+    let user_percentile = None;
+    let user_dots_percentile = None;
+    let processing_time_ms = 0;
+    let total_records = 0;
+    
+    // Read all record batches and reconstruct data
+    while let Some(batch) = reader.next() {
+        let batch = batch?;
+        let data_type_array = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .ok_or("Invalid data_type column")?;
+        
+        let data_type = data_type_array.value(0);
+        match data_type {
+                "raw_histogram" => {
+                    if let (Some(values), Some(counts), Some(bins)) = (
+                        batch.column(1).as_any().downcast_ref::<Float32Array>(),
+                        batch.column(2).as_any().downcast_ref::<UInt32Array>(),
+                        batch.column(3).as_any().downcast_ref::<Float32Array>(),
+                    ) {
+                        histogram_data.values = values.values().to_vec();
+                        histogram_data.counts = counts.values().to_vec();
+                        histogram_data.bins = bins.values().to_vec();
+                        if !histogram_data.values.is_empty() {
+                            histogram_data.min_val = histogram_data.values.iter().fold(f32::INFINITY, |a, &b| a.min(b));
+                            histogram_data.max_val = histogram_data.values.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+                        }
+                    }
+                }
+                "raw_scatter" => {
+                    if let (Some(x), Some(y), Some(sex)) = (
+                        batch.column(4).as_any().downcast_ref::<Float32Array>(),
+                        batch.column(5).as_any().downcast_ref::<Float32Array>(),
+                        batch.column(6).as_any().downcast_ref::<StringArray>(),
+                    ) {
+                        scatter_data.x = x.values().to_vec();
+                        scatter_data.y = y.values().to_vec();
+                        scatter_data.sex = (0..sex.len()).map(|i| sex.value(i).to_string()).collect();
+                    }
+                }
+                "dots_histogram" => {
+                    if let (Some(values), Some(counts), Some(bins)) = (
+                        batch.column(1).as_any().downcast_ref::<Float32Array>(),
+                        batch.column(2).as_any().downcast_ref::<UInt32Array>(),
+                        batch.column(3).as_any().downcast_ref::<Float32Array>(),
+                    ) {
+                        dots_histogram_data.values = values.values().to_vec();
+                        dots_histogram_data.counts = counts.values().to_vec();
+                        dots_histogram_data.bins = bins.values().to_vec();
+                        if !dots_histogram_data.values.is_empty() {
+                            dots_histogram_data.min_val = dots_histogram_data.values.iter().fold(f32::INFINITY, |a, &b| a.min(b));
+                            dots_histogram_data.max_val = dots_histogram_data.values.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+                        }
+                    }
+                }
+                "dots_scatter" => {
+                    if let (Some(x), Some(y), Some(sex)) = (
+                        batch.column(4).as_any().downcast_ref::<Float32Array>(),
+                        batch.column(5).as_any().downcast_ref::<Float32Array>(),
+                        batch.column(6).as_any().downcast_ref::<StringArray>(),
+                    ) {
+                        dots_scatter_data.x = x.values().to_vec();
+                        dots_scatter_data.y = y.values().to_vec();
+                        dots_scatter_data.sex = (0..sex.len()).map(|i| sex.value(i).to_string()).collect();
+                    }
+                }
+                _ => {}
+        }
+    }
+    
+    Ok(VisualizationResponse {
+        histogram_data,
+        scatter_data,
+        dots_histogram_data,
+        dots_scatter_data,
         user_percentile,
         user_dots_percentile,
         processing_time_ms,

@@ -1,12 +1,31 @@
-// src/cache.rs - Cache management helpers
+// src/cache.rs - Cache management helpers with Arrow IPC binary protocol
 use serde::{Serialize, de::DeserializeOwned};
 use std::time::Instant;
 use std::time::Duration as STD_Duration;
-use crate::models::{AppState, CachedResult};
+use crate::models::{AppState, CachedResult, VisualizationResponse};
+use crate::arrow_utils::{serialize_visualization_response_to_arrow, deserialize_visualization_response_from_arrow};
 
 pub const CACHE_TTL_SECS: u64 = 300; // 5 minutes default
 
-/// Try to get a cached result
+/// Try to get a cached result using Arrow IPC binary protocol for VisualizationResponse
+pub async fn cache_get_arrow(
+    state: &AppState,
+    key: &str,
+) -> Option<VisualizationResponse> {
+    let hit = state.cache.get(key).await?;
+    
+    // Check TTL
+    if hit.computed_at.elapsed() > STD_Duration::from_secs(CACHE_TTL_SECS) {
+        // Expired, remove from cache
+        state.cache.invalidate(key).await;
+        return None;
+    }
+    
+    // Deserialize using Arrow IPC
+    deserialize_visualization_response_from_arrow(&hit.data).ok()
+}
+
+/// Try to get a cached result (legacy JSON fallback)
 pub async fn cache_get<T: DeserializeOwned>(
     state: &AppState,
     key: &str,
@@ -24,7 +43,22 @@ pub async fn cache_get<T: DeserializeOwned>(
     serde_json::from_slice(&hit.data).ok()
 }
 
-/// Store a result in cache
+/// Store a VisualizationResponse in cache using Arrow IPC binary protocol
+pub async fn cache_put_arrow(
+    state: &AppState,
+    key: &str,
+    value: &VisualizationResponse,
+) {
+    if let Ok(bytes) = serialize_visualization_response_to_arrow(value) {
+        let cached = CachedResult {
+            data: bytes,
+            computed_at: Instant::now(),
+        };
+        state.cache.insert(key.to_string(), cached).await;
+    }
+}
+
+/// Store a result in cache (legacy JSON fallback)
 pub async fn cache_put<T: Serialize>(
     state: &AppState,
     key: &str,

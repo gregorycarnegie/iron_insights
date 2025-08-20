@@ -1,10 +1,11 @@
 // src/handlers.rs - Optimized with streaming and performance improvements
 use axum::{
     extract::State,
-    http::{StatusCode, header},
+    http::{header},
     response::{Json, Response},
     body::Body,
 };
+use axum::http::StatusCode;
 use maud::Markup;
 use tracing::{info, instrument, error};
 use tokio_stream::{Stream, StreamExt};
@@ -13,7 +14,7 @@ use std::convert::Infallible;
 
 use crate::{
     arrow_utils::serialize_all_visualization_data,
-    cache::{cache_get, cache_put, make_cache_key},
+    cache::{cache_get_arrow, cache_put_arrow, make_cache_key},
     models::*,
     share_card::{ShareCardData, CardTheme, generate_themed_share_card_svg},
     ui::render_index,
@@ -33,11 +34,11 @@ pub async fn create_visualizations(
     Json(params): Json<FilterParams>,
 ) -> Result<Json<VisualizationResponse>, StatusCode> {
     // Generate cache key
-    let cache_key = make_cache_key(&params, "json");
+    let cache_key = make_cache_key(&params, "arrow");
     
-    // Check cache first
-    if let Some(cached) = cache_get::<VisualizationResponse>(&state, &cache_key).await {
-        info!("Cache hit for key: {}", cache_key);
+    // Check cache first using Arrow IPC binary protocol
+    if let Some(cached) = cache_get_arrow(&state, &cache_key).await {
+        info!("Arrow cache hit for key: {}", cache_key);
         return Ok(Json(cached));
     }
     
@@ -52,8 +53,8 @@ pub async fn create_visualizations(
     // Map to response DTO
     let response = VisualizationResponse::from(viz_data);
     
-    // Cache the result
-    cache_put(&state, &cache_key, &response).await;
+    // Cache the result using Arrow IPC binary protocol
+    cache_put_arrow(&state, &cache_key, &response).await;
     
     Ok(Json(response))
 }
