@@ -1,7 +1,7 @@
 // scoring.rs - Fixed with proper column aliases
 use polars::prelude::*;
 
-/// DOTS coefficients (gender-neutral)
+/// DOTS coefficients (gender-specific)
 #[derive(Debug, Clone)]
 pub struct DotsCoefficients {
     pub a: f32,
@@ -11,8 +11,9 @@ pub struct DotsCoefficients {
     pub e: f32,
 }
 
-impl Default for DotsCoefficients {
-    fn default() -> Self {
+impl DotsCoefficients {
+    /// Get coefficients for male lifters
+    pub fn male() -> Self {
         Self {
             a: -307.75076,
             b: 24.0900756,
@@ -21,11 +22,32 @@ impl Default for DotsCoefficients {
             e: -0.000001093,
         }
     }
+    
+    /// Get coefficients for female lifters
+    pub fn female() -> Self {
+        Self {
+            a: -57.96288,
+            b: 13.6175032,
+            c: -0.1126655495,
+            d: 0.0005158568,
+            e: -0.0000010706,
+        }
+    }
 }
 
-/// Calculate DOTS score for a given lift and bodyweight
-pub fn calculate_dots_score(lift_kg: f32, bodyweight_kg: f32) -> f32 {
-    let coeffs = DotsCoefficients::default();
+impl Default for DotsCoefficients {
+    fn default() -> Self {
+        Self::male()
+    }
+}
+
+/// Calculate DOTS score for a given lift, bodyweight, and sex
+pub fn calculate_dots_score(lift_kg: f32, bodyweight_kg: f32, sex: &str) -> f32 {
+    let coeffs = if sex == "M" || sex == "Male" {
+        DotsCoefficients::male()
+    } else {
+        DotsCoefficients::female()
+    };
     
     let denominator = coeffs.a + 
         coeffs.b * bodyweight_kg +
@@ -36,18 +58,32 @@ pub fn calculate_dots_score(lift_kg: f32, bodyweight_kg: f32) -> f32 {
     lift_kg * 500.0 / denominator
 }
 
-/// Create Polars expression for calculating DOTS scores
+/// Create Polars expression for calculating gender-specific DOTS scores
 pub fn calculate_dots_expr(lift_col: &str, output_col: &str) -> Expr {
-    let coeffs = DotsCoefficients::default();
+    let male_coeffs = DotsCoefficients::male();
+    let female_coeffs = DotsCoefficients::female();
     
-    // DOTS = Total × (500 / (A + B × BW + C × BW² + D × BW³ + E × BW⁴))
-    (col(lift_col) * lit(500.0) / 
-    (lit(coeffs.a) + 
-     lit(coeffs.b) * col("BodyweightKg") +
-     lit(coeffs.c) * col("BodyweightKg").pow(2) +
-     lit(coeffs.d) * col("BodyweightKg").pow(3) +
-     lit(coeffs.e) * col("BodyweightKg").pow(4)))
-    .alias(output_col) // This is crucial - the alias must be applied to the whole expression
+    // Create conditional DOTS calculation based on sex
+    when(col("Sex").eq(lit("M")))
+        .then(
+            // Male DOTS calculation
+            col(lift_col) * lit(500.0) / 
+            (lit(male_coeffs.a) + 
+             lit(male_coeffs.b) * col("BodyweightKg") +
+             lit(male_coeffs.c) * col("BodyweightKg").pow(2) +
+             lit(male_coeffs.d) * col("BodyweightKg").pow(3) +
+             lit(male_coeffs.e) * col("BodyweightKg").pow(4))
+        )
+        .otherwise(
+            // Female DOTS calculation
+            col(lift_col) * lit(500.0) / 
+            (lit(female_coeffs.a) + 
+             lit(female_coeffs.b) * col("BodyweightKg") +
+             lit(female_coeffs.c) * col("BodyweightKg").pow(2) +
+             lit(female_coeffs.d) * col("BodyweightKg").pow(3) +
+             lit(female_coeffs.e) * col("BodyweightKg").pow(4))
+        )
+        .alias(output_col)
 }
 
 /// Calculate weight class based on bodyweight and sex
@@ -83,8 +119,8 @@ mod tests {
     #[test]
     fn test_dots_calculation() {
         // Test with some realistic values
-        let male_100kg_500kg_total = calculate_dots_score(500.0, 100.0);
-        let female_60kg_300kg_total = calculate_dots_score(300.0, 60.0);
+        let male_100kg_500kg_total = calculate_dots_score(500.0, 100.0, "M");
+        let female_60kg_300kg_total = calculate_dots_score(300.0, 60.0, "F");
         
         // DOTS scores should be reasonable (typically 300-600 for competitive lifters)
         assert!(male_100kg_500kg_total > 200.0 && male_100kg_500kg_total < 800.0);
@@ -92,13 +128,20 @@ mod tests {
         
         println!("Male 100kg, 500kg total: {:.1} DOTS", male_100kg_500kg_total);
         println!("Female 60kg, 300kg total: {:.1} DOTS", female_60kg_300kg_total);
+        
+        // Test that male and female have different scores for same lift/bodyweight
+        let same_lift_male = calculate_dots_score(400.0, 80.0, "M");
+        let same_lift_female = calculate_dots_score(400.0, 80.0, "F");
+        assert!((same_lift_male - same_lift_female).abs() > 10.0); // Should be different
+        
+        println!("Same lift (400kg) at 80kg - Male: {:.1}, Female: {:.1}", same_lift_male, same_lift_female);
     }
     
     #[test]
     fn test_same_dots_different_bodyweights() {
         // Higher absolute weight should be needed for heavier lifters to achieve same DOTS
-        let light_lifter_dots = calculate_dots_score(400.0, 70.0);
-        let heavy_lifter_dots = calculate_dots_score(500.0, 120.0);
+        let light_lifter_dots = calculate_dots_score(400.0, 70.0, "M");
+        let heavy_lifter_dots = calculate_dots_score(500.0, 120.0, "M");
         
         // Should be roughly similar DOTS scores
         let difference = (light_lifter_dots - heavy_lifter_dots).abs();

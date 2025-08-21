@@ -5,6 +5,8 @@ pub fn render_controls() -> Markup {
     html! {
         div.controls {
             (render_sex_control())
+            (render_equipment_control())
+            (render_years_control())
             (render_lift_type_control())
             (render_bodyweight_control())
             (render_lift_input_control())
@@ -54,6 +56,54 @@ fn render_lift_input_control() -> Markup {
         div.control-group {
             label { "Your Lift (kg):" }
             input #userLift type="number" placeholder="150" step="0.5";
+        }
+    }
+}
+
+fn render_equipment_control() -> Markup {
+    html! {
+        div.control-group {
+            label { "Equipment:" }
+            div.checkbox-group {
+                label.checkbox-label {
+                    input #equipment-all type="checkbox" checked;
+                    "All"
+                }
+                label.checkbox-label {
+                    input #equipment-raw type="checkbox";
+                    "Raw"
+                }
+                label.checkbox-label {
+                    input #equipment-wraps type="checkbox";
+                    "Wraps"
+                }
+                label.checkbox-label {
+                    input #equipment-single-ply type="checkbox";
+                    "Single-ply"
+                }
+                label.checkbox-label {
+                    input #equipment-multi-ply type="checkbox";
+                    "Multi-ply"
+                }
+                label.checkbox-label {
+                    input #equipment-unlimited type="checkbox";
+                    "Unlimited"
+                }
+            }
+        }
+    }
+}
+
+fn render_years_control() -> Markup {
+    html! {
+        div.control-group {
+            label { "Years:" }
+            select #years-filter {
+                option value="all" selected { "All Years" }
+                option value="ytd" { "Year to Date" }
+                option value="past_5_years" { "Past 5 Years" }
+                option value="past_10_years" { "Past 10 Years" }
+            }
         }
     }
 }

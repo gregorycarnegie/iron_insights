@@ -50,7 +50,8 @@ pub fn compute_viz(
     
     let user_dots_percentile = if let (Some(bw), Some(lift)) = 
         (params.bodyweight, get_user_lift_value(params, &lift_type)) {
-        let user_dots = calculate_dots_score(lift, bw);
+        let user_sex = params.sex.as_deref().unwrap_or("M"); // Default to male if not specified
+        let user_dots = calculate_dots_score(lift, bw, user_sex);
         percentile_rank(&filtered, lift_type.dots_column(), Some(user_dots))
     } else {
         None

@@ -209,8 +209,8 @@ mod tests {
     #[test]
     fn test_dots_calculation() {
         // Test realistic values
-        let dots_male_100kg_500total = calculate_dots_score(500.0, 100.0);
-        let dots_female_60kg_300total = calculate_dots_score(300.0, 60.0);
+        let dots_male_100kg_500total = calculate_dots_score(500.0, 100.0, "M");
+        let dots_female_60kg_300total = calculate_dots_score(300.0, 60.0, "F");
         
         // DOTS scores should be in reasonable range
         assert!(dots_male_100kg_500total > 200.0 && dots_male_100kg_500total < 800.0);
@@ -267,6 +267,7 @@ mod tests {
             lift_type: None,
             min_bodyweight: None,
             max_bodyweight: None,
+            years_filter: None,
         };
         
         let filtered = apply_filters_lazy(&df, &params)

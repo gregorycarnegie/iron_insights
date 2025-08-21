@@ -77,6 +77,34 @@ pub fn render_styles() -> Markup {
             margin-bottom: 5px;
             color: #333;
         }
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-top: 5px;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: normal;
+            margin-bottom: 0;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+        .checkbox-label:hover {
+            color: #007bff;
+        }
+        .checkbox-label input[type="checkbox"] {
+            margin: 0;
+            cursor: pointer;
+        }
+        .filter-note {
+            color: #666;
+            font-style: italic;
+            margin-top: 5px;
+            font-size: 0.9em;
+        }
         .chart-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;

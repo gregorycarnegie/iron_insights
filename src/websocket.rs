@@ -50,6 +50,7 @@ pub enum WebSocketMessage {
         bench: Option<f32>,
         deadlift: Option<f32>,
         lift_type: String,
+        sex: Option<String>,
     },
     /// Server sends real-time stats
     StatsUpdate {
@@ -415,7 +416,7 @@ async fn process_message(
                     }));
                 }
                 
-                WebSocketMessage::UserUpdate { bodyweight, squat, bench, deadlift, lift_type } => {
+                WebSocketMessage::UserUpdate { bodyweight, squat, bench, deadlift, lift_type, sex } => {
                     // Validate input data
                     if let Some(bw) = bodyweight {
                         if bw <= 0.0 || bw > 500.0 {  // Reasonable bodyweight limits
@@ -433,7 +434,8 @@ async fn process_message(
                             }));
                         }
                         
-                        let dots_score = calculate_dots_score(lift, bw);
+                        let user_sex = sex.as_deref().unwrap_or("M"); // Default to male if not specified
+                        let dots_score = calculate_dots_score(lift, bw, user_sex);
                         let strength_level = get_strength_level(dots_score);
                         
                         // Calculate percentile using app data if available

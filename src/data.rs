@@ -276,6 +276,7 @@ impl DataProcessor {
             Field::new("Name".into(), DataType::String),
             Field::new("Sex".into(), DataType::String),
             Field::new("Equipment".into(), DataType::String),
+            Field::new("Date".into(), DataType::String), // ISO 8601 date format
             Field::new("BodyweightKg".into(), DataType::Float32),
             Field::new("Best3SquatKg".into(), DataType::Float32),
             Field::new("Best3BenchKg".into(), DataType::Float32),
@@ -294,7 +295,8 @@ impl DataProcessor {
             .select([
                 col("Name"),
                 col("Sex"),
-                col("Equipment"), 
+                col("Equipment"),
+                col("Date"),
                 col("BodyweightKg"),
                 col("Best3SquatKg"),
                 col("Best3BenchKg"), 
@@ -315,6 +317,8 @@ impl DataProcessor {
                 calculate_dots_expr("Best3BenchKg", "BenchDOTS"),
                 calculate_dots_expr("Best3DeadliftKg", "DeadliftDOTS"),
                 calculate_dots_expr("TotalKg", "TotalDOTS"),
+                // Convert Date string to proper Date type for filtering
+                col("Date").str().to_date(StrptimeOptions::default()).alias("Date"),
             ])
             .filter(
                 col("SquatDOTS").is_finite()
@@ -480,6 +484,7 @@ struct SampleDataBuilder {
     names: Vec<String>,
     sexes: Vec<String>,
     equipment: Vec<String>,
+    dates: Vec<String>,
     bodyweights: Vec<f32>,
     squats: Vec<f32>,
     benches: Vec<f32>,
@@ -493,6 +498,7 @@ impl SampleDataBuilder {
             names: Vec::with_capacity(capacity),
             sexes: Vec::with_capacity(capacity),
             equipment: Vec::with_capacity(capacity),
+            dates: Vec::with_capacity(capacity),
             bodyweights: Vec::with_capacity(capacity),
             squats: Vec::with_capacity(capacity),
             benches: Vec::with_capacity(capacity),
@@ -517,10 +523,15 @@ impl SampleDataBuilder {
         let deadlift: f32 = (bodyweight * dl_ratio * rng.random_range(0.7..1.3)).max(60.0);
         let total = squat + bench + deadlift;
         
+        // Generate random date within the past 10 years
+        let days_back = rng.random_range(0..3650); // 0-10 years back
+        let date = chrono::Utc::now() - chrono::Duration::days(days_back);
+        
         SampleLifter {
             name: format!("Lifter{}", id),
             sex: sex.to_string(),
             equipment: equipment.to_string(),
+            date: date.format("%Y-%m-%d").to_string(),
             bodyweight,
             squat,
             bench,
@@ -533,6 +544,7 @@ impl SampleDataBuilder {
         self.names.push(lifter.name);
         self.sexes.push(lifter.sex);
         self.equipment.push(lifter.equipment);
+        self.dates.push(lifter.date);
         self.bodyweights.push(lifter.bodyweight);
         self.squats.push(lifter.squat);
         self.benches.push(lifter.bench);
@@ -545,6 +557,7 @@ impl SampleDataBuilder {
             "Name" => self.names,
             "Sex" => self.sexes,
             "Equipment" => self.equipment,
+            "Date" => self.dates,
             "BodyweightKg" => self.bodyweights,
             "Best3SquatKg" => self.squats,
             "Best3BenchKg" => self.benches,
@@ -572,6 +585,7 @@ struct SampleLifter {
     name: String,
     sex: String,
     equipment: String,
+    date: String,
     bodyweight: f32,
     squat: f32,
     bench: f32,

@@ -199,6 +199,23 @@ pub fn render_scripts() -> Markup {
             const bodyweight = parseFloat(document.getElementById('bodyweight').value);
             const userLift = parseFloat(document.getElementById('userLift').value);
             
+            // Get equipment selections
+            const selectedEquipment = [];
+            if (document.getElementById('equipment-all').checked) {
+                selectedEquipment.push("All");
+            } else {
+                if (document.getElementById('equipment-raw').checked) selectedEquipment.push("Raw");
+                if (document.getElementById('equipment-wraps').checked) selectedEquipment.push("Wraps");
+                if (document.getElementById('equipment-single-ply').checked) selectedEquipment.push("Single-ply");
+                if (document.getElementById('equipment-multi-ply').checked) selectedEquipment.push("Multi-ply");
+                if (document.getElementById('equipment-unlimited').checked) selectedEquipment.push("Unlimited");
+            }
+            
+            // Default to Raw if nothing selected
+            if (selectedEquipment.length === 0) {
+                selectedEquipment.push("Raw");
+            }
+            
             const params = {
                 sex: document.getElementById('sex').value,
                 lift_type: liftType,
@@ -206,7 +223,8 @@ pub fn render_scripts() -> Markup {
                 squat: liftType === 'squat' ? userLift : null,
                 bench: liftType === 'bench' ? userLift : null,
                 deadlift: liftType === 'deadlift' ? userLift : null,
-                equipment: ["Raw"]
+                equipment: selectedEquipment,
+                years_filter: document.getElementById('years-filter').value
             };
             
             // Handle total lift type
@@ -445,17 +463,30 @@ pub fn render_scripts() -> Markup {
             }
         }
         
-        // Helper function to calculate DOTS score using WASM
-        function calculateDOTS(liftKg, bodyweightKg) {
+        // Helper function to calculate gender-specific DOTS score using WASM
+        function calculateDOTS(liftKg, bodyweightKg, sex = null) {
             if (calculate_dots_wasm) {
                 return calculate_dots_wasm(liftKg, bodyweightKg);
             } else {
-                // Fallback JavaScript implementation
-                const a = -307.75076;
-                const b = 24.0900756;
-                const c = -0.1918759221;
-                const d = 0.0007391293;
-                const e = -0.000001093;
+                // Fallback JavaScript implementation with gender-specific coefficients
+                const currentSex = sex || document.getElementById('sex').value;
+                
+                let a, b, c, d, e;
+                if (currentSex === 'M' || currentSex === 'Male') {
+                    // Male coefficients
+                    a = -307.75076;
+                    b = 24.0900756;
+                    c = -0.1918759221;
+                    d = 0.0007391293;
+                    e = -0.000001093;
+                } else {
+                    // Female coefficients
+                    a = -57.96288;
+                    b = 13.6175032;
+                    c = -0.1126655495;
+                    d = 0.0005158568;
+                    e = -0.0000010706;
+                }
                 
                 const denominator = a + 
                     b * bodyweightKg +
@@ -620,7 +651,8 @@ pub fn render_scripts() -> Markup {
                     squat: squat,
                     bench: bench,
                     deadlift: deadlift,
-                    lift_type: liftType
+                    lift_type: liftType,
+                    sex: document.getElementById('sex').value
                 };
                 websocket.send(JSON.stringify(updateMsg));
             }
@@ -880,11 +912,37 @@ pub fn render_scripts() -> Markup {
             });
         }
 
+        // Handle equipment checkbox logic
+        function setupEquipmentFilters() {
+            const allCheckbox = document.getElementById('equipment-all');
+            const otherCheckboxes = [
+                'equipment-raw', 'equipment-wraps', 'equipment-single-ply', 
+                'equipment-multi-ply', 'equipment-unlimited'
+            ].map(id => document.getElementById(id));
+            
+            // When "All" is checked, uncheck others
+            allCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    otherCheckboxes.forEach(cb => cb.checked = false);
+                }
+            });
+            
+            // When any specific equipment is checked, uncheck "All"
+            otherCheckboxes.forEach(cb => {
+                cb.addEventListener('change', function() {
+                    if (this.checked) {
+                        allCheckbox.checked = false;
+                    }
+                });
+            });
+        }
+
         // Initialize WASM and load initial data
         async function init() {
             await loadArrow();
             await initWasm();
             initWebSocket();
+            setupEquipmentFilters();
             updateCharts();
         }
         
