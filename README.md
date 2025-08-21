@@ -147,17 +147,48 @@ static/
 
 ### DOTS Formula
 
+Iron Insights implements gender-specific DOTS scoring for accurate strength comparisons:
+
 ```text
 DOTS = Lift × (500 / (A + B×BW + C×BW² + D×BW³ + E×BW⁴))
 ```
 
-**Coefficients:**
+### Gender-Specific Coefficients
+
+**Male Coefficients:**
 
 - A = -307.75076
-- B = 24.0900756
+- B = 24.0900756  
 - C = -0.1918759221
 - D = 0.0007391293
 - E = -0.000001093
+
+**Female Coefficients:**
+
+- A = -57.96288
+- B = 13.6175032
+- C = -0.1126655495
+- D = 0.0005158568
+- E = -0.0000010706
+
+### Implementation Details
+
+- **Server-side**: Vectorized calculations using Polars expressions for bulk data processing
+- **Client-side**: WebAssembly module for instant DOTS calculations in the browser
+- **Gender detection**: Automatic coefficient selection based on lifter sex (M/F)
+- **Strength levels**: DOTS scores mapped to categories (Beginner to World Class)
+- **Performance**: Sub-millisecond calculations for individual lifts
+
+### Strength Level Classification
+
+| DOTS Score | Strength Level | Color Code |
+|------------|----------------|------------|
+| < 200      | Beginner       | #6c757d    |
+| 200-299    | Novice         | #28a745    |
+| 300-399    | Intermediate   | #17a2b8    |
+| 400-499    | Advanced       | #ffc107    |
+| 500-599    | Elite          | #fd7e14    |
+| 600+       | World Class    | #dc3545    |
 
 ## 🔧 Configuration
 
