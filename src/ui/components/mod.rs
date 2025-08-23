@@ -11,6 +11,3 @@ pub use head::*;
 pub use header::*;
 pub use controls::*;
 pub use charts::*;
-pub use metrics::*;
-pub use styles::*;
-pub use scripts::*;

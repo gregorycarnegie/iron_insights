@@ -19,7 +19,7 @@ pub fn render_index() -> Markup {
                         (render_main_content())
                     }
                 }
-                (render_scripts())
+                (components::scripts::render_scripts())
             }
         }
     }

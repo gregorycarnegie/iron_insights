@@ -1,6 +1,6 @@
 // src/ui/components/head.rs - Modern HTML head with optimized resources
 use maud::{html, Markup};
-use super::render_styles;
+use super::styles::render_styles;
 
 pub fn render_head() -> Markup {
     html! {
