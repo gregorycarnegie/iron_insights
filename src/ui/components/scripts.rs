@@ -8,9 +8,17 @@ pub fn render_scripts() -> Markup {
         let lastResponse = null;
         let wasmModule = null;
         let calculate_dots_wasm = null;
+        let calculate_dots_with_gender_wasm = null;
         let calculate_strength_level_wasm = null;
+        let calculate_strength_level_for_lift_wasm = null;
         let get_strength_level_color_wasm = null;
         let calculate_dots_and_level_wasm = null;
+        let calculate_dots_and_level_for_lift_wasm = null;
+        let calculate_dots_and_level_for_lift_with_gender_wasm = null;
+        let calculate_wilks_wasm = null;
+        let calculate_ipf_gl_points_wasm = null;
+        let calculate_all_scores_wasm = null;
+        let calculate_strength_level_from_percentile_wasm = null;
         
         // UI state management for modern toggle-based controls
         let currentSex = 'M';
@@ -18,6 +26,7 @@ pub fn render_scripts() -> Markup {
         let currentEquipment = ['Raw'];
         let currentTimePeriod = 'last_5_years';
         let currentFederation = 'all';
+        let currentBinCount = 50;
         
         // WebSocket state
         let websocket = null;
@@ -34,9 +43,17 @@ pub fn render_scripts() -> Markup {
                 
                 // Store WASM functions globally
                 calculate_dots_wasm = wasmModule.calculate_dots;
+                calculate_dots_with_gender_wasm = wasmModule.calculate_dots_with_gender;
                 calculate_strength_level_wasm = wasmModule.calculate_strength_level;
+                calculate_strength_level_for_lift_wasm = wasmModule.calculate_strength_level_for_lift;
                 get_strength_level_color_wasm = wasmModule.get_strength_level_color;
                 calculate_dots_and_level_wasm = wasmModule.calculate_dots_and_level;
+                calculate_dots_and_level_for_lift_wasm = wasmModule.calculate_dots_and_level_for_lift;
+                calculate_dots_and_level_for_lift_with_gender_wasm = wasmModule.calculate_dots_and_level_for_lift_with_gender;
+                calculate_wilks_wasm = wasmModule.calculate_wilks;
+                calculate_ipf_gl_points_wasm = wasmModule.calculate_ipf_gl_points;
+                calculate_all_scores_wasm = wasmModule.calculate_all_scores;
+                calculate_strength_level_from_percentile_wasm = wasmModule.calculate_strength_level_from_percentile;
                 
                 console.log('✅ WASM module loaded successfully');
                 return true;
@@ -239,12 +256,40 @@ pub fn render_scripts() -> Markup {
         }
         
         function updateAnalytics() {
+            console.log('updateAnalytics called');
             updateCharts();
         }
 
         async function updateCharts() {
+            console.log('updateCharts called');
             const bodyweight = parseFloat(document.getElementById('bodyweight').value);
-            const userLift = parseFloat(document.getElementById('userLift').value);
+            
+            const userLiftElement = document.getElementById('userLift');
+            console.log('userLift element:', userLiftElement);
+            console.log('userLift element exists:', !!userLiftElement);
+            
+            if (!userLiftElement) {
+                console.error('userLift input element not found!');
+                return;
+            }
+            
+            const userLiftInput = userLiftElement.value;
+            console.log('userLiftInput raw value:', `"${userLiftInput}"`);
+            console.log('userLiftInput length:', userLiftInput.length);
+            
+            const userLift = parseSum(userLiftInput);
+            console.log('userLift parsed value:', userLift);
+            
+            // Show calculated sum in tooltip if it's different from input
+            if (userLiftInput && userLiftInput !== userLift.toString() && !isNaN(userLift)) {
+                const userLiftElement = document.getElementById('userLift');
+                if (userLiftElement && (/[+\-]/.test(userLiftInput) && userLiftInput !== userLift.toString())) {
+                    userLiftElement.title = `Expression "${userLiftInput}" = ${userLift} kg`;
+                    console.log('Set tooltip:', userLiftElement.title);
+                } else if (userLiftElement) {
+                    userLiftElement.title = '';
+                }
+            }
             
             const params = {
                 sex: currentSex,
@@ -277,7 +322,7 @@ pub fn render_scripts() -> Markup {
                 const histogramTraces = [{
                     x: data.histogram_data.values,
                     type: 'histogram',
-                    nbinsx: 50,
+                    nbinsx: currentBinCount,
                     name: 'Distribution',
                     marker: { color: '#3498db' }
                 }];
@@ -308,7 +353,7 @@ pub fn render_scripts() -> Markup {
                 const dotsHistogramTraces = [{
                     x: data.dots_histogram_data.values,
                     type: 'histogram',
-                    nbinsx: 50,
+                    nbinsx: currentBinCount,
                     name: 'DOTS Distribution',
                     marker: { color: '#e74c3c' }
                 }];
@@ -455,16 +500,13 @@ pub fn render_scripts() -> Markup {
                 document.getElementById('recordsAnalyzed').textContent = data.total_records.toLocaleString();
                 document.getElementById('totalAthletes').textContent = data.total_records.toLocaleString();
                 
-                // Update DOTS score if available
-                const userDots = bodyweight && userLift ? calculateDOTS(userLift, bodyweight) : null;
-                if (userDots) {
-                    document.getElementById('avgDots').textContent = userDots.toFixed(1);
-                    document.getElementById('userDotsScore').textContent = userDots.toFixed(1);
-                    document.getElementById('userPerformance').style.display = 'block';
-                    document.getElementById('liftBreakdown').style.display = 'grid';
-                } else {
-                    document.getElementById('userPerformance').style.display = 'none';
-                    document.getElementById('liftBreakdown').style.display = 'none';
+                // Update average DOTS display if element exists
+                if (bodyweight && userLift && !isNaN(bodyweight) && !isNaN(userLift)) {
+                    const avgDotsEl = document.getElementById('avgDots');
+                    if (avgDotsEl) {
+                        const dots = calculateDOTS(userLift, bodyweight);
+                        avgDotsEl.textContent = dots.toFixed(1);
+                    }
                 }
                 
             } catch (error) {
@@ -480,16 +522,72 @@ pub fn render_scripts() -> Markup {
             }
         }
         
+        // Helper function to parse and calculate sums like "340+270+190"
+        function parseSum(input) {
+            console.log('parseSum called with input:', input, 'type:', typeof input);
+            
+            if (typeof input !== 'string') {
+                const result = parseFloat(input);
+                console.log('parseSum: non-string input, returning:', result);
+                return result;
+            }
+            
+            const trimmedInput = input.trim();
+            if (!trimmedInput) {
+                console.log('parseSum: empty input, returning NaN');
+                return NaN;
+            }
+            
+            // If it doesn't contain + or -, just parse as a regular number
+            if (!trimmedInput.includes('+') && !trimmedInput.match(/\d\s*-\s*\d/)) {
+                const result = parseFloat(trimmedInput);
+                console.log('parseSum: no operators found, returning:', result);
+                return result;
+            }
+            
+            console.log('parseSum: sum expression detected, parsing...');
+            
+            try {
+                // Simple approach: use eval on sanitized input for safety
+                // First sanitize: only allow numbers, +, -, ., and spaces
+                const sanitized = trimmedInput.replace(/[^0-9+\-\.\s]/g, '');
+                if (sanitized !== trimmedInput.replace(/\s/g, '').replace(/\s/g, '')) {
+                    console.log('parseSum: contains invalid characters, falling back');
+                    return parseFloat(input);
+                }
+                
+                // Replace multiple operators and clean up
+                const expression = sanitized.replace(/\s/g, '').replace(/([+\-]){2,}/g, '+');
+                console.log('parseSum: sanitized expression:', expression);
+                
+                // Use Function constructor for safer evaluation (no access to scope)
+                const result = new Function('return ' + expression)();
+                
+                if (typeof result !== 'number' || !isFinite(result)) {
+                    console.log('parseSum: invalid result, falling back');
+                    return parseFloat(input);
+                }
+                
+                console.log('parseSum: calculated result:', result);
+                return result;
+                
+            } catch (error) {
+                console.warn('Failed to parse sum expression:', input, error);
+                return parseFloat(input); // Fall back to regular parsing
+            }
+        }
+
         // Helper function to calculate gender-specific DOTS score using WASM
         function calculateDOTS(liftKg, bodyweightKg, sex = null) {
-            if (calculate_dots_wasm) {
-                return calculate_dots_wasm(liftKg, bodyweightKg);
+            const sexValue = sex || currentSex;
+            const isMale = sexValue === 'M' || sexValue === 'Male';
+            
+            if (calculate_dots_with_gender_wasm) {
+                return calculate_dots_with_gender_wasm(liftKg, bodyweightKg, isMale);
             } else {
                 // Fallback JavaScript implementation with gender-specific coefficients
-                const sexValue = sex || currentSex;
-                
                 let a, b, c, d, e;
-                if (sexValue === 'M' || sexValue === 'Male') {
+                if (isMale) {
                     // Male coefficients
                     a = -307.75076;
                     b = 24.0900756;
@@ -517,27 +615,54 @@ pub fn render_scripts() -> Markup {
         
         // Function to update user metrics display for modern UI
         function updateUserMetrics(bodyweight, userLift) {
+            console.log('updateUserMetrics called with:', {bodyweight, userLift, isValid: !!(bodyweight && userLift && !isNaN(bodyweight) && !isNaN(userLift))});
+            
             if (bodyweight && userLift && !isNaN(bodyweight) && !isNaN(userLift)) {
                 try {
-                    let dots, level, color;
+                    let dots, wilks, ipfGLPoints, level, color;
+                    const isMale = currentSex === 'M';
                     
-                    if (calculate_dots_and_level_wasm) {
-                        const result = calculate_dots_and_level_wasm(userLift, bodyweight);
+                    console.log('Calculating metrics with:', {bodyweight, userLift, isMale});
+                    
+                    if (calculate_all_scores_wasm) {
+                        // Use percentile from the data if available, otherwise fallback to approximate percentile
+                        const userPercentile = lastResponse && lastResponse.user_percentile ? lastResponse.user_percentile : 50.0;
+                        console.log('Using percentile:', userPercentile, 'from lastResponse:', !!lastResponse);
+                        
+                        const result = calculate_all_scores_wasm(userLift, bodyweight, isMale, userPercentile);
+                        console.log('WASM result:', result);
+                        
                         dots = result.dots;
+                        wilks = result.wilks;
+                        ipfGLPoints = result.ipf_gl_points;
                         level = result.level;
                         color = result.color;
                     } else {
+                        console.log('Using fallback calculations');
                         // Fallback calculation
                         dots = calculateDOTS(userLift, bodyweight);
-                        level = getStrengthLevel(dots);
+                        wilks = calculateWilks(userLift, bodyweight, isMale);
+                        ipfGLPoints = calculateIPFGLPoints(userLift, bodyweight, isMale);
+                        level = getStrengthLevelForLift(dots, currentLiftType);
                         color = getStrengthLevelColor(level);
                     }
+                    
+                    console.log('Calculated values:', {dots, wilks, ipfGLPoints, level, color});
                     
                     // Update strength level display
                     const strengthLevelElement = document.getElementById('strengthLevel');
                     if (strengthLevelElement) {
                         strengthLevelElement.innerHTML = '<div class="strength-badge" style="background-color: ' + color + ';">🏋️ ' + level + '</div>';
                     }
+                    
+                    // Update all scoring metrics
+                    const userDotsEl = document.getElementById('userDotsScore');
+                    const userWilksEl = document.getElementById('userWilks');
+                    const userIPFGLPointsEl = document.getElementById('userIPFGLPoints');
+                    
+                    if (userDotsEl) userDotsEl.textContent = dots.toFixed(1);
+                    if (userWilksEl) userWilksEl.textContent = wilks.toFixed(1);
+                    if (userIPFGLPointsEl) userIPFGLPointsEl.textContent = ipfGLPoints.toFixed(1);
                     
                     // Update individual lift values in breakdown
                     if (currentLiftType === 'squat') {
@@ -548,25 +673,112 @@ pub fn render_scripts() -> Markup {
                         document.getElementById('userDeadliftValue').textContent = userLift;
                     }
                     
+                    // Show user performance card since we have valid data
+                    const userPerformanceEl = document.getElementById('userPerformance');
+                    const liftBreakdownEl = document.getElementById('liftBreakdown');
+                    
+                    console.log('Performance card elements:', {userPerformanceEl: !!userPerformanceEl, liftBreakdownEl: !!liftBreakdownEl});
+                    
+                    if (userPerformanceEl) {
+                        userPerformanceEl.style.display = 'block';
+                        console.log('Set userPerformance to display: block');
+                    }
+                    if (liftBreakdownEl) {
+                        liftBreakdownEl.style.display = 'grid';
+                        console.log('Set liftBreakdown to display: grid');
+                    }
+                    
                 } catch (error) {
                     console.error('Error calculating user metrics:', error);
                 }
+            } else {
+                console.log('Invalid data for user metrics, hiding performance card');
+                // Hide user performance card if no valid data
+                const userPerformanceEl = document.getElementById('userPerformance');
+                const liftBreakdownEl = document.getElementById('liftBreakdown');
+                if (userPerformanceEl) userPerformanceEl.style.display = 'none';
+                if (liftBreakdownEl) liftBreakdownEl.style.display = 'none';
             }
         }
         
         // Fallback strength level calculation
         function getStrengthLevel(dotsScore) {
-            if (dotsScore < 200.0) return "Beginner";
-            else if (dotsScore < 300.0) return "Novice";
-            else if (dotsScore < 400.0) return "Intermediate";
-            else if (dotsScore < 500.0) return "Advanced";
-            else if (dotsScore < 600.0) return "Elite";
-            else return "World Class";
+            return getStrengthLevelForLift(dotsScore, 'total');
+        }
+        
+        // Lift-specific strength level calculation
+        function getStrengthLevelForLift(dotsScore, liftType) {
+            switch (liftType) {
+                case 'squat':
+                    if (dotsScore < 150.0) return "Beginner";
+                    else if (dotsScore < 225.0) return "Novice";
+                    else if (dotsScore < 300.0) return "Intermediate";
+                    else if (dotsScore < 375.0) return "Advanced";
+                    else if (dotsScore < 450.0) return "Elite";
+                    else return "World Class";
+                case 'bench':
+                    if (dotsScore < 100.0) return "Beginner";
+                    else if (dotsScore < 150.0) return "Novice";
+                    else if (dotsScore < 200.0) return "Intermediate";
+                    else if (dotsScore < 250.0) return "Advanced";
+                    else if (dotsScore < 300.0) return "Elite";
+                    else return "World Class";
+                case 'deadlift':
+                    if (dotsScore < 175.0) return "Beginner";
+                    else if (dotsScore < 262.5) return "Novice";
+                    else if (dotsScore < 350.0) return "Intermediate";
+                    else if (dotsScore < 437.5) return "Advanced";
+                    else if (dotsScore < 525.0) return "Elite";
+                    else return "World Class";
+                default: // 'total' and others
+                    if (dotsScore < 200.0) return "Beginner";
+                    else if (dotsScore < 300.0) return "Novice";
+                    else if (dotsScore < 400.0) return "Intermediate";
+                    else if (dotsScore < 500.0) return "Advanced";
+                    else if (dotsScore < 600.0) return "Elite";
+                    else return "World Class";
+            }
+        }
+        
+        // Fallback Wilks 2020 calculation
+        function calculateWilks(liftKg, bodyweightKg, isMale) {
+            const bw = bodyweightKg;
+            
+            if (isMale) {
+                // Male Wilks 2020 coefficients
+                const a = 47.46178854, b = 8.472061379, c = 0.07369410346;
+                const d = -0.001395833811, e = 7.07665973070743e-06, f = -1.20804336482315e-08;
+                const denominator = a + b*bw + c*bw*bw + d*bw*bw*bw + e*bw*bw*bw*bw + f*bw*bw*bw*bw*bw;
+                return liftKg * 600.0 / denominator;
+            } else {
+                // Female Wilks 2020 coefficients
+                const a = -125.4255398, b = 13.71219419, c = -0.03307250631;
+                const d = -0.001050400051, e = 9.38773881462799e-06, f = -2.3334613884954e-08;
+                const denominator = a + b*bw + c*bw*bw + d*bw*bw*bw + e*bw*bw*bw*bw + f*bw*bw*bw*bw*bw;
+                return liftKg * 600.0 / denominator;
+            }
+        }
+        
+        // Fallback IPF GL Points calculation
+        function calculateIPFGLPoints(liftKg, bodyweightKg, isMale) {
+            if (isMale) {
+                return 1199.72839 / (1025.18162 - 0.00921 * bodyweightKg) * liftKg;
+            } else {
+                return 610.32796 / (1045.59282 - 0.03048 * bodyweightKg) * liftKg;
+            }
         }
         
         // Fallback strength level color
         function getStrengthLevelColor(level) {
-            return level === "Elite" ? "orange" : "blue";
+            switch (level) {
+                case "Beginner": return "\#6c757d";
+                case "Novice": return "\#28a745";
+                case "Intermediate": return "\#17a2b8";
+                case "Advanced": return "\#ffc107";
+                case "Elite": return "\#fd7e14";
+                case "World Class": return "\#dc3545";
+                default: return "\#6c757d";
+            }
         }
         
         // Initialize WebSocket connection
@@ -676,20 +888,38 @@ pub fn render_scripts() -> Markup {
         
         // Update live statistics
         function updateLiveStats(activeUsers, totalConnections, serverLoad) {
-            document.getElementById('totalConnections').textContent = totalConnections;
-            document.getElementById('serverLoad').textContent = (serverLoad * 100).toFixed(1) + '%';
+            const totalConnectionsEl = document.getElementById('totalConnections');
+            const serverLoadEl = document.getElementById('serverLoad');
+            
+            if (totalConnectionsEl) {
+                totalConnectionsEl.textContent = totalConnections;
+            }
+            if (serverLoadEl) {
+                serverLoadEl.textContent = (serverLoad * 100).toFixed(1) + '%';
+            }
         }
         
         // Update user count
         function updateUserCount(count) {
-            document.getElementById('userCount').textContent = count + ' users online';
+            const userCountEl = document.getElementById('userCount');
+            if (userCountEl) {
+                userCountEl.textContent = count + ' users online';
+            }
         }
         
         // Update activity feed
         function updateActivityFeed(recentCalculations) {
             const feed = document.getElementById('activityFeed');
+            if (!feed) {
+                console.warn('Activity feed element not found');
+                return;
+            }
+            
             if (recentCalculations && recentCalculations.length > 0) {
-                document.getElementById('calculationsCount').textContent = recentCalculations.length;
+                const calculationsCountEl = document.getElementById('calculationsCount');
+                if (calculationsCountEl) {
+                    calculationsCountEl.textContent = recentCalculations.length;
+                }
                 
                 // Show recent 10 calculations
                 const recent = recentCalculations.slice(-10).reverse();
@@ -703,6 +933,10 @@ pub fn render_scripts() -> Markup {
         // Add single activity item
         function addActivityItem(text) {
             const feed = document.getElementById('activityFeed');
+            if (!feed) {
+                console.warn('Activity feed element not found');
+                return;
+            }
             const item = document.createElement('div');
             item.className = 'activity-item';
             item.textContent = text + ' - just now';
@@ -788,6 +1022,7 @@ pub fn render_scripts() -> Markup {
         // Chart control functions for modern UI
         function changeBins(element, chartId) {
             const bins = parseInt(element.getAttribute('data-bins'));
+            currentBinCount = bins;
             
             // Update active state
             element.parentElement.querySelectorAll('.chart-option').forEach(btn => {
@@ -827,12 +1062,42 @@ pub fn render_scripts() -> Markup {
             console.log('Update rankings table with type:', type);
         }
 
+        // Monitor input changes for debugging
+        function setupInputDebugger() {
+            const userLiftInput = document.getElementById('userLift');
+            if (userLiftInput) {
+                console.log('Setting up input debugger for userLift');
+                console.log('Input type:', userLiftInput.type);
+                console.log('Current value:', `"${userLiftInput.value}"`);
+                
+                // Change input type to text to allow expressions like "340+270+190"
+                if (userLiftInput.type === 'number') {
+                    console.log('Changing input type from number to text to allow expressions');
+                    userLiftInput.type = 'text';
+                    userLiftInput.placeholder = 'Enter lift or sum (e.g. 340+270+190)';
+                }
+                
+                userLiftInput.addEventListener('input', function(e) {
+                    console.log('userLift input changed:', `"${e.target.value}"`);
+                });
+                
+                userLiftInput.addEventListener('change', function(e) {
+                    console.log('userLift change event:', `"${e.target.value}"`);
+                });
+                
+                userLiftInput.addEventListener('blur', function(e) {
+                    console.log('userLift blur event:', `"${e.target.value}"`);
+                });
+            }
+        }
+
         // Initialize WASM and load initial data
         async function init() {
             await loadArrow();
             await initWasm();
             initWebSocket();
             setupEquipmentFilters();
+            setupInputDebugger();
             updateCharts();
         }
         

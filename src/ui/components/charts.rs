@@ -166,12 +166,8 @@ fn render_user_performance_card() -> Markup {
                     div.metric-label { "Wilks Score" }
                 }
                 div.metric-display {
-                    div.metric-value #userGLPoints { "—" }
-                    div.metric-label { "GL Points" }
-                }
-                div.metric-display {
-                    div.metric-value #userIPFPoints { "—" }
-                    div.metric-label { "IPF Points" }
+                    div.metric-value #userIPFGLPoints { "—" }
+                    div.metric-label { "IPF GL Points" }
                 }
             }
         }
