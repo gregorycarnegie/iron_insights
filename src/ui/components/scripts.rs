@@ -12,6 +12,13 @@ pub fn render_scripts() -> Markup {
         let get_strength_level_color_wasm = null;
         let calculate_dots_and_level_wasm = null;
         
+        // UI state management for modern toggle-based controls
+        let currentSex = 'M';
+        let currentLiftType = 'squat';
+        let currentEquipment = ['Raw'];
+        let currentTimePeriod = 'last_5_years';
+        let currentFederation = 'all';
+        
         // WebSocket state
         let websocket = null;
         let isConnected = false;
@@ -194,41 +201,64 @@ pub fn render_scripts() -> Markup {
             }
         }
 
+        // Modern UI control functions
+        function setToggle(element, type) {
+            // Remove active class from siblings
+            element.parentElement.querySelectorAll('.toggle-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            // Add active class to clicked element
+            element.classList.add('active');
+            
+            // Update global state
+            const value = element.getAttribute('data-value');
+            if (type === 'sex') {
+                currentSex = value;
+            } else if (type === 'lift') {
+                currentLiftType = value;
+            }
+            
+            // Update charts when toggle changes
+            updateCharts();
+        }
+        
+        function updateEquipment() {
+            // Get all checked equipment checkboxes
+            currentEquipment = [];
+            if (document.getElementById('equipment-raw').checked) currentEquipment.push("Raw");
+            if (document.getElementById('equipment-wraps').checked) currentEquipment.push("Wraps");
+            if (document.getElementById('equipment-single-ply').checked) currentEquipment.push("Single-ply");
+            if (document.getElementById('equipment-multi-ply').checked) currentEquipment.push("Multi-ply");
+            
+            // Default to Raw if nothing selected
+            if (currentEquipment.length === 0) {
+                currentEquipment.push("Raw");
+            }
+            
+            updateCharts();
+        }
+        
+        function updateAnalytics() {
+            updateCharts();
+        }
+
         async function updateCharts() {
-            const liftType = document.getElementById('liftType').value;
             const bodyweight = parseFloat(document.getElementById('bodyweight').value);
             const userLift = parseFloat(document.getElementById('userLift').value);
             
-            // Get equipment selections
-            const selectedEquipment = [];
-            if (document.getElementById('equipment-all').checked) {
-                selectedEquipment.push("All");
-            } else {
-                if (document.getElementById('equipment-raw').checked) selectedEquipment.push("Raw");
-                if (document.getElementById('equipment-wraps').checked) selectedEquipment.push("Wraps");
-                if (document.getElementById('equipment-single-ply').checked) selectedEquipment.push("Single-ply");
-                if (document.getElementById('equipment-multi-ply').checked) selectedEquipment.push("Multi-ply");
-                if (document.getElementById('equipment-unlimited').checked) selectedEquipment.push("Unlimited");
-            }
-            
-            // Default to Raw if nothing selected
-            if (selectedEquipment.length === 0) {
-                selectedEquipment.push("Raw");
-            }
-            
             const params = {
-                sex: document.getElementById('sex').value,
-                lift_type: liftType,
+                sex: currentSex,
+                lift_type: currentLiftType,
                 bodyweight: bodyweight || null,
-                squat: liftType === 'squat' ? userLift : null,
-                bench: liftType === 'bench' ? userLift : null,
-                deadlift: liftType === 'deadlift' ? userLift : null,
-                equipment: selectedEquipment,
-                years_filter: document.getElementById('years-filter').value
+                squat: currentLiftType === 'squat' ? userLift : null,
+                bench: currentLiftType === 'bench' ? userLift : null,
+                deadlift: currentLiftType === 'deadlift' ? userLift : null,
+                equipment: currentEquipment,
+                years_filter: currentTimePeriod
             };
             
             // Handle total lift type
-            if (liftType === 'total' && userLift) {
+            if (currentLiftType === 'total' && userLift) {
                 params.squat = userLift * 0.35;
                 params.bench = userLift * 0.25;
                 params.deadlift = userLift * 0.40;
@@ -267,7 +297,7 @@ pub fn render_scripts() -> Markup {
                     });
                 }
                 
-                const histogramSuccess = createPlot('histogram', histogramTraces, {
+                const histogramSuccess = createPlot('weightDistribution', histogramTraces, {
                     title: '',
                     xaxis: { title: 'Weight (kg)' },
                     yaxis: { title: 'Frequency' },
@@ -304,12 +334,12 @@ pub fn render_scripts() -> Markup {
                 
                 // Send user update via WebSocket for real-time activity
                 sendUserUpdate(bodyweight, 
-                    liftType === 'squat' ? userLift : null,
-                    liftType === 'bench' ? userLift : null,
-                    liftType === 'deadlift' ? userLift : null,
-                    liftType);
+                    currentLiftType === 'squat' ? userLift : null,
+                    currentLiftType === 'bench' ? userLift : null,
+                    currentLiftType === 'deadlift' ? userLift : null,
+                    currentLiftType);
                 
-                const dotsHistogramSuccess = createPlot('dotsHistogram', dotsHistogramTraces, {
+                const dotsHistogramSuccess = createPlot('dotsDistribution', dotsHistogramTraces, {
                     title: '',
                     xaxis: { title: 'DOTS Score' },
                     yaxis: { title: 'Frequency' },
@@ -359,7 +389,7 @@ pub fn render_scripts() -> Markup {
                     });
                 }
                 
-                const scatterSuccess = createPlot('scatter', scatterTraces, {
+                const scatterSuccess = createPlot('bodyweightScatter', scatterTraces, {
                     title: '', xaxis: { title: 'Bodyweight (kg)' }, yaxis: { title: 'Weight (kg)' }, margin: { t: 20 }
                 }, 'No scatter plot data available');
                 
@@ -411,54 +441,41 @@ pub fn render_scripts() -> Markup {
                     title: '', xaxis: { title: 'Bodyweight (kg)' }, yaxis: { title: 'DOTS Score' }, margin: { t: 20 }
                 }, 'No DOTS scatter data available - check DOTS calculations');
                 
-                // Show percentile comparison
-                let percentilesHtml = '';
+                // Update percentile display in modern UI
                 if (data.user_percentile !== null && data.user_dots_percentile !== null) {
-                    const userDots = bodyweight && userLift ? calculateDOTS(userLift, bodyweight) : null;
-                    
-                    percentilesHtml = '<div class="percentile-comparison">' +
-                            '<div class="percentile-card">' +
-                                '<div class="percentile-value">' + data.user_percentile + '%</div>' +
-                                '<div class="percentile-label">Raw Weight Percentile</div>' +
-                            '</div>' +
-                            '<div class="percentile-card dots">' +
-                                '<div class="percentile-value">' + data.user_dots_percentile + '%</div>' +
-                                '<div class="percentile-label">DOTS Percentile</div>' +
-                            '</div>' +
-                        '</div>' +
-                        (userDots ? '<p style="text-align: center; margin-top: 10px;"><strong>Your DOTS Score: ' + userDots.toFixed(1) + '</strong></p>' : '');
+                    document.getElementById('rawPercentile').textContent = data.user_percentile + '%';
+                    document.getElementById('dotsPercentile').textContent = data.user_dots_percentile + '%';
+                    document.getElementById('percentileGrid').style.display = 'grid';
+                } else {
+                    document.getElementById('percentileGrid').style.display = 'none';
                 }
-                document.getElementById('percentiles').innerHTML = percentilesHtml;
                 
-                // Show stats with DOTS status
-                const dotsStatus = dotsHistogramSuccess && dotsScatterSuccess ? '✅ Working' : '❌ No Data';
-                document.getElementById('stats').innerHTML = '<div class="stats">' +
-                        '<div class="stat-card">' +
-                            '<div class="stat-value">' + data.processing_time_ms + 'ms</div>' +
-                            '<div class="stat-label">Processing Time</div>' +
-                        '</div>' +
-                        '<div class="stat-card">' +
-                            '<div class="stat-value">' + data.total_records.toLocaleString() + '</div>' +
-                            '<div class="stat-label">Records Analyzed</div>' +
-                        '</div>' +
-                        '<div class="stat-card">' +
-                            '<div class="stat-value">' + (liftType.charAt(0).toUpperCase() + liftType.slice(1)) + '</div>' +
-                            '<div class="stat-label">Current Lift</div>' +
-                        '</div>' +
-                        '<div class="stat-card">' +
-                            '<div class="stat-value">' + dotsStatus + '</div>' +
-                            '<div class="stat-label">DOTS Charts</div>' +
-                        '</div>' +
-                    '</div>';
+                // Update modern UI stats grid
+                document.getElementById('processingTime').textContent = data.processing_time_ms + 'ms';
+                document.getElementById('recordsAnalyzed').textContent = data.total_records.toLocaleString();
+                document.getElementById('totalAthletes').textContent = data.total_records.toLocaleString();
+                
+                // Update DOTS score if available
+                const userDots = bodyweight && userLift ? calculateDOTS(userLift, bodyweight) : null;
+                if (userDots) {
+                    document.getElementById('avgDots').textContent = userDots.toFixed(1);
+                    document.getElementById('userDotsScore').textContent = userDots.toFixed(1);
+                    document.getElementById('userPerformance').style.display = 'block';
+                    document.getElementById('liftBreakdown').style.display = 'grid';
+                } else {
+                    document.getElementById('userPerformance').style.display = 'none';
+                    document.getElementById('liftBreakdown').style.display = 'none';
+                }
                 
             } catch (error) {
                 console.error('Error:', error);
-                document.getElementById('stats').innerHTML = '<p style="color: red;">Error loading data: ' + error.message + '</p>';
+                document.getElementById('processingTime').textContent = 'Error';
+                document.getElementById('recordsAnalyzed').textContent = 'Error';
                 
                 // Show errors on all charts
-                showError('histogram', 'Failed to load data');
-                showError('dotsHistogram', 'Failed to load data');
-                showError('scatter', 'Failed to load data');
+                showError('weightDistribution', 'Failed to load data');
+                showError('dotsDistribution', 'Failed to load data');
+                showError('bodyweightScatter', 'Failed to load data');
                 showError('dotsScatter', 'Failed to load data');
             }
         }
@@ -469,10 +486,10 @@ pub fn render_scripts() -> Markup {
                 return calculate_dots_wasm(liftKg, bodyweightKg);
             } else {
                 // Fallback JavaScript implementation with gender-specific coefficients
-                const currentSex = sex || document.getElementById('sex').value;
+                const sexValue = sex || currentSex;
                 
                 let a, b, c, d, e;
-                if (currentSex === 'M' || currentSex === 'Male') {
+                if (sexValue === 'M' || sexValue === 'Male') {
                     // Male coefficients
                     a = -307.75076;
                     b = 24.0900756;
@@ -498,13 +515,8 @@ pub fn render_scripts() -> Markup {
             }
         }
         
-        // Function to update user metrics display
+        // Function to update user metrics display for modern UI
         function updateUserMetrics(bodyweight, userLift) {
-            const userMetricsSection = document.getElementById('userMetrics');
-            const strengthBadge = document.getElementById('strengthBadge');
-            const userDotsValue = document.getElementById('userDotsValue');
-            const userStrengthLevel = document.getElementById('userStrengthLevel');
-            
             if (bodyweight && userLift && !isNaN(bodyweight) && !isNaN(userLift)) {
                 try {
                     let dots, level, color;
@@ -521,28 +533,24 @@ pub fn render_scripts() -> Markup {
                         color = getStrengthLevelColor(level);
                     }
                     
-                    userDotsValue.textContent = dots.toFixed(1);
-                    userStrengthLevel.textContent = level;
+                    // Update strength level display
+                    const strengthLevelElement = document.getElementById('strengthLevel');
+                    if (strengthLevelElement) {
+                        strengthLevelElement.innerHTML = '<div class="strength-badge" style="background-color: ' + color + ';">🏋️ ' + level + '</div>';
+                    }
                     
-                    strengthBadge.innerHTML = '<div class="strength-badge" style="background-color: ' + color + ';">🏋️ ' + level + '</div>';
-                    
-                    userMetricsSection.style.display = 'block';
-                    
-                    // Show share card section when user has entered data
-                    const shareCardSection = document.getElementById('shareCardSection');
-                    shareCardSection.style.display = 'block';
-                    
-                    // Auto-populate share card inputs
-                    populateShareCardInputs();
+                    // Update individual lift values in breakdown
+                    if (currentLiftType === 'squat') {
+                        document.getElementById('userSquatValue').textContent = userLift;
+                    } else if (currentLiftType === 'bench') {
+                        document.getElementById('userBenchValue').textContent = userLift;
+                    } else if (currentLiftType === 'deadlift') {
+                        document.getElementById('userDeadliftValue').textContent = userLift;
+                    }
                     
                 } catch (error) {
                     console.error('Error calculating user metrics:', error);
-                    userMetricsSection.style.display = 'none';
-                    document.getElementById('shareCardSection').style.display = 'none';
                 }
-            } else {
-                userMetricsSection.style.display = 'none';
-                document.getElementById('shareCardSection').style.display = 'none';
             }
         }
         
@@ -652,7 +660,7 @@ pub fn render_scripts() -> Markup {
                     bench: bench,
                     deadlift: deadlift,
                     lift_type: liftType,
-                    sex: document.getElementById('sex').value
+                    sex: currentSex
                 };
                 websocket.send(JSON.stringify(updateMsg));
             }
@@ -718,156 +726,7 @@ pub fn render_scripts() -> Markup {
             return Math.floor(seconds / 86400) + 'd ago';
         }
         
-        // Share Card Generation
-        let currentShareCardSvg = null;
-        
-        // Auto-populate share card inputs when user metrics are updated
-        function populateShareCardInputs() {
-            const bodyweight = parseFloat(document.getElementById('bodyweight').value);
-            const userLift = parseFloat(document.getElementById('userLift').value);
-            const liftType = document.getElementById('liftType').value;
-            
-            if (!bodyweight || !userLift) return;
-            
-            // Auto-populate the current lift based on what user entered in main form
-            if (liftType === 'squat') {
-                document.getElementById('shareSquat').value = userLift;
-            } else if (liftType === 'bench') {
-                document.getElementById('shareBench').value = userLift;
-            } else if (liftType === 'deadlift') {
-                document.getElementById('shareDeadlift').value = userLift;
-            }
-        }
-
-        async function generateShareCard() {
-            const name = document.getElementById('shareCardName').value.trim();
-            const theme = document.getElementById('shareCardTheme').value;
-            const bodyweight = parseFloat(document.getElementById('bodyweight').value);
-            const sex = document.getElementById('sex').value;
-            
-            // Get individual lift values from share card inputs
-            const squat = parseFloat(document.getElementById('shareSquat').value) || null;
-            const bench = parseFloat(document.getElementById('shareBench').value) || null;
-            const deadlift = parseFloat(document.getElementById('shareDeadlift').value) || null;
-            
-            if (!name) {
-                alert('Please enter your name');
-                return;
-            }
-            
-            if (!bodyweight) {
-                alert('Please enter your bodyweight');
-                return;
-            }
-            
-            if (!squat && !bench && !deadlift) {
-                alert('Please enter at least one lift value');
-                return;
-            }
-            
-            try {
-                // Calculate total
-                const total = (squat || 0) + (bench || 0) + (deadlift || 0);
-                
-                // Calculate DOTS score using the highest single lift or total if all lifts provided
-                let bestLift = total;
-                if (squat && bench && deadlift) {
-                    bestLift = total; // Use total when all lifts are provided
-                } else {
-                    bestLift = Math.max(squat || 0, bench || 0, deadlift || 0);
-                }
-                
-                const dotsScore = calculateDOTS(bestLift, bodyweight);
-                let strengthLevel;
-                
-                if (calculate_strength_level_wasm) {
-                    strengthLevel = calculate_strength_level_wasm(dotsScore);
-                } else {
-                    strengthLevel = getStrengthLevel(dotsScore);
-                }
-                
-                // Get percentile from last response if available
-                const percentile = lastResponse ? lastResponse.user_dots_percentile : null;
-                
-                // Prepare share card data
-                const shareCardData = {
-                    name: name,
-                    bodyweight: bodyweight,
-                    squat: squat,
-                    bench: bench,
-                    deadlift: deadlift,
-                    total: total > 0 ? total : null,
-                    dots_score: dotsScore,
-                    strength_level: strengthLevel,
-                    percentile: percentile,
-                    lift_type: 'total', // Always show as total for comprehensive view
-                    sex: sex === 'All' ? 'M' : sex,
-                    theme: theme
-                };
-                
-                // Send request to generate share card
-                const response = await fetch('/api/share-card', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(shareCardData)
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to generate share card');
-                }
-                
-                const svgContent = await response.text();
-                currentShareCardSvg = svgContent;
-                
-                // Display preview
-                const container = document.getElementById('shareCardContainer');
-                container.innerHTML = svgContent;
-                document.getElementById('shareCardPreview').style.display = 'block';
-                
-                // Enable download button
-                document.getElementById('downloadButton').disabled = false;
-                
-                console.log('✅ Share card generated successfully');
-                
-            } catch (error) {
-                console.error('❌ Error generating share card:', error);
-                alert('Failed to generate share card: ' + error.message);
-            }
-        }
-        
-        function downloadShareCard() {
-            if (!currentShareCardSvg) {
-                alert('Please generate a share card first');
-                return;
-            }
-            
-            try {
-                // Create blob and download
-                const blob = new Blob([currentShareCardSvg], { type: 'image/svg+xml' });
-                const url = URL.createObjectURL(blob);
-                
-                const name = document.getElementById('shareCardName').value.trim() || 'powerlifter';
-                const liftType = document.getElementById('liftType').value;
-                const theme = document.getElementById('shareCardTheme').value;
-                
-                const filename = name.toLowerCase().replace(/\s+/g, '-') + '-' + liftType + '-' + theme + '-card.svg';
-                
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                
-                URL.revokeObjectURL(url);
-                
-                console.log('✅ Share card downloaded: ' + filename);
-                
-            } catch (error) {
-                console.error('❌ Error downloading share card:', error);
-                alert('Failed to download share card');
-            }
-        }
+        // Removed share card functionality - not part of modern UI
         
         // Load Apache Arrow dynamically
         let Arrow;
@@ -912,29 +771,60 @@ pub fn render_scripts() -> Markup {
             });
         }
 
-        // Handle equipment checkbox logic
+        // Handle equipment checkbox logic for modern UI
         function setupEquipmentFilters() {
-            const allCheckbox = document.getElementById('equipment-all');
-            const otherCheckboxes = [
-                'equipment-raw', 'equipment-wraps', 'equipment-single-ply', 
-                'equipment-multi-ply', 'equipment-unlimited'
-            ].map(id => document.getElementById(id));
+            const equipmentCheckboxes = [
+                'equipment-raw', 'equipment-wraps', 'equipment-single-ply', 'equipment-multi-ply'
+            ];
             
-            // When "All" is checked, uncheck others
-            allCheckbox.addEventListener('change', function() {
-                if (this.checked) {
-                    otherCheckboxes.forEach(cb => cb.checked = false);
+            equipmentCheckboxes.forEach(id => {
+                const checkbox = document.getElementById(id);
+                if (checkbox) {
+                    checkbox.addEventListener('change', updateEquipment);
                 }
             });
+        }
+        
+        // Chart control functions for modern UI
+        function changeBins(element, chartId) {
+            const bins = parseInt(element.getAttribute('data-bins'));
             
-            // When any specific equipment is checked, uncheck "All"
-            otherCheckboxes.forEach(cb => {
-                cb.addEventListener('change', function() {
-                    if (this.checked) {
-                        allCheckbox.checked = false;
-                    }
-                });
+            // Update active state
+            element.parentElement.querySelectorAll('.chart-option').forEach(btn => {
+                btn.classList.remove('active');
             });
+            element.classList.add('active');
+            
+            // Re-render chart with new bins
+            updateCharts();
+        }
+        
+        function switchRankings(element) {
+            const type = element.getAttribute('data-type');
+            
+            // Update active state
+            element.parentElement.querySelectorAll('.chart-option').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            element.classList.add('active');
+            
+            // Update rankings table based on type
+            updateRankingsTable(type);
+        }
+        
+        function toggleTrendline(chartId) {
+            // Implement trendline toggle
+            console.log('Toggle trendline for', chartId);
+        }
+        
+        function togglePoints(chartId) {
+            // Implement points toggle
+            console.log('Toggle points for', chartId);
+        }
+        
+        function updateRankingsTable(type) {
+            // Implementation for updating rankings table
+            console.log('Update rankings table with type:', type);
         }
 
         // Initialize WASM and load initial data

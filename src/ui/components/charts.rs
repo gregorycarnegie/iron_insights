@@ -1,93 +1,179 @@
-// src/ui/components/charts.rs - Chart container components
+// src/ui/components/charts.rs - Modern chart containers
 use maud::{html, Markup};
 
-/// Responsive chart grid layout with all four charts
-pub fn render_chart_grid() -> Markup {
+/// Main content area with stats and charts
+pub fn render_main_content() -> Markup {
     html! {
-        div.chart-grid {
-            (render_histogram_chart())
-            (render_dots_histogram_chart())
-            (render_scatter_chart())
-            (render_dots_scatter_chart())
-        }
-    }
-}
-
-/// Raw weight histogram chart container
-fn render_histogram_chart() -> Markup {
-    html! {
-        div {
-            h3.chart-title { "Raw Weight Distribution" }
-            div #histogram .chart {
-                div #histogramError .chart-error style="display: none;" {
-                    "No data available for this lift type"
+        main.content {
+            // Stats Overview
+            div.stats-grid {
+                div.stat-card {
+                    div.stat-label { "Total Athletes" }
+                    div.stat-value #totalAthletes { "—" }
+                    div.stat-change.positive { "↑ 12%" }
+                }
+                div.stat-card {
+                    div.stat-label { "Avg DOTS Score" }
+                    div.stat-value #avgDots { "—" }
+                    div.stat-change.positive { "↑ 3.5" }
+                }
+                div.stat-card {
+                    div.stat-label { "Records Analyzed" }
+                    div.stat-value #recordsAnalyzed { "—" }
+                }
+                div.stat-card {
+                    div.stat-label { "Processing Time" }
+                    div.stat-value #processingTime { "—" }
+                }
+            }
+            
+            // User Performance Card
+            div #userPerformance style="display: none;" {
+                (render_user_performance_card())
+            }
+            
+            // Lift Breakdown
+            div.lift-breakdown #liftBreakdown style="display: none;" {
+                div.lift-card.squat {
+                    div.lift-icon { "🏋️" }
+                    div.lift-name { "Squat" }
+                    div {
+                        span.lift-value #userSquatValue { "—" }
+                        span.lift-unit { "kg" }
+                    }
+                }
+                div.lift-card.bench {
+                    div.lift-icon { "💪" }
+                    div.lift-name { "Bench Press" }
+                    div {
+                        span.lift-value #userBenchValue { "—" }
+                        span.lift-unit { "kg" }
+                    }
+                }
+                div.lift-card.deadlift {
+                    div.lift-icon { "⬆️" }
+                    div.lift-name { "Deadlift" }
+                    div {
+                        span.lift-value #userDeadliftValue { "—" }
+                        span.lift-unit { "kg" }
+                    }
+                }
+                div.lift-card.total {
+                    div.lift-icon { "🏆" }
+                    div.lift-name { "Total" }
+                    div {
+                        span.lift-value #userTotalValue { "—" }
+                        span.lift-unit { "kg" }
+                    }
+                }
+            }
+            
+            // Percentile Cards
+            div.percentile-grid #percentileGrid style="display: none;" {
+                div.percentile-card {
+                    div.percentile-value #rawPercentile { "—" }
+                    div.percentile-label { "Raw Weight Percentile" }
+                }
+                div.percentile-card.dots {
+                    div.percentile-value #dotsPercentile { "—" }
+                    div.percentile-label { "DOTS Score Percentile" }
+                }
+            }
+            
+            // Chart Grid
+            div.chart-grid {
+                (render_chart_container("weightDistribution", "Weight Distribution", true))
+                (render_chart_container("dotsDistribution", "DOTS Distribution", true))
+                (render_chart_container("bodyweightScatter", "Performance vs Bodyweight", false))
+                (render_chart_container("dotsScatter", "DOTS vs Bodyweight", false))
+            }
+            
+            // Rankings Table
+            div.chart-container {
+                div.chart-header {
+                    h3.chart-title { "Top Performances" }
+                    div.chart-options {
+                        button.chart-option.active data-type="dots" onclick="switchRankings(this)" { "DOTS" }
+                        button.chart-option data-type="raw" onclick="switchRankings(this)" { "Raw" }
+                    }
+                }
+                div style="padding: 1rem;" {
+                    table.data-table #rankingsTable {
+                        thead {
+                            tr {
+                                th { "Rank" }
+                                th { "Name" }
+                                th { "BW" }
+                                th { "Squat" }
+                                th { "Bench" }
+                                th { "Deadlift" }
+                                th { "Total" }
+                                th { "DOTS" }
+                            }
+                        }
+                        tbody #rankingsBody {
+                            // Populated dynamically
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-/// DOTS score histogram chart container
-fn render_dots_histogram_chart() -> Markup {
+/// Individual chart container
+fn render_chart_container(id: &str, title: &str, is_histogram: bool) -> Markup {
     html! {
-        div {
-            h3.chart-title { "DOTS Score Distribution" }
-            div #dotsHistogram .chart {
-                div #dotsHistogramError .chart-error style="display: none;" {
-                    "No DOTS data available - check data processing"
+        div.chart-container {
+            div.chart-header {
+                h3.chart-title { (title) }
+                div.chart-options {
+                    @if is_histogram {
+                        button.chart-option.active data-bins="30" onclick=(format!("changeBins(this, '{}')", id)) { "30" }
+                        button.chart-option data-bins="50" onclick=(format!("changeBins(this, '{}')", id)) { "50" }
+                        button.chart-option data-bins="100" onclick=(format!("changeBins(this, '{}')", id)) { "100" }
+                    } @else {
+                        button.chart-option onclick=(format!("toggleTrendline('{}')", id)) { "Trend" }
+                        button.chart-option onclick=(format!("togglePoints('{}')", id)) { "Points" }
+                    }
                 }
+            }
+            div.chart id=(id) {
+                div.skeleton style="height: 100%; width: 100%;" {}
+            }
+            div.chart-error id=(format!("{}Error", id)) style="display: none;" {
+                "No data available"
             }
         }
     }
 }
 
-/// Raw weight vs bodyweight scatter plot container
-fn render_scatter_chart() -> Markup {
+/// User performance card
+fn render_user_performance_card() -> Markup {
     html! {
-        div {
-            h3.chart-title { "Raw Weight vs Bodyweight" }
-            div #scatter .chart {
-                div #scatterError .chart-error style="display: none;" {
-                    "No scatter data available"
+        div.user-metrics-card {
+            div.user-metrics-header {
+                h3.user-metrics-title { "Your Performance Analysis" }
+                div #strengthLevel {}
+            }
+            div.user-metrics-grid {
+                div.metric-display {
+                    div.metric-value #userDotsScore { "—" }
+                    div.metric-label { "DOTS Score" }
+                }
+                div.metric-display {
+                    div.metric-value #userWilks { "—" }
+                    div.metric-label { "Wilks Score" }
+                }
+                div.metric-display {
+                    div.metric-value #userGLPoints { "—" }
+                    div.metric-label { "GL Points" }
+                }
+                div.metric-display {
+                    div.metric-value #userIPFPoints { "—" }
+                    div.metric-label { "IPF Points" }
                 }
             }
-        }
-    }
-}
-
-/// DOTS vs bodyweight scatter plot container
-fn render_dots_scatter_chart() -> Markup {
-    html! {
-        div {
-            h3.chart-title { "DOTS vs Bodyweight" }
-            div #dotsScatter .chart {
-                div #dotsScatterError .chart-error style="display: none;" {
-                    "No DOTS scatter data available"
-                }
-            }
-        }
-    }
-}
-
-/// Individual chart container with error handling
-pub fn render_chart_container(id: &str, title: &str, error_message: &str) -> Markup {
-    html! {
-        div {
-            h3.chart-title { (title) }
-            div id=(id) class="chart" {
-                div id=(format!("{}Error", id)) class="chart-error" style="display: none;" {
-                    (error_message)
-                }
-            }
-        }
-    }
-}
-
-/// Reusable chart error display component
-pub fn render_chart_error(chart_id: &str, message: &str) -> Markup {
-    html! {
-        div id=(format!("{}Error", chart_id)) class="chart-error" {
-            (message)
         }
     }
 }

@@ -1,11 +1,11 @@
-// src/ui/mod.rs - Main UI module with maud HTML templating
+// src/ui/mod.rs - Main UI module with modern layout
 use maud::{html, Markup, DOCTYPE};
 
 // Import all UI components
 pub mod components;
 use components::*;
 
-/// Main page template - clean, component-based structure
+/// Main page template with modern design
 pub fn render_index() -> Markup {
     html! {
         (DOCTYPE)
@@ -14,30 +14,13 @@ pub fn render_index() -> Markup {
             body {
                 div.container {
                     (render_header())
-                    (render_controls())
-                    (render_chart_grid())
-                    (render_user_metrics())
-                    (render_realtime_panel())
-                    (render_percentiles())
-                    (render_stats())
-                    (render_share_card_section())
+                    div.main-content {
+                        (render_controls())
+                        (render_main_content())
+                    }
                 }
                 (render_scripts())
             }
         }
-    }
-}
-
-
-/// Stats and percentiles placeholder containers
-fn render_percentiles() -> Markup {
-    html! {
-        div #percentiles {}
-    }
-}
-
-fn render_stats() -> Markup {
-    html! {
-        div #stats {}
     }
 }
