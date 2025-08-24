@@ -17,8 +17,8 @@ pub fn render_base_styles() -> Markup {
             --light-secondary: #f3f4f6;
             --border: #e5e7eb;
             --text-primary: #111827;
-            --text-secondary: #6b7280;
-            --text-tertiary: #9ca3af;
+            --text-secondary: #4b5563;
+            --text-tertiary: #6b7280;
             
             /* Lift-specific colors */
             --squat-color: #dc2626;

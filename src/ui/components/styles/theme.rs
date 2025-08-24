@@ -17,9 +17,9 @@ pub fn render_theme_styles() -> Markup {
                 --light: #111827;
                 --light-secondary: #1f2937;
                 --border: #374151;
-                --text-primary: #f9fafb;
-                --text-secondary: #d1d5db;
-                --text-tertiary: #9ca3af;
+                --text-primary: #374151;
+                --text-secondary: #4b5563;
+                --text-tertiary: #6b7280;
             }
             
             body {

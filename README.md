@@ -113,15 +113,32 @@ src/
 ├── ui/               # Frontend UI components
 │   ├── mod.rs        # UI module organization
 │   └── components/   # Reusable UI components
-│       ├── charts.rs     # Chart rendering
-│       ├── controls.rs   # User input controls
-│       ├── head.rs       # HTML head section
-│       ├── header.rs     # Page header
-│       ├── metrics.rs    # Performance metrics display
-│       ├── realtime.rs   # Real-time updates
-│       ├── scripts.rs    # JavaScript integration
-│       ├── share_card.rs # Share card component
-│       └── styles.rs     # CSS styling
+│       ├── charts.rs      # Chart rendering
+│       ├── controls.rs    # User input controls
+│       ├── head.rs        # HTML head section
+│       ├── header.rs      # Page header
+│       ├── metrics.rs     # Performance metrics display
+│       ├── realtime.rs    # Real-time updates
+│       ├── share_card.rs  # Share card component
+│       ├── scripts/       # Modular JavaScript system
+│       │   ├── mod.rs         # Scripts module organization
+│       │   ├── init.rs        # WASM initialization & globals
+│       │   ├── websocket.rs   # Real-time WebSocket handling
+│       │   ├── data.rs        # Arrow data fetching & parsing
+│       │   ├── charts.rs      # Plotly chart management
+│       │   ├── ui.rs          # UI state & form handling
+│       │   ├── calculations.rs # DOTS/Wilks/strength calculations
+│       │   ├── utils.rs       # Helper functions & utilities
+│       │   └── main.rs        # Main updates & initialization
+│       └── styles/        # Modular CSS system
+│           ├── mod.rs         # Styles module organization
+│           ├── base.rs        # CSS variables, reset & body
+│           ├── layout.rs      # Container, header & layouts
+│           ├── components.rs  # Buttons, forms & UI elements
+│           ├── charts.rs      # Charts, stats & user metrics
+│           ├── tables.rs      # Data table styling
+│           ├── responsive.rs  # Media queries & mobile
+│           └── theme.rs       # Dark mode & theme support
 └── wasm/             # WebAssembly module
     ├── Cargo.toml    # WASM-specific dependencies
     └── lib.rs        # WASM bindings for client-side calculations
@@ -141,7 +158,10 @@ static/
 - **Web Layer** - Axum async HTTP server with WebSocket support
 - **Visualization** - Interactive charts with real-time updates
 - **WebAssembly** - Client-side calculations for instant feedback
-- **UI Components** - Modular, reusable frontend architecture
+- **Modular UI System** - Clean separation of concerns:
+  - **Scripts Modules** - JavaScript functionality split into focused areas
+  - **Styles Modules** - CSS organized by responsibility (layout, components, themes)
+  - **Component Architecture** - Reusable, maintainable frontend structure
 
 ## 📊 DOTS Scoring
 

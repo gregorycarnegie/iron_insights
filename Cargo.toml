@@ -66,7 +66,7 @@ reqwest = { version = "0.12.23", features = ["stream"] }
 scraper = "0.24.0"
 
 # Zip extraction
-zip = "4.3.0"
+zip = "4.5.0"
 
 # Static file serving
 tower = "0.5.2"
