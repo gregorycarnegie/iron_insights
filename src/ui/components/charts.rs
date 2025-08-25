@@ -28,44 +28,8 @@ pub fn render_main_content() -> Markup {
             }
             
             // User Performance Card
-            div #userPerformance style="display: none;" {
+            div #userPerformance {
                 (render_user_performance_card())
-            }
-            
-            // Lift Breakdown
-            div.lift-breakdown #liftBreakdown style="display: none;" {
-                div.lift-card.squat {
-                    div.lift-icon { "🏋️" }
-                    div.lift-name { "Squat" }
-                    div {
-                        span.lift-value #userSquatValue { "—" }
-                        span.lift-unit { "kg" }
-                    }
-                }
-                div.lift-card.bench {
-                    div.lift-icon { "💪" }
-                    div.lift-name { "Bench Press" }
-                    div {
-                        span.lift-value #userBenchValue { "—" }
-                        span.lift-unit { "kg" }
-                    }
-                }
-                div.lift-card.deadlift {
-                    div.lift-icon { "⬆️" }
-                    div.lift-name { "Deadlift" }
-                    div {
-                        span.lift-value #userDeadliftValue { "—" }
-                        span.lift-unit { "kg" }
-                    }
-                }
-                div.lift-card.total {
-                    div.lift-icon { "🏆" }
-                    div.lift-name { "Total" }
-                    div {
-                        span.lift-value #userTotalValue { "—" }
-                        span.lift-unit { "kg" }
-                    }
-                }
             }
             
             // Percentile Cards

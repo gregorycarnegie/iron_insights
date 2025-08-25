@@ -169,40 +169,14 @@ pub fn render_calculation_scripts() -> Markup {
                     if (userWilksEl) userWilksEl.textContent = wilks.toFixed(1);
                     if (userIPFGLPointsEl) userIPFGLPointsEl.textContent = ipfGLPoints.toFixed(1);
                     
-                    // Update individual lift values in breakdown
-                    if (currentLiftType === 'squat') {
-                        document.getElementById('userSquatValue').textContent = userLift;
-                    } else if (currentLiftType === 'bench') {
-                        document.getElementById('userBenchValue').textContent = userLift;
-                    } else if (currentLiftType === 'deadlift') {
-                        document.getElementById('userDeadliftValue').textContent = userLift;
-                    }
-                    
-                    // Show user performance card since we have valid data
-                    const userPerformanceEl = document.getElementById('userPerformance');
-                    const liftBreakdownEl = document.getElementById('liftBreakdown');
-                    
-                    console.log('Performance card elements:', {userPerformanceEl: !!userPerformanceEl, liftBreakdownEl: !!liftBreakdownEl});
-                    
-                    if (userPerformanceEl) {
-                        userPerformanceEl.style.display = 'block';
-                        console.log('Set userPerformance to display: block');
-                    }
-                    if (liftBreakdownEl) {
-                        liftBreakdownEl.style.display = 'grid';
-                        console.log('Set liftBreakdown to display: grid');
-                    }
+                    // Performance card is always visible - no need to show/hide
                     
                 } catch (error) {
                     console.error('Error calculating user metrics:', error);
                 }
             } else {
-                console.log('Invalid data for user metrics, hiding performance card');
-                // Hide user performance card if no valid data
-                const userPerformanceEl = document.getElementById('userPerformance');
-                const liftBreakdownEl = document.getElementById('liftBreakdown');
-                if (userPerformanceEl) userPerformanceEl.style.display = 'none';
-                if (liftBreakdownEl) liftBreakdownEl.style.display = 'none';
+                console.log('Invalid data for user metrics');
+                // Performance card stays visible even with no data
             }
         }
     "#.to_string())
