@@ -18,8 +18,8 @@ futures-util = "0.3.31"
 uuid = { version = "1.18.0", features = ["v4", "serde"] }
 
 # Streaming support
-tokio-stream = "0.1.16"
-bytes = "1.8.0"
+tokio-stream = "0.1.17"
+bytes = "1.10.1"
 
 # Real-time messaging
 dashmap = "6.1.0"
@@ -35,7 +35,7 @@ chrono = { version = "0.4.41", features = ["serde"] }
 
 # SIMD-optimized math
 rayon = "1.11.0"
-wide = "0.7"
+wide = "0.7.33"
 
 # Random number generation
 rand = "0.9.2"
@@ -50,11 +50,11 @@ lazy_static = "1.5.0"
 
 # Logging
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 
 # Apache Arrow for binary data serialization
-arrow = "56.0.0"
-arrow-ipc = "56.0.0"
+arrow = "56.1.0"
+arrow-ipc = "56.1.0"
 
 # Caching
 moka = { version = "0.12.10", features = ["future"] }
