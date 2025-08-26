@@ -9,6 +9,7 @@ pub fn render_init_scripts() -> Markup {
         let calculate_dots_with_gender_wasm = null;
         let calculate_strength_level_wasm = null;
         let calculate_strength_level_for_lift_wasm = null;
+        let calculate_strength_level_for_lift_with_gender_wasm = null;
         let get_strength_level_color_wasm = null;
         let calculate_dots_and_level_wasm = null;
         let calculate_dots_and_level_for_lift_wasm = null;
@@ -37,6 +38,7 @@ pub fn render_init_scripts() -> Markup {
                 calculate_dots_with_gender_wasm = wasmModule.calculate_dots_with_gender;
                 calculate_strength_level_wasm = wasmModule.calculate_strength_level;
                 calculate_strength_level_for_lift_wasm = wasmModule.calculate_strength_level_for_lift;
+                calculate_strength_level_for_lift_with_gender_wasm = wasmModule.calculate_strength_level_for_lift_with_gender;
                 get_strength_level_color_wasm = wasmModule.get_strength_level_color;
                 calculate_dots_and_level_wasm = wasmModule.calculate_dots_and_level;
                 calculate_dots_and_level_for_lift_wasm = wasmModule.calculate_dots_and_level_for_lift;

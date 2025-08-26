@@ -39,42 +39,42 @@ pub fn render_calculation_scripts() -> Markup {
         }
         
         // Fallback strength level calculation
-        function getStrengthLevel(dotsScore) {
-            return getStrengthLevelForLift(dotsScore, 'total');
+        function getStrengthLevel(dotsScore, isMale = true) {
+            return getStrengthLevelForLift(dotsScore, 'total', isMale);
         }
         
-        // Lift-specific strength level calculation
-        function getStrengthLevelForLift(dotsScore, liftType) {
-            switch (liftType) {
-                case 'squat':
-                    if (dotsScore < 150.0) return "Beginner";
-                    else if (dotsScore < 225.0) return "Novice";
-                    else if (dotsScore < 300.0) return "Intermediate";
-                    else if (dotsScore < 375.0) return "Advanced";
-                    else if (dotsScore < 450.0) return "Elite";
-                    else return "World Class";
-                case 'bench':
-                    if (dotsScore < 100.0) return "Beginner";
-                    else if (dotsScore < 150.0) return "Novice";
-                    else if (dotsScore < 200.0) return "Intermediate";
-                    else if (dotsScore < 250.0) return "Advanced";
-                    else if (dotsScore < 300.0) return "Elite";
-                    else return "World Class";
-                case 'deadlift':
-                    if (dotsScore < 175.0) return "Beginner";
-                    else if (dotsScore < 262.5) return "Novice";
-                    else if (dotsScore < 350.0) return "Intermediate";
-                    else if (dotsScore < 437.5) return "Advanced";
-                    else if (dotsScore < 525.0) return "Elite";
-                    else return "World Class";
-                default: // 'total' and others
-                    if (dotsScore < 200.0) return "Beginner";
-                    else if (dotsScore < 300.0) return "Novice";
-                    else if (dotsScore < 400.0) return "Intermediate";
-                    else if (dotsScore < 500.0) return "Advanced";
-                    else if (dotsScore < 600.0) return "Elite";
-                    else return "World Class";
-            }
+        // Gender and lift-specific strength level calculation
+        function getStrengthLevelForLift(dotsScore, liftType, isMale = true) {
+            // Realistic DOTS-based strength standards per single lift
+            const standards = {
+                squat: {
+                    male: { beginner: 61, novice: 102, intermediate: 132, advanced: 163, elite: 187, worldClass: Infinity },
+                    female: { beginner: 58, novice: 96, intermediate: 125, advanced: 154, elite: 177, worldClass: Infinity }
+                },
+                bench: {
+                    male: { beginner: 41, novice: 69, intermediate: 89, advanced: 110, elite: 127, worldClass: Infinity },
+                    female: { beginner: 39, novice: 65, intermediate: 85, advanced: 104, elite: 120, worldClass: Infinity }
+                },
+                deadlift: {
+                    male: { beginner: 63, novice: 105, intermediate: 136, advanced: 167, elite: 192, worldClass: Infinity },
+                    female: { beginner: 59, novice: 99, intermediate: 128, advanced: 158, elite: 182, worldClass: Infinity }
+                },
+                total: {
+                    male: { beginner: 200, novice: 300, intermediate: 400, advanced: 500, elite: 600, worldClass: 700 },
+                    female: { beginner: 180, novice: 270, intermediate: 360, advanced: 450, elite: 540, worldClass: 630 }
+                }
+            };
+            
+            const genderKey = isMale ? 'male' : 'female';
+            const liftStandards = standards[liftType] || standards.total;
+            const thresholds = liftStandards[genderKey];
+            
+            if (dotsScore < thresholds.beginner) return "Beginner";
+            else if (dotsScore < thresholds.novice) return "Novice";
+            else if (dotsScore < thresholds.intermediate) return "Intermediate";
+            else if (dotsScore < thresholds.advanced) return "Advanced";
+            else if (dotsScore < thresholds.elite) return "Elite";
+            else return "World Class";
         }
         
         // Fallback Wilks 2020 calculation
@@ -108,6 +108,7 @@ pub fn render_calculation_scripts() -> Markup {
         // Fallback strength level color
         function getStrengthLevelColor(level) {
             switch (level) {
+                case "Untrained": return "\#495057";
                 case "Beginner": return "\#6c757d";
                 case "Novice": return "\#28a745";
                 case "Intermediate": return "\#17a2b8";
@@ -129,26 +130,24 @@ pub fn render_calculation_scripts() -> Markup {
                     
                     console.log('Calculating metrics with:', {bodyweight, userLift, isMale});
                     
-                    if (calculate_all_scores_wasm) {
-                        // Use percentile from the data if available, otherwise fallback to approximate percentile
-                        const userPercentile = lastResponse && lastResponse.user_percentile ? lastResponse.user_percentile : 50.0;
-                        console.log('Using percentile:', userPercentile, 'from lastResponse:', !!lastResponse);
+                    if (calculate_dots_and_level_for_lift_with_gender_wasm && calculate_wilks_wasm && calculate_ipf_gl_points_wasm) {
+                        console.log('Using WASM calculations with lift type:', currentLiftType);
                         
-                        const result = calculate_all_scores_wasm(userLift, bodyweight, isMale, userPercentile);
-                        console.log('WASM result:', result);
+                        const dotsResult = calculate_dots_and_level_for_lift_with_gender_wasm(userLift, bodyweight, isMale, currentLiftType);
+                        console.log('WASM DOTS result:', dotsResult);
                         
-                        dots = result.dots;
-                        wilks = result.wilks;
-                        ipfGLPoints = result.ipf_gl_points;
-                        level = result.level;
-                        color = result.color;
+                        dots = dotsResult.dots;
+                        level = dotsResult.level;
+                        color = dotsResult.color;
+                        wilks = calculate_wilks_wasm(userLift, bodyweight, isMale);
+                        ipfGLPoints = calculate_ipf_gl_points_wasm(userLift, bodyweight, isMale);
                     } else {
                         console.log('Using fallback calculations');
                         // Fallback calculation
                         dots = calculateDOTS(userLift, bodyweight);
                         wilks = calculateWilks(userLift, bodyweight, isMale);
                         ipfGLPoints = calculateIPFGLPoints(userLift, bodyweight, isMale);
-                        level = getStrengthLevelForLift(dots, currentLiftType);
+                        level = getStrengthLevelForLift(dots, currentLiftType, isMale);
                         color = getStrengthLevelColor(level);
                     }
                     

@@ -153,63 +153,92 @@ pub fn calculate_strength_level(dots_score: f64) -> String {
 /// Legacy lift-specific strength level calculations (for backward compatibility)
 #[wasm_bindgen]
 pub fn calculate_strength_level_for_lift(dots_score: f64, lift_type: &str) -> String {
-    // This is a fallback - in practice, percentiles should be used
+    calculate_strength_level_for_lift_with_gender(dots_score, lift_type, true)
+}
+
+/// Gender-aware strength level calculation with realistic thresholds
+#[wasm_bindgen]
+pub fn calculate_strength_level_for_lift_with_gender(dots_score: f64, lift_type: &str, is_male: bool) -> String {
     match lift_type {
         "squat" => {
-            if dots_score < 150.0 {
+            let thresholds = if is_male {
+                (61.0, 102.0, 132.0, 163.0, 187.0)
+            } else {
+                (58.0, 96.0, 125.0, 154.0, 177.0)
+            };
+            
+            if dots_score < thresholds.0 {
                 "Beginner".to_string()
-            } else if dots_score < 225.0 {
+            } else if dots_score < thresholds.1 {
                 "Novice".to_string()
-            } else if dots_score < 300.0 {
+            } else if dots_score < thresholds.2 {
                 "Intermediate".to_string()
-            } else if dots_score < 375.0 {
+            } else if dots_score < thresholds.3 {
                 "Advanced".to_string()
-            } else if dots_score < 450.0 {
+            } else if dots_score < thresholds.4 {
                 "Elite".to_string()
             } else {
                 "World Class".to_string()
             }
         },
         "bench" => {
-            if dots_score < 100.0 {
+            let thresholds = if is_male {
+                (41.0, 69.0, 89.0, 110.0, 127.0)
+            } else {
+                (39.0, 65.0, 85.0, 104.0, 120.0)
+            };
+            
+            if dots_score < thresholds.0 {
                 "Beginner".to_string()
-            } else if dots_score < 150.0 {
+            } else if dots_score < thresholds.1 {
                 "Novice".to_string()
-            } else if dots_score < 200.0 {
+            } else if dots_score < thresholds.2 {
                 "Intermediate".to_string()
-            } else if dots_score < 250.0 {
+            } else if dots_score < thresholds.3 {
                 "Advanced".to_string()
-            } else if dots_score < 300.0 {
+            } else if dots_score < thresholds.4 {
                 "Elite".to_string()
             } else {
                 "World Class".to_string()
             }
         },
         "deadlift" => {
-            if dots_score < 175.0 {
+            let thresholds = if is_male {
+                (63.0, 105.0, 136.0, 167.0, 192.0)
+            } else {
+                (59.0, 99.0, 128.0, 158.0, 182.0)
+            };
+            
+            if dots_score < thresholds.0 {
                 "Beginner".to_string()
-            } else if dots_score < 262.5 {
+            } else if dots_score < thresholds.1 {
                 "Novice".to_string()
-            } else if dots_score < 350.0 {
+            } else if dots_score < thresholds.2 {
                 "Intermediate".to_string()
-            } else if dots_score < 437.5 {
+            } else if dots_score < thresholds.3 {
                 "Advanced".to_string()
-            } else if dots_score < 525.0 {
+            } else if dots_score < thresholds.4 {
                 "Elite".to_string()
             } else {
                 "World Class".to_string()
             }
         },
         _ => { // "total" and default
-            if dots_score < 200.0 {
+            let thresholds = if is_male {
+                (200.0, 300.0, 400.0, 500.0, 600.0)
+            } else {
+                (180.0, 270.0, 360.0, 450.0, 540.0)
+            };
+            
+            if dots_score < thresholds.0 {
                 "Beginner".to_string()
-            } else if dots_score < 300.0 {
+            } else if dots_score < thresholds.1 {
                 "Novice".to_string()
-            } else if dots_score < 400.0 {
+            } else if dots_score < thresholds.2 {
                 "Intermediate".to_string()
-            } else if dots_score < 500.0 {
+            } else if dots_score < thresholds.3 {
                 "Advanced".to_string()
-            } else if dots_score < 600.0 {
+            } else if dots_score < thresholds.4 {
                 "Elite".to_string()
             } else {
                 "World Class".to_string()
@@ -248,7 +277,7 @@ pub fn calculate_dots_and_level_for_lift(lift_kg: f64, bodyweight_kg: f64, lift_
 #[wasm_bindgen]
 pub fn calculate_dots_and_level_for_lift_with_gender(lift_kg: f64, bodyweight_kg: f64, is_male: bool, lift_type: &str) -> JsValue {
     let dots = calculate_dots_with_gender(lift_kg, bodyweight_kg, is_male);
-    let level = calculate_strength_level_for_lift(dots, lift_type);
+    let level = calculate_strength_level_for_lift_with_gender(dots, lift_type, is_male);
     let color = get_strength_level_color(&level);
     
     let result = js_sys::Object::new();
