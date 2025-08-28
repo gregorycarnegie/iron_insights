@@ -18,11 +18,11 @@ pub fn render_table_styles() -> Markup {
         
         .data-table th {
             padding: 0.75rem 1rem;
-            font-size: 0.75rem;
+            font-size: 0.8125rem;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            color: var(--text-tertiary);
+            color: var(--text-secondary);
             text-align: left;
         }
         

@@ -12,9 +12,9 @@ pub fn render_component_styles() -> Markup {
         
         .control-group label {
             display: block;
-            font-size: 0.875rem;
+            font-size: 0.9rem;
             font-weight: 500;
-            color: var(--text-primary);
+            color: var(--text-secondary);
             margin-bottom: 0.5rem;
         }
         
@@ -82,7 +82,7 @@ pub fn render_component_styles() -> Markup {
         .checkbox-label {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.625rem; /* add a touch more space */
             font-size: 0.875rem;
             color: var(--text-primary);
             cursor: pointer;
@@ -95,6 +95,7 @@ pub fn render_component_styles() -> Markup {
             border: 1px solid var(--border);
             border-radius: 0.25rem;
             cursor: pointer;
+            margin-right: 0.25rem; /* fallback spacing for browsers without flex gap support */
         }
         
         .checkbox-label input[type="checkbox"]:checked {

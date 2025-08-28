@@ -24,11 +24,11 @@ pub fn render_chart_styles() -> Markup {
         }
         
         .stat-label {
-            font-size: 0.75rem;
+            font-size: 0.8125rem;
             font-weight: 500;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            color: var(--text-tertiary);
+            color: var(--text-secondary);
             margin-bottom: 0.25rem;
         }
         
@@ -91,8 +91,8 @@ pub fn render_chart_styles() -> Markup {
         }
         
         .chart-option {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.75rem;
+            padding: 0.35rem 0.6rem;
+            font-size: 0.8125rem;
             border: 1px solid var(--border);
             border-radius: 0.25rem;
             background: white;
@@ -232,7 +232,7 @@ pub fn render_chart_styles() -> Markup {
         }
         
         .metric-label {
-            font-size: 0.75rem;
+            font-size: 0.8125rem;
             color: var(--text-secondary);
             text-transform: uppercase;
             letter-spacing: 0.05em;
