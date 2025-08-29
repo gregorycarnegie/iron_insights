@@ -51,7 +51,7 @@ lazy_static = "1.5.0"
 
 # Logging
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 
 # Apache Arrow for binary data serialization
 arrow = "56.1.0"
