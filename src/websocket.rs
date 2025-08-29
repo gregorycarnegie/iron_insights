@@ -261,7 +261,7 @@ async fn send_websocket_message(
 async fn handle_socket(socket: WebSocket, app_state: AppState, ws_state: WebSocketState) {
     let connection_id = Uuid::new_v4().to_string();
     let mut rx = ws_state.broadcaster.subscribe();
-    let mut supports_arrow = false; // Detect this during handshake
+    let supports_arrow = false; // Detect this during handshake
     
     // Split the socket into sender and receiver
     let (mut sender, mut receiver) = socket.split();

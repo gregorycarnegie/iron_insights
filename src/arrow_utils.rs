@@ -8,7 +8,6 @@ use std::io::Cursor;
 use std::sync::Arc;
 
 use crate::models::{HistogramData, ScatterData, VisualizationResponse, StatsData};
-use crate::websocket::{WebSocketMessage, BroadcastMessage};
 
 #[derive(Serialize)]
 pub struct ArrowVisualizationResponse {
