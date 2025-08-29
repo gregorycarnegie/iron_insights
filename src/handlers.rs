@@ -167,6 +167,7 @@ pub async fn get_stats(State(state): State<AppState>) -> Json<serde_json::Value>
     }))
 }
 
+
 /// Generate SVG share card
 #[instrument(skip(_state))]
 pub async fn generate_share_card(

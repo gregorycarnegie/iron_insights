@@ -45,6 +45,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return handle_update_command().await;
     }
     
+    // Handle arrow benchmark command  
+    if args.len() >= 2 && args[1] == "benchmark-arrow" {
+        return handle_benchmark_arrow_command().await;
+    }
+    
     // Normal server startup
     tracing::info!("🚀 Starting Iron Insights - High-Performance Powerlifting Analyzer with DOTS...");
     tracing::info!("🎨 Using maud for compile-time HTML templating");
@@ -104,10 +109,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     tracing::info!("🌐 Server running on http://localhost:3000");
     tracing::info!("🔗 WebSocket endpoint available at ws://localhost:3000/ws");
+    tracing::info!("🏹 Arrow IPC binary endpoints: /api/visualize-arrow and /api/visualize-arrow-stream");
     tracing::info!("💡 Data updates are checked automatically on startup");
     tracing::info!("📋 Commands available:");
-    tracing::info!("   {} update          - Manually check and download latest OpenPowerlifting data", args[0]);
-    tracing::info!("   {} convert <csv>   - Convert CSV to Parquet format for faster loading", args[0]);
+    tracing::info!("   {} update             - Manually check and download latest OpenPowerlifting data", args[0]);
+    tracing::info!("   {} convert <csv>      - Convert CSV to Parquet format for faster loading", args[0]);
+    tracing::info!("   {} benchmark-arrow    - Benchmark Arrow vs JSON performance", args[0]);
     
     axum::serve(listener, app).await?;
     Ok(())
@@ -170,6 +177,93 @@ async fn handle_update_command() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     
+    Ok(())
+}
+
+async fn handle_benchmark_arrow_command() -> Result<(), Box<dyn std::error::Error>> {
+    tracing::info!("🏁 Starting Arrow vs JSON benchmark...");
+    
+    // Load data for benchmarking
+    let data_processor = DataProcessor::new().with_sample_size(1000);
+    let data = tokio::task::spawn_blocking(move || data_processor.load_and_preprocess_data()).await??;
+    let config = AppConfig::default();
+    let mut state = AppState::new(Arc::new(data), config.cache_config());
+    state.websocket_state = Some(WebSocketState::new());
+    
+    // Start HTTP server
+    let app = Router::new()
+        .route("/api/visualize", axum::routing::post(create_visualizations))
+        .route("/api/visualize-arrow", axum::routing::post(create_visualizations_arrow))
+        .with_state(state);
+        
+    let _http_handle = tokio::spawn(async move {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:3001").await.unwrap();
+        axum::serve(listener, app).await.unwrap();
+    });
+    
+    // Give server time to start
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    
+    // Run benchmark
+    let http_client = reqwest::Client::new();
+    let params = crate::models::FilterParams::default();
+    let iterations = 10;
+    
+    tracing::info!("🔥 Running {} iterations for each format...", iterations);
+    
+    // Benchmark JSON
+    let json_start = std::time::Instant::now();
+    let mut total_json_bytes = 0;
+    for _i in 0..iterations {
+        let response = http_client
+            .post("http://localhost:3001/api/visualize")
+            .json(&params)
+            .send()
+            .await?;
+        let bytes = response.bytes().await?;
+        total_json_bytes += bytes.len();
+    }
+    let json_duration = json_start.elapsed();
+    
+    // Benchmark Arrow
+    let arrow_start = std::time::Instant::now();
+    let mut total_arrow_bytes = 0;
+    for _i in 0..iterations {
+        let response = http_client
+            .post("http://localhost:3001/api/visualize-arrow")
+            .json(&params)
+            .send()
+            .await?;
+        let bytes = response.bytes().await?;
+        total_arrow_bytes += bytes.len();
+    }
+    let arrow_duration = arrow_start.elapsed();
+    
+    // Calculate results
+    let json_ms_per_req = json_duration.as_millis() / iterations as u128;
+    let arrow_ms_per_req = arrow_duration.as_millis() / iterations as u128;
+    let speed_improvement = json_duration.as_millis() as f64 / arrow_duration.as_millis() as f64;
+    let size_reduction = 1.0 - (total_arrow_bytes as f64 / total_json_bytes as f64);
+    
+    tracing::info!("📊 Benchmark Results:");
+    tracing::info!("   JSON:  {} ms/request, {} bytes total", json_ms_per_req, total_json_bytes);
+    tracing::info!("   Arrow: {} ms/request, {} bytes total", arrow_ms_per_req, total_arrow_bytes);
+    tracing::info!("   Speed improvement: {:.2}x faster", speed_improvement);
+    tracing::info!("   Size reduction: {:.1}% smaller", size_reduction * 100.0);
+    
+    if speed_improvement > 1.0 {
+        tracing::info!("✅ Arrow format is {:.2}x faster than JSON!", speed_improvement);
+    } else {
+        tracing::info!("⚠️  Arrow format performance: {:.2}x relative to JSON", speed_improvement);
+    }
+    
+    if size_reduction > 0.0 {
+        tracing::info!("✅ Arrow format is {:.1}% smaller than JSON!", size_reduction * 100.0);
+    } else {
+        tracing::info!("⚠️  Arrow format size: {:.1}% compared to JSON", (1.0 - size_reduction) * 100.0);
+    }
+    
+    tracing::info!("✅ Benchmark completed!");
     Ok(())
 }
 

@@ -30,7 +30,7 @@ pub struct CachedResult {
 }
 
 // Enhanced filter parameters with additional fields
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FilterParams {
     pub sex: Option<String>,
     pub equipment: Option<Vec<String>>,
@@ -44,6 +44,25 @@ pub struct FilterParams {
     pub min_bodyweight: Option<f32>, // New: minimum bodyweight filter
     pub max_bodyweight: Option<f32>, // New: maximum bodyweight filter
     pub years_filter: Option<String>, // New: "all", "past_5_years", "past_10_years", "ytd"
+}
+
+impl Default for FilterParams {
+    fn default() -> Self {
+        Self {
+            sex: None,
+            equipment: None,
+            weight_class: None,
+            squat: None,
+            bench: None,
+            deadlift: None,
+            bodyweight: None,
+            units: None,
+            lift_type: None,
+            min_bodyweight: None,
+            max_bodyweight: None,
+            years_filter: None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
