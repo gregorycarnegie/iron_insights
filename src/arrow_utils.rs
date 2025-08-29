@@ -1,5 +1,5 @@
 // arrow_utils.rs - Arrow IPC serialization utilities
-use arrow::array::{Array, Float32Array, StringArray, UInt32Array};
+use arrow::array::{Array, Float32Array, StringArray, UInt32Array, UInt64Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use arrow_ipc::writer::StreamWriter;
@@ -7,7 +7,8 @@ use serde::Serialize;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use crate::models::{HistogramData, ScatterData, VisualizationResponse};
+use crate::models::{HistogramData, ScatterData, VisualizationResponse, StatsData};
+use crate::websocket::{WebSocketMessage, BroadcastMessage};
 
 #[derive(Serialize)]
 pub struct ArrowVisualizationResponse {
@@ -336,4 +337,41 @@ pub fn deserialize_visualization_response_from_arrow(data: &[u8]) -> Result<Visu
         processing_time_ms,
         total_records,
     })
+}
+
+/// Serialize stats data to Arrow IPC format
+pub fn serialize_stats_to_arrow(stats: &StatsData) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+    let schema = Schema::new(vec![
+        Field::new("total_records", DataType::UInt32, false),
+        Field::new("cache_entries", DataType::UInt32, false),
+        Field::new("cache_size", DataType::UInt64, false),
+        Field::new("scoring_system", DataType::Utf8, false),
+        Field::new("status", DataType::Utf8, false),
+    ]);
+
+    let total_records_array = UInt32Array::from(vec![stats.total_records]);
+    let cache_entries_array = UInt32Array::from(vec![stats.cache_entries]);
+    let cache_size_array = UInt64Array::from(vec![stats.cache_size]);
+    let scoring_system_array = StringArray::from(vec![stats.scoring_system.clone()]);
+    let status_array = StringArray::from(vec![stats.status.clone()]);
+
+    let record_batch = RecordBatch::try_new(
+        Arc::new(schema),
+        vec![
+            Arc::new(total_records_array),
+            Arc::new(cache_entries_array),
+            Arc::new(cache_size_array),
+            Arc::new(scoring_system_array),
+            Arc::new(status_array),
+        ],
+    )?;
+
+    let mut buffer = Cursor::new(Vec::new());
+    {
+        let mut stream_writer = StreamWriter::try_new(&mut buffer, &record_batch.schema())?;
+        stream_writer.write(&record_batch)?;
+        stream_writer.finish()?;
+    }
+
+    Ok(buffer.into_inner())
 }

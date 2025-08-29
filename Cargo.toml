@@ -15,6 +15,7 @@ maud = { version = "0.27.0", features = ["axum"] }
 axum-extra = { version = "0.10.1", features = ["typed-header"] }
 futures = "0.3.31"
 futures-util = "0.3.31"
+tokio-tungstenite = "0.27.0"
 uuid = { version = "1.18.0", features = ["v4", "serde"] }
 
 # Streaming support

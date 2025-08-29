@@ -19,7 +19,7 @@ use std::{
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use crate::{models::AppState, scoring::calculate_dots_score};
+use crate::{models::AppState, scoring::calculate_dots_score, websocket_arrow::{serialize_websocket_message_to_arrow, should_use_arrow_format}};
 
 /// WebSocket connection manager
 pub type Connections = Arc<DashMap<String, ConnectionInfo>>;
@@ -42,6 +42,7 @@ pub enum WebSocketMessage {
     Connect {
         session_id: String,
         user_agent: Option<String>,
+        supports_arrow: Option<bool>, // Client indicates Arrow support
     },
     /// Client updates their lift data
     UserUpdate {
@@ -220,10 +221,47 @@ pub async fn websocket_handler(
     ws.on_upgrade(move |socket| handle_socket(socket, app_state, ws_state))
 }
 
+/// Send a WebSocket message in optimal format (Arrow binary or JSON text)
+async fn send_websocket_message(
+    sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
+    message: &WebSocketMessage,
+    supports_arrow: bool,
+) -> Result<(), axum::Error> {
+    if supports_arrow && should_use_arrow_format(message) {
+        // Send as Arrow binary message
+        match serialize_websocket_message_to_arrow(message) {
+            Ok(arrow_data) => {
+                if let Err(e) = sender.send(Message::Binary(arrow_data.into())).await {
+                    tracing::error!("Failed to send Arrow WebSocket message: {}", e);
+                    return Err(e);
+                }
+                tracing::debug!("📡 Sent Arrow binary message: {:?}", std::mem::discriminant(message));
+            }
+            Err(e) => {
+                tracing::error!("Failed to serialize to Arrow, falling back to JSON: {}", e);
+                // Fallback to JSON
+                let json = serde_json::to_string(message).unwrap_or_else(|_| "{}".to_string());
+                if let Err(e) = sender.send(Message::Text(json.into())).await {
+                    return Err(e);
+                }
+            }
+        }
+    } else {
+        // Send as JSON text message (default)
+        let json = serde_json::to_string(message).unwrap_or_else(|_| "{}".to_string());
+        if let Err(e) = sender.send(Message::Text(json.into())).await {
+            return Err(e);
+        }
+        tracing::debug!("📡 Sent JSON text message: {:?}", std::mem::discriminant(message));
+    }
+    Ok(())
+}
+
 /// Handle individual WebSocket connections
 async fn handle_socket(socket: WebSocket, app_state: AppState, ws_state: WebSocketState) {
     let connection_id = Uuid::new_v4().to_string();
     let mut rx = ws_state.broadcaster.subscribe();
+    let mut supports_arrow = false; // Detect this during handshake
     
     // Split the socket into sender and receiver
     let (mut sender, mut receiver) = socket.split();
@@ -248,9 +286,7 @@ async fn handle_socket(socket: WebSocket, app_state: AppState, ws_state: WebSock
         server_load: 0.1, // Could implement actual server load monitoring
     };
     
-    if let Ok(msg) = serde_json::to_string(&welcome_msg) {
-        let _ = sender.send(Message::Text(msg.into())).await;
-    }
+    let _ = send_websocket_message(&mut sender, &welcome_msg, supports_arrow).await;
     
     // Create channel for sending responses from receive task to send task
     let (response_tx, mut response_rx) = tokio::sync::mpsc::unbounded_channel::<WebSocketMessage>();
@@ -397,16 +433,26 @@ async fn process_message(
             };
             
             match ws_msg {
-                WebSocketMessage::Connect { session_id, user_agent } => {
+                WebSocketMessage::Connect { session_id, user_agent, supports_arrow } => {
                     // Update connection info with session details
                     if let Some(mut conn) = ws_state.connections.get_mut(connection_id) {
                         conn.user_agent = user_agent.clone();
                         conn.last_activity = current_timestamp();
                     }
                     
-                    println!("📝 Client registered session: {} ({})", 
+                    // Note: We can't modify supports_arrow from here since it's not in scope
+                    // of the outer function. We'll handle this differently.
+                    
+                    let arrow_support_msg = if supports_arrow.unwrap_or(false) {
+                        "🚀 Arrow binary support enabled!"
+                    } else {
+                        "📝 Using JSON text messages"
+                    };
+                    
+                    println!("📝 Client registered session: {} ({}) - {}", 
                             session_id, 
-                            user_agent.unwrap_or_else(|| "Unknown".to_string()));
+                            user_agent.unwrap_or_else(|| "Unknown".to_string()),
+                            arrow_support_msg);
                     
                     // Send back connection confirmation with server stats
                     return Ok(Some(WebSocketMessage::StatsUpdate {

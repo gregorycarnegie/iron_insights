@@ -78,6 +78,15 @@ pub struct VisualizationResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+pub struct StatsData {
+    pub total_records: u32,
+    pub cache_entries: u32,
+    pub cache_size: u64,
+    pub scoring_system: String,
+    pub status: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct HistogramData {
     pub values: Vec<f32>,
     pub counts: Vec<u32>,

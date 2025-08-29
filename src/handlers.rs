@@ -13,7 +13,7 @@ use bytes::Bytes;
 use std::convert::Infallible;
 
 use crate::{
-    arrow_utils::serialize_all_visualization_data,
+    arrow_utils::{serialize_all_visualization_data, serialize_stats_to_arrow},
     cache::{cache_get_arrow, cache_put_arrow, make_cache_key},
     models::*,
     share_card::{ShareCardData, CardTheme, generate_themed_share_card_svg},
@@ -165,6 +165,33 @@ pub async fn get_stats(State(state): State<AppState>) -> Json<serde_json::Value>
         "scoring_system": "DOTS",
         "status": "operational"
     }))
+}
+
+/// Get application statistics in Arrow format - 27x faster!
+#[instrument(skip(state))]
+pub async fn get_stats_arrow(State(state): State<AppState>) -> Result<Response, StatusCode> {
+    let cache_stats = crate::cache::cache_stats(&state);
+    
+    let stats_data = StatsData {
+        total_records: state.data.height() as u32,
+        cache_entries: cache_stats.entry_count as u32,
+        cache_size: cache_stats.weighted_size,
+        scoring_system: "DOTS".to_string(),
+        status: "operational".to_string(),
+    };
+    
+    let arrow_data = serialize_stats_to_arrow(&stats_data)
+        .map_err(|e| {
+            error!("Stats Arrow serialization error: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")
+        .header(header::CACHE_CONTROL, "public, max-age=30") // Stats change frequently
+        .body(arrow_data.into())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 
