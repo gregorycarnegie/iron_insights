@@ -17,7 +17,7 @@ use crate::{
     cache::{cache_get_arrow, cache_put_arrow, make_cache_key},
     models::*,
     share_card::{ShareCardData, CardTheme, generate_themed_share_card_svg},
-    ui::render_index,
+    ui::{render_index, sharecard_page::render_sharecard_page},
     viz::compute_viz,
 };
 
@@ -25,6 +25,12 @@ use crate::{
 #[instrument(skip(_state))]
 pub async fn serve_index(State(_state): State<AppState>) -> Markup {
     render_index()
+}
+
+/// Share Card page
+#[instrument(skip(_state))]
+pub async fn serve_sharecard_page(State(_state): State<AppState>) -> Markup {
+    render_sharecard_page()
 }
 
 /// Main JSON visualization endpoint - thin I/O wrapper

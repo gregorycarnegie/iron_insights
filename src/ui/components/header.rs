@@ -15,6 +15,7 @@ pub fn render_header() -> Markup {
                     a href="#analytics" { "Analytics" }
                     a href="#rankings" { "Rankings" }
                     a href="#records" { "Records" }
+                    a href="/sharecard" { "Share Card" }
                     
                     button.mobile-menu-toggle onclick="toggleSidebar()" {
                         svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {

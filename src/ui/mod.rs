@@ -4,6 +4,7 @@ use maud::{html, Markup, DOCTYPE};
 // Import all UI components
 pub mod components;
 use components::*;
+pub mod sharecard_page;
 
 /// Main page template with modern design
 pub fn render_index() -> Markup {

@@ -101,6 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         // Main page now returns maud Markup instead of static HTML
         .route("/", get(serve_index))
+        .route("/sharecard", get(serve_sharecard_page))
         .route("/api/visualize", axum::routing::post(create_visualizations))
         .route("/api/visualize-arrow", axum::routing::post(create_visualizations_arrow))
         .route("/api/visualize-arrow-stream", axum::routing::post(create_visualizations_arrow_stream))
