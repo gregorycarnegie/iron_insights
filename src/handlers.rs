@@ -17,14 +17,20 @@ use crate::{
     cache::{cache_get_arrow, cache_put_arrow, make_cache_key},
     models::*,
     share_card::{ShareCardData, CardTheme, generate_themed_share_card_svg},
-    ui::{render_index, sharecard_page::render_sharecard_page},
+    ui::{render_index, render_analytics, sharecard_page::render_sharecard_page},
     viz::compute_viz,
 };
 
-/// Main HTML page - now using maud templating
+/// Home page - landing page with overview
 #[instrument(skip(_state))]
 pub async fn serve_index(State(_state): State<AppState>) -> Markup {
     render_index()
+}
+
+/// Analytics page - the original main functionality
+#[instrument(skip(_state))]
+pub async fn serve_analytics(State(_state): State<AppState>) -> Markup {
+    render_analytics()
 }
 
 /// Share Card page

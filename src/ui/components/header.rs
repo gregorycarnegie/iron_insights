@@ -11,8 +11,8 @@ pub fn render_header() -> Markup {
                 }
                 
                 nav.header-nav {
-                    a href="#" { "Dashboard" }
-                    a href="#analytics" { "Analytics" }
+                    a href="/" { "Home" }
+                    a href="/analytics" { "Analytics" }
                     a href="#rankings" { "Rankings" }
                     a href="#records" { "Records" }
                     a href="/sharecard" { "Share Card" }

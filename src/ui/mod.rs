@@ -5,9 +5,15 @@ use maud::{html, Markup, DOCTYPE};
 pub mod components;
 use components::*;
 pub mod sharecard_page;
+pub mod home_page;
 
-/// Main page template with modern design
+/// Home page - landing page with overview
 pub fn render_index() -> Markup {
+    home_page::render_home_page()
+}
+
+/// Analytics page - the original main functionality
+pub fn render_analytics() -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
