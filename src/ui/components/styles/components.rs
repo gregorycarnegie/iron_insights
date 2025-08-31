@@ -2,6 +2,39 @@ use maud::{Markup, PreEscaped};
 
 pub fn render_component_styles() -> Markup {
     PreEscaped(r#"
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.65rem 1.1rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            font-size: 0.95rem;
+            border: 1px solid transparent;
+            text-decoration: none;
+            cursor: pointer;
+            transition: transform 0.12s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+            will-change: transform;
+        }
+        .btn:active { transform: translateY(0); }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+        .btn-secondary { background: var(--secondary); color: #fff; }
+        .btn-secondary:hover { background: var(--secondary-dark); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+        .btn-tertiary { background: var(--surface-secondary); color: var(--text-primary); border-color: var(--border); }
+        .btn-tertiary:hover { background: var(--surface-hover); }
+
+        /* Subtle glass/elevated cards */
+        .glass-card {
+            background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)) , var(--surface);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 20px rgba(2,6,23,0.2), inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+
         .control-section {
             margin-bottom: 2rem;
         }
@@ -102,29 +135,10 @@ pub fn render_component_styles() -> Markup {
             accent-color: var(--primary);
         }
         
-        /* Primary Button */
+        /* Sidebar primary action */
         .btn-primary {
             width: 100%;
-            padding: 0.75rem 1.5rem;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
             margin-top: 1.5rem;
-        }
-        
-        .btn-primary:hover {
-            background: var(--primary-dark);
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
-        
-        .btn-primary:active {
-            transform: translateY(0);
         }
         
         /* Pills/Tags */

@@ -86,7 +86,37 @@ pub fn render_ui_scripts() -> Markup {
                 });
             }
         }
-        
+
+        // Mobile sidebar toggle + overlay handling
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (!sidebar || !overlay) return;
+            const open = !sidebar.classList.contains('mobile-open');
+            sidebar.classList.toggle('mobile-open', open);
+            overlay.classList.toggle('active', open);
+        }
+
+        // Highlight active nav link
+        function highlightActiveNav() {
+            try {
+                const path = window.location.pathname.replace(/\/$/, '');
+                document.querySelectorAll('.header-nav a').forEach(a => {
+                    const href = a.getAttribute('href');
+                    if (!href || href.startsWith('#')) return;
+                    const cleanHref = href.replace(/\/$/, '');
+                    if (cleanHref === path || (cleanHref && path.startsWith(cleanHref) && cleanHref !== '')) {
+                        a.classList.add('active');
+                    }
+                });
+            } catch (_) {}
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            highlightActiveNav();
+            setupEquipmentFilters();
+        });
+
         function toggleDebug() {
             debugMode = !debugMode;
             const debugInfo = document.getElementById('debugInfo');

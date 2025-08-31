@@ -11,11 +11,11 @@ pub fn render_chart_styles() -> Markup {
         }
         
         .stat-card {
-            background: white;
+            background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 0.5rem;
+            border-radius: 0.75rem;
             padding: 1.25rem;
-            transition: all 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
         
         .stat-card:hover {
@@ -64,9 +64,9 @@ pub fn render_chart_styles() -> Markup {
         }
         
         .chart-container {
-            background: white;
+            background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 0.5rem;
+            border-radius: 0.75rem;
             overflow: hidden;
         }
         
@@ -95,7 +95,7 @@ pub fn render_chart_styles() -> Markup {
             font-size: 0.8125rem;
             border: 1px solid var(--border);
             border-radius: 0.25rem;
-            background: white;
+            background: var(--surface);
             color: var(--text-secondary);
             cursor: pointer;
             transition: all 0.2s;
@@ -173,7 +173,7 @@ pub fn render_chart_styles() -> Markup {
         
         /* User Metrics */
         .user-metrics-card {
-            background: white;
+            background: var(--surface);
             border: 2px solid var(--primary);
             border-radius: 0.5rem;
             padding: 1.5rem;
@@ -220,7 +220,7 @@ pub fn render_chart_styles() -> Markup {
         .metric-display {
             text-align: center;
             padding: 1rem;
-            background: var(--light-secondary);
+            background: var(--surface-secondary);
             border-radius: 0.375rem;
         }
         
@@ -247,9 +247,9 @@ pub fn render_chart_styles() -> Markup {
         }
         
         .lift-card {
-            background: white;
+            background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 0.5rem;
+            border-radius: 0.75rem;
             padding: 1.25rem;
             text-align: center;
             position: relative;

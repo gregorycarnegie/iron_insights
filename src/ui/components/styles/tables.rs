@@ -5,14 +5,14 @@ pub fn render_table_styles() -> Markup {
         /* Tables */
         .data-table {
             width: 100%;
-            background: white;
+            background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 0.5rem;
             overflow: hidden;
         }
         
         .data-table thead {
-            background: var(--light-secondary);
+            background: var(--surface-secondary);
             border-bottom: 1px solid var(--border);
         }
         
@@ -38,7 +38,7 @@ pub fn render_table_styles() -> Markup {
         }
         
         .data-table tr:hover {
-            background: var(--light);
+            background: var(--surface-hover);
         }
     "#.to_string())
 }

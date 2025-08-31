@@ -7,13 +7,13 @@ pub fn render_layout_styles() -> Markup {
             max-width: 1440px;
             margin: 0 auto;
             padding: 0;
-            background: white;
+            background: transparent;
             min-height: 100vh;
         }
         
         /* Modern Header */
         .header {
-            background: white;
+            background: var(--surface);
             border-bottom: 1px solid var(--border);
             padding: 0;
             margin-bottom: 0;
@@ -35,7 +35,7 @@ pub fn render_layout_styles() -> Markup {
         .header h1 {
             font-size: 1.5rem;
             font-weight: 700;
-            color: var(--dark);
+            color: var(--text-primary);
             display: flex;
             align-items: center;
             gap: 0.5rem;
@@ -55,11 +55,18 @@ pub fn render_layout_styles() -> Markup {
             color: var(--text-secondary);
             text-decoration: none;
             font-weight: 500;
-            transition: color 0.2s;
+            padding: 0.35rem 0.5rem;
+            border-radius: 0.375rem;
+            transition: color 0.2s, background-color 0.2s;
         }
         
         .header-nav a:hover {
             color: var(--primary);
+            background: rgba(var(--primary-rgb), 0.08);
+        }
+        .header-nav a.active {
+            color: var(--text-primary);
+            background: rgba(var(--primary-rgb), 0.12);
         }
         
         /* Main Content Area */
@@ -71,7 +78,7 @@ pub fn render_layout_styles() -> Markup {
         
         /* Sidebar Controls */
         .sidebar {
-            background: var(--light-secondary);
+            background: var(--surface);
             border-right: 1px solid var(--border);
             padding: 1.5rem;
             overflow-y: auto;

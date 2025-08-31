@@ -9,9 +9,17 @@ pub fn render_head() -> Markup {
             meta name="viewport" content="width=device-width, initial-scale=1.0";
             meta name="description" content="Professional powerlifting analytics platform with DOTS scoring, performance tracking, and comprehensive competition data analysis.";
             meta name="theme-color" content="#2563eb";
+            meta property="og:title" content="Iron Insights – Powerlifting Analytics";
+            meta property="og:description" content="Explore pro-grade analytics, visualizations, calculators, and shareable cards for lifters.";
+            meta property="og:type" content="website";
             
             title { "Iron Insights - Professional Powerlifting Analytics" }
             
+            // Fonts (Inter) and preconnects
+            link rel="preconnect" href="https://fonts.googleapis.com";
+            link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="";
+            link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet";
+
             // Preconnect to external domains for performance
             link rel="preconnect" href="https://cdn.plot.ly";
             link rel="dns-prefetch" href="https://cdn.plot.ly";

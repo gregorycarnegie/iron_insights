@@ -87,15 +87,21 @@ pub fn render_home_page() -> Markup {
                     r#"
                     .hero-section {
                         text-align: center;
-                        padding: 3rem 1rem;
-                        background: linear-gradient(135deg, var(--primary-light), var(--secondary-light));
-                        border-radius: 12px;
-                        margin-bottom: 2rem;
+                        padding: 3.5rem 1.25rem;
+                        border-radius: 16px;
+                        margin: 2rem auto 2.25rem;
+                        max-width: 1100px;
+                        position: relative;
+                        background: radial-gradient(1200px 500px at -10% -40%, rgba(var(--primary-rgb),0.18), transparent 70%),
+                                    radial-gradient(900px 500px at 110% -30%, rgba(16,185,129,0.18), transparent 70%),
+                                    linear-gradient(135deg, rgba(99,102,241,0.12), rgba(16,185,129,0.10));
+                        border: 1px solid rgba(148,163,184,0.18);
+                        box-shadow: 0 20px 60px rgba(2,6,23,0.25), inset 0 1px 0 rgba(255,255,255,0.04);
                     }
                     
                     .hero-section h1 {
                         font-size: 3rem;
-                        margin-bottom: 1rem;
+                        margin-bottom: 0.75rem;
                         background: linear-gradient(135deg, var(--primary), var(--secondary));
                         -webkit-background-clip: text;
                         -webkit-text-fill-color: transparent;
@@ -121,7 +127,8 @@ pub fn render_home_page() -> Markup {
                     .feature-card {
                         background: var(--surface);
                         padding: 2rem;
-                        border-radius: 12px;
+                        border-radius: 14px;
+                        border: 1px solid var(--border);
                         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
                         transition: transform 0.2s ease, box-shadow 0.2s ease;
                         text-align: left;
