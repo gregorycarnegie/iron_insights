@@ -17,7 +17,7 @@ use crate::{
     cache::{cache_get_arrow, cache_put_arrow, make_cache_key},
     models::*,
     share_card::{ShareCardData, CardTheme, generate_themed_share_card_svg},
-    ui::{render_index, render_analytics, sharecard_page::render_sharecard_page},
+    ui::{render_index, render_analytics, render_onerepmax, sharecard_page::render_sharecard_page},
     viz::compute_viz,
 };
 
@@ -31,6 +31,12 @@ pub async fn serve_index(State(_state): State<AppState>) -> Markup {
 #[instrument(skip(_state))]
 pub async fn serve_analytics(State(_state): State<AppState>) -> Markup {
     render_analytics()
+}
+
+/// 1RM Calculator page
+#[instrument(skip(_state))]
+pub async fn serve_onerepmax_page(State(_state): State<AppState>) -> Markup {
+    render_onerepmax()
 }
 
 /// Share Card page

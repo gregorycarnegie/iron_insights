@@ -6,6 +6,7 @@ pub mod components;
 use components::*;
 pub mod sharecard_page;
 pub mod home_page;
+pub mod onerepmax_page;
 
 /// Home page - landing page with overview
 pub fn render_index() -> Markup {
@@ -30,4 +31,9 @@ pub fn render_analytics() -> Markup {
             }
         }
     }
+}
+
+/// 1RM Calculator page
+pub fn render_onerepmax() -> Markup {
+    onerepmax_page::render_onerepmax_page()
 }

@@ -103,6 +103,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(serve_index))
         // Analytics page (moved from root)
         .route("/analytics", get(serve_analytics))
+        // 1RM Calculator page
+        .route("/1rm", get(serve_onerepmax_page))
         .route("/sharecard", get(serve_sharecard_page))
         .route("/api/visualize", axum::routing::post(create_visualizations))
         .route("/api/visualize-arrow", axum::routing::post(create_visualizations_arrow))
