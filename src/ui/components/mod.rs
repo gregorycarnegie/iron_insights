@@ -3,7 +3,6 @@ pub mod head;
 pub mod header;
 pub mod controls;
 pub mod charts;
-pub mod metrics;
 pub mod styles;
 pub mod scripts;
 
