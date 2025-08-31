@@ -12,7 +12,8 @@ pub fn render_sharecard_page() -> Markup {
                 div.container {
                     (render_header())
                     div.main-content {
-                        div.user-input-section {
+                        // Use existing two-column layout: sidebar + content
+                        aside.sidebar {
                             h2 { "Create Your Share Card" }
                             p { "Fill in your details, then generate a beautiful SVG card ready to share on social media." }
 
@@ -74,16 +75,20 @@ pub fn render_sharecard_page() -> Markup {
                                     button onclick="generateShareCard()" style="width: 100%;" { "Generate Share Card 🎨" }
                                 }
                             }
+                        }
 
-                            // Preview + Download
-                            div #shareCardPreview style="margin-top: 20px; display: none;" {
+                        // Wide content area for preview
+                        section.content {
+                            div #shareCardPreview style="display: none;" {
                                 h3 { "Preview" }
-                                div #shareCardContainer style="border: 2px solid #e5e7eb; border-radius: 8px; padding: 16px; background: #f9fafb; overflow: auto;" {}
-                                div style="margin-top: 12px;" {
+                                div style="border: 1px solid var(--border); padding: 12px; border-radius: 8px; background: var(--light-secondary); overflow: auto; max-width: 100%;" {
+                                    div #shareCardContainer style="display: inline-block; overflow: auto;" {}
+                                }
+                                div style="margin-top: 12px; display: flex; gap: 8px;" {
                                     button #downloadButton onclick="downloadShareCard()" disabled style="background: #10b981; color: white;" { "Download SVG 📥" }
                                 }
                             }
-
+                            // Keep scripts in the page
                             (sharecard_inline_scripts())
                         }
                     }

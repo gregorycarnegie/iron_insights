@@ -51,9 +51,24 @@ fn generate_default_card(data: &ShareCardData) -> String {
         .map(|d| format!("{:.1}", d))
         .unwrap_or_else(|| "-".to_string());
 
-    let percentile_display = data.percentile
-        .map(|p| format!("{:.0}%", p))
-        .unwrap_or_else(|| "-".to_string());
+    // Format percentile as an ordinal (e.g., 85th Percentile) or em dash
+    let percentile_display = match data.percentile {
+        Some(p) => {
+            let n = p.round() as i32;
+            let suffix = if (11..=13).contains(&(n % 100)) {
+                "th"
+            } else {
+                match n % 10 {
+                    1 => "st",
+                    2 => "nd",
+                    3 => "rd",
+                    _ => "th",
+                }
+            };
+            format!("{}{} Percentile", n, suffix)
+        }
+        None => "—".to_string(),
+    };
 
     format!(
         r##"<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg">
@@ -81,7 +96,7 @@ fn generate_default_card(data: &ShareCardData) -> String {
   </text>
   
   <!-- Main Lifts Grid -->
-  <g transform="translate(80, 220)">
+  <g transform="translate(60, 220)">
     <!-- Squat -->
     <rect x="0" y="0" width="160" height="90" fill="{}" rx="10" opacity="0.2"/>
     <text x="80" y="25" font-family="Arial" font-size="14" text-anchor="middle" fill="#666" font-weight="600">
@@ -149,7 +164,7 @@ fn generate_default_card(data: &ShareCardData) -> String {
       {}
     </text>
     <text x="320" y="80" font-family="Arial" font-size="14" text-anchor="middle" fill="#888">
-      {}th Percentile
+      {}
     </text>
   </g>
   
@@ -185,9 +200,23 @@ fn generate_dark_card(data: &ShareCardData) -> String {
         .map(|d| format!("{:.1}", d))
         .unwrap_or_else(|| "-".to_string());
 
-    let percentile_display = data.percentile
-        .map(|p| format!("{:.0}%", p))
-        .unwrap_or_else(|| "-".to_string());
+    let percentile_display = match data.percentile {
+        Some(p) => {
+            let n = p.round() as i32;
+            let suffix = if (11..=13).contains(&(n % 100)) {
+                "th"
+            } else {
+                match n % 10 {
+                    1 => "st",
+                    2 => "nd",
+                    3 => "rd",
+                    _ => "th",
+                }
+            };
+            format!("{}{} Percentile", n, suffix)
+        }
+        None => "—".to_string(),
+    };
 
     format!(
         r##"<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg">
@@ -212,7 +241,7 @@ fn generate_dark_card(data: &ShareCardData) -> String {
   </text>
   
   <!-- Main Lifts Grid Dark Theme -->
-  <g transform="translate(80, 220)">
+  <g transform="translate(60, 220)">
     <!-- Squat -->
     <rect x="0" y="0" width="160" height="90" fill="#e94560" rx="10" opacity="0.3"/>
     <text x="80" y="25" font-family="Arial" font-size="14" text-anchor="middle" fill="#a7a9be">
@@ -280,7 +309,7 @@ fn generate_dark_card(data: &ShareCardData) -> String {
       {}
     </text>
     <text x="320" y="80" font-family="Arial" font-size="14" text-anchor="middle" fill="#a7a9be">
-      {}th Percentile
+      {}
     </text>
   </g>
   
