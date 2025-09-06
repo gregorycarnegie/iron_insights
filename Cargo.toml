@@ -16,7 +16,7 @@ axum-extra = { version = "0.10.1", features = ["typed-header"] }
 futures = "0.3.31"
 futures-util = "0.3.31"
 tokio-tungstenite = "0.27.0"
-uuid = { version = "1.18.0", features = ["v4", "serde"] }
+uuid = { version = "1.18.1", features = ["v4", "serde"] }
 
 # Streaming support
 tokio-stream = "0.1.17"
@@ -59,7 +59,7 @@ arrow-ipc = "56.1.0"
 arrow-flight = { version = "56.1.0", features = ["flight-sql-experimental"] }
 
 # gRPC support for Arrow Flight
-tonic = "0.14.1"
+tonic = "0.14.2"
 prost = "0.14.1"
 flatbuffers = "25.1.0"
 
@@ -73,7 +73,7 @@ reqwest = { version = "0.12.23", features = ["stream"] }
 scraper = "0.24.0"
 
 # Zip extraction
-zip = "4.5.0"
+zip = "4.6.1"
 
 # Static file serving
 tower = "0.5.2"
