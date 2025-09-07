@@ -17,7 +17,7 @@ pub fn render_header() -> Markup {
                     a href="/sharecard" { "Share Card" }
                     a href="#rankings" { "Rankings" }
                     
-                    button.mobile-menu-toggle onclick="toggleSidebar()" {
+                    button.mobile-menu-toggle onclick="toggleSidebar()" aria-label="Toggle mobile menu" {
                         svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {
                             path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" {}
                         }

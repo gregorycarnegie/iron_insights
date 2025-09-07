@@ -86,6 +86,7 @@ pub fn render_theme_styles() -> Markup {
             /* Glass header on dark */
             .header {
                 background: rgba(2, 6, 23, 0.55);
+                -webkit-backdrop-filter: saturate(180%) blur(10px);
                 backdrop-filter: saturate(180%) blur(10px);
                 border-bottom: 1px solid rgba(148, 163, 184, 0.12);
             }
