@@ -73,11 +73,22 @@ reqwest = { version = "0.12.23", features = ["stream"] }
 scraper = "0.24.0"
 
 # Zip extraction
-zip = "4.6.1"
+zip = "5.0.0"
 
 # Static file serving
 tower = "0.5.2"
 tower-http = { version = "0.6.6", features = ["fs", "compression-br", "compression-gzip", "trace"] }
+
+# HTTP/3 and QUIC support - basic QUIC without TLS complications
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+h3 = "0.0.8"
+h3-quinn = "0.0.10"
+rustls = { version = "0.23.31", default-features = false, features = ["ring"] }
+rcgen = { version = "0.14.3", features = ["crypto"] }
+
+[dev-dependencies]
+# Testing dependencies for HTTP/3
+reqwest = { version = "0.12.23", features = ["stream"] }
 
 [profile.release]
 lto = true              # Link-time optimization

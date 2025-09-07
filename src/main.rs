@@ -1,5 +1,5 @@
 // main.rs - Updated with maud HTML templating
-use axum::{routing::get, Router};
+use axum::{routing::get, Router, middleware, extract::Request, response::Response};
 use std::sync::Arc;
 use tower_http::{compression::CompressionLayer, services::ServeDir};
 use tracing;
@@ -10,6 +10,7 @@ mod config;
 mod data;
 mod filters;
 mod handlers;
+mod http3_server;
 mod models;
 mod percentiles;
 mod scoring;
@@ -22,6 +23,7 @@ mod websocket_arrow;
 use config::AppConfig;
 use data::DataProcessor;
 use handlers::*;
+use http3_server::Http3Server;
 use models::AppState;
 use websocket::{WebSocketState, websocket_handler};
 
@@ -116,12 +118,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest_service("/static", ServeDir::new("static"))
         .layer(CompressionLayer::new())
         .layer(tower_http::trace::TraceLayer::new_for_http()) // Add tracing layer
-        .with_state(state);
+        .with_state(state.clone());
     
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    tracing::info!("🌐 Server running on http://localhost:3000");
+    tracing::info!("🌐 HTTP/1.1 server running on http://localhost:3000");
     tracing::info!("🔗 WebSocket endpoint available at ws://localhost:3000/ws");
     tracing::info!("🏹 Arrow IPC binary endpoints: /api/visualize-arrow and /api/visualize-arrow-stream");
+    
+    // Add Alt-Svc header to existing HTTP server for HTTP/3 discovery
+    let app_with_alt_svc = app.layer(axum::middleware::from_fn(add_alt_svc_header));
+    
+    // Start HTTP/3 QUIC server on port 3443 (UDP)
+    let http3_state = state.clone();
+    let http3_server = Http3Server::new(http3_state, 3443);
+    let http3_handle = tokio::spawn(async move {
+        if let Err(e) = http3_server.run().await {
+            tracing::error!("HTTP/3 QUIC server error: {}", e);
+        }
+    });
+    
+    tracing::info!("🚀 HTTP/3 QUIC server running on UDP port 3443");
+    tracing::info!("💡 Browsers will discover HTTP/3 via Alt-Svc header on HTTP/1.1 server");
+    tracing::info!("📋 Visit http://localhost:3000 and check for 'Alt-Svc: h3=\":3443\"' header");
     tracing::info!("💡 Data updates are checked automatically on startup");
     tracing::info!("📋 Commands available:");
     tracing::info!("   {} update             - Manually check and download latest OpenPowerlifting data", args[0]);
@@ -129,8 +147,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("   {} benchmark-arrow    - Benchmark Arrow vs JSON performance", args[0]);
     tracing::info!("   {} benchmark-websocket - Benchmark WebSocket Arrow vs JSON performance", args[0]);
     
-    axum::serve(listener, app).await?;
+    // Run both servers concurrently
+    tokio::select! {
+        result = axum::serve(listener, app_with_alt_svc) => {
+            if let Err(e) = result {
+                tracing::error!("HTTP/1.1 server error: {}", e);
+            }
+        }
+        _ = http3_handle => {
+            tracing::info!("HTTP/3 QUIC server shutdown");
+        }
+    }
+    
     Ok(())
+}
+
+
+// Middleware to add Alt-Svc header for HTTP/3 discovery
+async fn add_alt_svc_header(
+    request: Request,
+    next: middleware::Next,
+) -> Response {
+    let mut response = next.run(request).await;
+    
+    // Add Alt-Svc header to advertise HTTP/3 availability
+    response.headers_mut().insert(
+        "Alt-Svc",
+        "h3=\":3443\"; ma=86400"
+            .parse()
+            .unwrap(),
+    );
+    
+    response
 }
 
 async fn handle_convert_command(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
