@@ -6,17 +6,26 @@ pub fn render_header() -> Markup {
         div.header {
             div.header-content {
                 h1 {
-                    span.logo { "🏋️" }
+                    span.logo {
+                        // Inline barbell icon (ASCII-only)
+                        svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" {
+                            rect x="1" y="9" width="3" height="6" {}
+                            rect x="20" y="9" width="3" height="6" {}
+                            rect x="6" y="8" width="2" height="8" {}
+                            rect x="16" y="8" width="2" height="8" {}
+                            line x1="8" y1="12" x2="16" y2="12" {}
+                        }
+                    }
                     "Iron Insights"
                 }
-                
+
                 nav.header-nav {
                     a href="/" { "Home" }
                     a href="/analytics" { "Analytics" }
                     a href="/1rm" { "1RM Calculator" }
                     a href="/sharecard" { "Share Card" }
                     a href="#rankings" { "Rankings" }
-                    
+
                     button.mobile-menu-toggle onclick="toggleSidebar()" aria-label="Toggle mobile menu" {
                         svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {
                             path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" {}
@@ -27,3 +36,4 @@ pub fn render_header() -> Markup {
         }
     }
 }
+
