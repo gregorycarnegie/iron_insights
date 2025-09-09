@@ -264,14 +264,24 @@ pub fn render_main_scripts() -> Markup {
             }
         }
         
-        // Initialize WASM and load initial data
+        // Initialize WASM and load initial data (analytics page only)
         async function init() {
-            await loadArrow();
+            // Gate: only run on analytics page to reduce TBT on others
+            const isAnalytics = document.getElementById('weightDistribution') || document.getElementById('dotsScatter');
+            if (!isAnalytics) {
+                return; // Skip heavy analytics initialization on non-analytics pages
+            }
+
             await initWasm();
-            initWebSocket();
-            setupEquipmentFilters();
-            setupInputDebugger();
-            updateCharts();
+            // Defer loading Arrow and heavy work slightly to free the main thread
+            setTimeout(async () => {
+                await loadArrow();
+                initWebSocket();
+                setupEquipmentFilters();
+                setupInputDebugger();
+                // Schedule chart rendering with a small delay to avoid long tasks during TTI window
+                setTimeout(updateCharts, 0);
+            }, 0);
         }
         
         // Start the application when page loads

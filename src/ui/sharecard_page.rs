@@ -1,13 +1,13 @@
 // src/ui/sharecard_page.rs - Dedicated Share Card generator page
 use maud::{html, Markup, DOCTYPE, PreEscaped};
 
-use crate::ui::components::{render_head, render_header};
+use crate::ui::components::{render_head_minimal, render_header};
 
 pub fn render_sharecard_page() -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
-            (render_head())
+            (render_head_minimal())
             body {
                 div.container {
                     (render_header())

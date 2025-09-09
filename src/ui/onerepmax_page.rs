@@ -5,7 +5,7 @@ pub fn render_onerepmax_page() -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
-            (render_head())
+            (render_head_minimal())
             body {
                 div.container {
                     (render_header())

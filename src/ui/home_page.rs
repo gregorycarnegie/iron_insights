@@ -5,7 +5,7 @@ pub fn render_home_page() -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
-            (render_head())
+            (render_head_minimal())
             body {
                 div.container {
                     (render_header())
@@ -64,7 +64,6 @@ pub fn render_home_page() -> Markup {
                         }
                     }
                 }
-                (crate::ui::components::scripts::render_scripts())
                 script {
                     r#"
                     function connectWebSocket() {
@@ -199,4 +198,3 @@ fn realtime_icon() -> Markup {
         }
     }
 }
-
