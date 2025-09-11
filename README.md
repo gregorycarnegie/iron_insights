@@ -50,6 +50,7 @@ A blazing-fast web application for analyzing powerlifting performance data using
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (1.70+)
+- [Node.js](https://nodejs.org/) (18+) - for building bundled JavaScript assets
 - Git
 
 ### Installation
@@ -61,13 +62,20 @@ A blazing-fast web application for analyzing powerlifting performance data using
    cd iron-insights
    ```
 
-2. **Build and run**
+2. **Build JavaScript assets**
+
+   ```bash
+   npm install
+   npm run build
+   ```
+
+3. **Build and run**
 
    ```bash
    cargo run --release
    ```
 
-3. **Open your browser**
+4. **Open your browser**
 
    ```text
    http://localhost:3000
@@ -144,10 +152,13 @@ src/
     └── lib.rs        # WASM bindings for client-side calculations
 
 static/
-└── wasm/             # Compiled WebAssembly assets
-    ├── iron_insights_wasm.js
-    ├── iron_insights_wasm_bg.wasm
-    └── *.d.ts        # TypeScript definitions
+├── wasm/             # Compiled WebAssembly assets
+│   ├── iron_insights_wasm.js
+│   ├── iron_insights_wasm_bg.wasm
+│   └── *.d.ts        # TypeScript definitions
+└── js/dist/          # Bundled JavaScript libraries (generated)
+    ├── plotly.min.js   # Plotly.js charts library
+    └── arrow.min.js    # Apache Arrow data processing
 ```
 
 ### 🧱 **Core Components**

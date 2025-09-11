@@ -1,0 +1,23 @@
+{
+  "name": "iron-insights-assets",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run copy-libs",
+    "copy-libs": "npm run clean && node scripts/copy-assets.js",
+    "clean": "rimraf static/js/dist"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.1",
+    "@rollup/plugin-node-resolve": "^15.3.0",
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup-plugin-ignore": "^1.0.10",
+    "rimraf": "^6.0.1",
+    "rollup": "^4.27.4"
+  },
+  "dependencies": {
+    "apache-arrow": "^18.1.0",
+    "plotly.js-dist-min": "^2.27.0"
+  }
+}

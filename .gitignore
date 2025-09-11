@@ -1,4 +1,10 @@
 /target
-/scripts
 /data/*
 /.claude/
+
+# Node.js dependencies  
+node_modules/
+package-lock.json
+
+# Generated static assets (regenerated on build)
+static/js/dist/

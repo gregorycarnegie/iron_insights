@@ -57,32 +57,19 @@ pub fn render_init_scripts() -> Markup {
             }
         }
         
-        // Load Apache Arrow dynamically
+        // Load Apache Arrow from bundled asset
         let Arrow;
         async function loadArrow() {
             console.log('🔄 Loading Apache Arrow library...');
             try {
-                // Try multiple CDNs
-                const cdnUrls = [
-                    'https://cdn.jsdelivr.net/npm/apache-arrow/Arrow.es2015.min.js',
-                    'https://unpkg.com/apache-arrow@21.0.0/Arrow.es2015.min.js',
-                    'https://unpkg.com/apache-arrow@14.0.2/dist/umd/Arrow.js'
-                ];
-                
-                for (const url of cdnUrls) {
-                    try {
-                        console.log('🔄 Trying to load Arrow from:', url);
-                        await loadScript(url);
-                        if (typeof window.Arrow !== 'undefined') {
-                            Arrow = window.Arrow;
-                            console.log('✅ Apache Arrow library loaded successfully from:', url);
-                            return true;
-                        }
-                    } catch (e) {
-                        console.log('⚠️  Failed to load from', url, ':', e.message);
-                    }
+                console.log('🔄 Loading Arrow from bundled asset');
+                await loadScript('/static/js/dist/arrow.min.js');
+                if (typeof window.Arrow !== 'undefined') {
+                    Arrow = window.Arrow;
+                    console.log('✅ Apache Arrow library loaded successfully from bundled asset');
+                    return true;
                 }
-                throw new Error('All CDNs failed');
+                throw new Error('Failed to load bundled Arrow library');
             } catch (error) {
                 console.error('❌ Failed to load Apache Arrow library:', error);
                 return false;

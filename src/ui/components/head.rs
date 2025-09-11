@@ -20,12 +20,8 @@ pub fn render_head() -> Markup {
             link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="";
             link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet";
 
-            // Preconnect to external domains for performance
-            link rel="preconnect" href="https://cdn.plot.ly";
-            link rel="dns-prefetch" href="https://cdn.plot.ly";
-
-            // External libraries (deferred to reduce TBT)
-            script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8" defer {}
+            // Local bundled libraries (deferred to reduce TBT)
+            script src="/static/js/dist/plotly.min.js" charset="utf-8" defer {}
 
             // Inline critical CSS for faster initial paint
             style { (render_styles()) }
