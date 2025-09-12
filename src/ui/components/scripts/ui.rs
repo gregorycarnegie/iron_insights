@@ -2,8 +2,12 @@ use maud::{Markup, PreEscaped};
 
 pub fn render_ui_scripts() -> Markup {
     PreEscaped(r#"
+        // State comes from init script (no re-declarations here)
+
         // Modern UI control functions
         function setToggle(element, type) {
+            // Buttons are type=\"button\"; no default submit to prevent
+            
             // Remove active class from siblings and update aria-checked
             element.parentElement.querySelectorAll('.toggle-button').forEach(btn => {
                 btn.classList.remove('active');
@@ -15,16 +19,25 @@ pub fn render_ui_scripts() -> Markup {
             element.setAttribute('aria-checked', 'true');
             element.setAttribute('tabindex', '0');
             
+            // Focus the clicked element
+            element.focus();
+            
             // Update global state
             const value = element.getAttribute('data-value');
             if (type === 'sex') {
                 currentSex = value;
+                console.log('Updated currentSex to:', currentSex);
             } else if (type === 'lift') {
                 currentLiftType = value;
+                console.log('Updated currentLiftType to:', currentLiftType);
             }
             
-            // Update charts when toggle changes
-            updateCharts();
+            // Update charts when toggle changes if the function exists
+            if (typeof updateCharts === 'function') {
+                updateCharts();
+            }
+            
+            return false;
         }
         
         function updateEquipment() {
@@ -180,11 +193,37 @@ pub fn render_ui_scripts() -> Markup {
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            // Progressive enhancement setup
+            document.body.classList.remove('no-js');
+            document.body.classList.add('js');
+            
+            // Mark JS as enabled for form submission
+            const jsInput = document.getElementById('js-enabled');
+            if (jsInput) jsInput.value = '1';
+            
             highlightActiveNav();
             setupEquipmentFilters();
             setupKeyboardNavigation();
             setupEscapeKeyHandling();
+            setupProgressiveEnhancement();
         });
+
+        // Progressive enhancement for form elements
+        function setupProgressiveEnhancement() {
+            // Hide no-js fallbacks and show enhanced versions
+            const noJsElements = document.querySelectorAll('.no-js-only');
+            const jsElements = document.querySelectorAll('.js-only');
+            
+            noJsElements.forEach(el => el.style.display = 'none');
+            jsElements.forEach(el => {
+                // Check if it's a toggle-group and set appropriate display
+                if (el.classList.contains('toggle-group')) {
+                    el.style.display = 'flex';
+                } else {
+                    el.style.display = 'block';
+                }
+            });
+        }
 
         function toggleDebug() {
             debugMode = !debugMode;

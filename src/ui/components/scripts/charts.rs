@@ -22,10 +22,12 @@ pub fn render_chart_scripts() -> Markup {
                 (traces[0].x && traces[0].x.length === 0) ||
                 (traces[0].values && traces[0].values.length === 0)) {
                 showError(chartId, errorMessage);
+                hideChartSkeleton(chartId);
                 return false;
             }
             
             hideError(chartId);
+            
             // Enhanced Plotly config for GPU acceleration
             const config = {
                 displayModeBar: false,
@@ -33,8 +35,43 @@ pub fn render_chart_scripts() -> Markup {
                 responsive: true,
                 webGlRenderer: true
             };
-            Plotly.react(chartId, traces, layout, config);
-            return true;
+            
+            try {
+                Plotly.react(chartId, traces, layout, config);
+                // Hide skeleton after successful chart render
+                hideChartSkeleton(chartId);
+                return true;
+            } catch (error) {
+                console.error('Error creating plot:', error);
+                showError(chartId, 'Failed to render chart');
+                hideChartSkeleton(chartId);
+                return false;
+            }
+        }
+
+        function hideChartSkeleton(chartId) {
+            // Find skeleton containers related to this chart
+            const skeletons = document.querySelectorAll(`.skeleton-container[data-chart="${chartId}"], #${chartId}-skeleton`);
+            const contents = document.querySelectorAll(`.content-container[data-chart="${chartId}"], #${chartId}-content`);
+            
+            skeletons.forEach(skeleton => {
+                skeleton.classList.add('loaded');
+            });
+            
+            contents.forEach(content => {
+                content.classList.add('loaded');
+            });
+
+            // Also hide any generic chart skeletons near the chart element
+            const chartElement = document.getElementById(chartId);
+            if (chartElement) {
+                const nearbySkeletons = chartElement.parentElement?.querySelectorAll('.skeleton-chart, .skeleton-container');
+                nearbySkeletons?.forEach(skeleton => {
+                    skeleton.classList.add('loaded');
+                    skeleton.style.opacity = '0';
+                    skeleton.style.pointerEvents = 'none';
+                });
+            }
         }
         
         // Chart control functions for modern UI

@@ -6,26 +6,39 @@ pub fn render_home_page() -> Markup {
         (DOCTYPE)
         html lang="en" {
             (render_head_minimal())
-            body {
+            body.no-js {
                 div.container {
                     (render_header())
-                    main #main-content role="main" {
+                    main #main-content.page-transition role="main" {
                         div.main-content {
                             // Quick stats section (as in mock)
                             section.quick-stats aria-labelledby="stats-heading" {
                                 h2 #stats-heading { "Quick Stats Overview" }
-                                div.stats-grid role="group" aria-label="Statistics summary" {
-                                    div.stat-card role="img" aria-labelledby="total-records-label" aria-describedby="total-records-value" {
-                                        span.stat-number #total-records-value aria-live="polite" { "-" }
-                                        span.stat-label #total-records-label { "Total Records" }
+                                
+                                // Skeleton loading state
+                                div.skeleton-container #stats-skeleton {
+                                    div.stats-grid {
+                                        div.skeleton.skeleton-stat {}
+                                        div.skeleton.skeleton-stat {}
+                                        div.skeleton.skeleton-stat {}
                                     }
-                                    div.stat-card role="img" aria-labelledby="avg-wilks-label" aria-describedby="avg-wilks-value" {
-                                        span.stat-number #avg-wilks-value aria-live="polite" { "-" }
-                                        span.stat-label #avg-wilks-label { "Avg Wilks Score" }
-                                    }
-                                    div.stat-card role="img" aria-labelledby="top-percentile-label" aria-describedby="top-percentile-value" {
-                                        span.stat-number #top-percentile-value aria-live="polite" { "-" }
-                                        span.stat-label #top-percentile-label { "Top Percentile" }
+                                }
+                                
+                                // Actual content (hidden by default)
+                                div.content-container #stats-content {
+                                    div.stats-grid role="group" aria-label="Statistics summary" {
+                                        div.stat-card.card-hover role="img" aria-labelledby="total-records-label" aria-describedby="total-records-value" {
+                                            span.stat-number #total-records-value aria-live="polite" { "-" }
+                                            span.stat-label #total-records-label { "Total Records" }
+                                        }
+                                        div.stat-card.card-hover role="img" aria-labelledby="avg-wilks-label" aria-describedby="avg-wilks-value" {
+                                            span.stat-number #avg-wilks-value aria-live="polite" { "-" }
+                                            span.stat-label #avg-wilks-label { "Avg Wilks Score" }
+                                        }
+                                        div.stat-card.card-hover role="img" aria-labelledby="top-percentile-label" aria-describedby="top-percentile-value" {
+                                            span.stat-number #top-percentile-value aria-live="polite" { "-" }
+                                            span.stat-label #top-percentile-label { "Top Percentile" }
+                                        }
                                     }
                                 }
                             }
@@ -37,9 +50,9 @@ pub fn render_home_page() -> Markup {
                                     "Advanced powerlifting analytics and visualization platform. Track your progress, analyze your lifts, and share your achievements."
                                 }
 
-                                div.feature-grid role="group" aria-label="Available features" {
+                                div.feature-grid.stagger-children role="group" aria-label="Available features" {
                                     // Analytics
-                                    article.feature-card {
+                                    article.feature-card.glass-card.card-hover {
                                         div.icon-wrap aria-hidden="true" { (analytics_icon()) }
                                         h3 { "Analytics" }
                                         p { "Deep dive into your lifting data with advanced visualizations and statistical analysis." }
@@ -48,7 +61,7 @@ pub fn render_home_page() -> Markup {
                                     }
 
                                     // Share Cards
-                                    article.feature-card {
+                                    article.feature-card.glass-card.card-hover {
                                         div.icon-wrap aria-hidden="true" { (share_icon()) }
                                         h3 { "Share Cards" }
                                         p { "Create beautiful social media cards to share your lifting achievements." }
@@ -56,12 +69,15 @@ pub fn render_home_page() -> Markup {
                                         span.sr-only #sharecard-description { "Navigate to the share card creator to make social media posts" }
                                     }
 
-                                    // Real-time Data
-                                    article.feature-card {
+                                    // Real-time Data - Progressive enhancement
+                                    article.feature-card.glass-card.card-hover {
                                         div.icon-wrap aria-hidden="true" { (realtime_icon()) }
                                         h3 { "Real-time Data" }
                                         p { "Connect via WebSocket for live data streaming and real-time updates." }
-                                        button class="btn btn-tertiary" onclick="connectWebSocket()" aria-describedby="websocket-description" { "Connect WebSocket" }
+                                        noscript {
+                                            p.text-warning { "JavaScript is required for real-time data connections." }
+                                        }
+                                        button class="btn btn-tertiary js-websocket-btn" onclick="connectWebSocket()" aria-describedby="websocket-description" style="display: none;" { "Connect WebSocket" }
                                         span.sr-only #websocket-description { "Establish a real-time connection for live data updates" }
                                     }
                                 }
@@ -79,19 +95,66 @@ pub fn render_home_page() -> Markup {
                         }
                     }
 
-                    // Load quick stats on page load
+                    // Progressive enhancement setup
+                    document.addEventListener('DOMContentLoaded', function() {
+                        // Remove no-js class and add js class for progressive enhancement
+                        document.body.classList.remove('no-js');
+                        document.body.classList.add('js');
+                        
+                        // Show WebSocket button when JS is available
+                        const wsButton = document.querySelector('.js-websocket-btn');
+                        if (wsButton) {
+                            wsButton.style.display = 'inline-flex';
+                        }
+                        
+                        // Show stats skeleton initially, hide content
+                        const skeleton = document.getElementById('stats-skeleton');
+                        const content = document.getElementById('stats-content');
+                        if (skeleton && content) {
+                            skeleton.classList.remove('loaded');
+                            content.classList.remove('loaded');
+                        }
+                    });
+
+                    // Enhanced stats loading with skeleton transition
                     window.addEventListener('load', async function() {
+                        const skeleton = document.getElementById('stats-skeleton');
+                        const content = document.getElementById('stats-content');
+                        
+                        // Minimum loading time for smooth UX
+                        const minLoadTime = 800;
+                        const startTime = Date.now();
+                        
                         try {
                             const response = await fetch('/api/stats');
                             if (response.ok) {
                                 const stats = await response.json();
-                                document.querySelector('.stat-card:nth-child(1) .stat-number').textContent = (stats.total_records?.toLocaleString()) || '-';
-                                document.querySelector('.stat-card:nth-child(2) .stat-number').textContent = (stats.avg_wilks?.toFixed(1)) || '-';
-                                document.querySelector('.stat-card:nth-child(3) .stat-number').textContent = (stats.top_percentile?.toFixed(1) + '%') || '-';
+                                
+                                // Update content
+                                const totalRecords = document.getElementById('total-records-value');
+                                const avgWilks = document.getElementById('avg-wilks-value');
+                                const topPercentile = document.getElementById('top-percentile-value');
+                                
+                                if (totalRecords) totalRecords.textContent = stats.total_records?.toLocaleString() || '-';
+                                if (avgWilks) avgWilks.textContent = stats.avg_wilks?.toFixed(1) || '-';
+                                if (topPercentile) topPercentile.textContent = (stats.top_percentile?.toFixed(1) + '%') || '-';
                             }
                         } catch (e) {
                             console.warn('Could not load quick stats:', e);
                         }
+                        
+                        // Ensure minimum loading time, then transition
+                        const elapsedTime = Date.now() - startTime;
+                        const remainingTime = Math.max(0, minLoadTime - elapsedTime);
+                        
+                        setTimeout(() => {
+                            if (skeleton) {
+                                skeleton.classList.add('loaded');
+                            }
+                            if (content) {
+                                content.classList.add('loaded');
+                            }
+                        }, remainingTime);
                     });
                     "#
                 }

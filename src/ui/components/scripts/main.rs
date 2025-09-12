@@ -102,18 +102,52 @@ pub fn render_main_scripts() -> Markup {
                 
                 // Add user DOTS score indicator line if user has entered values
                 if (userLift && bodyweight && !isNaN(userLift) && !isNaN(bodyweight)) {
-                    const userDotsScore = calculateDOTS(userLift, bodyweight);
-                    const estimatedMaxCount = data.dots_histogram_data.values.length / 10;
+                    console.log('Adding DOTS indicator with:', {userLift, bodyweight, currentSex});
                     
-                    dotsHistogramTraces.push({
-                        x: [userDotsScore, userDotsScore],
-                        y: [0, estimatedMaxCount],
-                        mode: 'lines',
-                        type: 'scatter',
-                        name: 'Your DOTS',
-                        line: { color: '#f39c12', width: 3, dash: 'dash' },
-                        showlegend: true
-                    });
+                    let userDotsScore;
+                    try {
+                        userDotsScore = calculateDOTS(userLift, bodyweight, currentSex);
+                        console.log('Calculated DOTS score:', userDotsScore);
+                    } catch (error) {
+                        console.error('Error calculating DOTS:', error);
+                        // Fallback calculation without currentSex dependency
+                        const isMale = currentSex === 'M' || currentSex === 'Male';
+                        const a = isMale ? -307.75076 : -57.96288;
+                        const b = isMale ? 24.0900756 : 13.6175032;
+                        const c = isMale ? -0.1918759221 : -0.1126655495;
+                        const d = isMale ? 0.0007391293 : 0.0005158568;
+                        const e = isMale ? -0.000001093 : -0.0000010706;
+                        
+                        const denominator = a + 
+                            b * bodyweight +
+                            c * Math.pow(bodyweight, 2) +
+                            d * Math.pow(bodyweight, 3) +
+                            e * Math.pow(bodyweight, 4);
+                        
+                        userDotsScore = userLift * 500.0 / denominator;
+                        console.log('Fallback DOTS calculation:', userDotsScore);
+                    }
+                    
+                    if (userDotsScore && !isNaN(userDotsScore)) {
+                        const estimatedMaxCount = data.dots_histogram_data.values.length / 10;
+                        
+                        dotsHistogramTraces.push({
+                            x: [userDotsScore, userDotsScore],
+                            y: [0, estimatedMaxCount],
+                            mode: 'lines',
+                            type: 'scatter',
+                            name: 'Your DOTS',
+                            line: { color: '#f39c12', width: 3, dash: 'dash' },
+                            showlegend: true
+                        });
+                        
+                        console.log('Added DOTS indicator trace:', {
+                            x: [userDotsScore, userDotsScore],
+                            y: [0, estimatedMaxCount]
+                        });
+                    } else {
+                        console.warn('Invalid DOTS score calculated:', userDotsScore);
+                    }
                 }
                 
                 // Update user metrics display

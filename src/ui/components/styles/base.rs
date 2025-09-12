@@ -99,5 +99,83 @@ pub fn render_base_styles() -> Markup {
             white-space: nowrap;
             border: 0;
         }
+
+        /* Page transitions and animations */
+        .page-transition {
+            opacity: 0;
+            transform: translateY(20px);
+            animation: pageEnter 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes pageEnter {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Stagger animation for child elements */
+        .stagger-children > * {
+            opacity: 0;
+            transform: translateY(20px);
+            animation: staggerIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .stagger-children > *:nth-child(1) { animation-delay: 0.1s; }
+        .stagger-children > *:nth-child(2) { animation-delay: 0.2s; }
+        .stagger-children > *:nth-child(3) { animation-delay: 0.3s; }
+        .stagger-children > *:nth-child(4) { animation-delay: 0.4s; }
+        .stagger-children > *:nth-child(5) { animation-delay: 0.5s; }
+        .stagger-children > *:nth-child(6) { animation-delay: 0.6s; }
+
+        @keyframes staggerIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Smooth scroll behavior */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Reduce motion for accessibility */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+
+            .page-transition,
+            .stagger-children > * {
+                animation: none !important;
+                opacity: 1 !important;
+                transform: none !important;
+            }
+        }
+
+        /* Progressive enhancement utilities */
+        .js-only {
+            display: none;
+        }
+
+        .js .js-only {
+            display: block;
+        }
+
+        .no-js .no-js-hide {
+            display: none;
+        }
+
+        .text-warning {
+            color: var(--warning);
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
     "#.to_string())
 }

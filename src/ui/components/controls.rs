@@ -4,29 +4,38 @@ use maud::{html, Markup};
 pub fn render_controls() -> Markup {
     html! {
         aside.sidebar #sidebar role="complementary" aria-label="Analytics controls" {
+            // Progressive enhancement: form works without JS
+            form #analytics-form method="get" action="/analytics" {
             div.control-section {
                 h3 { "Athlete Profile" }
                 
                 div.control-group {
                     fieldset {
                         legend { "Sex" }
-                        div.toggle-group role="radiogroup" aria-labelledby="sex-legend" {
-                            button.toggle-button.active data-value="M" onclick="setToggle(this, 'sex')" role="radio" aria-checked="true" tabindex="0" { "Male" }
-                            button.toggle-button data-value="F" onclick="setToggle(this, 'sex')" role="radio" aria-checked="false" tabindex="-1" { "Female" }
-                            button.toggle-button data-value="All" onclick="setToggle(this, 'sex')" role="radio" aria-checked="false" tabindex="-1" { "All" }
+                        // No-JS fallback: regular radio buttons
+                        div.no-js-only {
+                            label { input type="radio" name="sex" value="M" checked; " Male" }
+                            label { input type="radio" name="sex" value="F"; " Female" }
+                            label { input type="radio" name="sex" value="All"; " All" }
+                        }
+                        // Enhanced version with toggle buttons
+                        div.toggle-group.js-only role="radiogroup" aria-labelledby="sex-legend" {
+                            button.toggle-button.active type="button" data-value="M" onclick="setToggle(this, 'sex')" role="radio" aria-checked="true" tabindex="0" { "Male" }
+                            button.toggle-button type="button" data-value="F" onclick="setToggle(this, 'sex')" role="radio" aria-checked="false" tabindex="-1" { "Female" }
+                            button.toggle-button type="button" data-value="All" onclick="setToggle(this, 'sex')" role="radio" aria-checked="false" tabindex="-1" { "All" }
                         }
                     }
                 }
                 
                 div.control-group {
                     label for="bodyweight" { "Bodyweight (kg)" }
-                    input #bodyweight type="number" placeholder="75" step="0.1" min="30" max="300" aria-describedby="bodyweight-help";
+                    input #bodyweight name="bodyweight" type="number" placeholder="75" step="0.1" min="30" max="300" aria-describedby="bodyweight-help";
                     span.sr-only #bodyweight-help { "Enter your bodyweight in kilograms, between 30 and 300 kg" }
                 }
                 
                 div.control-group {
                     label for="weightClass" { "Weight Class" }
-                    select #weightClass aria-describedby="weight-class-help" {
+                    select #weightClass name="weightClass" aria-describedby="weight-class-help" {
                         option value="All" { "All Classes" }
                         optgroup label="Men's Classes" {
                             option value="59" { "59 kg" }
@@ -60,19 +69,19 @@ pub fn render_controls() -> Markup {
                     fieldset {
                         legend { "Lift Type" }
                         div.toggle-group role="radiogroup" aria-labelledby="lift-type-legend" {
-                            button.toggle-button.active data-value="squat" onclick="setToggle(this, 'lift')" role="radio" aria-checked="true" tabindex="0" { 
+                            button.toggle-button.active type="button" data-value="squat" onclick="setToggle(this, 'lift')" role="radio" aria-checked="true" tabindex="0" { 
                                 "SQ" 
                                 span.sr-only { " (Squat)" }
                             }
-                            button.toggle-button data-value="bench" onclick="setToggle(this, 'lift')" role="radio" aria-checked="false" tabindex="-1" { 
+                            button.toggle-button type="button" data-value="bench" onclick="setToggle(this, 'lift')" role="radio" aria-checked="false" tabindex="-1" { 
                                 "BP" 
                                 span.sr-only { " (Bench Press)" }
                             }
-                            button.toggle-button data-value="deadlift" onclick="setToggle(this, 'lift')" role="radio" aria-checked="false" tabindex="-1" { 
+                            button.toggle-button type="button" data-value="deadlift" onclick="setToggle(this, 'lift')" role="radio" aria-checked="false" tabindex="-1" { 
                                 "DL" 
                                 span.sr-only { " (Deadlift)" }
                             }
-                            button.toggle-button data-value="total" onclick="setToggle(this, 'lift')" role="radio" aria-checked="false" tabindex="-1" { 
+                            button.toggle-button type="button" data-value="total" onclick="setToggle(this, 'lift')" role="radio" aria-checked="false" tabindex="-1" { 
                                 "Total"
                                 span.sr-only { " (All three lifts combined)" }
                             }
@@ -143,9 +152,14 @@ pub fn render_controls() -> Markup {
                 }
             }
             
-            button.btn-primary onclick="updateAnalytics()" aria-describedby="update-button-help" {
+            // Submit button that works with or without JS
+            button.btn-primary type="submit" onclick="updateAnalytics(); return false;" aria-describedby="update-button-help" {
                 "Update Analytics"
                 span.sr-only #update-button-help { "Apply the selected filters and refresh the analytics charts" }
+            }
+            
+            // Hidden input for progressive enhancement
+            input type="hidden" name="js" value="0" #js-enabled;
             }
         }
         
