@@ -4,12 +4,16 @@ pub fn render_ui_scripts() -> Markup {
     PreEscaped(r#"
         // Modern UI control functions
         function setToggle(element, type) {
-            // Remove active class from siblings
+            // Remove active class from siblings and update aria-checked
             element.parentElement.querySelectorAll('.toggle-button').forEach(btn => {
                 btn.classList.remove('active');
+                btn.setAttribute('aria-checked', 'false');
+                btn.setAttribute('tabindex', '-1');
             });
-            // Add active class to clicked element
+            // Add active class to clicked element and update aria-checked
             element.classList.add('active');
+            element.setAttribute('aria-checked', 'true');
+            element.setAttribute('tabindex', '0');
             
             // Update global state
             const value = element.getAttribute('data-value');
@@ -91,10 +95,73 @@ pub fn render_ui_scripts() -> Markup {
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
+            const toggleButton = document.querySelector('.mobile-menu-toggle');
             if (!sidebar || !overlay) return;
             const open = !sidebar.classList.contains('mobile-open');
             sidebar.classList.toggle('mobile-open', open);
             overlay.classList.toggle('active', open);
+            if (toggleButton) {
+                toggleButton.setAttribute('aria-expanded', open.toString());
+            }
+        }
+
+        // Keyboard navigation for toggle groups
+        function setupKeyboardNavigation() {
+            document.querySelectorAll('[role="radiogroup"]').forEach(group => {
+                const buttons = group.querySelectorAll('[role="radio"]');
+                
+                buttons.forEach((button, index) => {
+                    button.addEventListener('keydown', (e) => {
+                        let targetIndex;
+                        
+                        switch(e.key) {
+                            case 'ArrowLeft':
+                            case 'ArrowUp':
+                                e.preventDefault();
+                                targetIndex = index > 0 ? index - 1 : buttons.length - 1;
+                                break;
+                            case 'ArrowRight':
+                            case 'ArrowDown':
+                                e.preventDefault();
+                                targetIndex = index < buttons.length - 1 ? index + 1 : 0;
+                                break;
+                            case 'Home':
+                                e.preventDefault();
+                                targetIndex = 0;
+                                break;
+                            case 'End':
+                                e.preventDefault();
+                                targetIndex = buttons.length - 1;
+                                break;
+                            case ' ':
+                            case 'Enter':
+                                e.preventDefault();
+                                button.click();
+                                return;
+                            default:
+                                return;
+                        }
+                        
+                        if (targetIndex !== undefined) {
+                            buttons[targetIndex].focus();
+                            buttons[targetIndex].click();
+                        }
+                    });
+                });
+            });
+        }
+
+        // Escape key handling
+        function setupEscapeKeyHandling() {
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    const sidebar = document.getElementById('sidebar');
+                    if (sidebar && sidebar.classList.contains('mobile-open')) {
+                        toggleSidebar();
+                        document.querySelector('.mobile-menu-toggle')?.focus();
+                    }
+                }
+            });
         }
 
         // Highlight active nav link
@@ -115,6 +182,8 @@ pub fn render_ui_scripts() -> Markup {
         document.addEventListener('DOMContentLoaded', () => {
             highlightActiveNav();
             setupEquipmentFilters();
+            setupKeyboardNavigation();
+            setupEscapeKeyHandling();
         });
 
         function toggleDebug() {

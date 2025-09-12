@@ -104,6 +104,12 @@ pub fn render_component_styles() -> Markup {
         .toggle-button:hover:not(.active) {
             background: var(--light-secondary);
         }
+
+        .toggle-button:focus {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+            z-index: 1;
+        }
         
         /* Checkbox Style */
         .checkbox-group {

@@ -9,56 +9,61 @@ pub fn render_home_page() -> Markup {
             body {
                 div.container {
                     (render_header())
-                    div.main-content {
-                        // Quick stats section (as in mock)
-                        div.quick-stats {
-                            h2 { "Quick Stats Overview" }
-                            div.stats-grid {
-                                div.stat-card {
-                                    span.stat-number { "-" }
-                                    span.stat-label { "Total Records" }
-                                }
-                                div.stat-card {
-                                    span.stat-number { "-" }
-                                    span.stat-label { "Avg Wilks Score" }
-                                }
-                                div.stat-card {
-                                    span.stat-number { "-" }
-                                    span.stat-label { "Top Percentile" }
+                    main #main-content role="main" {
+                        div.main-content {
+                            // Quick stats section (as in mock)
+                            section.quick-stats aria-labelledby="stats-heading" {
+                                h2 #stats-heading { "Quick Stats Overview" }
+                                div.stats-grid role="group" aria-label="Statistics summary" {
+                                    div.stat-card role="img" aria-labelledby="total-records-label" aria-describedby="total-records-value" {
+                                        span.stat-number #total-records-value aria-live="polite" { "-" }
+                                        span.stat-label #total-records-label { "Total Records" }
+                                    }
+                                    div.stat-card role="img" aria-labelledby="avg-wilks-label" aria-describedby="avg-wilks-value" {
+                                        span.stat-number #avg-wilks-value aria-live="polite" { "-" }
+                                        span.stat-label #avg-wilks-label { "Avg Wilks Score" }
+                                    }
+                                    div.stat-card role="img" aria-labelledby="top-percentile-label" aria-describedby="top-percentile-value" {
+                                        span.stat-number #top-percentile-value aria-live="polite" { "-" }
+                                        span.stat-label #top-percentile-label { "Top Percentile" }
+                                    }
                                 }
                             }
-                        }
 
-                        // Hero and feature cards
-                        div.hero-section {
-                            h1 { "Iron Insights" }
-                            p.hero-description {
-                                "Advanced powerlifting analytics and visualization platform. Track your progress, analyze your lifts, and share your achievements."
-                            }
-
-                            div.feature-grid {
-                                // Analytics
-                                div.feature-card {
-                                    div.icon-wrap { (analytics_icon()) }
-                                    h3 { "Analytics" }
-                                    p { "Deep dive into your lifting data with advanced visualizations and statistical analysis." }
-                                    a href="/analytics" class="btn btn-primary" { "View Analytics" }
+                            // Hero and feature cards
+                            section.hero-section aria-labelledby="hero-heading" {
+                                h1 #hero-heading { "Iron Insights" }
+                                p.hero-description {
+                                    "Advanced powerlifting analytics and visualization platform. Track your progress, analyze your lifts, and share your achievements."
                                 }
 
-                                // Share Cards
-                                div.feature-card {
-                                    div.icon-wrap { (share_icon()) }
-                                    h3 { "Share Cards" }
-                                    p { "Create beautiful social media cards to share your lifting achievements." }
-                                    a href="/sharecard" class="btn btn-secondary" { "Create Share Card" }
-                                }
+                                div.feature-grid role="group" aria-label="Available features" {
+                                    // Analytics
+                                    article.feature-card {
+                                        div.icon-wrap aria-hidden="true" { (analytics_icon()) }
+                                        h3 { "Analytics" }
+                                        p { "Deep dive into your lifting data with advanced visualizations and statistical analysis." }
+                                        a href="/analytics" class="btn btn-primary" aria-describedby="analytics-description" { "View Analytics" }
+                                        span.sr-only #analytics-description { "Navigate to the analytics page to view detailed lifting statistics and charts" }
+                                    }
 
-                                // Real-time Data
-                                div.feature-card {
-                                    div.icon-wrap { (realtime_icon()) }
-                                    h3 { "Real-time Data" }
-                                    p { "Connect via WebSocket for live data streaming and real-time updates." }
-                                    button class="btn btn-tertiary" onclick="connectWebSocket()" { "Connect WebSocket" }
+                                    // Share Cards
+                                    article.feature-card {
+                                        div.icon-wrap aria-hidden="true" { (share_icon()) }
+                                        h3 { "Share Cards" }
+                                        p { "Create beautiful social media cards to share your lifting achievements." }
+                                        a href="/sharecard" class="btn btn-secondary" aria-describedby="sharecard-description" { "Create Share Card" }
+                                        span.sr-only #sharecard-description { "Navigate to the share card creator to make social media posts" }
+                                    }
+
+                                    // Real-time Data
+                                    article.feature-card {
+                                        div.icon-wrap aria-hidden="true" { (realtime_icon()) }
+                                        h3 { "Real-time Data" }
+                                        p { "Connect via WebSocket for live data streaming and real-time updates." }
+                                        button class="btn btn-tertiary" onclick="connectWebSocket()" aria-describedby="websocket-description" { "Connect WebSocket" }
+                                        span.sr-only #websocket-description { "Establish a real-time connection for live data updates" }
+                                    }
                                 }
                             }
                         }
