@@ -354,10 +354,19 @@ pub fn render_component_styles() -> Markup {
         }
 
         .skeleton-chart {
-            height: 300px;
+            height: 400px;
             width: 100%;
             border-radius: 0.75rem;
-            position: relative;
+            position: absolute;
+            inset: 0;
+            margin: 0;
+            z-index: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .skeleton-chart.loaded {
+            opacity: 0;
+            pointer-events: none;
         }
 
         .skeleton-chart::before {

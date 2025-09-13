@@ -102,8 +102,9 @@ fn render_chart_container(id: &str, title: &str, is_histogram: bool) -> Markup {
                     }
                 }
             }
+            // Chart with overlay skeleton (absolute, fades out on load)
             div.chart id=(id) {
-                div.skeleton style="height: 100%; width: 100%;" {}
+                div.skeleton-chart id=(format!("{}-skeleton", id)) {}
             }
             div.chart-error id=(format!("{}Error", id)) style="display: none;" {
                 "No data available"
