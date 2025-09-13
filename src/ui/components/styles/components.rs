@@ -21,6 +21,12 @@ pub fn render_component_styles() -> Markup {
             overflow: hidden;
         }
 
+        /* Larger button variant used by calculators */
+        .btn-lg {
+            padding: 0.875rem 2rem;
+            font-size: 1.1rem;
+        }
+
         .btn::before {
             content: '';
             position: absolute;

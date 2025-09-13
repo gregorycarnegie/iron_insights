@@ -72,10 +72,10 @@ pub fn render_sharecard_page() -> Markup {
                                 }
                                 div.control-group {
                                     label { " " }
-                                    button onclick="generateShareCard()" style="width: 100%;" { "Generate Share Card 🎨" }
+                                    button class="btn btn-primary btn-lg" onclick="generateShareCard()" style="width: 100%;" { "Generate Share Card 🎨" }
+                                    }
                                 }
                             }
-                        }
 
                         // Wide content area for preview
                         section.content {

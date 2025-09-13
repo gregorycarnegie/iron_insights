@@ -153,7 +153,7 @@ pub fn render_controls() -> Markup {
             }
             
             // Submit button that works with or without JS
-            button.btn-primary type="submit" onclick="updateAnalytics(); return false;" aria-describedby="update-button-help" {
+            button.btn.btn-primary.btn-lg type="submit" onclick="updateAnalytics(); return false;" aria-describedby="update-button-help" {
                 "Update Analytics"
                 span.sr-only #update-button-help { "Apply the selected filters and refresh the analytics charts" }
             }
