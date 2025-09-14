@@ -84,7 +84,7 @@ pub fn render_main_scripts() -> Markup {
                     });
                 }
                 
-                const histogramSuccess = createPlot('weightDistribution', histogramTraces, {
+                const histogramSuccess = createPlotEnhanced('weightDistribution', histogramTraces, {
                     title: '',
                     xaxis: { title: 'Weight (kg)' },
                     yaxis: { title: 'Frequency' },
@@ -160,7 +160,7 @@ pub fn render_main_scripts() -> Markup {
                     currentLiftType === 'deadlift' ? userLift : null,
                     currentLiftType);
                 
-                const dotsHistogramSuccess = createPlot('dotsDistribution', dotsHistogramTraces, {
+                const dotsHistogramSuccess = createPlotEnhanced('dotsDistribution', dotsHistogramTraces, {
                     title: '',
                     xaxis: { title: 'DOTS Score' },
                     yaxis: { title: 'Frequency' },
@@ -223,7 +223,7 @@ pub fn render_main_scripts() -> Markup {
                     });
                 }
                 
-                const scatterSuccess = createPlot('bodyweightScatter', scatterTraces, {
+                const scatterSuccess = createPlotEnhanced('bodyweightScatter', scatterTraces, {
                     title: '', xaxis: { title: 'Bodyweight (kg)' }, yaxis: { title: 'Weight (kg)' }, margin: { t: 20 }
                 }, 'No scatter plot data available');
                 
@@ -284,7 +284,7 @@ pub fn render_main_scripts() -> Markup {
                     });
                 }
                 
-                const dotsScatterSuccess = createPlot('dotsScatter', dotsScatterTraces, {
+                const dotsScatterSuccess = createPlotEnhanced('dotsScatter', dotsScatterTraces, {
                     title: '', xaxis: { title: 'Bodyweight (kg)' }, yaxis: { title: 'DOTS Score' }, margin: { t: 20 }
                 }, 'No DOTS scatter data available - check DOTS calculations');
                 
@@ -340,7 +340,14 @@ pub fn render_main_scripts() -> Markup {
                 setupEquipmentFilters();
                 setupInputDebugger();
                 // Schedule chart rendering with a small delay to avoid long tasks during TTI window
-                setTimeout(updateCharts, 0);
+                setTimeout(() => {
+                    updateCharts();
+                    // Setup crossfiltering after charts are fully rendered and ready
+                    setTimeout(() => {
+                        console.log('Setting up chart crossfiltering...');
+                        setupChartCrossfiltering();
+                    }, 2000);
+                }, 0);
             }, 0);
         }
         

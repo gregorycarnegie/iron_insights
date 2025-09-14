@@ -44,6 +44,18 @@ pub fn render_main_content() -> Markup {
                 }
             }
             
+            // Global Export Controls
+            div.export-controls {
+                div.export-section {
+                    h4 { "Export Options" }
+                    div.export-buttons {
+                        button.export-all-btn onclick="exportAllCharts('png')" { "📊 Export All as PNG" }
+                        button.export-all-btn onclick="exportAllCharts('svg')" { "📄 Export All as SVG" }
+                        button.export-data-btn onclick="exportDataAsCSV()" { "📋 Export Data as CSV" }
+                    }
+                }
+            }
+
             // Chart Grid
             div.chart-grid {
                 (render_chart_container("weightDistribution", "Weight Distribution", true))
@@ -99,6 +111,14 @@ fn render_chart_container(id: &str, title: &str, is_histogram: bool) -> Markup {
                     } @else {
                         button.chart-option onclick=(format!("toggleTrendline('{}')", id)) { "Trend" }
                         button.chart-option onclick=(format!("togglePoints('{}')", id)) { "Points" }
+                    }
+                    div.export-dropdown {
+                        button.chart-option.export-btn onclick="toggleExportDropdown(this)" { "Export ↓" }
+                        div.export-menu style="display: none;" {
+                            button onclick=(format!("exportChart('{}', 'png')", id)) { "PNG" }
+                            button onclick=(format!("exportChart('{}', 'svg')", id)) { "SVG" }
+                            button onclick=(format!("exportChart('{}', 'jpeg')", id)) { "JPEG" }
+                        }
                     }
                 }
             }

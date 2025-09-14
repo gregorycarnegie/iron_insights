@@ -295,5 +295,139 @@ pub fn render_chart_styles() -> Markup {
             color: var(--text-secondary);
             margin-left: 0.25rem;
         }
+
+        /* Export Controls */
+        .export-controls {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .export-section h4 {
+            margin: 0 0 1rem 0;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .export-buttons {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .export-all-btn, .export-data-btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border: 1px solid var(--primary);
+            border-radius: 0.5rem;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .export-all-btn:hover, .export-data-btn:hover {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .export-data-btn {
+            background: var(--secondary);
+            border-color: var(--secondary);
+        }
+
+        .export-data-btn:hover {
+            background: #059669;
+            border-color: #059669;
+        }
+
+        /* Export Dropdown */
+        .export-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .export-btn {
+            background: var(--warning) !important;
+            border-color: var(--warning) !important;
+            color: white !important;
+        }
+
+        .export-btn:hover {
+            background: #d97706 !important;
+            border-color: #d97706 !important;
+        }
+
+        .export-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 0.375rem;
+            box-shadow: var(--shadow-lg);
+            z-index: 1000;
+            min-width: 120px;
+            margin-top: 0.25rem;
+        }
+
+        .export-menu button {
+            display: block;
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            border: none;
+            background: transparent;
+            color: var(--text-primary);
+            cursor: pointer;
+            text-align: left;
+            transition: background-color 0.2s;
+        }
+
+        .export-menu button:hover {
+            background: var(--light-primary);
+        }
+
+        .export-menu button:first-child {
+            border-radius: 0.375rem 0.375rem 0 0;
+        }
+
+        .export-menu button:last-child {
+            border-radius: 0 0 0.375rem 0.375rem;
+        }
+
+        /* Chart interaction indicators */
+        .chart-container.interactive {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 1px var(--primary);
+        }
+
+        .chart-selection-info {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.25rem;
+            font-size: 0.8125rem;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .chart-selection-info.visible {
+            opacity: 1;
+        }
     "#.to_string())
 }
