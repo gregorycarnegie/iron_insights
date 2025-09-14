@@ -60,16 +60,13 @@ pub fn render_home_page() -> Markup {
                                         span.sr-only #sharecard-description { "Navigate to the share card creator to make social media posts" }
                                     }
 
-                                    // Real-time Data - Progressive enhancement
+                                    // 1RM Calculator
                                     article.feature-card.glass-card.card-hover {
-                                        div.icon-wrap aria-hidden="true" { (realtime_icon()) }
-                                        h3 { "Real-time Data" }
-                                        p { "Connect via WebSocket for live data streaming and real-time updates." }
-                                        noscript {
-                                            p.text-warning { "JavaScript is required for real-time data connections." }
-                                        }
-                                        button class="btn btn-tertiary js-websocket-btn" onclick="connectWebSocket()" aria-describedby="websocket-description" style="display: none;" { "Connect WebSocket" }
-                                        span.sr-only #websocket-description { "Establish a real-time connection for live data updates" }
+                                        div.icon-wrap aria-hidden="true" { (one_rm_icon()) }
+                                        h3 { "1RM Calculator" }
+                                        p { "Estimate your one-rep max using proven formulas (Epley, Brzycki, Lombardi)." }
+                                        a href="/1rm" class="btn btn-tertiary" aria-describedby="one-rm-description" { "Open 1RM Calculator" }
+                                        span.sr-only #one-rm-description { "Navigate to the one-repetition maximum calculator" }
                                     }
                                 }
                             }
@@ -227,10 +224,23 @@ fn share_icon() -> Markup {
     }
 }
 
-fn realtime_icon() -> Markup {
+// Simple calculator/dumbbell hybrid icon for 1RM
+fn one_rm_icon() -> Markup {
     html! {
         svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-secondary);" {
-            path d="M22 12h-4l-3 9-6-18-3 9H2" {}
+            // Calculator body
+            rect x="3" y="3" width="10" height="14" rx="2" {}
+            // Display
+            rect x="5" y="5" width="6" height="3" rx="1" {}
+            // Buttons
+            circle cx="6.5" cy="10" r="0.8" {}
+            circle cx="9.5" cy="10" r="0.8" {}
+            circle cx="6.5" cy="12.5" r="0.8" {}
+            circle cx="9.5" cy="12.5" r="0.8" {}
+            // Barbell to hint 1RM
+            line x1="16" y1="10" x2="22" y2="10" {}
+            rect x="16.5" y="8" width="1" height="4" {}
+            rect x="20.5" y="8" width="1" height="4" {}
         }
     }
 }
