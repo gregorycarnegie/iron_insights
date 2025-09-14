@@ -129,66 +129,6 @@ fn get_required_columns(params: &FilterParams) -> Vec<Expr> {
     cols
 }
 
-/// Create optimized filter expression from parameters (using pre-compiled base)
-pub fn build_filter_expr(params: &FilterParams) -> Expr {
-    let mut expr = VALIDITY_EXPR.clone(); // Start with pre-compiled validity
-    
-    // Build composite filter expression
-    if let Some(sex) = &params.sex {
-        if sex != "All" {
-            expr = expr.and(col("Sex").eq(lit(sex.as_str())));
-        }
-    }
-    
-    if let Some(equipment) = &params.equipment {
-        if !equipment.is_empty() && !equipment.contains(&"All".to_string()) {
-            let eq_expr = equipment.iter()
-                .map(|eq| col("Equipment").eq(lit(eq.clone())))
-                .reduce(|acc, e| acc.or(e))
-                .unwrap_or(lit(false));
-            expr = expr.and(eq_expr);
-        }
-    }
-    
-    // Add bodyweight range filters
-    if let Some(min_bw) = params.min_bodyweight {
-        expr = expr.and(col("BodyweightKg").gt_eq(lit(min_bw)));
-    }
-    if let Some(max_bw) = params.max_bodyweight {
-        expr = expr.and(col("BodyweightKg").lt_eq(lit(max_bw)));
-    }
-    
-    // Weight class filter
-    if let Some(weight_class) = &params.weight_class {
-        if weight_class != "All" {
-            expr = expr.and(col("WeightClassKg").eq(lit(weight_class.as_str())));
-        }
-    }
-    
-    // Years filter
-    if let Some(years_filter) = &params.years_filter {
-        match years_filter.as_str() {
-            "past_5_years" => {
-                let five_years_ago = chrono::Utc::now() - chrono::Duration::days(5 * 365);
-                let cutoff_date = five_years_ago.date_naive();
-                expr = expr.and(col("Date").gt_eq(lit(cutoff_date)));
-            }
-            "past_10_years" => {
-                let ten_years_ago = chrono::Utc::now() - chrono::Duration::days(10 * 365);
-                let cutoff_date = ten_years_ago.date_naive();
-                expr = expr.and(col("Date").gt_eq(lit(cutoff_date)));
-            }
-            "ytd" => {
-                let current_year = chrono::Utc::now().year();
-                let year_start = chrono::NaiveDate::from_ymd_opt(current_year, 1, 1).unwrap();
-                expr = expr.and(col("Date").gt_eq(lit(year_start)));
-            }
-            _ => {} // "all" or unknown - no filtering needed
-        }
-    }
-    
-    expr
-}
 
 #[cfg(test)]
 mod tests {

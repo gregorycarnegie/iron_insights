@@ -40,7 +40,7 @@ pub fn serialize_websocket_message_to_arrow(message: &WebSocketMessage) -> Resul
     ]);
 
     // Initialize all arrays with null values
-    let mut message_type_val = "unknown";
+    let message_type_val;
     let mut session_id_val: Option<String> = None;
     let mut user_agent_val: Option<String> = None;
     let mut bodyweight_val: Option<f32> = None;

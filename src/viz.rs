@@ -227,49 +227,6 @@ fn find_min_max_simd(values: &[f32]) -> (f32, f32) {
     (min_val, max_val)
 }
 
-/// Legacy function kept for compatibility
-fn create_scatter_data(df: &DataFrame, lift_type: &LiftType, use_dots: bool) -> ScatterData {
-    let yc = y_col(lift_type, use_dots);
-    
-    // Select only needed columns once
-    let mini = df.select(["BodyweightKg", yc, "Sex"])
-        .unwrap_or_else(|_| df.clone())
-        .lazy()
-        .filter(
-            col("BodyweightKg").is_finite()
-                .and(col(yc).is_finite())
-                .and(col(yc).gt(lit(0.0)))
-        )
-        .collect()
-        .unwrap_or_else(|_| DataFrame::empty());
-    
-    let x: Vec<f32> = mini.column("BodyweightKg")
-        .ok()
-        .and_then(|s| s.f32().ok())
-        .map(|s| s.into_no_null_iter().collect())
-        .unwrap_or_default();
-    
-    let y: Vec<f32> = mini.column(yc)
-        .ok()
-        .and_then(|s| s.f32().ok())
-        .map(|s| s.into_no_null_iter().collect())
-        .unwrap_or_default();
-    
-    let sex: Vec<String> = mini.column("Sex")
-        .ok()
-        .and_then(|s| s.str().ok())
-        .map(|s| s.into_no_null_iter().map(|s| s.to_string()).collect())
-        .unwrap_or_default();
-    
-    // Ensure equal lengths
-    let min_len = x.len().min(y.len()).min(sex.len());
-    
-    ScatterData {
-        x: x.into_iter().take(min_len).collect(),
-        y: y.into_iter().take(min_len).collect(),
-        sex: sex.into_iter().take(min_len).collect(),
-    }
-}
 
 /// Get user's lift value based on lift type
 fn get_user_lift_value(params: &FilterParams, lift_type: &LiftType) -> Option<f32> {

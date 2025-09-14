@@ -79,7 +79,7 @@ async fn test_http3_client_connection() {
 
 async fn create_http3_client_and_test() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Create a client that accepts self-signed certificates for testing
-    let mut tls_config = TlsClientConfig::builder()
+    let tls_config = TlsClientConfig::builder()
         .dangerous()
         .with_custom_certificate_verifier(std::sync::Arc::new(DangerousClientCertVerifier))
         .with_no_client_auth();
@@ -97,7 +97,7 @@ async fn create_http3_client_and_test() -> Result<(), Box<dyn std::error::Error 
     
     // Create HTTP/3 connection
     let quic_conn = h3_quinn::Connection::new(connection);
-    let (mut driver, mut send_request) = h3::client::new(quic_conn).await?;
+    let (_driver, mut send_request) = h3::client::new(quic_conn).await?;
     
     // Send a simple GET request
     let req = Request::builder()
@@ -295,7 +295,7 @@ async fn test_http3_page_content_loading() {
 
 async fn test_http3_endpoint(path: &str, port: u16) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
     // Create HTTP/3 client
-    let mut tls_config = TlsClientConfig::builder()
+    let tls_config = TlsClientConfig::builder()
         .dangerous()
         .with_custom_certificate_verifier(std::sync::Arc::new(DangerousClientCertVerifier))
         .with_no_client_auth();
@@ -315,7 +315,7 @@ async fn test_http3_endpoint(path: &str, port: u16) -> Result<usize, Box<dyn std
     
     // Create HTTP/3 connection
     let quic_conn = h3_quinn::Connection::new(connection);
-    let (mut driver, mut send_request) = h3::client::new(quic_conn).await?;
+    let (_driver, mut send_request) = h3::client::new(quic_conn).await?;
     
     // Send request
     let req = Request::builder()

@@ -28,8 +28,6 @@ pub type Broadcaster = Arc<broadcast::Sender<BroadcastMessage>>;
 /// Connection information for each WebSocket client
 #[derive(Debug, Clone)]
 pub struct ConnectionInfo {
-    pub id: String,
-    pub connected_at: u64,
     pub last_activity: u64,
     pub user_agent: Option<String>,
 }
@@ -92,12 +90,14 @@ pub enum BroadcastMessage {
         recent_calculations: Vec<RecentCalculation>,
     },
     /// Server metrics update
+    #[allow(dead_code)]
     ServerMetrics {
         active_connections: usize,
         calculations_per_minute: usize,
         data_freshness: String,
     },
     /// Live leaderboard updates
+    #[allow(dead_code)]
     LeaderboardUpdate {
         top_dots: Vec<LeaderboardEntry>,
         recent_prs: Vec<PersonalRecord>,
@@ -144,7 +144,6 @@ pub struct WebSocketState {
 pub struct WebSocketStats {
     pub total_connections: AtomicUsize,
     pub active_connections: AtomicUsize,
-    pub total_messages: AtomicUsize,
     pub calculations_performed: AtomicUsize,
     pub recent_calculations: Arc<DashMap<String, RecentCalculation>>,
 }
@@ -268,8 +267,6 @@ async fn handle_socket(socket: WebSocket, app_state: AppState, ws_state: WebSock
     
     // Add connection to the manager
     let connection_info = ConnectionInfo {
-        id: connection_id.clone(),
-        connected_at: current_timestamp(),
         last_activity: current_timestamp(),
         user_agent: None, // Could be extracted from headers
     };

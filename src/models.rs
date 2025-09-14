@@ -139,12 +139,4 @@ impl LiftType {
         }
     }
     
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            Self::Squat => "Squat",
-            Self::Bench => "Bench Press",
-            Self::Deadlift => "Deadlift",
-            Self::Total => "Total",
-        }
-    }
 }
