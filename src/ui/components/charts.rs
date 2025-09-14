@@ -52,6 +52,7 @@ pub fn render_main_content() -> Markup {
                         button.export-all-btn onclick="exportAllCharts('png')" { "📊 Export All as PNG" }
                         button.export-all-btn onclick="exportAllCharts('svg')" { "📄 Export All as SVG" }
                         button.export-data-btn onclick="exportDataAsCSV()" { "📋 Export Data as CSV" }
+                        a.export-original-btn href="https://openpowerlifting.gitlab.io/opl-csv/bulk-csv.html" target="_blank" rel="noopener noreferrer" { "🗂️ Get Original Data" }
                     }
                 }
             }

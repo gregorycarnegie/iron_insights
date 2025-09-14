@@ -318,7 +318,7 @@ pub fn render_chart_styles() -> Markup {
             flex-wrap: wrap;
         }
 
-        .export-all-btn, .export-data-btn {
+        .export-all-btn, .export-data-btn, .export-original-btn {
             padding: 0.5rem 1rem;
             font-size: 0.875rem;
             font-weight: 500;
@@ -331,9 +331,10 @@ pub fn render_chart_styles() -> Markup {
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            text-decoration: none;
         }
 
-        .export-all-btn:hover, .export-data-btn:hover {
+        .export-all-btn:hover, .export-data-btn:hover, .export-original-btn:hover {
             background: var(--primary-dark);
             border-color: var(--primary-dark);
             transform: translateY(-1px);
@@ -348,6 +349,16 @@ pub fn render_chart_styles() -> Markup {
         .export-data-btn:hover {
             background: #059669;
             border-color: #059669;
+        }
+
+        .export-original-btn {
+            background: var(--warning);
+            border-color: var(--warning);
+        }
+
+        .export-original-btn:hover {
+            background: #d97706;
+            border-color: #d97706;
         }
 
         /* Export Dropdown */
