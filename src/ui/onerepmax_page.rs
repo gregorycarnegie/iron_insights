@@ -16,7 +16,7 @@ pub fn render_onerepmax_page() -> Markup {
                                 p.description { "Calculate your one-rep max and training percentages using proven formulas." }
                             }
 
-                            div.calculator-content {
+                            div.calculator-content #calculator-content {
                                 div.input-section {
                                     h2 { "Enter Your Lift Data" }
                                     div.input-group {
@@ -157,6 +157,11 @@ pub fn render_onerepmax_page() -> Markup {
                     window.displayResults = function(oneRepMax, formula, unit) {
                         // Show results section
                         document.getElementById('results').style.display = 'block';
+                        // Enable two-column layout when results are visible
+                        const container = document.getElementById('calculator-content');
+                        if (container) {
+                            container.classList.add('has-results');
+                        }
                         
                         // Display 1RM
                         document.getElementById('onerepmax-value').textContent = oneRepMax.toFixed(1);
@@ -223,6 +228,15 @@ pub fn render_onerepmax_page() -> Markup {
                     .calculator-content {
                         display: grid;
                         gap: 3rem;
+                        grid-template-columns: 1fr;
+                        align-items: start;
+                    }
+                    
+                    /* Show inputs and results side-by-side on wider screens */
+                    @media (min-width: 900px) {
+                        .calculator-content.has-results {
+                            grid-template-columns: 1fr 1fr;
+                        }
                     }
                     
                     .input-section {
@@ -311,6 +325,7 @@ pub fn render_onerepmax_page() -> Markup {
                         padding: 2rem;
                         border-radius: 12px;
                         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                        align-self: start;
                     }
                     
                     .onerepmax-result {
