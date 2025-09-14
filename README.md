@@ -6,7 +6,7 @@ A blazing-fast web application for analyzing powerlifting performance data using
 
 ![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)
 ![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?style=for-the-badge&logo=WebAssembly&logoColor=white)
-![Chart.js](https://img.shields.io/badge/chart.js-F5788D.svg?style=for-the-badge&logo=chart.js&logoColor=white)
+![Plotly](https://img.shields.io/badge/Plotly-3F4F75.svg?style=for-the-badge&logo=plotly&logoColor=white)
 
 ### 🚀 **WebAssembly Integration**
 
@@ -27,9 +27,20 @@ A blazing-fast web application for analyzing powerlifting performance data using
 ### 📊 **Advanced Analytics**
 
 - **Real-time visualizations** with interactive charts
+- **Crossfilter-style linking** - Select data in one chart to highlight in others
+- **Interactive brush selection** - Drag ranges in histograms to filter scatter plots
 - **Dual percentile system** - Raw weight vs DOTS comparisons
 - **Performance filtering** by sex, equipment, and weight class
 - **Scatter plot analysis** - Bodyweight vs performance relationships
+
+### 🎯 **Interactive Charts**
+
+- **Crossfilter Integration** - Click and drag to select data points across all visualizations
+- **Brush Selection** - Draw ranges on histograms to filter scatter plots in real-time
+- **Visual Feedback** - Selected data highlighted with opacity changes across all charts
+- **Reset Functionality** - Double-click any chart to clear all selections
+- **High-DPI Exports** - Export individual charts or all charts in PNG, SVG, or JPEG formats
+- **Data Downloads** - Export filtered datasets as CSV for external analysis
 
 ### ⚡ **High Performance**
 
@@ -41,7 +52,9 @@ A blazing-fast web application for analyzing powerlifting performance data using
 ### 🎨 **Modern UI**
 
 - **Responsive design** - Works on desktop and mobile
-- **Interactive charts** - Powered by Plotly.js
+- **Interactive charts** - Powered by Plotly.js with crossfilter-style linking
+- **High-quality exports** - PNG, SVG, JPEG chart exports with 2x DPI scaling
+- **Data export options** - CSV downloads and direct links to source data
 - **Real-time updates** - Instant feedback on parameter changes
 - **Professional styling** - Clean, modern interface
 
@@ -405,14 +418,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔮 Roadmap
 
+- [x] **Interactive charts** - Crossfilter-style linked visualizations ✅
+- [x] **Export functionality** - High-quality PNG/SVG/JPEG exports, CSV data ✅
 - [ ] **GLPoints scoring** - Alternative to DOTS
 - [ ] **Historical trends** - Performance over time
 - [ ] **Meet predictions** - ML-based performance forecasting
 - [ ] **Mobile app** - Native iOS/Android versions
 - [ ] **Federation analysis** - IPF vs USPA comparisons
-- [ ] **Real-time updates** - WebSocket live data
 - [ ] **Advanced filtering** - Age groups, drug testing
-- [ ] **Export functionality** - PDF reports, CSV exports
 
 ## 📞 Support
 

@@ -127,7 +127,7 @@ Consider Arrow Flight when you need:
 
 ## Architecture Diagram
 
-```
+```text
 ┌─────────────────┐    ╔══════════════╗    ┌──────────────────┐
 │   Frontend      │────╢   HTTP/JSON  ║────│   JSON Response  │
 │   JavaScript    │    ╚══════════════╝    │   ~50KB          │
@@ -152,7 +152,7 @@ Consider Arrow Flight when you need:
 | Arrow IPC   | 20        | 15           | 800               |
 | Arrow Flight| 15        | 5            | 2000              |
 
-*Approximate values based on typical powerlifting visualization data*
+## Approximate values based on typical powerlifting visualization data
 
 ## Commands
 

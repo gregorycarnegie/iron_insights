@@ -1,5 +1,14 @@
 # 🔍 DOTS Debugging Guide
 
+## Interactive Charts Features ✨
+
+**New in v0.7.0**: Interactive crossfilter-style chart linking and export functionality!
+
+- **Chart Interactions**: Click and drag to select data points, brush histogram ranges
+- **Export Options**: High-quality PNG/SVG/JPEG exports, CSV data downloads
+- **Reset**: Double-click any chart to clear all selections
+- **Debugging**: Check browser console for crossfiltering setup messages
+
 ## Quick Fixes for Empty DOTS Charts
 
 ### 1. **Check Server Logs**
