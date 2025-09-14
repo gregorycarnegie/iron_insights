@@ -192,21 +192,34 @@ pub fn render_main_scripts() -> Markup {
                     });
                 }
                 
-                // Add user point to scatter plot if both values are provided
+                // Add user point on top of GL points: use a GL marker + SVG text star overlay
                 if (bodyweight && userLift && !isNaN(bodyweight) && !isNaN(userLift)) {
+                    // WebGL marker for proper layering with scattergl traces
                     scatterTraces.push({
                         x: [bodyweight],
                         y: [userLift],
                         mode: 'markers',
-                        type: 'scatter',
+                        type: 'scattergl',
                         name: 'Your Lift',
-                        marker: { 
-                            size: 12, 
-                            color: '#e74c3c', 
-                            symbol: 'star',
+                        marker: {
+                            size: 14,
+                            color: '#e74c3c',
+                            symbol: 'x', // scattergl-safe symbol
                             line: { width: 2, color: '#fff' }
                         },
                         showlegend: true
+                    });
+                    // SVG text overlay star to ensure visibility above WebGL layer
+                    scatterTraces.push({
+                        x: [bodyweight],
+                        y: [userLift],
+                        mode: 'text',
+                        type: 'scatter',
+                        text: ['★'],
+                        textposition: 'middle center',
+                        textfont: { size: 22, color: '#e74c3c' },
+                        hoverinfo: 'skip',
+                        showlegend: false
                     });
                 }
                 
@@ -239,22 +252,35 @@ pub fn render_main_scripts() -> Markup {
                     });
                 }
                 
-                // Add user point to DOTS scatter plot if both values are provided
+                // Add user point to DOTS scatter with GL marker + SVG star overlay
                 if (bodyweight && userLift && !isNaN(bodyweight) && !isNaN(userLift)) {
                     const userDotsScore = calculateDOTS(userLift, bodyweight);
+                    // WebGL marker
                     dotsScatterTraces.push({
                         x: [bodyweight],
                         y: [userDotsScore],
                         mode: 'markers',
-                        type: 'scatter',
+                        type: 'scattergl',
                         name: 'Your DOTS',
-                        marker: { 
-                            size: 12, 
-                            color: '#f39c12', 
-                            symbol: 'star',
+                        marker: {
+                            size: 14,
+                            color: '#f39c12',
+                            symbol: 'x',
                             line: { width: 2, color: '#fff' }
                         },
                         showlegend: true
+                    });
+                    // SVG text overlay star
+                    dotsScatterTraces.push({
+                        x: [bodyweight],
+                        y: [userDotsScore],
+                        mode: 'text',
+                        type: 'scatter',
+                        text: ['★'],
+                        textposition: 'middle center',
+                        textfont: { size: 22, color: '#f39c12' },
+                        hoverinfo: 'skip',
+                        showlegend: false
                     });
                 }
                 

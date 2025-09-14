@@ -15,17 +15,8 @@ pub fn render_home_page() -> Markup {
                             section.quick-stats aria-labelledby="stats-heading" {
                                 h2 #stats-heading { "Quick Stats Overview" }
                                 
-                                // Skeleton loading state
-                                div.skeleton-container #stats-skeleton {
-                                    div.stats-grid {
-                                        div.skeleton.skeleton-stat {}
-                                        div.skeleton.skeleton-stat {}
-                                        div.skeleton.skeleton-stat {}
-                                    }
-                                }
-                                
-                                // Actual content (hidden by default)
-                                div.content-container #stats-content {
+                                // Stats content (visible without skeletons)
+                                div #stats-content {
                                     div.stats-grid role="group" aria-label="Statistics summary" {
                                         div.stat-card.card-hover role="img" aria-labelledby="total-records-label" aria-describedby="total-records-value" {
                                             span.stat-number #total-records-value aria-live="polite" { "-" }
@@ -106,56 +97,33 @@ pub fn render_home_page() -> Markup {
                         if (wsButton) {
                             wsButton.style.display = 'inline-flex';
                         }
-                        
-                        // Show stats skeleton initially, hide content
-                        const skeleton = document.getElementById('stats-skeleton');
-                        const content = document.getElementById('stats-content');
-                        if (skeleton && content) {
-                            skeleton.classList.remove('loaded');
-                            content.classList.remove('loaded');
-                        }
                     });
 
-                    // Enhanced stats loading with skeleton transition
-                    window.addEventListener('load', async function() {
-                        const skeleton = document.getElementById('stats-skeleton');
-                        const content = document.getElementById('stats-content');
-                        
-                        // Minimum loading time for smooth UX
-                        const minLoadTime = 800;
-                        const startTime = Date.now();
-                        
-                        try {
-                            const response = await fetch('/api/stats');
-                            if (response.ok) {
-                                const stats = await response.json();
-                                
-                                // Update content
-                                const totalRecords = document.getElementById('total-records-value');
-                                const avgWilks = document.getElementById('avg-wilks-value');
-                                const topPercentile = document.getElementById('top-percentile-value');
-                                
-                                if (totalRecords) totalRecords.textContent = stats.total_records?.toLocaleString() || '-';
-                                if (avgWilks) avgWilks.textContent = stats.avg_wilks?.toFixed(1) || '-';
-                                if (topPercentile) topPercentile.textContent = (stats.top_percentile?.toFixed(1) + '%') || '-';
+                    // Simple stats loader (no skeletons)
+                    (function(){
+                        async function loadStats() {
+                            try {
+                                const response = await fetch('/api/stats');
+                                if (response && response.ok) {
+                                    const stats = await response.json();
+                                    const totalRecords = document.getElementById('total-records-value');
+                                    const avgWilks = document.getElementById('avg-wilks-value');
+                                    const topPercentile = document.getElementById('top-percentile-value');
+                                    if (totalRecords) totalRecords.textContent = stats.total_records?.toLocaleString() || '-';
+                                    if (avgWilks) avgWilks.textContent = stats.avg_wilks?.toFixed(1) || '-';
+                                    if (topPercentile) topPercentile.textContent = (stats.top_percentile?.toFixed(1) + '%') || '-';
+                                }
+                            } catch (e) {
+                                console.warn('Could not load quick stats:', e);
                             }
-                        } catch (e) {
-                            console.warn('Could not load quick stats:', e);
                         }
-                        
-                        // Ensure minimum loading time, then transition
-                        const elapsedTime = Date.now() - startTime;
-                        const remainingTime = Math.max(0, minLoadTime - elapsedTime);
-                        
-                        setTimeout(() => {
-                            if (skeleton) {
-                                skeleton.classList.add('loaded');
-                            }
-                            if (content) {
-                                content.classList.add('loaded');
-                            }
-                        }, remainingTime);
-                    });
+
+                        if (document.readyState === 'loading') {
+                            document.addEventListener('DOMContentLoaded', loadStats);
+                        } else {
+                            loadStats();
+                        }
+                    })();
                     "#
                 }
                 style {
