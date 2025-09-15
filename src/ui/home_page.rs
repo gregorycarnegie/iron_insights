@@ -45,27 +45,27 @@ pub fn render_home_page() -> Markup {
                                     // Analytics
                                     article.feature-card.glass-card.card-hover {
                                         div.icon-wrap aria-hidden="true" { (analytics_icon()) }
-                                        h3 { "Analytics" }
-                                        p { "Deep dive into your lifting data with advanced visualizations and statistical analysis." }
-                                        a href="/analytics" class="btn btn-primary" aria-describedby="analytics-description" { "View Analytics" }
+                                        h3 class="feature-title" { "Analytics" }
+                                        p class="feature-desc" { "Deep dive into your lifting data with advanced visualizations and statistical analysis." }
+                                        a href="/analytics" class="btn btn-primary feature-cta" aria-describedby="analytics-description" { "View Analytics" }
                                         span.sr-only #analytics-description { "Navigate to the analytics page to view detailed lifting statistics and charts" }
                                     }
 
                                     // Share Cards
                                     article.feature-card.glass-card.card-hover {
                                         div.icon-wrap aria-hidden="true" { (share_icon()) }
-                                        h3 { "Share Cards" }
-                                        p { "Create beautiful social media cards to share your lifting achievements." }
-                                        a href="/sharecard" class="btn btn-secondary" aria-describedby="sharecard-description" { "Create Share Card" }
+                                        h3 class="feature-title" { "Share Cards" }
+                                        p class="feature-desc" { "Create beautiful social media cards to share your lifting achievements." }
+                                        a href="/sharecard" class="btn btn-secondary feature-cta" aria-describedby="sharecard-description" { "Create Share Card" }
                                         span.sr-only #sharecard-description { "Navigate to the share card creator to make social media posts" }
                                     }
 
                                     // 1RM Calculator
                                     article.feature-card.glass-card.card-hover {
                                         div.icon-wrap aria-hidden="true" { (one_rm_icon()) }
-                                        h3 { "1RM Calculator" }
-                                        p { "Estimate your one-rep max using proven formulas (Epley, Brzycki, Lombardi)." }
-                                        a href="/1rm" class="btn btn-tertiary" aria-describedby="one-rm-description" { "Open 1RM Calculator" }
+                                        h3 class="feature-title" { "1RM Calculator" }
+                                        p class="feature-desc" { "Estimate your one-rep max using proven formulas (Epley, Brzycki, Lombardi)." }
+                                        a href="/1rm" class="btn btn-tertiary feature-cta" aria-describedby="one-rm-description" { "Open 1RM Calculator" }
                                         span.sr-only #one-rm-description { "Navigate to the one-repetition maximum calculator" }
                                     }
                                 }
@@ -156,6 +156,7 @@ pub fn render_home_page() -> Markup {
                         gap: 1.25rem;
                         max-width: 1100px;
                         margin: 0 auto;
+                        align-items: stretch;
                     }
 
                     .feature-card {
@@ -166,11 +167,18 @@ pub fn render_home_page() -> Markup {
                         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
                         transition: transform 0.2s ease, box-shadow 0.2s ease;
                         text-align: left;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 0.5rem;
+                        height: 100%;
+                        min-height: 220px;
                     }
                     .feature-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
                     .feature-card .icon-wrap { margin-bottom: 0.5rem; }
-                    .feature-card h3 { margin-bottom: 1rem; color: var(--text-primary); font-size: 1.5rem; }
-                    .feature-card p { color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6; }
+                    .feature-card .feature-title { margin-bottom: 0.5rem; color: var(--text-primary); font-size: 1.5rem; }
+                    .feature-card .feature-desc { color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.6; }
+                    .feature-card .feature-cta { margin-top: auto; align-self: stretch; width: 100%; display: flex; justify-content: center; }
 
                     .btn { display: inline-block; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; transition: all 0.2s ease; border: none; cursor: pointer; font-size: 1rem; }
                     .btn-primary { background: var(--primary); color: white; }
