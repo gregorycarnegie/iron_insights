@@ -1,12 +1,14 @@
 // src/ui/mod.rs - Main UI module with modern layout
-use maud::{html, Markup, DOCTYPE};
+use maud::{DOCTYPE, Markup, html};
 
 // Import all UI components
 pub mod components;
 use components::*;
-pub mod sharecard_page;
+pub mod about_page;
+pub mod donate_page;
 pub mod home_page;
 pub mod onerepmax_page;
+pub mod sharecard_page;
 
 /// Home page - landing page with overview
 pub fn render_index() -> Markup {
@@ -36,4 +38,19 @@ pub fn render_analytics() -> Markup {
 /// 1RM Calculator page
 pub fn render_onerepmax() -> Markup {
     onerepmax_page::render_onerepmax_page()
+}
+
+/// About page
+pub fn render_about() -> Markup {
+    about_page::render_about_page()
+}
+
+/// Donation page
+pub fn render_donate() -> Markup {
+    donate_page::render_donate_page()
+}
+
+/// Share Card page (kept for convenience)
+pub fn render_sharecard() -> Markup {
+    sharecard_page::render_sharecard_page()
 }

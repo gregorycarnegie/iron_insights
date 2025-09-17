@@ -1,12 +1,15 @@
 use axum::http::{Response, StatusCode};
 use quinn::{Endpoint, ServerConfig};
-use rustls::{pki_types::{CertificateDer, PrivateKeyDer}, ServerConfig as TlsServerConfig};
 use rcgen::generate_simple_self_signed;
+use rustls::{
+    ServerConfig as TlsServerConfig,
+    pki_types::{CertificateDer, PrivateKeyDer},
+};
 use std::sync::Arc;
-use tracing::{info, error, warn, debug};
+use tracing::{debug, error, info, warn};
 
-use crate::models::AppState;
 use crate::handlers::*;
+use crate::models::AppState;
 
 pub struct Http3Server {
     pub state: AppState,
@@ -21,7 +24,7 @@ impl Http3Server {
     pub async fn run(self) -> Result<(), Box<dyn std::error::Error>> {
         let server_config = self.create_server_config()?;
         let endpoint = Endpoint::server(server_config, format!("0.0.0.0:{}", self.port).parse()?)?;
-        
+
         info!("🚀 HTTP/3 server listening on port {}", self.port);
 
         while let Some(incoming) = endpoint.accept().await {
@@ -49,7 +52,8 @@ impl Http3Server {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         debug!("New HTTP/3 connection established");
 
-        let mut h3_conn = h3::server::Connection::new(h3_quinn::Connection::new(connection)).await?;
+        let mut h3_conn =
+            h3::server::Connection::new(h3_quinn::Connection::new(connection)).await?;
 
         loop {
             match h3_conn.accept().await {
@@ -88,10 +92,13 @@ impl Http3Server {
         // Send response headers first
         let response = Response::builder()
             .status(StatusCode::OK)
-            .header("content-type", match path {
-                path if path.starts_with("/api/") => "application/json",
-                _ => "text/html; charset=utf-8",
-            })
+            .header(
+                "content-type",
+                match path {
+                    path if path.starts_with("/api/") => "application/json",
+                    _ => "text/html; charset=utf-8",
+                },
+            )
             .body(())?;
 
         stream.send_response(response).await?;
@@ -141,7 +148,7 @@ impl Http3Server {
             .with_single_cert(vec![cert], key)?;
 
         let mut server_config = ServerConfig::with_crypto(Arc::new(
-            quinn::crypto::rustls::QuicServerConfig::try_from(tls_config)?
+            quinn::crypto::rustls::QuicServerConfig::try_from(tls_config)?,
         ));
 
         // Configure transport parameters for HTTP/3
@@ -149,7 +156,7 @@ impl Http3Server {
         transport.max_concurrent_bidi_streams(100_u32.into());
         transport.max_concurrent_uni_streams(100_u32.into());
         transport.max_idle_timeout(Some(std::time::Duration::from_secs(30).try_into()?));
-        
+
         server_config.transport_config(Arc::new(transport));
 
         Ok(server_config)

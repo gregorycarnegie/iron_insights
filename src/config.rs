@@ -22,7 +22,9 @@ impl Default for AppConfig {
 
 impl AppConfig {
     pub fn cache_config(&self) -> (u64, Duration) {
-        (self.cache_max_capacity, Duration::from_secs(self.cache_ttl_seconds))
+        (
+            self.cache_max_capacity,
+            Duration::from_secs(self.cache_ttl_seconds),
+        )
     }
-    
 }

@@ -1,5 +1,5 @@
-use maud::{html, Markup, DOCTYPE};
 use crate::ui::components::*;
+use maud::{DOCTYPE, Markup, html};
 
 pub fn render_onerepmax_page() -> Markup {
     html! {
@@ -29,12 +29,12 @@ pub fn render_onerepmax_page() -> Markup {
                                             }
                                         }
                                     }
-                                    
+
                                     div.input-group {
                                         label for="reps" { "Repetitions" }
                                         input #reps type="number" placeholder="5" min="1" max="20";
                                     }
-                                    
+
                                     div.input-group {
                                         label for="formula" { "Calculation Formula" }
                                         select #formula {
@@ -47,7 +47,7 @@ pub fn render_onerepmax_page() -> Markup {
                                             option value="wathen" { "Wathen" }
                                         }
                                     }
-                                    
+
                                     button #calculate-btn onclick="calculate1RM()" class="btn btn-primary" { "Calculate 1RM" }
                                 }
 

@@ -1,7 +1,8 @@
 use maud::{Markup, PreEscaped};
 
 pub fn render_layout_styles() -> Markup {
-    PreEscaped(r#"
+    PreEscaped(
+        r#"
         /* Container */
         .container {
             max-width: 1440px;
@@ -124,5 +125,7 @@ pub fn render_layout_styles() -> Markup {
         .sidebar-overlay.active {
             display: block;
         }
-    "#.to_string())
+    "#
+        .to_string(),
+    )
 }

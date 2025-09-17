@@ -1,5 +1,5 @@
 // src/ui/components/controls.rs - Modern sidebar controls
-use maud::{html, Markup};
+use maud::{Markup, html};
 
 pub fn render_controls() -> Markup {
     html! {
@@ -8,7 +8,7 @@ pub fn render_controls() -> Markup {
             form #analytics-form method="get" action="/analytics" {
             div.control-section {
                 h3 { "Athlete Profile" }
-                
+
                 div.control-group {
                     fieldset {
                         legend { "Sex" }
@@ -26,13 +26,13 @@ pub fn render_controls() -> Markup {
                         }
                     }
                 }
-                
+
                 div.control-group {
                     label for="bodyweight" { "Bodyweight (kg)" }
                     input #bodyweight name="bodyweight" type="number" placeholder="75" step="0.1" min="30" max="300" aria-describedby="bodyweight-help";
                     span.sr-only #bodyweight-help { "Enter your bodyweight in kilograms, between 30 and 300 kg" }
                 }
-                
+
                 div.control-group {
                     label for="weightClass" { "Weight Class" }
                     select #weightClass name="weightClass" aria-describedby="weight-class-help" {
@@ -61,44 +61,44 @@ pub fn render_controls() -> Markup {
                     span.sr-only #weight-class-help { "Select your powerlifting weight class or all classes to compare against" }
                 }
             }
-            
+
             div.control-section {
                 h3 { "Lift Selection" }
-                
+
                 div.control-group {
                     fieldset {
                         legend { "Lift Type" }
                         div.toggle-group role="radiogroup" aria-labelledby="lift-type-legend" {
-                            button.toggle-button.active type="button" data-value="squat" onclick="setToggle(this, 'lift')" role="radio" aria-checked="true" tabindex="0" { 
-                                "SQ" 
+                            button.toggle-button.active type="button" data-value="squat" onclick="setToggle(this, 'lift')" role="radio" aria-checked="true" tabindex="0" {
+                                "SQ"
                                 span.sr-only { " (Squat)" }
                             }
-                            button.toggle-button type="button" data-value="bench" onclick="setToggle(this, 'lift')" role="radio" aria-checked="false" tabindex="-1" { 
-                                "BP" 
+                            button.toggle-button type="button" data-value="bench" onclick="setToggle(this, 'lift')" role="radio" aria-checked="false" tabindex="-1" {
+                                "BP"
                                 span.sr-only { " (Bench Press)" }
                             }
-                            button.toggle-button type="button" data-value="deadlift" onclick="setToggle(this, 'lift')" role="radio" aria-checked="false" tabindex="-1" { 
-                                "DL" 
+                            button.toggle-button type="button" data-value="deadlift" onclick="setToggle(this, 'lift')" role="radio" aria-checked="false" tabindex="-1" {
+                                "DL"
                                 span.sr-only { " (Deadlift)" }
                             }
-                            button.toggle-button type="button" data-value="total" onclick="setToggle(this, 'lift')" role="radio" aria-checked="false" tabindex="-1" { 
+                            button.toggle-button type="button" data-value="total" onclick="setToggle(this, 'lift')" role="radio" aria-checked="false" tabindex="-1" {
                                 "Total"
                                 span.sr-only { " (All three lifts combined)" }
                             }
                         }
                     }
                 }
-                
+
                 div.control-group {
                     label for="userLift" { "Your Best (kg)" }
                     input #userLift type="number" placeholder="Enter your best lift" step="2.5" min="0" aria-describedby="user-lift-help";
                     span.sr-only #user-lift-help { "Enter your personal best for the selected lift type in kilograms" }
                 }
             }
-            
+
             div.control-section {
                 h3 { "Competition Settings" }
-                
+
                 div.control-group {
                     fieldset {
                         legend { "Equipment" }
@@ -126,7 +126,7 @@ pub fn render_controls() -> Markup {
                         }
                     }
                 }
-                
+
                 div.control-group {
                     label for="timePeriod" { "Time Period" }
                     select #timePeriod aria-describedby="time-period-help" {
@@ -138,7 +138,7 @@ pub fn render_controls() -> Markup {
                     }
                     span.sr-only #time-period-help { "Select the time period for filtering competition data" }
                 }
-                
+
                 div.control-group {
                     label for="federation" { "Federation" }
                     select #federation aria-describedby="federation-help" {
@@ -151,18 +151,18 @@ pub fn render_controls() -> Markup {
                     span.sr-only #federation-help { "Select the powerlifting federation to filter results" }
                 }
             }
-            
+
             // Submit button that works with or without JS
             button.btn.btn-primary.btn-lg type="submit" onclick="updateAnalytics(); return false;" aria-describedby="update-button-help" {
                 "Update Analytics"
                 span.sr-only #update-button-help { "Apply the selected filters and refresh the analytics charts" }
             }
-            
+
             // Hidden input for progressive enhancement
             input type="hidden" name="js" value="0" #js-enabled;
             }
         }
-        
+
         div.sidebar-overlay #sidebarOverlay onclick="toggleSidebar()" {}
     }
 }

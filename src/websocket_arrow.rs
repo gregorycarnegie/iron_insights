@@ -10,7 +10,9 @@ use crate::websocket::WebSocketMessage;
 
 /// Serialize WebSocket message to Arrow IPC format
 /// This creates a unified schema that can handle all WebSocket message types
-pub fn serialize_websocket_message_to_arrow(message: &WebSocketMessage) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+pub fn serialize_websocket_message_to_arrow(
+    message: &WebSocketMessage,
+) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
     // Create a comprehensive schema for all WebSocket message types
     let schema = Schema::new(vec![
         Field::new("message_type", DataType::Utf8, false),
@@ -62,12 +64,23 @@ pub fn serialize_websocket_message_to_arrow(message: &WebSocketMessage) -> Resul
 
     // Fill values based on message type
     match message {
-        WebSocketMessage::Connect { session_id, user_agent, supports_arrow: _ } => {
+        WebSocketMessage::Connect {
+            session_id,
+            user_agent,
+            supports_arrow: _,
+        } => {
             message_type_val = "connect";
             session_id_val = Some(session_id.clone());
             user_agent_val = user_agent.clone();
         }
-        WebSocketMessage::UserUpdate { bodyweight, squat, bench, deadlift, lift_type, sex } => {
+        WebSocketMessage::UserUpdate {
+            bodyweight,
+            squat,
+            bench,
+            deadlift,
+            lift_type,
+            sex,
+        } => {
             message_type_val = "user_update";
             bodyweight_val = *bodyweight;
             squat_val = *squat;
@@ -76,13 +89,23 @@ pub fn serialize_websocket_message_to_arrow(message: &WebSocketMessage) -> Resul
             lift_type_val = Some(lift_type.clone());
             sex_val = sex.clone();
         }
-        WebSocketMessage::StatsUpdate { active_users, total_connections, server_load } => {
+        WebSocketMessage::StatsUpdate {
+            active_users,
+            total_connections,
+            server_load,
+        } => {
             message_type_val = "stats_update";
             active_users_val = Some(*active_users as u32);
             total_connections_val = Some(*total_connections as u32);
             server_load_val = Some(*server_load);
         }
-        WebSocketMessage::DotsCalculation { lift_kg, bodyweight_kg, dots_score, strength_level, percentile } => {
+        WebSocketMessage::DotsCalculation {
+            lift_kg,
+            bodyweight_kg,
+            dots_score,
+            strength_level,
+            percentile,
+        } => {
             message_type_val = "dots_calculation";
             lift_kg_val = Some(*lift_kg);
             bodyweight_kg_val = Some(*bodyweight_kg);
@@ -100,7 +123,11 @@ pub fn serialize_websocket_message_to_arrow(message: &WebSocketMessage) -> Resul
         WebSocketMessage::Pong => {
             message_type_val = "pong";
         }
-        WebSocketMessage::ActivityFeed { activity_type: _, data: _, timestamp } => {
+        WebSocketMessage::ActivityFeed {
+            activity_type: _,
+            data: _,
+            timestamp,
+        } => {
             message_type_val = "activity_feed";
             timestamp_val = Some(*timestamp);
         }

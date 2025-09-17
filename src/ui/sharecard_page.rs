@@ -1,5 +1,5 @@
 // src/ui/sharecard_page.rs - Dedicated Share Card generator page
-use maud::{html, Markup, DOCTYPE, PreEscaped};
+use maud::{DOCTYPE, Markup, PreEscaped, html};
 
 use crate::ui::components::{render_head_minimal, render_header};
 

@@ -1,5 +1,5 @@
 // src/ui/components/header.rs - Modern header with navigation
-use maud::{html, Markup};
+use maud::{Markup, html};
 
 pub fn render_header() -> Markup {
     html! {
@@ -25,6 +25,8 @@ pub fn render_header() -> Markup {
                     a href="/analytics" { "Analytics" }
                     a href="/1rm" { "1RM Calculator" }
                     a href="/sharecard" { "Share Card" }
+                    a href="/about" { "About" }
+                    a href="/donate" { "Donate" }
                     a href="#rankings" { "Rankings" }
 
                     button.mobile-menu-toggle onclick="toggleSidebar()" aria-label="Toggle mobile menu" aria-expanded="false" aria-controls="sidebar" {
@@ -37,4 +39,3 @@ pub fn render_header() -> Markup {
         }
     }
 }
-

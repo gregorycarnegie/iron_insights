@@ -1,5 +1,5 @@
-use maud::{html, Markup, DOCTYPE};
 use crate::ui::components::*;
+use maud::{DOCTYPE, Markup, html};
 
 pub fn render_home_page() -> Markup {
     html! {
@@ -14,7 +14,7 @@ pub fn render_home_page() -> Markup {
                             // Quick stats section (as in mock)
                             section.quick-stats aria-labelledby="stats-heading" {
                                 h2 #stats-heading { "Quick Stats Overview" }
-                                
+
                                 // Stats content (visible without skeletons)
                                 div #stats-content {
                                     div.stats-grid role="group" aria-label="Statistics summary" {

@@ -1,7 +1,8 @@
 use maud::{Markup, PreEscaped};
 
 pub fn render_chart_styles() -> Markup {
-    PreEscaped(r#"
+    PreEscaped(
+        r#"
         /* Stats Cards */
         .stats-grid {
             display: grid;
@@ -440,5 +441,7 @@ pub fn render_chart_styles() -> Markup {
         .chart-selection-info.visible {
             opacity: 1;
         }
-    "#.to_string())
+    "#
+        .to_string(),
+    )
 }

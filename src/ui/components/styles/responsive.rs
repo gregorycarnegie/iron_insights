@@ -1,7 +1,8 @@
 use maud::{Markup, PreEscaped};
 
 pub fn render_responsive_styles() -> Markup {
-    PreEscaped(r#"
+    PreEscaped(
+        r#"
         /* Responsive Design */
         @media (max-width: 1024px) {
             .main-content {
@@ -57,5 +58,7 @@ pub fn render_responsive_styles() -> Markup {
                 grid-template-columns: 1fr;
             }
         }
-    "#.to_string())
+    "#
+        .to_string(),
+    )
 }

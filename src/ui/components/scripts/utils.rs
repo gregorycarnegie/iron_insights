@@ -1,7 +1,8 @@
 use maud::{Markup, PreEscaped};
 
 pub fn render_utility_scripts() -> Markup {
-    PreEscaped(r#"
+    PreEscaped(
+        r#"
         // Helper function to parse and calculate sums like "340+270+190"
         function parseSum(input) {
             console.log('parseSum called with input:', input, 'type:', typeof input);
@@ -68,5 +69,7 @@ pub fn render_utility_scripts() -> Markup {
             if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
             return Math.floor(seconds / 86400) + 'd ago';
         }
-    "#.to_string())
+    "#
+        .to_string(),
+    )
 }

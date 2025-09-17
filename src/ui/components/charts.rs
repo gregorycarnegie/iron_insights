@@ -1,5 +1,5 @@
 // src/ui/components/charts.rs - Modern chart containers
-use maud::{html, Markup};
+use maud::{Markup, html};
 
 /// Main content area with stats and charts
 pub fn render_main_content() -> Markup {
@@ -26,12 +26,12 @@ pub fn render_main_content() -> Markup {
                     div.stat-value #processingTime { "—" }
                 }
             }
-            
+
             // User Performance Card
             div #userPerformance {
                 (render_user_performance_card())
             }
-            
+
             // Percentile Cards
             div.percentile-grid #percentileGrid style="display: none;" {
                 div.percentile-card {
@@ -43,7 +43,7 @@ pub fn render_main_content() -> Markup {
                     div.percentile-label { "DOTS Score Percentile" }
                 }
             }
-            
+
             // Global Export Controls
             div.export-controls {
                 div.export-section {
@@ -64,7 +64,7 @@ pub fn render_main_content() -> Markup {
                 (render_chart_container("bodyweightScatter", "Performance vs Bodyweight", false))
                 (render_chart_container("dotsScatter", "DOTS vs Bodyweight", false))
             }
-            
+
             // Rankings Table
             div.chart-container {
                 div.chart-header {

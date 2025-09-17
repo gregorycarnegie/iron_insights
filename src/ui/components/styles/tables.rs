@@ -1,7 +1,8 @@
 use maud::{Markup, PreEscaped};
 
 pub fn render_table_styles() -> Markup {
-    PreEscaped(r#"
+    PreEscaped(
+        r#"
         /* Tables */
         .data-table {
             width: 100%;
@@ -40,5 +41,7 @@ pub fn render_table_styles() -> Markup {
         .data-table tr:hover {
             background: var(--surface-hover);
         }
-    "#.to_string())
+    "#
+        .to_string(),
+    )
 }

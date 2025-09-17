@@ -18,8 +18,12 @@ impl AppState {
             .max_capacity(cache_config.0)
             .time_to_live(cache_config.1)
             .build();
-        
-        Self { data, cache, websocket_state: None }
+
+        Self {
+            data,
+            cache,
+            websocket_state: None,
+        }
     }
 }
 
@@ -120,7 +124,7 @@ impl LiftType {
             _ => Self::Squat, // Default to squat
         }
     }
-    
+
     pub fn raw_column(&self) -> &'static str {
         match self {
             Self::Squat => "Best3SquatKg",
@@ -129,7 +133,7 @@ impl LiftType {
             Self::Total => "TotalKg",
         }
     }
-    
+
     pub fn dots_column(&self) -> &'static str {
         match self {
             Self::Squat => "SquatDOTS",
@@ -138,5 +142,4 @@ impl LiftType {
             Self::Total => "TotalDOTS",
         }
     }
-    
 }

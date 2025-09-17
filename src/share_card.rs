@@ -35,19 +35,32 @@ pub fn generate_themed_share_card_svg(data: &ShareCardData, theme: CardTheme) ->
 fn generate_default_card(data: &ShareCardData) -> String {
     let card_width = 800;
     let card_height = 700; // Increased height for all lifts
-    
+
     // Colors as string constants to avoid parsing issues
     let bg_start = "#667eea";
     let bg_end = "#764ba2";
     let accent = "#4facfe";
 
     // Format all lift values
-    let squat_display = data.squat.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let bench_display = data.bench.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let deadlift_display = data.deadlift.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let total_display = data.total.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
+    let squat_display = data
+        .squat
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let bench_display = data
+        .bench
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let deadlift_display = data
+        .deadlift
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let total_display = data
+        .total
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
 
-    let dots_display = data.dots_score
+    let dots_display = data
+        .dots_score
         .map(|d| format!("{:.1}", d))
         .unwrap_or_else(|| "-".to_string());
 
@@ -179,10 +192,27 @@ fn generate_default_card(data: &ShareCardData) -> String {
   </g>
   
 </svg>"##,
-        card_width, card_height, bg_start, bg_end, accent,
-        data.name, accent, squat_display, accent, bench_display, accent, deadlift_display, total_display,
-        accent, dots_display, accent, data.strength_level, percentile_display,
-        data.strength_level, data.bodyweight, data.sex
+        card_width,
+        card_height,
+        bg_start,
+        bg_end,
+        accent,
+        data.name,
+        accent,
+        squat_display,
+        accent,
+        bench_display,
+        accent,
+        deadlift_display,
+        total_display,
+        accent,
+        dots_display,
+        accent,
+        data.strength_level,
+        percentile_display,
+        data.strength_level,
+        data.bodyweight,
+        data.sex
     )
 }
 
@@ -191,12 +221,25 @@ fn generate_dark_card(data: &ShareCardData) -> String {
     let card_height = 700;
 
     // Format all lift values
-    let squat_display = data.squat.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let bench_display = data.bench.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let deadlift_display = data.deadlift.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let total_display = data.total.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
+    let squat_display = data
+        .squat
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let bench_display = data
+        .bench
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let deadlift_display = data
+        .deadlift
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let total_display = data
+        .total
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
 
-    let dots_display = data.dots_score
+    let dots_display = data
+        .dots_score
         .map(|d| format!("{:.1}", d))
         .unwrap_or_else(|| "-".to_string());
 
@@ -318,11 +361,19 @@ fn generate_dark_card(data: &ShareCardData) -> String {
   </text>
   
 </svg>"##,
-        card_width, card_height,
+        card_width,
+        card_height,
         data.name,
-        squat_display, bench_display, deadlift_display, total_display,
-        dots_display, data.strength_level, percentile_display,
-        data.strength_level, data.bodyweight, data.sex
+        squat_display,
+        bench_display,
+        deadlift_display,
+        total_display,
+        dots_display,
+        data.strength_level,
+        percentile_display,
+        data.strength_level,
+        data.bodyweight,
+        data.sex
     )
 }
 
@@ -331,12 +382,25 @@ fn generate_minimal_card(data: &ShareCardData) -> String {
     let card_height = 500;
 
     // Format all lift values
-    let squat_display = data.squat.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let bench_display = data.bench.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let deadlift_display = data.deadlift.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let total_display = data.total.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
+    let squat_display = data
+        .squat
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let bench_display = data
+        .bench
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let deadlift_display = data
+        .deadlift
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let total_display = data
+        .total
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
 
-    let dots_display = data.dots_score
+    let dots_display = data
+        .dots_score
         .map(|d| format!("{:.1}", d))
         .unwrap_or_else(|| "-".to_string());
 
@@ -387,10 +451,15 @@ fn generate_minimal_card(data: &ShareCardData) -> String {
   </text>
   
 </svg>"##,
-        card_width, card_height,
+        card_width,
+        card_height,
         data.name,
-        squat_display, bench_display, deadlift_display, total_display,
-        dots_display, data.strength_level
+        squat_display,
+        bench_display,
+        deadlift_display,
+        total_display,
+        dots_display,
+        data.strength_level
     )
 }
 
@@ -398,11 +467,26 @@ fn generate_powerlifting_card(data: &ShareCardData) -> String {
     let card_width = 800;
     let card_height = 600;
 
-    let squat_display = data.squat.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let bench_display = data.bench.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let deadlift_display = data.deadlift.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let total_display = data.total.map(|v| format!("{:.0}", v)).unwrap_or_else(|| "-".to_string());
-    let dots_display = data.dots_score.map(|d| format!("{:.1}", d)).unwrap_or_else(|| "-".to_string());
+    let squat_display = data
+        .squat
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let bench_display = data
+        .bench
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let deadlift_display = data
+        .deadlift
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let total_display = data
+        .total
+        .map(|v| format!("{:.0}", v))
+        .unwrap_or_else(|| "-".to_string());
+    let dots_display = data
+        .dots_score
+        .map(|d| format!("{:.1}", d))
+        .unwrap_or_else(|| "-".to_string());
 
     format!(
         r##"<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg">
@@ -460,11 +544,16 @@ fn generate_powerlifting_card(data: &ShareCardData) -> String {
     Generated by Iron Insights • Bodyweight: {:.1}kg • {}-Class
   </text>
 </svg>"##,
-        card_width, card_height,
+        card_width,
+        card_height,
         data.name,
-        squat_display, bench_display, deadlift_display, total_display,
+        squat_display,
+        bench_display,
+        deadlift_display,
+        total_display,
         dots_display,
         data.strength_level,
-        data.bodyweight, data.sex,
+        data.bodyweight,
+        data.sex,
     )
 }

@@ -1,8 +1,8 @@
 // websocket.rs - Real-time WebSocket support for Iron Insights
 use axum::{
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::Response,
 };
@@ -11,15 +11,19 @@ use futures_util::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
 use std::{
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
     time::{SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use crate::{models::AppState, scoring::calculate_dots_score, websocket_arrow::{serialize_websocket_message_to_arrow, should_use_arrow_format}};
+use crate::{
+    models::AppState,
+    scoring::calculate_dots_score,
+    websocket_arrow::{serialize_websocket_message_to_arrow, should_use_arrow_format},
+};
 
 /// WebSocket connection manager
 pub type Connections = Arc<DashMap<String, ConnectionInfo>>;
@@ -166,18 +170,25 @@ impl WebSocketState {
     /// Add a new connection
     pub fn add_connection(&self, id: String, info: ConnectionInfo) {
         self.connections.insert(id, info);
-        self.stats.active_connections.fetch_add(1, Ordering::Relaxed);
+        self.stats
+            .active_connections
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     /// Remove a connection
     pub fn remove_connection(&self, id: &str) {
         if self.connections.remove(id).is_some() {
-            self.stats.active_connections.fetch_sub(1, Ordering::Relaxed);
+            self.stats
+                .active_connections
+                .fetch_sub(1, Ordering::Relaxed);
         }
     }
 
     /// Broadcast a message to all connected clients
-    pub fn broadcast(&self, message: BroadcastMessage) -> Result<usize, broadcast::error::SendError<BroadcastMessage>> {
+    pub fn broadcast(
+        &self,
+        message: BroadcastMessage,
+    ) -> Result<usize, broadcast::error::SendError<BroadcastMessage>> {
         self.broadcaster.send(message)
     }
 
@@ -185,17 +196,21 @@ impl WebSocketState {
     pub fn add_recent_calculation(&self, calc: RecentCalculation) {
         let id = Uuid::new_v4().to_string();
         self.stats.recent_calculations.insert(id, calc);
-        self.stats.calculations_performed.fetch_add(1, Ordering::Relaxed);
-        
+        self.stats
+            .calculations_performed
+            .fetch_add(1, Ordering::Relaxed);
+
         // Keep only the most recent 50 calculations
         if self.stats.recent_calculations.len() > 50 {
             // Remove oldest entries (simple cleanup)
-            let keys_to_remove: Vec<_> = self.stats.recent_calculations
+            let keys_to_remove: Vec<_> = self
+                .stats
+                .recent_calculations
                 .iter()
                 .take(10)
                 .map(|entry| entry.key().clone())
                 .collect();
-            
+
             for key in keys_to_remove {
                 self.stats.recent_calculations.remove(&key);
             }
@@ -204,7 +219,8 @@ impl WebSocketState {
 
     /// Get recent calculations for activity feed
     pub fn get_recent_calculations(&self) -> Vec<RecentCalculation> {
-        self.stats.recent_calculations
+        self.stats
+            .recent_calculations
             .iter()
             .map(|entry| entry.value().clone())
             .collect()
@@ -216,7 +232,11 @@ pub async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(app_state): State<AppState>,
 ) -> Response {
-    let ws_state = app_state.websocket_state.as_ref().cloned().unwrap_or_else(|| WebSocketState::new());
+    let ws_state = app_state
+        .websocket_state
+        .as_ref()
+        .cloned()
+        .unwrap_or_else(|| WebSocketState::new());
     ws.on_upgrade(move |socket| handle_socket(socket, app_state, ws_state))
 }
 
@@ -234,7 +254,10 @@ async fn send_websocket_message(
                     tracing::error!("Failed to send Arrow WebSocket message: {}", e);
                     return Err(e);
                 }
-                tracing::debug!("📡 Sent Arrow binary message: {:?}", std::mem::discriminant(message));
+                tracing::debug!(
+                    "📡 Sent Arrow binary message: {:?}",
+                    std::mem::discriminant(message)
+                );
             }
             Err(e) => {
                 tracing::error!("Failed to serialize to Arrow, falling back to JSON: {}", e);
@@ -251,7 +274,10 @@ async fn send_websocket_message(
         if let Err(e) = sender.send(Message::Text(json.into())).await {
             return Err(e);
         }
-        tracing::debug!("📡 Sent JSON text message: {:?}", std::mem::discriminant(message));
+        tracing::debug!(
+            "📡 Sent JSON text message: {:?}",
+            std::mem::discriminant(message)
+        );
     }
     Ok(())
 }
@@ -261,46 +287,54 @@ async fn handle_socket(socket: WebSocket, app_state: AppState, ws_state: WebSock
     let connection_id = Uuid::new_v4().to_string();
     let mut rx = ws_state.broadcaster.subscribe();
     let supports_arrow = false; // Detect this during handshake
-    
+
     // Split the socket into sender and receiver
     let (mut sender, mut receiver) = socket.split();
-    
+
     // Add connection to the manager
     let connection_info = ConnectionInfo {
         last_activity: current_timestamp(),
         user_agent: None, // Could be extracted from headers
     };
-    
+
     ws_state.add_connection(connection_id.clone(), connection_info);
-    ws_state.stats.total_connections.fetch_add(1, Ordering::Relaxed);
-    
+    ws_state
+        .stats
+        .total_connections
+        .fetch_add(1, Ordering::Relaxed);
+
     println!("🔗 WebSocket client connected: {}", connection_id);
-    
+
     // Send initial connection confirmation
     let welcome_msg = WebSocketMessage::StatsUpdate {
         active_users: ws_state.connection_count(),
         total_connections: ws_state.stats.total_connections.load(Ordering::Relaxed),
         server_load: 0.1, // Could implement actual server load monitoring
     };
-    
+
     let _ = send_websocket_message(&mut sender, &welcome_msg, supports_arrow).await;
-    
+
     // Create channel for sending responses from receive task to send task
     let (response_tx, mut response_rx) = tokio::sync::mpsc::unbounded_channel::<WebSocketMessage>();
-    
+
     // Spawn task to handle incoming messages from this client
     let ws_state_clone = ws_state.clone();
     let app_state_clone = app_state.clone();
     let connection_id_clone = connection_id.clone();
-    
+
     let receive_task = tokio::spawn(async move {
         while let Some(msg) = receiver.next().await {
             if let Ok(msg) = msg {
-                match process_message(msg, &app_state_clone, &ws_state_clone, &connection_id_clone).await {
+                match process_message(msg, &app_state_clone, &ws_state_clone, &connection_id_clone)
+                    .await
+                {
                     Ok(Some(response_msg)) => {
                         // Send response message through channel to send task
                         if response_tx.send(response_msg).is_err() {
-                            println!("❌ Failed to queue response for client {}", connection_id_clone);
+                            println!(
+                                "❌ Failed to queue response for client {}",
+                                connection_id_clone
+                            );
                             break;
                         }
                     }
@@ -318,15 +352,15 @@ async fn handle_socket(socket: WebSocket, app_state: AppState, ws_state: WebSock
         }
         println!("📤 Receive task ended for {}", connection_id_clone);
     });
-    
+
     // Handle broadcast messages to send to this client
     let ws_state_send = ws_state.clone();
     let connection_id_send = connection_id.clone();
-    
+
     let send_task = tokio::spawn(async move {
         let mut heartbeat_interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
         let mut stats_interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
-        
+
         loop {
             tokio::select! {
                 broadcast_result = rx.recv() => {
@@ -380,7 +414,7 @@ async fn handle_socket(socket: WebSocket, app_state: AppState, ws_state: WebSock
                         total_connections: ws_state_send.stats.total_connections.load(std::sync::atomic::Ordering::Relaxed),
                         server_load: calculate_server_load(),
                     };
-                    
+
                     if let Ok(json) = serde_json::to_string(&stats_msg) {
                         if sender.send(Message::Text(json.into())).await.is_err() {
                             println!("📊 Stats update failed for client {}", connection_id_send);
@@ -392,13 +426,13 @@ async fn handle_socket(socket: WebSocket, app_state: AppState, ws_state: WebSock
         }
         println!("📡 Send task ended for {}", connection_id_send);
     });
-    
+
     // Wait for either task to complete
     tokio::select! {
         _ = receive_task => {},
         _ = send_task => {},
     }
-    
+
     // Clean up connection
     ws_state.remove_connection(&connection_id);
     println!("🔌 WebSocket client disconnected: {}", connection_id);
@@ -415,7 +449,7 @@ async fn process_message(
     if let Some(mut conn) = ws_state.connections.get_mut(connection_id) {
         conn.last_activity = current_timestamp();
     }
-    
+
     match msg {
         Message::Text(text) => {
             // Parse incoming JSON message
@@ -428,62 +462,86 @@ async fn process_message(
                     }));
                 }
             };
-            
+
             match ws_msg {
-                WebSocketMessage::Connect { session_id, user_agent, supports_arrow } => {
+                WebSocketMessage::Connect {
+                    session_id,
+                    user_agent,
+                    supports_arrow,
+                } => {
                     // Update connection info with session details
                     if let Some(mut conn) = ws_state.connections.get_mut(connection_id) {
                         conn.user_agent = user_agent.clone();
                         conn.last_activity = current_timestamp();
                     }
-                    
+
                     // Note: We can't modify supports_arrow from here since it's not in scope
                     // of the outer function. We'll handle this differently.
-                    
+
                     let arrow_support_msg = if supports_arrow.unwrap_or(false) {
                         "🚀 Arrow binary support enabled!"
                     } else {
                         "📝 Using JSON text messages"
                     };
-                    
-                    println!("📝 Client registered session: {} ({}) - {}", 
-                            session_id, 
-                            user_agent.unwrap_or_else(|| "Unknown".to_string()),
-                            arrow_support_msg);
-                    
+
+                    println!(
+                        "📝 Client registered session: {} ({}) - {}",
+                        session_id,
+                        user_agent.unwrap_or_else(|| "Unknown".to_string()),
+                        arrow_support_msg
+                    );
+
                     // Send back connection confirmation with server stats
                     return Ok(Some(WebSocketMessage::StatsUpdate {
                         active_users: ws_state.connection_count(),
-                        total_connections: ws_state.stats.total_connections.load(std::sync::atomic::Ordering::Relaxed),
+                        total_connections: ws_state
+                            .stats
+                            .total_connections
+                            .load(std::sync::atomic::Ordering::Relaxed),
                         server_load: calculate_server_load(),
                     }));
                 }
-                
-                WebSocketMessage::UserUpdate { bodyweight, squat, bench, deadlift, lift_type, sex } => {
+
+                WebSocketMessage::UserUpdate {
+                    bodyweight,
+                    squat,
+                    bench,
+                    deadlift,
+                    lift_type,
+                    sex,
+                } => {
                     // Validate input data
                     if let Some(bw) = bodyweight {
-                        if bw <= 0.0 || bw > 500.0 {  // Reasonable bodyweight limits
+                        if bw <= 0.0 || bw > 500.0 {
+                            // Reasonable bodyweight limits
                             return Ok(Some(WebSocketMessage::Error {
-                                message: "Invalid bodyweight: must be between 0 and 500kg".to_string(),
+                                message: "Invalid bodyweight: must be between 0 and 500kg"
+                                    .to_string(),
                             }));
                         }
                     }
-                    
+
                     // Calculate DOTS score and broadcast activity
-                    if let (Some(bw), Some(lift)) = (bodyweight, get_lift_value(squat, bench, deadlift, &lift_type)) {
-                        if lift <= 0.0 || lift > 1000.0 {  // Reasonable lift limits
+                    if let (Some(bw), Some(lift)) = (
+                        bodyweight,
+                        get_lift_value(squat, bench, deadlift, &lift_type),
+                    ) {
+                        if lift <= 0.0 || lift > 1000.0 {
+                            // Reasonable lift limits
                             return Ok(Some(WebSocketMessage::Error {
-                                message: "Invalid lift weight: must be between 0 and 1000kg".to_string(),
+                                message: "Invalid lift weight: must be between 0 and 1000kg"
+                                    .to_string(),
                             }));
                         }
-                        
+
                         let user_sex = sex.as_deref().unwrap_or("M"); // Default to male if not specified
                         let dots_score = calculate_dots_score(lift, bw, user_sex);
                         let strength_level = get_strength_level(dots_score);
-                        
+
                         // Calculate percentile using app data if available
-                        let percentile = calculate_percentile_from_data(app_state, lift, &lift_type);
-                        
+                        let percentile =
+                            calculate_percentile_from_data(app_state, lift, &lift_type);
+
                         // Add to recent calculations for activity feed
                         let recent_calc = RecentCalculation {
                             dots_score,
@@ -491,17 +549,17 @@ async fn process_message(
                             strength_level: strength_level.clone(),
                             timestamp: current_timestamp(),
                         };
-                        
+
                         ws_state.add_recent_calculation(recent_calc);
-                        
+
                         // Broadcast activity update to all clients
                         let activity = BroadcastMessage::UserActivity {
                             user_count: ws_state.connection_count(),
                             recent_calculations: ws_state.get_recent_calculations(),
                         };
-                        
+
                         let _ = ws_state.broadcast(activity);
-                        
+
                         // Send detailed calculation result back to the user
                         let dots_result = WebSocketMessage::DotsCalculation {
                             lift_kg: lift,
@@ -510,81 +568,103 @@ async fn process_message(
                             strength_level: strength_level.clone(),
                             percentile,
                         };
-                        
-                        println!("📊 User update [{}]: {}kg @ {}kg = {:.1} DOTS ({}) - {}%ile", 
-                                connection_id, lift, bw, dots_score, strength_level,
-                                percentile.map(|p| p as i32).unwrap_or(-1));
-                        
+
+                        println!(
+                            "📊 User update [{}]: {}kg @ {}kg = {:.1} DOTS ({}) - {}%ile",
+                            connection_id,
+                            lift,
+                            bw,
+                            dots_score,
+                            strength_level,
+                            percentile.map(|p| p as i32).unwrap_or(-1)
+                        );
+
                         return Ok(Some(dots_result));
                     } else {
                         return Ok(Some(WebSocketMessage::Error {
-                            message: "Missing required data: bodyweight and at least one lift value".to_string(),
+                            message:
+                                "Missing required data: bodyweight and at least one lift value"
+                                    .to_string(),
                         }));
                     }
                 }
-                
+
                 WebSocketMessage::Ping => {
                     // Respond with pong to keep connection alive
                     println!("🏓 Ping received from {}", connection_id);
                     return Ok(Some(WebSocketMessage::Pong));
                 }
-                
+
                 WebSocketMessage::Pong => {
                     // Client responded to our ping
                     println!("🏓 Pong received from {}", connection_id);
                     // No response needed
                 }
-                
-                WebSocketMessage::StatsUpdate { .. } | 
-                WebSocketMessage::ActivityFeed { .. } | 
-                WebSocketMessage::DotsCalculation { .. } => {
+
+                WebSocketMessage::StatsUpdate { .. }
+                | WebSocketMessage::ActivityFeed { .. }
+                | WebSocketMessage::DotsCalculation { .. } => {
                     // These are server-to-client messages, shouldn't be received from client
                     return Ok(Some(WebSocketMessage::Error {
                         message: "Invalid message type from client".to_string(),
                     }));
                 }
-                
+
                 WebSocketMessage::Error { message } => {
-                    println!("❌ Error message from client {}: {}", connection_id, message);
+                    println!(
+                        "❌ Error message from client {}: {}",
+                        connection_id, message
+                    );
                     // Log the error but don't respond
                 }
             }
         }
-        
+
         Message::Binary(data) => {
-            println!("📦 Binary message received from {}: {} bytes", connection_id, data.len());
+            println!(
+                "📦 Binary message received from {}: {} bytes",
+                connection_id,
+                data.len()
+            );
             // Handle binary messages if needed (e.g., file uploads, compressed data)
             return Ok(Some(WebSocketMessage::Error {
                 message: "Binary messages not supported".to_string(),
             }));
         }
-        
+
         Message::Ping(_data) => {
             println!("🏓 WebSocket Ping received from {}", connection_id);
             // Axum handles ping/pong automatically, but we can log it
         }
-        
+
         Message::Pong(_) => {
             println!("🏓 WebSocket Pong received from {}", connection_id);
             // Connection is alive
         }
-        
+
         Message::Close(close_frame) => {
             if let Some(frame) = close_frame {
-                println!("👋 Client {} closing connection: {} - {}", 
-                        connection_id, frame.code, frame.reason);
+                println!(
+                    "👋 Client {} closing connection: {} - {}",
+                    connection_id, frame.code, frame.reason
+                );
             } else {
                 println!("👋 Client {} closing connection (no reason)", connection_id);
             }
             return Err("Connection closed".into());
         }
     }
-    
+
     Ok(None) // No response message needed
 }
 
 /// Get lift value based on lift type
-fn get_lift_value(squat: Option<f32>, bench: Option<f32>, deadlift: Option<f32>, lift_type: &str) -> Option<f32> {
+fn get_lift_value(
+    squat: Option<f32>,
+    bench: Option<f32>,
+    deadlift: Option<f32>,
+    lift_type: &str,
+) -> Option<f32> {
     match lift_type {
         "squat" => squat,
         "bench" => bench,
@@ -605,21 +685,32 @@ fn get_lift_value(squat: Option<f32>, bench: Option<f32>, deadlift: Option<f32>,
 
 /// Get strength level from DOTS score
 fn get_strength_level(dots_score: f32) -> String {
-    if dots_score < 200.0 { "Beginner".to_string() }
-    else if dots_score < 300.0 { "Novice".to_string() }
-    else if dots_score < 400.0 { "Intermediate".to_string() }
-    else if dots_score < 500.0 { "Advanced".to_string() }
-    else if dots_score < 600.0 { "Elite".to_string() }
-    else { "World Class".to_string() }
+    if dots_score < 200.0 {
+        "Beginner".to_string()
+    } else if dots_score < 300.0 {
+        "Novice".to_string()
+    } else if dots_score < 400.0 {
+        "Intermediate".to_string()
+    } else if dots_score < 500.0 {
+        "Advanced".to_string()
+    } else if dots_score < 600.0 {
+        "Elite".to_string()
+    } else {
+        "World Class".to_string()
+    }
 }
 
 /// Calculate percentile from app data
-fn calculate_percentile_from_data(app_state: &AppState, lift_value: f32, lift_type: &str) -> Option<f32> {
+fn calculate_percentile_from_data(
+    app_state: &AppState,
+    lift_value: f32,
+    lift_type: &str,
+) -> Option<f32> {
     use crate::models::LiftType;
-    
+
     let lift_type_enum = LiftType::from_str(lift_type);
     let column_name = lift_type_enum.raw_column();
-    
+
     // Extract lift values from the dataset
     if let Ok(lift_column) = app_state.data.column(column_name) {
         if let Ok(f32_series) = lift_column.f32() {
@@ -627,20 +718,21 @@ fn calculate_percentile_from_data(app_state: &AppState, lift_value: f32, lift_ty
                 .into_no_null_iter()
                 .filter(|&x| x > 0.0 && x.is_finite())
                 .collect();
-            
+
             if lift_values.is_empty() {
                 return None;
             }
-            
-            let below_count = lift_values.iter()
+
+            let below_count = lift_values
+                .iter()
                 .filter(|&&value| value < lift_value)
                 .count();
-            
+
             let percentile = (below_count as f32 / lift_values.len() as f32) * 100.0;
             return Some(percentile.round());
         }
     }
-    
+
     None
 }
 
@@ -648,10 +740,10 @@ fn calculate_percentile_from_data(app_state: &AppState, lift_value: f32, lift_ty
 fn calculate_server_load() -> f32 {
     // In a real implementation, this would check:
     // - CPU usage
-    // - Memory usage  
+    // - Memory usage
     // - Active connections vs capacity
     // - Processing queue length
-    
+
     // For now, return a mock value
     0.15 // 15% load
 }

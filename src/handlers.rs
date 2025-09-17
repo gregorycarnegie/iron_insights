@@ -1,23 +1,26 @@
 // src/handlers.rs - Optimized with streaming and performance improvements
-use axum::{
-    extract::State,
-    http::{header},
-    response::{Json, Response},
-    body::Body,
-};
 use axum::http::StatusCode;
-use maud::Markup;
-use tracing::{info, instrument, error};
-use tokio_stream::{Stream, StreamExt};
+use axum::{
+    body::Body,
+    extract::State,
+    http::header,
+    response::{Json, Response},
+};
 use bytes::Bytes;
+use maud::Markup;
 use std::convert::Infallible;
+use tokio_stream::{Stream, StreamExt};
+use tracing::{error, info, instrument};
 
 use crate::{
     arrow_utils::{serialize_all_visualization_data, serialize_stats_to_arrow},
     cache::{cache_get_arrow, cache_put_arrow, make_cache_key},
     models::*,
-    share_card::{ShareCardData, CardTheme, generate_themed_share_card_svg},
-    ui::{render_index, render_analytics, render_onerepmax, sharecard_page::render_sharecard_page},
+    share_card::{CardTheme, ShareCardData, generate_themed_share_card_svg},
+    ui::{
+        render_about, render_analytics, render_donate, render_index, render_onerepmax,
+        render_sharecard,
+    },
     viz::compute_viz,
 };
 
@@ -39,10 +42,22 @@ pub async fn serve_onerepmax_page(State(_state): State<AppState>) -> Markup {
     render_onerepmax()
 }
 
+/// About page
+#[instrument(skip(_state))]
+pub async fn serve_about_page(State(_state): State<AppState>) -> Markup {
+    render_about()
+}
+
+/// Donation page
+#[instrument(skip(_state))]
+pub async fn serve_donate_page(State(_state): State<AppState>) -> Markup {
+    render_donate()
+}
+
 /// Share Card page
 #[instrument(skip(_state))]
 pub async fn serve_sharecard_page(State(_state): State<AppState>) -> Markup {
-    render_sharecard_page()
+    render_sharecard()
 }
 
 /// Main JSON visualization endpoint - thin I/O wrapper
@@ -53,27 +68,26 @@ pub async fn create_visualizations(
 ) -> Result<Json<VisualizationResponse>, StatusCode> {
     // Generate cache key
     let cache_key = make_cache_key(&params, "arrow");
-    
+
     // Check cache first using Arrow IPC binary protocol
     if let Some(cached) = cache_get_arrow(&state, &cache_key).await {
         info!("Arrow cache hit for key: {}", cache_key);
         return Ok(Json(cached));
     }
-    
+
     // Compute visualization data
     let config = crate::config::AppConfig::default();
-    let viz_data = compute_viz(&state.data, &params, &config)
-        .map_err(|e| {
-            error!("Compute error: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    
+    let viz_data = compute_viz(&state.data, &params, &config).map_err(|e| {
+        error!("Compute error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
     // Map to response DTO
     let response = VisualizationResponse::from(viz_data);
-    
+
     // Cache the result using Arrow IPC binary protocol
     cache_put_arrow(&state, &cache_key, &response).await;
-    
+
     Ok(Json(response))
 }
 
@@ -85,7 +99,7 @@ pub async fn create_visualizations_arrow(
 ) -> Result<Response, StatusCode> {
     // Generate cache key with arrow suffix
     let cache_key = make_cache_key(&params, "arrow");
-    
+
     // Check cache first
     if let Some(cached) = state.cache.get(&cache_key).await {
         if cached.computed_at.elapsed().as_secs() < crate::cache::CACHE_TTL_SECS {
@@ -98,15 +112,14 @@ pub async fn create_visualizations_arrow(
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR);
         }
     }
-    
+
     // Compute visualization data
     let config = crate::config::AppConfig::default();
-    let viz_data = compute_viz(&state.data, &params, &config)
-        .map_err(|e| {
-            error!("Arrow compute error: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    
+    let viz_data = compute_viz(&state.data, &params, &config).map_err(|e| {
+        error!("Arrow compute error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
     // Convert to Arrow format
     let arrow_response = serialize_all_visualization_data(
         &viz_data.hist,
@@ -117,23 +130,33 @@ pub async fn create_visualizations_arrow(
         viz_data.user_dots_percentile,
         viz_data.processing_time_ms,
         viz_data.total_records,
-    ).map_err(|e| {
+    )
+    .map_err(|e| {
         error!("Arrow serialization error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
-    
+
     // Cache the result
-    state.cache.insert(cache_key, CachedResult {
-        data: arrow_response.data.clone(),
-        computed_at: std::time::Instant::now(),
-    }).await;
-    
+    state
+        .cache
+        .insert(
+            cache_key,
+            CachedResult {
+                data: arrow_response.data.clone(),
+                computed_at: std::time::Instant::now(),
+            },
+        )
+        .await;
+
     // Build response with headers
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")
         .header(header::CACHE_CONTROL, "public, max-age=300")
-        .header("X-Processing-Time-Ms", arrow_response.processing_time_ms.to_string())
+        .header(
+            "X-Processing-Time-Ms",
+            arrow_response.processing_time_ms.to_string(),
+        )
         .header("X-Total-Records", arrow_response.total_records.to_string())
         .body(arrow_response.data.into())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
@@ -147,21 +170,19 @@ pub async fn create_visualizations_arrow_stream(
 ) -> Result<Response<Body>, StatusCode> {
     // Generate cache key
     let _cache_key = make_cache_key(&params, "arrow_stream");
-    
+
     // Compute visualization data
     let config = crate::config::AppConfig::default();
-    let viz_data = compute_viz(&state.data, &params, &config)
-        .map_err(|e| {
-            error!("Arrow stream compute error: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    
+    let viz_data = compute_viz(&state.data, &params, &config).map_err(|e| {
+        error!("Arrow stream compute error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
     // Create streaming response
-    let stream = create_arrow_data_stream(viz_data)
-        .map(|chunk| Ok::<Bytes, Infallible>(chunk));
-    
+    let stream = create_arrow_data_stream(viz_data).map(|chunk| Ok::<Bytes, Infallible>(chunk));
+
     let body = Body::from_stream(stream);
-    
+
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")
@@ -175,7 +196,7 @@ pub async fn create_visualizations_arrow_stream(
 #[instrument(skip(state))]
 pub async fn get_stats(State(state): State<AppState>) -> Json<serde_json::Value> {
     let cache_stats = crate::cache::cache_stats(&state);
-    
+
     Json(serde_json::json!({
         "total_records": state.data.height(),
         "cache_entries": cache_stats.entry_count,
@@ -189,7 +210,7 @@ pub async fn get_stats(State(state): State<AppState>) -> Json<serde_json::Value>
 #[instrument(skip(state))]
 pub async fn get_stats_arrow(State(state): State<AppState>) -> Result<Response, StatusCode> {
     let cache_stats = crate::cache::cache_stats(&state);
-    
+
     let stats_data = StatsData {
         total_records: state.data.height() as u32,
         cache_entries: cache_stats.entry_count as u32,
@@ -197,13 +218,12 @@ pub async fn get_stats_arrow(State(state): State<AppState>) -> Result<Response, 
         scoring_system: "DOTS".to_string(),
         status: "operational".to_string(),
     };
-    
-    let arrow_data = serialize_stats_to_arrow(&stats_data)
-        .map_err(|e| {
-            error!("Stats Arrow serialization error: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    
+
+    let arrow_data = serialize_stats_to_arrow(&stats_data).map_err(|e| {
+        error!("Stats Arrow serialization error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")
@@ -211,7 +231,6 @@ pub async fn get_stats_arrow(State(state): State<AppState>) -> Result<Response, 
         .body(arrow_data.into())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
-
 
 /// Generate SVG share card
 #[instrument(skip(_state))]
@@ -225,14 +244,17 @@ pub async fn generate_share_card(
         Some("powerlifting") => CardTheme::Powerlifting,
         _ => CardTheme::Default,
     };
-    
+
     let svg_content = generate_themed_share_card_svg(&request.card_data, theme);
-    
+
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "image/svg+xml")
         .header(header::CACHE_CONTROL, "no-cache")
-        .header("Content-Disposition", "inline; filename=\"powerlifting-card.svg\"")
+        .header(
+            "Content-Disposition",
+            "inline; filename=\"powerlifting-card.svg\"",
+        )
         .body(svg_content.into())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
@@ -246,16 +268,14 @@ pub struct ShareCardRequest {
 }
 
 /// Create streaming Arrow data in chunks for memory efficiency
-fn create_arrow_data_stream(
-    viz_data: crate::viz::VizData,
-) -> impl Stream<Item = Bytes> + Send {
+fn create_arrow_data_stream(viz_data: crate::viz::VizData) -> impl Stream<Item = Bytes> + Send {
     use tokio_stream::iter;
-    
+
     // Convert viz data to Arrow chunks
     let chunks: Vec<Vec<u8>> = vec![
         // Histogram data chunk
         serialize_histogram_chunk(&viz_data.hist, "raw_histogram").unwrap_or_default(),
-        // Scatter data chunk  
+        // Scatter data chunk
         serialize_scatter_chunk(&viz_data.scatter, "raw_scatter").unwrap_or_default(),
         // DOTS histogram chunk
         serialize_histogram_chunk(&viz_data.dots_hist, "dots_histogram").unwrap_or_default(),
@@ -267,9 +287,10 @@ fn create_arrow_data_stream(
             viz_data.user_dots_percentile,
             viz_data.processing_time_ms,
             viz_data.total_records,
-        ).unwrap_or_default(),
+        )
+        .unwrap_or_default(),
     ];
-    
+
     iter(chunks.into_iter().map(Bytes::from))
 }
 
@@ -289,7 +310,7 @@ fn serialize_histogram_chunk(
         "min_val": hist.min_val,
         "max_val": hist.max_val,
     }))?;
-    
+
     Ok(json_data.into_bytes())
 }
 
@@ -305,7 +326,7 @@ fn serialize_scatter_chunk(
         "y": scatter.y,
         "sex": scatter.sex,
     }))?;
-    
+
     Ok(json_data.into_bytes())
 }
 
@@ -323,7 +344,7 @@ fn serialize_metadata_chunk(
         "processing_time_ms": processing_time_ms,
         "total_records": total_records,
     }))?;
-    
+
     Ok(json_data.into_bytes())
 }
 

@@ -18,5 +18,5 @@ pub mod websocket_arrow;
 // Re-export commonly used types for testing
 pub use config::AppConfig;
 pub use data::DataProcessor;
-pub use models::AppState;
 pub use http3_server::Http3Server;
+pub use models::AppState;
