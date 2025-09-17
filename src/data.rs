@@ -1,6 +1,7 @@
 // data.rs - Simplified with better error handling
 use crate::scoring::{calculate_dots_expr, calculate_weight_class_expr};
 use polars::io::parquet::write::StatisticsOptions;
+use polars::datatypes::Categories;
 use polars::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
@@ -351,11 +352,17 @@ impl DataProcessor {
                 calculate_dots_expr("Best3BenchKg", "BenchDOTS"),
                 calculate_dots_expr("Best3DeadliftKg", "DeadliftDOTS"),
                 calculate_dots_expr("TotalKg", "TotalDOTS"),
-                // Convert Date string to proper Date type for filtering
+                // Convert string columns into rich types for downstream filtering
                 col("Date")
                     .str()
                     .to_date(StrptimeOptions::default())
                     .alias("Date"),
+                col("Sex")
+                    .cast(DataType::from_categories(Categories::global()))
+                    .alias("Sex"),
+                col("Equipment")
+                    .cast(DataType::from_categories(Categories::global()))
+                    .alias("Equipment"),
             ])
             .filter(
                 col("SquatDOTS")
@@ -665,3 +672,6 @@ struct SampleLifter {
     deadlift: f32,
     total: f32,
 }
+
+
+

@@ -28,7 +28,8 @@ dashmap = "6.1.0"
 # Data processing - use a stable version with correct features
 polars = { version = "0.51.0", features = [
     "lazy", "csv", "parquet",
-    "temporal", "strings", "dtype-date"
+    "temporal", "strings", "dtype-date",
+    "dtype-categorical"
 ] }
 
 # For timestamps in Parquet file names
