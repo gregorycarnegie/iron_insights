@@ -1,6 +1,6 @@
 [package]
 name = "iron_insights"
-version = "0.8.1"
+version = "0.9.0"
 edition = "2024"
 
 [dependencies]
@@ -31,6 +31,9 @@ polars = { version = "0.51.0", features = [
     "temporal", "strings", "dtype-date",
     "dtype-categorical"
 ] }
+
+# In-process SQL analytics engine
+duckdb = { version = "1.4.0", features = ["parquet"] }
 
 # For timestamps in Parquet file names
 chrono = { version = "0.4.42", features = ["serde"] }

@@ -363,3 +363,157 @@ impl From<crate::viz::VizData> for VisualizationResponse {
         }
     }
 }
+
+/// DuckDB-powered percentile calculation endpoint
+#[instrument(skip(state))]
+pub async fn get_percentiles_duckdb(State(state): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
+    let duckdb = state.duckdb.as_ref().ok_or_else(|| {
+        error!("DuckDB not available");
+        StatusCode::SERVICE_UNAVAILABLE
+    })?;
+
+    let percentiles = tokio::task::spawn_blocking({
+        let duckdb = duckdb.clone();
+        move || duckdb.calculate_dots_percentiles()
+    }).await.map_err(|e| {
+        error!("Task join error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?.map_err(|e| {
+        error!("DuckDB percentile calculation error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(serde_json::json!({
+        "percentiles": percentiles,
+        "generated_at": chrono::Utc::now().to_rfc3339(),
+        "engine": "duckdb"
+    })))
+}
+
+/// DuckDB-powered weight distribution endpoint
+#[instrument(skip(state))]
+pub async fn get_weight_distribution_duckdb(
+    State(state): State<AppState>,
+    Json(params): Json<FilterParams>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let duckdb = state.duckdb.as_ref().ok_or_else(|| {
+        error!("DuckDB not available");
+        StatusCode::SERVICE_UNAVAILABLE
+    })?;
+
+    let lift_type = params.lift_type.as_deref().unwrap_or("total");
+    let sex = params.sex.as_deref().unwrap_or("M");
+    let equipment = params.equipment.unwrap_or_else(|| vec!["Raw".to_string()]);
+    let weight_class = params.weight_class.as_deref();
+    let bin_count = 50; // Default bin count
+
+    let distribution = tokio::task::spawn_blocking({
+        let duckdb = duckdb.clone();
+        let lift_type = lift_type.to_string();
+        let sex = sex.to_string();
+        let equipment = equipment.clone();
+        let weight_class = weight_class.map(|s| s.to_string());
+        move || duckdb.calculate_weight_distribution(&lift_type, &sex, &equipment, bin_count, weight_class.as_deref())
+    }).await.map_err(|e| {
+        error!("Task join error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?.map_err(|e| {
+        error!("DuckDB weight distribution calculation error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(serde_json::json!({
+        "distribution": distribution,
+        "parameters": {
+            "lift_type": lift_type,
+            "sex": sex,
+            "equipment": equipment,
+            "bin_count": bin_count
+        },
+        "generated_at": chrono::Utc::now().to_rfc3339(),
+        "engine": "duckdb"
+    })))
+}
+
+/// DuckDB-powered competitive analysis endpoint
+#[instrument(skip(state))]
+pub async fn get_competitive_analysis_duckdb(
+    State(state): State<AppState>,
+    Json(params): Json<FilterParams>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let duckdb = state.duckdb.as_ref().ok_or_else(|| {
+        error!("DuckDB not available");
+        StatusCode::SERVICE_UNAVAILABLE
+    })?;
+
+    let lift_type = params.lift_type.as_deref().unwrap_or("total");
+    let sex = params.sex.as_deref().unwrap_or("M");
+    let equipment = params.equipment.unwrap_or_else(|| vec!["Raw".to_string()]);
+    let weight_class = params.weight_class.as_deref();
+
+    // Extract user lift based on lift type
+    let user_lift = match lift_type {
+        "squat" => params.squat.unwrap_or(0.0) as f64,
+        "bench" => params.bench.unwrap_or(0.0) as f64,
+        "deadlift" => params.deadlift.unwrap_or(0.0) as f64,
+        "total" => {
+            (params.squat.unwrap_or(0.0) +
+             params.bench.unwrap_or(0.0) +
+             params.deadlift.unwrap_or(0.0)) as f64
+        },
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let user_bodyweight = params.bodyweight.unwrap_or(80.0) as f64;
+
+    if user_lift <= 0.0 || user_bodyweight <= 0.0 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let analysis = tokio::task::spawn_blocking({
+        let duckdb = duckdb.clone();
+        let lift_type = lift_type.to_string();
+        let sex = sex.to_string();
+        let equipment = equipment.clone();
+        let weight_class = weight_class.map(|s| s.to_string());
+        move || duckdb.analyze_competitive_position(&lift_type, user_lift, user_bodyweight, &sex, &equipment, weight_class.as_deref())
+    }).await.map_err(|e| {
+        error!("Task join error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?.map_err(|e| {
+        error!("DuckDB competitive analysis error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(serde_json::json!({
+        "analysis": analysis,
+        "generated_at": chrono::Utc::now().to_rfc3339(),
+        "engine": "duckdb"
+    })))
+}
+
+/// DuckDB-powered summary statistics endpoint
+#[instrument(skip(state))]
+pub async fn get_summary_stats_duckdb(State(state): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
+    let duckdb = state.duckdb.as_ref().ok_or_else(|| {
+        error!("DuckDB not available");
+        StatusCode::SERVICE_UNAVAILABLE
+    })?;
+
+    let stats = tokio::task::spawn_blocking({
+        let duckdb = duckdb.clone();
+        move || duckdb.get_summary_stats()
+    }).await.map_err(|e| {
+        error!("Task join error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?.map_err(|e| {
+        error!("DuckDB summary stats error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(serde_json::json!({
+        "stats": stats,
+        "generated_at": chrono::Utc::now().to_rfc3339(),
+        "engine": "duckdb"
+    })))
+}

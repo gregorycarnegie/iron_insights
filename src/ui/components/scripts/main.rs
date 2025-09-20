@@ -41,7 +41,8 @@ pub fn render_main_scripts() -> Markup {
                 bench: currentLiftType === 'bench' ? userLift : null,
                 deadlift: currentLiftType === 'deadlift' ? userLift : null,
                 equipment: currentEquipment,
-                years_filter: currentTimePeriod
+                years_filter: currentTimePeriod,
+                weight_class: currentWeightClass !== 'All' ? currentWeightClass : null
             };
             
             // Handle total lift type

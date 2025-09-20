@@ -8,6 +8,7 @@ mod arrow_utils;
 mod cache;
 mod config;
 mod data;
+mod duckdb_analytics;
 mod filters;
 mod handlers;
 mod http3_server;
@@ -88,7 +89,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::task::spawn_blocking(move || data_processor.load_and_preprocess_data()).await??;
     tracing::info!("📊 Data loaded in {:?}", start.elapsed());
 
+    // Initialize DuckDB analytics engine with the Parquet file
+    let duckdb_start = std::time::Instant::now();
+    let duckdb_analytics = match duckdb_analytics::DuckDBAnalytics::from_parquet("data/openpowerlifting.parquet") {
+        Ok(analytics) => {
+            tracing::info!("🦆 DuckDB analytics engine initialized in {:?}", duckdb_start.elapsed());
+            Some(analytics)
+        }
+        Err(e) => {
+            tracing::warn!("⚠️  Could not initialize DuckDB: {}", e);
+            tracing::info!("📊 Continuing with Polars-only analytics...");
+            None
+        }
+    };
+
     let mut state = AppState::new(Arc::new(data), config.cache_config());
+    if let Some(duckdb) = duckdb_analytics {
+        state = state.with_duckdb(duckdb);
+    }
     state.websocket_state = Some(WebSocketState::new());
 
     // Spawn background task for cache cleanup
@@ -124,6 +142,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/stats", get(get_stats))
         .route("/api/stats-arrow", get(get_stats_arrow))
         .route("/api/share-card", axum::routing::post(generate_share_card))
+        // DuckDB-powered analytics endpoints
+        .route("/api/percentiles-duckdb", get(get_percentiles_duckdb))
+        .route("/api/weight-distribution-duckdb", axum::routing::post(get_weight_distribution_duckdb))
+        .route("/api/competitive-analysis-duckdb", axum::routing::post(get_competitive_analysis_duckdb))
+        .route("/api/summary-stats-duckdb", get(get_summary_stats_duckdb))
         .route("/ws", get(websocket_handler))
         .nest_service("/static", ServeDir::new("static"))
         .layer(CompressionLayer::new())

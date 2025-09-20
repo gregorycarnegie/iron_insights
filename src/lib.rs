@@ -3,6 +3,7 @@ pub mod arrow_utils;
 pub mod cache;
 pub mod config;
 pub mod data;
+pub mod duckdb_analytics;
 pub mod filters;
 pub mod handlers;
 pub mod http3_server;

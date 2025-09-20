@@ -88,7 +88,13 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
     // Weight class filter
     if let Some(weight_class) = &params.weight_class {
         if weight_class != "All" {
-            lf = lf.filter(col("WeightClassKg").eq(lit(weight_class.as_str())));
+            // Convert dropdown value (e.g., "74") to database format (e.g., "74kg")
+            let db_weight_class = if weight_class.ends_with('+') {
+                format!("{}kg+", weight_class.trim_end_matches('+'))
+            } else {
+                format!("{}kg", weight_class)
+            };
+            lf = lf.filter(col("WeightClassKg").eq(lit(db_weight_class.as_str())));
         }
     }
 

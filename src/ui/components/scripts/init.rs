@@ -26,6 +26,7 @@ pub fn render_init_scripts() -> Markup {
         let currentTimePeriod = 'last_5_years';
         let currentFederation = 'all';
         let currentBinCount = 50;
+        let currentWeightClass = 'All';
         
         // Initialize WASM module
         async function initWasm() {

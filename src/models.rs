@@ -1,8 +1,9 @@
-// models.rs - Updated with new filter parameters
+// models.rs - Updated with new filter parameters and DuckDB integration
 use moka::future::Cache;
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Instant};
+use crate::duckdb_analytics::DuckDBAnalytics;
 
 // Shared application state
 #[derive(Clone)]
@@ -10,6 +11,7 @@ pub struct AppState {
     pub data: Arc<DataFrame>,
     pub cache: Cache<String, CachedResult>,
     pub websocket_state: Option<crate::websocket::WebSocketState>,
+    pub duckdb: Option<Arc<DuckDBAnalytics>>,
 }
 
 impl AppState {
@@ -23,7 +25,13 @@ impl AppState {
             data,
             cache,
             websocket_state: None,
+            duckdb: None,
         }
+    }
+
+    pub fn with_duckdb(mut self, duckdb: DuckDBAnalytics) -> Self {
+        self.duckdb = Some(Arc::new(duckdb));
+        self
     }
 }
 

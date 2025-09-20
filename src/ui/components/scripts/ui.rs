@@ -74,7 +74,19 @@ pub fn render_ui_scripts() -> Markup {
                 }
             });
         }
-        
+
+        // Weight class filter setup
+        function setupWeightClassFilter() {
+            const weightClassSelect = document.getElementById('weightClass');
+            if (weightClassSelect) {
+                weightClassSelect.addEventListener('change', function(e) {
+                    currentWeightClass = e.target.value;
+                    console.log('Weight class changed to:', currentWeightClass);
+                    updateCharts();
+                });
+            }
+        }
+
         // Monitor input changes for debugging
         function setupInputDebugger() {
             const userLiftInput = document.getElementById('userLift');
@@ -203,6 +215,7 @@ pub fn render_ui_scripts() -> Markup {
             
             highlightActiveNav();
             setupEquipmentFilters();
+            setupWeightClassFilter();
             setupKeyboardNavigation();
             setupEscapeKeyHandling();
             setupProgressiveEnhancement();
