@@ -327,27 +327,42 @@ pub fn render_main_scripts() -> Markup {
         // Initialize WASM and load initial data (analytics page only)
         async function init() {
             // Gate: only run on analytics page to reduce TBT on others
-            const isAnalytics = document.getElementById('weightDistribution') || document.getElementById('dotsScatter');
+            const weightDist = document.getElementById('weightDistribution');
+            const dotsScatter = document.getElementById('dotsScatter');
+            const isAnalytics = weightDist && dotsScatter;
+
             if (!isAnalytics) {
+                console.log('📍 Not an analytics page, skipping heavy initialization');
                 return; // Skip heavy analytics initialization on non-analytics pages
             }
 
+            console.log('📊 Analytics page detected, initializing...');
+
             await initWasm();
-            // Defer loading Arrow and heavy work slightly to free the main thread
+            // Load analytics dependencies using lazy loader for performance
             setTimeout(async () => {
-                await loadArrow();
-                initWebSocket();
-                setupEquipmentFilters();
-                setupInputDebugger();
-                // Schedule chart rendering with a small delay to avoid long tasks during TTI window
-                setTimeout(() => {
-                    updateCharts();
-                    // Setup crossfiltering after charts are fully rendered and ready
+                try {
+                    await loadAnalyticsDependencies();
+                    initWebSocket();
+                    setupEquipmentFilters();
+                    setupInputDebugger();
+                    // Schedule chart rendering with a small delay to avoid long tasks during TTI window
                     setTimeout(() => {
-                        console.log('Setting up chart crossfiltering...');
-                        setupChartCrossfiltering();
-                    }, 2000);
-                }, 0);
+                        updateCharts();
+                        // Setup crossfiltering after charts are fully rendered and ready
+                        setTimeout(() => {
+                            console.log('Setting up chart crossfiltering...');
+                            setupChartCrossfiltering();
+                        }, 2000);
+                    }, 0);
+                } catch (error) {
+                    console.error('❌ Failed to load analytics dependencies:', error);
+                    // Show error message to user
+                    const container = document.querySelector('.main-content');
+                    if (container) {
+                        container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #dc3545;">Failed to load required dependencies. Please refresh the page.</div>';
+                    }
+                }
             }, 0);
         }
         

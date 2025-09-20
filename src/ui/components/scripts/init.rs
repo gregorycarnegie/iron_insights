@@ -57,26 +57,43 @@ pub fn render_init_scripts() -> Markup {
             }
         }
         
-        // Load Apache Arrow from bundled asset
-        let Arrow;
-        async function loadArrow() {
-            console.log('🔄 Loading Apache Arrow library...');
+        // Load analytics dependencies using lazy loader
+        let Arrow, Plotly;
+        async function loadAnalyticsDependencies() {
+            console.log('🔄 Loading analytics dependencies...');
             try {
-                console.log('🔄 Loading Arrow from bundled asset');
-                await loadScript('/static/js/dist/arrow.min.js');
-                if (typeof window.Arrow !== 'undefined') {
-                    Arrow = window.Arrow;
-                    console.log('✅ Apache Arrow library loaded successfully from bundled asset');
+                // Use the global lazy loader for consistent dependency management
+                if (typeof window.lazyLoader !== 'undefined') {
+                    const deps = await window.lazyLoader.loadAnalyticsDependencies();
+                    Arrow = deps.Arrow;
+                    Plotly = deps.Plotly;
+                    console.log('✅ Analytics dependencies loaded via lazy loader');
+                    return true;
+                } else {
+                    // Fallback if lazy loader isn't available
+                    console.log('⚠️ Lazy loader not available, falling back to direct loading');
+                    await loadArrowFallback();
+                    await loadPlotlyFallback();
                     return true;
                 }
-                throw new Error('Failed to load bundled Arrow library');
             } catch (error) {
-                console.error('❌ Failed to load Apache Arrow library:', error);
+                console.error('❌ Failed to load analytics dependencies:', error);
                 return false;
             }
         }
-        
-        // Helper function to load script
+
+        // Fallback loading functions
+        async function loadArrowFallback() {
+            await loadScript('/static/js/dist/arrow.min.js');
+            Arrow = window.Arrow;
+        }
+
+        async function loadPlotlyFallback() {
+            await loadScript('/static/js/dist/plotly.min.js');
+            Plotly = window.Plotly;
+        }
+
+        // Helper function to load script (kept for fallback)
         function loadScript(src) {
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');

@@ -20,8 +20,8 @@ pub fn render_head() -> Markup {
             link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="";
             link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet";
 
-            // Local bundled libraries (deferred to reduce TBT)
-            script src="/static/js/dist/plotly.min.js" charset="utf-8" defer {}
+            // Lazy loading module - loads first to enable on-demand loading
+            script src="/static/js/lazy-loader.js" defer {}
 
             // Inline critical CSS for faster initial paint
             style { (render_styles()) }
@@ -45,6 +45,9 @@ pub fn render_head_minimal() -> Markup {
             meta property="og:type" content="website";
 
             title { "Iron Insights - Professional Powerlifting Analytics" }
+
+            // Lazy loading module for optimal performance
+            script src="/static/js/lazy-loader.js" defer {}
 
             // Inline critical CSS only (system font stack used from base styles)
             style { (render_styles()) }

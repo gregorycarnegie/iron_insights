@@ -93,7 +93,17 @@ fn create_all_viz_data_batch(
     let bodyweight = df.column("BodyweightKg")?.f32()?;
     let raw_values = df.column(raw_col)?.f32()?;
     let dots_values = df.column(dots_col)?.f32()?;
-    let sex = df.column("Sex")?.str()?;
+    let sex_col = df.column("Sex")?;
+    let sex_series = match sex_col.dtype() {
+        DataType::String => sex_col.clone(),
+        DataType::Categorical(..) => sex_col.cast(&DataType::String)?,
+        other => {
+            return Err(PolarsError::ComputeError(
+                format!("unexpected dtype for Sex column: {:?}", other).into(),
+            ));
+        }
+    };
+    let sex = sex_series.str()?;
 
     // Collect valid data in single pass with safe access
     let mut valid_bw = Vec::new();
