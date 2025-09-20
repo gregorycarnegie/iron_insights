@@ -672,6 +672,3 @@ struct SampleLifter {
     deadlift: f32,
     total: f32,
 }
-
-
-
