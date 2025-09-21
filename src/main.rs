@@ -275,6 +275,3 @@ async fn handle_update_command() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
-
-

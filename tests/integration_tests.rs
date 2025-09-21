@@ -1,5 +1,6 @@
 // tests/integration_tests.rs - Integration tests moved from main.rs
 use std::sync::Arc;
+use polars::prelude::*;
 use iron_insights::{
     config::AppConfig,
     data::DataProcessor,
@@ -56,7 +57,6 @@ fn test_dots_calculation() {
 
 #[test]
 fn test_percentile_calculation() {
-    use polars::prelude::*;
 
     let df = df! {
         "TestColumn" => [100.0f32, 200.0, 300.0, 400.0, 500.0],
@@ -72,7 +72,6 @@ fn test_percentile_calculation() {
 
 #[tokio::test]
 async fn test_filter_pipeline() {
-    use polars::prelude::*;
 
     let df = df! {
         "Sex" => ["M", "F", "M"],
@@ -170,4 +169,132 @@ fn test_dots_coefficients() {
     // Heavier lifts should generally produce higher DOTS scores
     assert!(male_100kg_500total > male_80kg_400total);
     assert!(female_70kg_350total > female_60kg_300total);
+}
+
+#[test]
+fn test_filter_construction() {
+    use iron_insights::filters::apply_filters_lazy;
+
+    let params = FilterParams {
+        sex: Some("M".to_string()),
+        equipment: Some(vec!["Raw".to_string(), "Wraps".to_string()]),
+        weight_class: None,
+        squat: None,
+        bench: None,
+        deadlift: None,
+        bodyweight: Some(75.0),
+        units: None,
+        lift_type: None,
+        min_bodyweight: Some(60.0),
+        max_bodyweight: Some(90.0),
+        years_filter: None,
+    };
+
+    // Create sample DataFrame
+    let df = df! {
+        "Sex" => ["M", "F", "M"],
+        "Equipment" => ["Raw", "Single-ply", "Wraps"],
+        "Date" => ["2023-01-15", "2022-06-20", "2024-03-10"],
+        "BodyweightKg" => [75.0f32, 65.0, 85.0],
+        "Best3SquatKg" => [180.0f32, 120.0, 200.0],
+        "Best3BenchKg" => [120.0f32, 70.0, 140.0],
+        "Best3DeadliftKg" => [220.0f32, 140.0, 240.0],
+        "TotalKg" => [520.0f32, 330.0, 580.0],
+        "SquatDOTS" => [300.0f32, 280.0, 320.0],
+        "BenchDOTS" => [200.0f32, 160.0, 220.0],
+        "DeadliftDOTS" => [360.0f32, 320.0, 380.0],
+        "TotalDOTS" => [860.0f32, 760.0, 920.0],
+        "WeightClassKg" => ["74kg", "63kg", "83kg"],
+    }
+    .unwrap();
+
+    let result = apply_filters_lazy(&df, &params);
+    assert!(result.is_ok());
+
+    let filtered = result.unwrap().collect();
+    assert!(filtered.is_ok());
+
+    let df_filtered = filtered.unwrap();
+    // Should filter to only Male with Raw or Wraps equipment in 60-90kg range
+    assert!(df_filtered.height() <= 2); // At most 2 records match
+}
+
+#[test]
+fn test_date_filtering() {
+    use chrono::{Datelike, Utc};
+
+    // Create test data with various dates - simple version without DOTS validation
+    let current_year = Utc::now().year();
+    let df = df! {
+        "Date" => [
+            "2018-01-01",
+            "2022-06-15",
+            &format!("{}-01-01", current_year),
+            &format!("{}-12-01", current_year)
+        ],
+    }
+    .unwrap()
+    .lazy()
+    .with_columns([
+        // Convert Date strings to proper Date type for testing
+        col("Date")
+            .str()
+            .to_date(StrptimeOptions::default())
+            .alias("Date"),
+    ])
+    .collect()
+    .unwrap();
+
+    println!("Test data created with {} records", df.height());
+
+    // Test YTD filtering - direct filtering without apply_filters_lazy
+    let current_year = Utc::now().year();
+    let year_start = chrono::NaiveDate::from_ymd_opt(current_year, 1, 1).unwrap();
+
+    let filtered_ytd = df
+        .clone()
+        .lazy()
+        .filter(col("Date").gt_eq(lit(year_start)))
+        .collect()
+        .unwrap();
+
+    println!("YTD filter date: {}", year_start);
+    println!("YTD filtered records: {}", filtered_ytd.height());
+
+    // Should include 2024 records
+    assert!(filtered_ytd.height() >= 1);
+
+    // Test past 5 years filtering
+    let five_years_ago = Utc::now() - chrono::Duration::days(5 * 365);
+    let cutoff_date = five_years_ago.date_naive();
+
+    let filtered_5y = df
+        .clone()
+        .lazy()
+        .filter(col("Date").gt_eq(lit(cutoff_date)))
+        .collect()
+        .unwrap();
+
+    println!("5 years ago cutoff: {}", cutoff_date);
+    println!("Past 5 years filtered records: {}", filtered_5y.height());
+
+    // Should include records from past 5 years (2022 and 2024 records)
+    assert!(filtered_5y.height() >= 2);
+
+    // Test past 10 years filtering
+    let ten_years_ago = Utc::now() - chrono::Duration::days(10 * 365);
+    let cutoff_date_10y = ten_years_ago.date_naive();
+
+    let filtered_10y = df
+        .clone()
+        .lazy()
+        .filter(col("Date").gt_eq(lit(cutoff_date_10y)))
+        .collect()
+        .unwrap();
+
+    println!("10 years ago cutoff: {}", cutoff_date_10y);
+    println!("Past 10 years filtered records: {}", filtered_10y.height());
+
+    // Should include all records (2020, 2022, 2024)
+    assert!(filtered_10y.height() >= 3);
 }
