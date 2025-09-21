@@ -41,3 +41,8 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# Script files that should be cross-platform
+*.ps1
+*.bat
+*.cmd

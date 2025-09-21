@@ -137,14 +137,14 @@ For real data analysis, download the OpenPowerlifting dataset:
 ```text
 ┌─── Frontend (Lazy Loading) ───┐    ┌─── Backend (Hybrid Processing) ───┐
 │                               │    │                                   │
-│  📱 Progressive UI            │    │  🔄 Request Router                │
+│  📱 Progressive UI            │    │  🔄 Request Router               │
 │  ├─ Lazy script loading       │◄──►│  ├─ Simple queries → Polars       │
 │  ├─ Weight class filtering    │    │  ├─ Complex queries → DuckDB      │
 │  └─ Real-time WASM calcs      │    │  └─ Shared caching layer          │
 │                               │    │                                   │
-│  📊 Chart Libraries           │    │  📊 Data Processing               │
-│  ├─ Plotly.js (on-demand)     │    │  ├─ Polars (columnar)            │
-│  ├─ Arrow.js (on-demand)      │    │  ├─ DuckDB (SQL analytics)       │
+│  📊 Chart Libraries           │    │  📊 Data Processing              │
+│  ├─ Plotly.js (on-demand)     │    │  ├─ Polars (columnar)             │
+│  ├─ Arrow.js (on-demand)      │    │  ├─ DuckDB (SQL analytics)        │
 │  └─ Page-specific loading     │    │  └─ Apache Arrow (exchange)       │
 └───────────────────────────────┘    └───────────────────────────────────┘
 ```
