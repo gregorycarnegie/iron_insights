@@ -1,0 +1,11 @@
+# Allow generated WASM files to be committed
+# These are needed for WebAssembly functionality
+!iron_insights_wasm.js
+!iron_insights_wasm_bg.wasm
+!iron_insights_wasm.d.ts
+!iron_insights_wasm_bg.wasm.d.ts
+!package.json
+
+# But ignore any temporary build files
+*.tmp
+.wasm-pack*

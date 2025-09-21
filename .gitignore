@@ -2,9 +2,42 @@
 /data/*
 /.claude/
 
-# Node.js dependencies  
+# Node.js dependencies
 node_modules/
-package-lock.json
+# Keep package-lock.json for reproducible builds
 
 # Generated static assets (regenerated on build)
 static/js/dist/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Rust
+**/*.rs.bk
+*.pdb
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp

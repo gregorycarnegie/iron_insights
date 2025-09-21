@@ -1,0 +1,15 @@
+{
+  "name": "iron-insights-wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "iron_insights_wasm_bg.wasm",
+    "iron_insights_wasm.js",
+    "iron_insights_wasm.d.ts"
+  ],
+  "main": "iron_insights_wasm.js",
+  "types": "iron_insights_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
