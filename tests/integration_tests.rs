@@ -103,6 +103,7 @@ async fn test_filter_pipeline() {
         min_bodyweight: None,
         max_bodyweight: None,
         years_filter: None,
+        federation: None,
     };
 
     let filtered = apply_filters_lazy(&df, &params).unwrap().collect().unwrap();
@@ -188,6 +189,7 @@ fn test_filter_construction() {
         min_bodyweight: Some(60.0),
         max_bodyweight: Some(90.0),
         years_filter: None,
+        federation: None,
     };
 
     // Create sample DataFrame

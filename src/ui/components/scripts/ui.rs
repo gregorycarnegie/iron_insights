@@ -87,6 +87,30 @@ pub fn render_ui_scripts() -> Markup {
             }
         }
 
+        // Time period filter setup
+        function setupTimePeriodFilter() {
+            const timePeriodSelect = document.getElementById('timePeriod');
+            if (timePeriodSelect) {
+                timePeriodSelect.addEventListener('change', function(e) {
+                    currentTimePeriod = e.target.value;
+                    console.log('Time period changed to:', currentTimePeriod);
+                    updateCharts();
+                });
+            }
+        }
+
+        // Federation filter setup
+        function setupFederationFilter() {
+            const federationSelect = document.getElementById('federation');
+            if (federationSelect) {
+                federationSelect.addEventListener('change', function(e) {
+                    currentFederation = e.target.value;
+                    console.log('Federation changed to:', currentFederation);
+                    updateCharts();
+                });
+            }
+        }
+
         // Monitor input changes for debugging
         function setupInputDebugger() {
             const userLiftInput = document.getElementById('userLift');
@@ -216,6 +240,8 @@ pub fn render_ui_scripts() -> Markup {
             highlightActiveNav();
             setupEquipmentFilters();
             setupWeightClassFilter();
+            setupTimePeriodFilter();
+            setupFederationFilter();
             setupKeyboardNavigation();
             setupEscapeKeyHandling();
             setupProgressiveEnhancement();

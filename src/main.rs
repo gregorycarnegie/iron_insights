@@ -76,13 +76,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let start = std::time::Instant::now();
+
+    // Get the parquet file path for DuckDB before moving data_processor
+    let parquet_path = data_processor.get_parquet_path();
+
     let data =
         tokio::task::spawn_blocking(move || data_processor.load_and_preprocess_data()).await??;
     tracing::info!("📊 Data loaded in {:?}", start.elapsed());
 
     // Initialize DuckDB analytics engine with the Parquet file
     let duckdb_start = std::time::Instant::now();
-    let duckdb_analytics = match duckdb_analytics::DuckDBAnalytics::from_parquet("data/openpowerlifting.parquet") {
+    let duckdb_analytics = if let Some(parquet_path) = parquet_path {
+        match duckdb_analytics::DuckDBAnalytics::from_parquet(&parquet_path) {
         Ok(analytics) => {
             tracing::info!("🦆 DuckDB analytics engine initialized in {:?}", duckdb_start.elapsed());
             Some(analytics)
@@ -92,6 +97,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tracing::info!("📊 Continuing with Polars-only analytics...");
             None
         }
+        }
+    } else {
+        tracing::info!("📊 No parquet file found, continuing with Polars-only analytics...");
+        None
     };
 
     let mut state = AppState::new(Arc::new(data), config.cache_config());

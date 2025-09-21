@@ -1,8 +1,10 @@
 // data.rs - Simplified with better error handling
 use crate::scoring::{calculate_dots_expr, calculate_weight_class_expr};
-use polars::io::parquet::write::StatisticsOptions;
 use polars::datatypes::Categories;
+use polars::io::parquet::write::StatisticsOptions;
 use polars::prelude::*;
+use polars::chunked_array::ChunkedArray;
+use polars::datatypes::StringType;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -18,6 +20,11 @@ impl DataProcessor {
     pub fn with_sample_size(mut self, size: usize) -> Self {
         self.sample_size = size;
         self
+    }
+
+    /// Get the path to the most recent parquet file, if it exists
+    pub fn get_parquet_path(&self) -> Option<std::path::PathBuf> {
+        self.find_parquet_file()
     }
 
     pub fn load_and_preprocess_data(&self) -> PolarsResult<DataFrame> {
@@ -286,7 +293,50 @@ impl DataProcessor {
         let start = std::time::Instant::now();
 
         let pl_path = PlPathRef::from_local_path(path).into_owned();
-        let df = LazyFrame::scan_parquet(pl_path, ScanArgsParquet::default())?.collect()?;
+        let mut df = LazyFrame::scan_parquet(pl_path, ScanArgsParquet::default())?.collect()?;
+
+        let has_federation = df
+            .get_column_names()
+            .iter()
+            .any(|name| name.as_str() == "Federation");
+
+        if !has_federation {
+            println!(
+                "⚠️  Federation column missing in Parquet {:?}; attempting CSV refresh",
+                path.file_name()
+            );
+
+            if let Some(csv_path) = self.find_csv_file() {
+                match self.load_real_data(&csv_path) {
+                    Ok(df_from_csv) => {
+                        if let Err(e) = self.save_as_parquet(&df_from_csv, &csv_path) {
+                            println!(
+                                "⚠️  Failed to refresh Parquet with Federation column: {}",
+                                e
+                            );
+                        }
+                        return Ok(df_from_csv);
+                    }
+                    Err(e) => {
+                        println!(
+                            "⚠️  CSV refresh failed ({}); filling Federation with 'UNKNOWN'",
+                            e
+                        );
+                        let federation_series =
+                            ChunkedArray::<StringType>::full("Federation".into(), "UNKNOWN", df.height()).into_series();
+                        df.with_column(federation_series)?;
+                    }
+                }
+            } else {
+                println!(
+                    "⚠️  No CSV fallback available; filling Federation with 'UNKNOWN' for {} rows",
+                    df.height()
+                );
+                let federation_series =
+                    ChunkedArray::<StringType>::full("Federation".into(), "UNKNOWN", df.height()).into_series();
+                df.with_column(federation_series)?;
+            }
+        }
 
         let df = self.apply_sampling(df)?;
         self.validate_dots_data(&df);
@@ -315,6 +365,7 @@ impl DataProcessor {
             Field::new("Best3BenchKg".into(), DataType::Float32),
             Field::new("Best3DeadliftKg".into(), DataType::Float32),
             Field::new("TotalKg".into(), DataType::Float32),
+            Field::new("Federation".into(), DataType::String),
         ]);
 
         let pl_path = PlPathRef::from_local_path(path).into_owned();
@@ -336,6 +387,7 @@ impl DataProcessor {
                 col("Best3BenchKg"),
                 col("Best3DeadliftKg"),
                 col("TotalKg"),
+                col("Federation"),
             ])
             .filter(
                 col("Best3SquatKg")
@@ -363,6 +415,11 @@ impl DataProcessor {
                 col("Equipment")
                     .cast(DataType::from_categories(Categories::global()))
                     .alias("Equipment"),
+                col("Federation")
+                    .str()
+                    .to_uppercase()
+                    .cast(DataType::from_categories(Categories::global()))
+                    .alias("Federation"),
             ])
             .filter(
                 col("SquatDOTS")
@@ -564,6 +621,7 @@ struct SampleDataBuilder {
     benches: Vec<f32>,
     deadlifts: Vec<f32>,
     totals: Vec<f32>,
+    federations: Vec<String>,
 }
 
 impl SampleDataBuilder {
@@ -578,6 +636,7 @@ impl SampleDataBuilder {
             benches: Vec::with_capacity(capacity),
             deadlifts: Vec::with_capacity(capacity),
             totals: Vec::with_capacity(capacity),
+            federations: Vec::with_capacity(capacity),
         }
     }
 
@@ -607,6 +666,9 @@ impl SampleDataBuilder {
         let days_back = rng.random_range(0..3650); // 0-10 years back
         let date = chrono::Utc::now() - chrono::Duration::days(days_back);
 
+        let federations = ["IPF", "USAPL", "USPA", "WRPF", "PA", "GPC"];
+        let federation = federations[rng.random_range(0..federations.len())].to_string();
+
         SampleLifter {
             name: format!("Lifter{}", id),
             sex: sex.to_string(),
@@ -617,6 +679,7 @@ impl SampleDataBuilder {
             bench,
             deadlift,
             total,
+            federation,
         }
     }
 
@@ -630,6 +693,7 @@ impl SampleDataBuilder {
         self.benches.push(lifter.bench);
         self.deadlifts.push(lifter.deadlift);
         self.totals.push(lifter.total);
+        self.federations.push(lifter.federation);
     }
 
     fn build(self) -> PolarsResult<DataFrame> {
@@ -643,6 +707,7 @@ impl SampleDataBuilder {
             "Best3BenchKg" => self.benches,
             "Best3DeadliftKg" => self.deadlifts,
             "TotalKg" => self.totals,
+            "Federation" => self.federations,
         }?;
 
         // Add calculations step by step
@@ -671,4 +736,5 @@ struct SampleLifter {
     bench: f32,
     deadlift: f32,
     total: f32,
+    federation: String,
 }

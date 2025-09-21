@@ -42,6 +42,7 @@ pub fn render_main_scripts() -> Markup {
                 deadlift: currentLiftType === 'deadlift' ? userLift : null,
                 equipment: currentEquipment,
                 years_filter: currentTimePeriod,
+                federation: currentFederation,
                 weight_class: currentWeightClass !== 'All' ? currentWeightClass : null
             };
             
@@ -346,6 +347,9 @@ pub fn render_main_scripts() -> Markup {
                     await loadAnalyticsDependencies();
                     initWebSocket();
                     setupEquipmentFilters();
+                    setupWeightClassFilter();
+                    setupTimePeriodFilter();
+                    setupFederationFilter();
                     setupInputDebugger();
                     // Schedule chart rendering with a small delay to avoid long tasks during TTI window
                     setTimeout(() => {

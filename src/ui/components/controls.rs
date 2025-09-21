@@ -1,5 +1,6 @@
 // src/ui/components/controls.rs - Modern sidebar controls
 use maud::{Markup, html};
+use chrono::{self, Datelike};
 
 pub fn render_controls() -> Markup {
     html! {
@@ -129,10 +130,10 @@ pub fn render_controls() -> Markup {
 
                 div.control-group {
                     label for="timePeriod" { "Time Period" }
-                    select #timePeriod aria-describedby="time-period-help" {
+                    select #timePeriod name="timePeriod" aria-describedby="time-period-help" {
                         option value="all" { "All Time" }
-                        option value="2024" { "2024" }
-                        option value="2023" { "2023" }
+                        option value="current_year" { (chrono::Utc::now().year().to_string()) }
+                        option value="previous_year" { ((chrono::Utc::now().year() - 1).to_string()) }
                         option value="last_12_months" { "Last 12 Months" }
                         option value="last_5_years" selected { "Last 5 Years" }
                     }
@@ -141,7 +142,7 @@ pub fn render_controls() -> Markup {
 
                 div.control-group {
                     label for="federation" { "Federation" }
-                    select #federation aria-describedby="federation-help" {
+                    select #federation name="federation" aria-describedby="federation-help" {
                         option value="all" { "All Federations" }
                         option value="ipf" { "IPF" }
                         option value="usapl" { "USAPL" }

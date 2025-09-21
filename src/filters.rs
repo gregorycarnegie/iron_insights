@@ -3,6 +3,7 @@ use crate::models::{FilterParams, LiftType};
 use chrono::{self, Datelike};
 use lazy_static::lazy_static;
 use polars::prelude::*;
+use tracing::warn;
 
 // Pre-compiled filter expressions for maximum performance
 lazy_static! {
@@ -25,8 +26,13 @@ lazy_static! {
 
 /// Optimized lazy filtering with column pruning and pre-compiled expressions
 pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult<LazyFrame> {
+    let has_federation = df
+        .get_column_names()
+        .iter()
+        .any(|name| name.as_str() == "Federation");
+
     // Column pruning: only select required columns based on lift type
-    let required_cols = get_required_columns(params);
+    let required_cols = get_required_columns(params, has_federation);
 
     let mut lf = df.clone().lazy().select(required_cols); // Prune columns early for I/O efficiency
 
@@ -55,7 +61,7 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
     // Years filter using the Date column (parsed as dates)
     if let Some(years_filter) = &params.years_filter {
         match years_filter.as_str() {
-            "past_5_years" => {
+            "last_5_years" => {
                 // Filter to records from the past 5 years
                 let five_years_ago = chrono::Utc::now() - chrono::Duration::days(5 * 365);
                 let cutoff_date = five_years_ago.date_naive();
@@ -67,6 +73,26 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
                 let cutoff_date = ten_years_ago.date_naive();
                 lf = lf.filter(col("Date").gt_eq(lit(cutoff_date)));
             }
+            "last_12_months" => {
+                // Filter to records from the past 12 months
+                let twelve_months_ago = chrono::Utc::now() - chrono::Duration::days(365);
+                let cutoff_date = twelve_months_ago.date_naive();
+                lf = lf.filter(col("Date").gt_eq(lit(cutoff_date)));
+            }
+            "current_year" => {
+                // Filter to records from current year
+                let current_year = chrono::Utc::now().year();
+                let year_start = chrono::NaiveDate::from_ymd_opt(current_year, 1, 1).unwrap();
+                let year_end = chrono::NaiveDate::from_ymd_opt(current_year, 12, 31).unwrap();
+                lf = lf.filter(col("Date").gt_eq(lit(year_start)).and(col("Date").lt_eq(lit(year_end))));
+            }
+            "previous_year" => {
+                // Filter to records from previous year
+                let previous_year = chrono::Utc::now().year() - 1;
+                let year_start = chrono::NaiveDate::from_ymd_opt(previous_year, 1, 1).unwrap();
+                let year_end = chrono::NaiveDate::from_ymd_opt(previous_year, 12, 31).unwrap();
+                lf = lf.filter(col("Date").gt_eq(lit(year_start)).and(col("Date").lt_eq(lit(year_end))));
+            }
             "ytd" => {
                 // Filter to records from this year (Year To Date)
                 let current_year = chrono::Utc::now().year();
@@ -74,6 +100,17 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
                 lf = lf.filter(col("Date").gt_eq(lit(year_start)));
             }
             _ => {} // "all" or unknown - no filtering needed
+        }
+    }
+
+    // Federation filter
+    if let Some(federation) = &params.federation {
+        if federation != "all" {
+            if has_federation {
+                lf = lf.filter(col("Federation").eq(lit(federation.to_uppercase().as_str())));
+            } else {
+                warn!("Federation filter requested but backing data has no Federation column; skipping filter");
+            }
         }
     }
 
@@ -105,7 +142,7 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
 }
 
 /// Get minimal required columns based on parameters to reduce I/O
-fn get_required_columns(params: &FilterParams) -> Vec<Expr> {
+fn get_required_columns(params: &FilterParams, has_federation: bool) -> Vec<Expr> {
     let _lift_type = LiftType::from_str(params.lift_type.as_deref().unwrap_or("squat"));
 
     let mut cols = vec![
@@ -129,6 +166,14 @@ fn get_required_columns(params: &FilterParams) -> Vec<Expr> {
 
     if params.weight_class.is_some() {
         cols.push(col("WeightClassKg"));
+    }
+
+    if has_federation {
+        if let Some(federation) = params.federation.as_ref() {
+            if federation != "all" {
+                cols.push(col("Federation"));
+            }
+        }
     }
 
     // Return all required columns (duplicates handled by Polars)

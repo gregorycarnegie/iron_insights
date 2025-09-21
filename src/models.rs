@@ -55,7 +55,8 @@ pub struct FilterParams {
     pub lift_type: Option<String>, // "squat", "bench", "deadlift", "total"
     pub min_bodyweight: Option<f32>, // New: minimum bodyweight filter
     pub max_bodyweight: Option<f32>, // New: maximum bodyweight filter
-    pub years_filter: Option<String>, // New: "all", "past_5_years", "past_10_years", "ytd"
+    pub years_filter: Option<String>, // New: "all", "last_5_years", "past_10_years", "ytd", "current_year", "previous_year", "last_12_months"
+    pub federation: Option<String>, // New: "all", "ipf", "usapl", "uspa", "wrpf"
 }
 
 impl Default for FilterParams {
@@ -73,6 +74,7 @@ impl Default for FilterParams {
             min_bodyweight: None,
             max_bodyweight: None,
             years_filter: None,
+            federation: None,
         }
     }
 }
