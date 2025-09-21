@@ -179,10 +179,11 @@ mod tests {
         // Test that the expression can be created without panicking
         let expr = calculate_dots_expr("Best3SquatKg", "SquatDOTS");
 
-        // Basic test with sample data
+        // Basic test with sample data - needs Sex column for DOTS calculation
         let df = df! {
             "Best3SquatKg" => [180.0f32, 200.0, 220.0],
             "BodyweightKg" => [75.0f32, 85.0, 95.0],
+            "Sex" => ["M", "M", "M"],
         }
         .unwrap();
 
@@ -228,7 +229,8 @@ mod tests {
         let wc_values: Vec<&str> = wc_col.str().unwrap().into_no_null_iter().collect();
 
         // Check expected weight classes
-        assert_eq!(wc_values, vec!["74kg", "63kg", "120kg", "57kg"]);
+        // 75kg male -> 83kg class, 60kg female -> 63kg class, 105kg male -> 105kg class, 55kg female -> 57kg class
+        assert_eq!(wc_values, vec!["83kg", "63kg", "105kg", "57kg"]);
 
         println!("Weight class values: {:?}", wc_values);
     }
