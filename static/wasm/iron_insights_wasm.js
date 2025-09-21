@@ -25,7 +25,7 @@ function debugString(val) {
         return `"${val}"`;
     }
     if (type == 'symbol') {
-        const description = val.description;
+        const {description} = val;
         if (description == null) {
             return 'Symbol';
         } else {
@@ -33,7 +33,7 @@ function debugString(val) {
         }
     }
     if (type == 'function') {
-        const name = val.name;
+        const {name} = val;
         if (typeof name == 'string' && name.length > 0) {
             return `Function(${name})`;
         } else {
@@ -42,7 +42,7 @@ function debugString(val) {
     }
     // objects
     if (Array.isArray(val)) {
-        const length = val.length;
+        const {length} = val;
         let debug = '[';
         if (length > 0) {
             debug += debugString(val[0]);
@@ -159,7 +159,7 @@ const cachedTextDecoder = (typeof TextDecoder !== 'undefined' ? new TextDecoder(
 if (typeof TextDecoder !== 'undefined') { cachedTextDecoder.decode(); };
 
 function getStringFromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
+    ptr >>>= 0;
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
 }
 /**
@@ -169,8 +169,7 @@ function getStringFromWasm0(ptr, len) {
  * @returns {number}
  */
 export function calculate_dots(lift_kg, bodyweight_kg) {
-    const ret = wasm.calculate_dots(lift_kg, bodyweight_kg);
-    return ret;
+    return wasm.calculate_dots(lift_kg, bodyweight_kg);
 }
 
 /**
@@ -181,8 +180,7 @@ export function calculate_dots(lift_kg, bodyweight_kg) {
  * @returns {number}
  */
 export function calculate_dots_with_gender(lift_kg, bodyweight_kg, is_male) {
-    const ret = wasm.calculate_dots_with_gender(lift_kg, bodyweight_kg, is_male);
-    return ret;
+    return wasm.calculate_dots_with_gender(lift_kg, bodyweight_kg, is_male);
 }
 
 /**
@@ -193,8 +191,7 @@ export function calculate_dots_with_gender(lift_kg, bodyweight_kg, is_male) {
  * @returns {number}
  */
 export function calculate_wilks(lift_kg, bodyweight_kg, is_male) {
-    const ret = wasm.calculate_wilks(lift_kg, bodyweight_kg, is_male);
-    return ret;
+    return wasm.calculate_wilks(lift_kg, bodyweight_kg, is_male);
 }
 
 /**
@@ -205,8 +202,7 @@ export function calculate_wilks(lift_kg, bodyweight_kg, is_male) {
  * @returns {number}
  */
 export function calculate_ipf_gl_points(lift_kg, bodyweight_kg, is_male) {
-    const ret = wasm.calculate_ipf_gl_points(lift_kg, bodyweight_kg, is_male);
-    return ret;
+    return wasm.calculate_ipf_gl_points(lift_kg, bodyweight_kg, is_male);
 }
 
 /**
@@ -315,8 +311,7 @@ export function get_strength_level_color(level) {
  * @returns {any}
  */
 export function calculate_dots_and_level(lift_kg, bodyweight_kg) {
-    const ret = wasm.calculate_dots_and_level(lift_kg, bodyweight_kg);
-    return ret;
+    return wasm.calculate_dots_and_level(lift_kg, bodyweight_kg);
 }
 
 /**
@@ -329,8 +324,7 @@ export function calculate_dots_and_level(lift_kg, bodyweight_kg) {
 export function calculate_dots_and_level_for_lift(lift_kg, bodyweight_kg, lift_type) {
     const ptr0 = passStringToWasm0(lift_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.calculate_dots_and_level_for_lift(lift_kg, bodyweight_kg, ptr0, len0);
-    return ret;
+    return wasm.calculate_dots_and_level_for_lift(lift_kg, bodyweight_kg, ptr0, len0);
 }
 
 /**
@@ -344,8 +338,7 @@ export function calculate_dots_and_level_for_lift(lift_kg, bodyweight_kg, lift_t
 export function calculate_dots_and_level_for_lift_with_gender(lift_kg, bodyweight_kg, is_male, lift_type) {
     const ptr0 = passStringToWasm0(lift_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.calculate_dots_and_level_for_lift_with_gender(lift_kg, bodyweight_kg, is_male, ptr0, len0);
-    return ret;
+    return wasm.calculate_dots_and_level_for_lift_with_gender(lift_kg, bodyweight_kg, is_male, ptr0, len0);
 }
 
 /**
@@ -357,8 +350,7 @@ export function calculate_dots_and_level_for_lift_with_gender(lift_kg, bodyweigh
  * @returns {any}
  */
 export function calculate_all_scores(lift_kg, bodyweight_kg, is_male, percentile) {
-    const ret = wasm.calculate_all_scores(lift_kg, bodyweight_kg, is_male, percentile);
-    return ret;
+    return wasm.calculate_all_scores(lift_kg, bodyweight_kg, is_male, percentile);
 }
 
 async function __wbg_load(module, imports) {
@@ -396,12 +388,10 @@ function __wbg_get_imports() {
     const imports = {};
     imports.wbg = {};
     imports.wbg.__wbg_new_405e22f390576ce2 = function() {
-        const ret = new Object();
-        return ret;
+        return new Object();
     };
     imports.wbg.__wbg_set_bb8cecf6a62b9f46 = function() { return handleError(function (arg0, arg1, arg2) {
-        const ret = Reflect.set(arg0, arg1, arg2);
-        return ret;
+        return Reflect.set(arg0, arg1, arg2);
     }, arguments) };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {
         const ret = debugString(arg1);
@@ -421,12 +411,10 @@ function __wbg_get_imports() {
         ;
     };
     imports.wbg.__wbindgen_number_new = function(arg0) {
-        const ret = arg0;
-        return ret;
+        return arg0;
     };
     imports.wbg.__wbindgen_string_new = function(arg0, arg1) {
-        const ret = getStringFromWasm0(arg0, arg1);
-        return ret;
+        return getStringFromWasm0(arg0, arg1);
     };
     imports.wbg.__wbindgen_throw = function(arg0, arg1) {
         throw new Error(getStringFromWasm0(arg0, arg1));

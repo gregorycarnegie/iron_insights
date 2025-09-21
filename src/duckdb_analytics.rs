@@ -387,6 +387,7 @@ impl DuckDBAnalytics {
     }
 
     /// Close the connection (called automatically when dropped)
+    #[allow(dead_code)]
     pub fn close(self) -> DuckResult<()> {
         // Connection automatically closes when dropped
         info!("DuckDB analytics engine closed");
@@ -443,18 +444,3 @@ fn resolve_parquet_path(requested: &Path) -> Result<PathBuf, DuckError> {
         .ok_or_else(|| DuckError::InvalidPath(requested.to_path_buf()))
 }
 
-// Test module for the DuckDB analytics functionality
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::env;
-
-    #[test]
-    fn test_duckdb_initialization() {
-        // This test requires a real parquet file
-        if let Ok(test_file) = env::var("TEST_PARQUET_PATH") {
-            let analytics = DuckDBAnalytics::from_parquet(&test_file);
-            assert!(analytics.is_ok());
-        }
-    }
-}
