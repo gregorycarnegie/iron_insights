@@ -463,16 +463,25 @@ fn render_rankings_styles() -> Markup {
             }
 
             .rankings-table thead {
-                background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), rgba(var(--primary-rgb), 0.18));
+                background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.68), rgba(var(--primary-rgb), 0.52));
             }
 
             .rankings-table th {
-                color: var(--text-primary);
+                color: #fff;
                 white-space: nowrap;
+            }
+
+            .rankings-table tbody tr {
+                background: var(--surface);
+            }
+
+            .rankings-table tbody tr:nth-child(even) {
+                background: var(--surface-secondary);
             }
 
             .rankings-table td {
                 white-space: nowrap;
+                color: var(--text-primary);
             }
 
             .rankings-table .rank {
