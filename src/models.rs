@@ -79,6 +79,61 @@ impl Default for FilterParams {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RankingsParams {
+    pub page: Option<u32>,
+    pub per_page: Option<u32>,
+    pub sex: Option<String>,
+    pub equipment: Option<String>,
+    pub weight_class: Option<String>,
+    pub federation: Option<String>,
+    pub year: Option<u32>,
+    pub sort_by: Option<String>, // "dots", "total", "squat", "bench", "deadlift"
+}
+
+impl Default for RankingsParams {
+    fn default() -> Self {
+        Self {
+            page: Some(1),
+            per_page: Some(100),
+            sex: None,
+            equipment: None,
+            weight_class: None,
+            federation: None,
+            year: None,
+            sort_by: Some("dots".to_string()),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RankingEntry {
+    pub rank: u32,
+    pub name: String,
+    pub federation: String,
+    pub date: String,
+    pub sex: String,
+    pub equipment: String,
+    pub weight_class: String,
+    pub bodyweight: f32,
+    pub squat: f32,
+    pub bench: f32,
+    pub deadlift: f32,
+    pub total: f32,
+    pub dots: f32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RankingsResponse {
+    pub entries: Vec<RankingEntry>,
+    pub total_count: u32,
+    pub page: u32,
+    pub per_page: u32,
+    pub total_pages: u32,
+    pub has_next: bool,
+    pub has_prev: bool,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct VisualizationResponse {
     pub histogram_data: HistogramData,

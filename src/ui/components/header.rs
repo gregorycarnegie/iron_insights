@@ -27,7 +27,7 @@ pub fn render_header() -> Markup {
                     a href="/sharecard" { "Share Card" }
                     a href="/about" { "About" }
                     a href="/donate" { "Donate" }
-                    a href="#rankings" { "Rankings" }
+                    a href="/rankings" { "Rankings" }
 
                     button.mobile-menu-toggle onclick="toggleSidebar()" aria-label="Toggle mobile menu" aria-expanded="false" aria-controls="sidebar" {
                         svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" {

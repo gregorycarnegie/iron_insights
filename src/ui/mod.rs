@@ -8,6 +8,7 @@ pub mod about_page;
 pub mod donate_page;
 pub mod home_page;
 pub mod onerepmax_page;
+pub mod rankings_page;
 pub mod sharecard_page;
 
 /// Home page - landing page with overview
@@ -48,6 +49,14 @@ pub fn render_about() -> Markup {
 /// Donation page
 pub fn render_donate() -> Markup {
     donate_page::render_donate_page()
+}
+
+/// Rankings page
+pub fn render_rankings(
+    rankings: Option<&crate::models::RankingsResponse>,
+    params: &crate::models::RankingsParams
+) -> Markup {
+    rankings_page::render_rankings_page(rankings, params)
 }
 
 /// Share Card page (kept for convenience)

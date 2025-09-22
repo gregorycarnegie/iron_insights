@@ -2,7 +2,7 @@
 use axum::http::StatusCode;
 use axum::{
     body::Body,
-    extract::State,
+    extract::{Query, State},
     http::header,
     response::{Json, Response},
 };
@@ -19,7 +19,7 @@ use crate::{
     share_card::{CardTheme, ShareCardData, generate_themed_share_card_svg},
     ui::{
         render_about, render_analytics, render_donate, render_index, render_onerepmax,
-        render_sharecard,
+        render_rankings, render_sharecard,
     },
     viz::compute_viz,
 };
@@ -516,4 +516,57 @@ pub async fn get_summary_stats_duckdb(State(state): State<AppState>) -> Result<J
         "generated_at": chrono::Utc::now().to_rfc3339(),
         "engine": "duckdb"
     })))
+}
+
+/// Rankings page handler - serves the rankings UI
+#[instrument(skip(state))]
+pub async fn serve_rankings_page(
+    State(state): State<AppState>,
+    Query(params): Query<RankingsParams>,
+) -> Result<Markup, StatusCode> {
+    // If DuckDB is not available, show error page
+    let duckdb = state.duckdb.as_ref().ok_or_else(|| {
+        error!("DuckDB not available for rankings");
+        StatusCode::SERVICE_UNAVAILABLE
+    })?;
+
+    // Get rankings data from DuckDB
+    let rankings = tokio::task::spawn_blocking({
+        let duckdb = duckdb.clone();
+        let params = params.clone();
+        move || duckdb.get_rankings_from_full_dataset(&params)
+    }).await.map_err(|e| {
+        error!("Task join error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?.map_err(|e| {
+        error!("DuckDB rankings error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(render_rankings(Some(&rankings), &params))
+}
+
+/// Rankings API endpoint - returns JSON data
+#[instrument(skip(state))]
+pub async fn get_rankings_api(
+    State(state): State<AppState>,
+    Query(params): Query<RankingsParams>,
+) -> Result<Json<RankingsResponse>, StatusCode> {
+    let duckdb = state.duckdb.as_ref().ok_or_else(|| {
+        error!("DuckDB not available for rankings");
+        StatusCode::SERVICE_UNAVAILABLE
+    })?;
+
+    let rankings = tokio::task::spawn_blocking({
+        let duckdb = duckdb.clone();
+        move || duckdb.get_rankings_from_full_dataset(&params)
+    }).await.map_err(|e| {
+        error!("Task join error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?.map_err(|e| {
+        error!("DuckDB rankings API error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(rankings))
 }

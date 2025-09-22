@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use std::sync::Mutex;
 use tracing::{info, instrument};
+use crate::models::{RankingsParams, RankingsResponse, RankingEntry};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PercentileData {
@@ -384,6 +385,172 @@ impl DuckDBAnalytics {
         })?;
 
         Ok(row)
+    }
+
+    /// Get rankings from full dataset with pagination and filtering
+    #[instrument(skip(self))]
+    pub fn get_rankings_from_full_dataset(&self, params: &RankingsParams) -> DuckResult<RankingsResponse> {
+        let page = params.page.unwrap_or(1);
+        let per_page = params.per_page.unwrap_or(100).min(1000); // Cap at 1000 records per page
+        let sort_by = params.sort_by.as_deref().unwrap_or("dots");
+        let offset = (page - 1) * per_page;
+
+        info!("Getting rankings page {} (size: {}) sorted by {}", page, per_page, sort_by);
+
+        // Build WHERE clause conditions
+        let mut where_conditions = vec![
+            "TotalDOTS IS NOT NULL".to_string(),
+            "TotalDOTS > 0".to_string(),
+            "TotalDOTS < 1000".to_string(), // Filter outliers
+            "Best3SquatKg > 0".to_string(),
+            "Best3BenchKg > 0".to_string(),
+            "Best3DeadliftKg > 0".to_string(),
+            "TotalKg > 0".to_string(),
+        ];
+
+        let mut params_vec = Vec::new();
+
+        if let Some(sex) = &params.sex {
+            where_conditions.push("Sex = ?".to_string());
+            params_vec.push(sex.clone());
+        }
+
+        if let Some(equipment) = &params.equipment {
+            where_conditions.push("Equipment = ?".to_string());
+            params_vec.push(equipment.clone());
+        }
+
+        if let Some(weight_class) = &params.weight_class {
+            // Convert UI weight class format to DB format
+            let db_weight_class = if weight_class.ends_with('+') {
+                format!("{}kg+", weight_class.trim_end_matches('+'))
+            } else {
+                format!("{}kg", weight_class)
+            };
+            where_conditions.push("WeightClassKg = ?".to_string());
+            params_vec.push(db_weight_class);
+        }
+
+        if let Some(federation) = &params.federation {
+            where_conditions.push("Federation = ?".to_string());
+            params_vec.push(federation.to_uppercase());
+        }
+
+        if let Some(year) = params.year {
+            where_conditions.push("EXTRACT(YEAR FROM Date) = ?".to_string());
+            params_vec.push(year.to_string());
+        }
+
+        let where_clause = where_conditions.join(" AND ");
+
+        // Determine ORDER BY clause
+        let order_column = match sort_by {
+            "total" => "TotalKg",
+            "squat" => "Best3SquatKg",
+            "bench" => "Best3BenchKg",
+            "deadlift" => "Best3DeadliftKg",
+            _ => "TotalDOTS", // Default to DOTS
+        };
+
+        // Main query with ranking
+        let query = format!(r#"
+            WITH ranked_lifts AS (
+                SELECT
+                    ROW_NUMBER() OVER (ORDER BY {} DESC) as rank,
+                    Name,
+                    Federation,
+                    Date::VARCHAR as Date,
+                    Sex,
+                    Equipment,
+                    WeightClassKg,
+                    BodyweightKg,
+                    Best3SquatKg,
+                    Best3BenchKg,
+                    Best3DeadliftKg,
+                    TotalKg,
+                    TotalDOTS,
+                    COUNT(*) OVER() as total_count
+                FROM lifts
+                WHERE {}
+            )
+            SELECT
+                rank,
+                Name,
+                Federation,
+                Date,
+                Sex,
+                Equipment,
+                WeightClassKg,
+                BodyweightKg,
+                Best3SquatKg,
+                Best3BenchKg,
+                Best3DeadliftKg,
+                TotalKg,
+                TotalDOTS,
+                total_count
+            FROM ranked_lifts
+            WHERE rank > ? AND rank <= ?
+            ORDER BY rank
+        "#, order_column, where_clause);
+
+        // Add pagination parameters
+        params_vec.push(offset.to_string());
+        params_vec.push((offset + per_page).to_string());
+
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(&query)?;
+
+        let param_refs: Vec<&dyn duckdb::ToSql> = params_vec.iter().map(|s| s as &dyn duckdb::ToSql).collect();
+        let rows = stmt.query_map(&param_refs[..], |row| {
+            let total_count: i64 = row.get("total_count")?;
+
+            Ok((
+                RankingEntry {
+                    rank: row.get::<_, i64>("rank")? as u32,
+                    name: row.get("Name")?,
+                    federation: row.get("Federation")?,
+                    date: row.get("Date")?,
+                    sex: row.get("Sex")?,
+                    equipment: row.get("Equipment")?,
+                    weight_class: row.get::<_, String>("WeightClassKg")?.trim_end_matches("kg").to_string(),
+                    bodyweight: row.get::<_, f64>("BodyweightKg")? as f32,
+                    squat: row.get::<_, f64>("Best3SquatKg")? as f32,
+                    bench: row.get::<_, f64>("Best3BenchKg")? as f32,
+                    deadlift: row.get::<_, f64>("Best3DeadliftKg")? as f32,
+                    total: row.get::<_, f64>("TotalKg")? as f32,
+                    dots: row.get::<_, f64>("TotalDOTS")? as f32,
+                },
+                total_count as u32
+            ))
+        })?;
+
+        let mut entries = Vec::new();
+        let mut total_count = 0u32;
+
+        for row in rows {
+            let (entry, count) = row?;
+            total_count = count;
+            entries.push(entry);
+        }
+
+        let total_pages = if total_count > 0 {
+            (total_count + per_page - 1) / per_page
+        } else {
+            1
+        };
+
+        let response = RankingsResponse {
+            entries,
+            total_count,
+            page,
+            per_page,
+            total_pages,
+            has_next: page < total_pages,
+            has_prev: page > 1,
+        };
+
+        info!("Retrieved {} rankings entries (page {}/{})", response.entries.len(), page, total_pages);
+        Ok(response)
     }
 
     /// Close the connection (called automatically when dropped)
