@@ -1,10 +1,10 @@
 // data.rs - Simplified with better error handling
 use crate::scoring::{calculate_dots_expr, calculate_weight_class_expr};
+use polars::chunked_array::ChunkedArray;
 use polars::datatypes::Categories;
+use polars::datatypes::StringType;
 use polars::io::parquet::write::StatisticsOptions;
 use polars::prelude::*;
-use polars::chunked_array::ChunkedArray;
-use polars::datatypes::StringType;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -322,8 +322,12 @@ impl DataProcessor {
                             "⚠️  CSV refresh failed ({}); filling Federation with 'UNKNOWN'",
                             e
                         );
-                        let federation_series =
-                            ChunkedArray::<StringType>::full("Federation".into(), "UNKNOWN", df.height()).into_series();
+                        let federation_series = ChunkedArray::<StringType>::full(
+                            "Federation".into(),
+                            "UNKNOWN",
+                            df.height(),
+                        )
+                        .into_series();
                         df.with_column(federation_series)?;
                     }
                 }
@@ -333,7 +337,8 @@ impl DataProcessor {
                     df.height()
                 );
                 let federation_series =
-                    ChunkedArray::<StringType>::full("Federation".into(), "UNKNOWN", df.height()).into_series();
+                    ChunkedArray::<StringType>::full("Federation".into(), "UNKNOWN", df.height())
+                        .into_series();
                 df.with_column(federation_series)?;
             }
         }

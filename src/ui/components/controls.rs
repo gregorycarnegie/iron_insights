@@ -1,6 +1,6 @@
 // src/ui/components/controls.rs - Modern sidebar controls
-use maud::{Markup, html};
 use chrono::{self, Datelike};
+use maud::{Markup, html};
 
 pub fn render_controls() -> Markup {
     html! {

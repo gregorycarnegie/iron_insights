@@ -1,12 +1,12 @@
 // src/duckdb_analytics.rs - In-process SQL analytics engine for complex queries
+use crate::models::{RankingEntry, RankingsParams, RankingsResponse};
 use duckdb::{Connection, Error as DuckError, Result as DuckResult};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 use std::sync::Mutex;
+use std::time::SystemTime;
 use tracing::{info, instrument};
-use crate::models::{RankingsParams, RankingsResponse, RankingEntry};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PercentileData {
@@ -83,13 +83,18 @@ impl DuckDBAnalytics {
 
         // Create view from Parquet file (safe path handling)
         let safe_path = resolved_path.to_string_lossy().replace('\'', "''");
-        conn.execute(&format!(
-            "CREATE VIEW lifts AS SELECT * FROM read_parquet('{}')",
-            safe_path
-        ), [])?;
+        conn.execute(
+            &format!(
+                "CREATE VIEW lifts AS SELECT * FROM read_parquet('{}')",
+                safe_path
+            ),
+            [],
+        )?;
 
         info!("DuckDB analytics engine initialized successfully");
-        Ok(Self { conn: Mutex::new(conn) })
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
     }
 
     /// Calculate DOTS percentiles grouped by sex and equipment
@@ -164,7 +169,11 @@ impl DuckDBAnalytics {
             "bench" => "Best3BenchKg",
             "deadlift" => "Best3DeadliftKg",
             "total" => "TotalKg",
-            _ => return Err(duckdb::Error::InvalidColumnName("Invalid lift type".to_string())),
+            _ => {
+                return Err(duckdb::Error::InvalidColumnName(
+                    "Invalid lift type".to_string(),
+                ));
+            }
         };
 
         // Build weight class filter clause
@@ -179,7 +188,8 @@ impl DuckDBAnalytics {
             String::new()
         };
 
-        let query = format!(r#"
+        let query = format!(
+            r#"
             WITH filtered_data AS (
                 SELECT
                     {lift_column} as lift_weight,
@@ -221,7 +231,8 @@ impl DuckDBAnalytics {
             LEFT JOIN filtered_data fd ON fd.lift_weight >= b.bin_start AND fd.lift_weight < b.bin_end
             GROUP BY b.bin_idx, b.bin_start, b.bin_end
             ORDER BY b.bin_start
-        "#);
+        "#
+        );
 
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(&query)?;
@@ -272,7 +283,11 @@ impl DuckDBAnalytics {
             "bench" => "Best3BenchKg",
             "deadlift" => "Best3DeadliftKg",
             "total" => "TotalKg",
-            _ => return Err(duckdb::Error::InvalidColumnName("Invalid lift type".to_string())),
+            _ => {
+                return Err(duckdb::Error::InvalidColumnName(
+                    "Invalid lift type".to_string(),
+                ));
+            }
         };
 
         // Build weight class filter clause
@@ -287,7 +302,8 @@ impl DuckDBAnalytics {
             String::new()
         };
 
-        let query = format!(r#"
+        let query = format!(
+            r#"
             WITH filtered_lifts AS (
                 SELECT
                     {lift_column} as lift_weight,
@@ -324,36 +340,43 @@ impl DuckDBAnalytics {
                 total_competitors,
                 estimated_dots as dots_score
             FROM user_rank, user_dots
-        "#);
+        "#
+        );
 
         let equipment_str = equipment.join(",");
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(&query)?;
-        let row = stmt.query_row([
-            sex,
-            &user_lift.to_string(),
-            &user_lift.to_string(),
-            &user_bodyweight.to_string(),
-            sex,
-            &equipment_str,
-            lift_type,
-            &user_lift.to_string(),
-            &user_bodyweight.to_string(),
-        ], |row| {
-            Ok(CompetitiveAnalysis {
-                sex: row.get::<_, String>(0)?,
-                equipment: row.get::<_, String>(1)?,
-                lift_type: row.get::<_, String>(2)?,
-                user_lift: row.get::<_, f64>(3)?,
-                user_bodyweight: row.get::<_, f64>(4)?,
-                percentile: row.get::<_, f64>(5)?,
-                rank: row.get::<_, i64>(6)?,
-                total_competitors: row.get::<_, i64>(7)?,
-                dots_score: row.get::<_, f64>(8)?,
-            })
-        })?;
+        let row = stmt.query_row(
+            [
+                sex,
+                &user_lift.to_string(),
+                &user_lift.to_string(),
+                &user_bodyweight.to_string(),
+                sex,
+                &equipment_str,
+                lift_type,
+                &user_lift.to_string(),
+                &user_bodyweight.to_string(),
+            ],
+            |row| {
+                Ok(CompetitiveAnalysis {
+                    sex: row.get::<_, String>(0)?,
+                    equipment: row.get::<_, String>(1)?,
+                    lift_type: row.get::<_, String>(2)?,
+                    user_lift: row.get::<_, f64>(3)?,
+                    user_bodyweight: row.get::<_, f64>(4)?,
+                    percentile: row.get::<_, f64>(5)?,
+                    rank: row.get::<_, i64>(6)?,
+                    total_competitors: row.get::<_, i64>(7)?,
+                    dots_score: row.get::<_, f64>(8)?,
+                })
+            },
+        )?;
 
-        info!("Competitive analysis completed: {:.1}% percentile", row.percentile);
+        info!(
+            "Competitive analysis completed: {:.1}% percentile",
+            row.percentile
+        );
         Ok(row)
     }
 
@@ -389,13 +412,19 @@ impl DuckDBAnalytics {
 
     /// Get rankings from full dataset with pagination and filtering
     #[instrument(skip(self))]
-    pub fn get_rankings_from_full_dataset(&self, params: &RankingsParams) -> DuckResult<RankingsResponse> {
+    pub fn get_rankings_from_full_dataset(
+        &self,
+        params: &RankingsParams,
+    ) -> DuckResult<RankingsResponse> {
         let page = params.page.unwrap_or(1);
         let per_page = params.per_page.unwrap_or(100).min(1000); // Cap at 1000 records per page
         let sort_by = params.sort_by.as_deref().unwrap_or("dots");
         let offset = (page - 1) * per_page;
 
-        info!("Getting rankings page {} (size: {}) sorted by {}", page, per_page, sort_by);
+        info!(
+            "Getting rankings page {} (size: {}) sorted by {}",
+            page, per_page, sort_by
+        );
 
         // Build WHERE clause conditions
         let mut where_conditions = vec![
@@ -453,7 +482,8 @@ impl DuckDBAnalytics {
         };
 
         // Main query with ranking
-        let query = format!(r#"
+        let query = format!(
+            r#"
             WITH ranked_lifts AS (
                 SELECT
                     ROW_NUMBER() OVER (ORDER BY {} DESC) as rank,
@@ -491,7 +521,9 @@ impl DuckDBAnalytics {
             FROM ranked_lifts
             WHERE rank > ? AND rank <= ?
             ORDER BY rank
-        "#, order_column, where_clause);
+        "#,
+            order_column, where_clause
+        );
 
         // Add pagination parameters
         params_vec.push(offset.to_string());
@@ -500,7 +532,8 @@ impl DuckDBAnalytics {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(&query)?;
 
-        let param_refs: Vec<&dyn duckdb::ToSql> = params_vec.iter().map(|s| s as &dyn duckdb::ToSql).collect();
+        let param_refs: Vec<&dyn duckdb::ToSql> =
+            params_vec.iter().map(|s| s as &dyn duckdb::ToSql).collect();
         let rows = stmt.query_map(&param_refs[..], |row| {
             let total_count: i64 = row.get("total_count")?;
 
@@ -512,7 +545,10 @@ impl DuckDBAnalytics {
                     date: row.get("Date")?,
                     sex: row.get("Sex")?,
                     equipment: row.get("Equipment")?,
-                    weight_class: row.get::<_, String>("WeightClassKg")?.trim_end_matches("kg").to_string(),
+                    weight_class: row
+                        .get::<_, String>("WeightClassKg")?
+                        .trim_end_matches("kg")
+                        .to_string(),
                     bodyweight: row.get::<_, f64>("BodyweightKg")? as f32,
                     squat: row.get::<_, f64>("Best3SquatKg")? as f32,
                     bench: row.get::<_, f64>("Best3BenchKg")? as f32,
@@ -520,7 +556,7 @@ impl DuckDBAnalytics {
                     total: row.get::<_, f64>("TotalKg")? as f32,
                     dots: row.get::<_, f64>("TotalDOTS")? as f32,
                 },
-                total_count as u32
+                total_count as u32,
             ))
         })?;
 
@@ -549,7 +585,12 @@ impl DuckDBAnalytics {
             has_prev: page > 1,
         };
 
-        info!("Retrieved {} rankings entries (page {}/{})", response.entries.len(), page, total_pages);
+        info!(
+            "Retrieved {} rankings entries (page {}/{})",
+            response.entries.len(),
+            page,
+            total_pages
+        );
         Ok(response)
     }
 
@@ -568,12 +609,10 @@ fn resolve_parquet_path(requested: &Path) -> Result<PathBuf, DuckError> {
     }
 
     let parent = requested.parent().unwrap_or_else(|| Path::new("."));
-    let prefix = requested
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("");
+    let prefix = requested.file_stem().and_then(|s| s.to_str()).unwrap_or("");
 
-    let entries = fs::read_dir(parent).map_err(|_| DuckError::InvalidPath(requested.to_path_buf()))?;
+    let entries =
+        fs::read_dir(parent).map_err(|_| DuckError::InvalidPath(requested.to_path_buf()))?;
     let mut newest: Option<(SystemTime, PathBuf)> = None;
 
     for entry in entries.flatten() {
@@ -610,4 +649,3 @@ fn resolve_parquet_path(requested: &Path) -> Result<PathBuf, DuckError> {
         .map(|(_, path)| path)
         .ok_or_else(|| DuckError::InvalidPath(requested.to_path_buf()))
 }
-

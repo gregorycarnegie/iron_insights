@@ -27,4 +27,3 @@ pub fn percentile_rank(df: &DataFrame, col_name: &str, value: Option<f32>) -> Op
 
     Some(((below as f32 / n as f32) * 100.0).round())
 }
-

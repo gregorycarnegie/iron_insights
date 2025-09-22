@@ -1,15 +1,15 @@
 // tests/benchmarks.rs - Performance benchmarks moved from main.rs
 use axum::{Router, routing::get};
-use std::sync::Arc;
+use futures_util::{SinkExt, StreamExt};
 use iron_insights::{
     config::AppConfig,
     data::DataProcessor,
     handlers::{create_visualizations, create_visualizations_arrow},
     models::{AppState, FilterParams},
-    websocket::{WebSocketState, WebSocketMessage, websocket_handler},
+    websocket::{WebSocketMessage, WebSocketState, websocket_handler},
     websocket_arrow::{serialize_websocket_message_to_arrow, should_use_arrow_format},
 };
-use futures_util::{SinkExt, StreamExt};
+use std::sync::Arc;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message as WsMessage};
 
 /// Benchmark Arrow vs JSON API performance
@@ -127,8 +127,14 @@ async fn benchmark_arrow_vs_json() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("✅ Benchmark completed!");
 
     // Assert performance expectations
-    assert!(speed_improvement > 0.5, "Arrow should be reasonably performant compared to JSON");
-    assert!(size_reduction > -0.5, "Arrow shouldn't be dramatically larger than JSON");
+    assert!(
+        speed_improvement > 0.5,
+        "Arrow should be reasonably performant compared to JSON"
+    );
+    assert!(
+        size_reduction > -0.5,
+        "Arrow shouldn't be dramatically larger than JSON"
+    );
 
     Ok(())
 }
@@ -320,8 +326,14 @@ async fn benchmark_websocket_messages() -> Result<(), Box<dyn std::error::Error>
     );
 
     // Assert performance expectations
-    assert!(speed_improvement > 0.5, "Arrow WebSocket should be reasonably performant");
-    assert!(size_ratio < 2.0, "Arrow messages shouldn't be dramatically larger");
+    assert!(
+        speed_improvement > 0.5,
+        "Arrow WebSocket should be reasonably performant"
+    );
+    assert!(
+        size_ratio < 2.0,
+        "Arrow messages shouldn't be dramatically larger"
+    );
 
     Ok(())
 }

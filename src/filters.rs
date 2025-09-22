@@ -84,14 +84,22 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
                 let current_year = chrono::Utc::now().year();
                 let year_start = chrono::NaiveDate::from_ymd_opt(current_year, 1, 1).unwrap();
                 let year_end = chrono::NaiveDate::from_ymd_opt(current_year, 12, 31).unwrap();
-                lf = lf.filter(col("Date").gt_eq(lit(year_start)).and(col("Date").lt_eq(lit(year_end))));
+                lf = lf.filter(
+                    col("Date")
+                        .gt_eq(lit(year_start))
+                        .and(col("Date").lt_eq(lit(year_end))),
+                );
             }
             "previous_year" => {
                 // Filter to records from previous year
                 let previous_year = chrono::Utc::now().year() - 1;
                 let year_start = chrono::NaiveDate::from_ymd_opt(previous_year, 1, 1).unwrap();
                 let year_end = chrono::NaiveDate::from_ymd_opt(previous_year, 12, 31).unwrap();
-                lf = lf.filter(col("Date").gt_eq(lit(year_start)).and(col("Date").lt_eq(lit(year_end))));
+                lf = lf.filter(
+                    col("Date")
+                        .gt_eq(lit(year_start))
+                        .and(col("Date").lt_eq(lit(year_end))),
+                );
             }
             "ytd" => {
                 // Filter to records from this year (Year To Date)
@@ -109,7 +117,9 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
             if has_federation {
                 lf = lf.filter(col("Federation").eq(lit(federation.to_uppercase().as_str())));
             } else {
-                warn!("Federation filter requested but backing data has no Federation column; skipping filter");
+                warn!(
+                    "Federation filter requested but backing data has no Federation column; skipping filter"
+                );
             }
         }
     }

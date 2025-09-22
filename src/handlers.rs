@@ -366,7 +366,9 @@ impl From<crate::viz::VizData> for VisualizationResponse {
 
 /// DuckDB-powered percentile calculation endpoint
 #[instrument(skip(state))]
-pub async fn get_percentiles_duckdb(State(state): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
+pub async fn get_percentiles_duckdb(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
     let duckdb = state.duckdb.as_ref().ok_or_else(|| {
         error!("DuckDB not available");
         StatusCode::SERVICE_UNAVAILABLE
@@ -375,10 +377,13 @@ pub async fn get_percentiles_duckdb(State(state): State<AppState>) -> Result<Jso
     let percentiles = tokio::task::spawn_blocking({
         let duckdb = duckdb.clone();
         move || duckdb.calculate_dots_percentiles()
-    }).await.map_err(|e| {
+    })
+    .await
+    .map_err(|e| {
         error!("Task join error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
-    })?.map_err(|e| {
+    })?
+    .map_err(|e| {
         error!("DuckDB percentile calculation error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -413,11 +418,22 @@ pub async fn get_weight_distribution_duckdb(
         let sex = sex.to_string();
         let equipment = equipment.clone();
         let weight_class = weight_class.map(|s| s.to_string());
-        move || duckdb.calculate_weight_distribution(&lift_type, &sex, &equipment, bin_count, weight_class.as_deref())
-    }).await.map_err(|e| {
+        move || {
+            duckdb.calculate_weight_distribution(
+                &lift_type,
+                &sex,
+                &equipment,
+                bin_count,
+                weight_class.as_deref(),
+            )
+        }
+    })
+    .await
+    .map_err(|e| {
         error!("Task join error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
-    })?.map_err(|e| {
+    })?
+    .map_err(|e| {
         error!("DuckDB weight distribution calculation error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -457,10 +473,10 @@ pub async fn get_competitive_analysis_duckdb(
         "bench" => params.bench.unwrap_or(0.0) as f64,
         "deadlift" => params.deadlift.unwrap_or(0.0) as f64,
         "total" => {
-            (params.squat.unwrap_or(0.0) +
-             params.bench.unwrap_or(0.0) +
-             params.deadlift.unwrap_or(0.0)) as f64
-        },
+            (params.squat.unwrap_or(0.0)
+                + params.bench.unwrap_or(0.0)
+                + params.deadlift.unwrap_or(0.0)) as f64
+        }
         _ => return Err(StatusCode::BAD_REQUEST),
     };
 
@@ -476,11 +492,23 @@ pub async fn get_competitive_analysis_duckdb(
         let sex = sex.to_string();
         let equipment = equipment.clone();
         let weight_class = weight_class.map(|s| s.to_string());
-        move || duckdb.analyze_competitive_position(&lift_type, user_lift, user_bodyweight, &sex, &equipment, weight_class.as_deref())
-    }).await.map_err(|e| {
+        move || {
+            duckdb.analyze_competitive_position(
+                &lift_type,
+                user_lift,
+                user_bodyweight,
+                &sex,
+                &equipment,
+                weight_class.as_deref(),
+            )
+        }
+    })
+    .await
+    .map_err(|e| {
         error!("Task join error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
-    })?.map_err(|e| {
+    })?
+    .map_err(|e| {
         error!("DuckDB competitive analysis error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -494,7 +522,9 @@ pub async fn get_competitive_analysis_duckdb(
 
 /// DuckDB-powered summary statistics endpoint
 #[instrument(skip(state))]
-pub async fn get_summary_stats_duckdb(State(state): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
+pub async fn get_summary_stats_duckdb(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
     let duckdb = state.duckdb.as_ref().ok_or_else(|| {
         error!("DuckDB not available");
         StatusCode::SERVICE_UNAVAILABLE
@@ -503,10 +533,13 @@ pub async fn get_summary_stats_duckdb(State(state): State<AppState>) -> Result<J
     let stats = tokio::task::spawn_blocking({
         let duckdb = duckdb.clone();
         move || duckdb.get_summary_stats()
-    }).await.map_err(|e| {
+    })
+    .await
+    .map_err(|e| {
         error!("Task join error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
-    })?.map_err(|e| {
+    })?
+    .map_err(|e| {
         error!("DuckDB summary stats error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -535,10 +568,13 @@ pub async fn serve_rankings_page(
         let duckdb = duckdb.clone();
         let params = params.clone();
         move || duckdb.get_rankings_from_full_dataset(&params)
-    }).await.map_err(|e| {
+    })
+    .await
+    .map_err(|e| {
         error!("Task join error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
-    })?.map_err(|e| {
+    })?
+    .map_err(|e| {
         error!("DuckDB rankings error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -560,10 +596,13 @@ pub async fn get_rankings_api(
     let rankings = tokio::task::spawn_blocking({
         let duckdb = duckdb.clone();
         move || duckdb.get_rankings_from_full_dataset(&params)
-    }).await.map_err(|e| {
+    })
+    .await
+    .map_err(|e| {
         error!("Task join error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
-    })?.map_err(|e| {
+    })?
+    .map_err(|e| {
         error!("DuckDB rankings API error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;

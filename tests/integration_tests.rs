@@ -1,6 +1,4 @@
 // tests/integration_tests.rs - Integration tests moved from main.rs
-use std::sync::Arc;
-use polars::prelude::*;
 use iron_insights::{
     config::AppConfig,
     data::DataProcessor,
@@ -9,12 +7,13 @@ use iron_insights::{
     percentiles::percentile_rank,
     scoring::calculate_dots_score,
 };
+use polars::prelude::*;
+use std::sync::Arc;
 
 #[tokio::test]
 async fn test_sample_data_generation() {
     let processor = DataProcessor::new().with_sample_size(100);
-    let result =
-        tokio::task::spawn_blocking(move || processor.load_and_preprocess_data()).await;
+    let result = tokio::task::spawn_blocking(move || processor.load_and_preprocess_data()).await;
 
     assert!(result.is_ok());
     let df = result.unwrap().unwrap();
@@ -57,7 +56,6 @@ fn test_dots_calculation() {
 
 #[test]
 fn test_percentile_calculation() {
-
     let df = df! {
         "TestColumn" => [100.0f32, 200.0, 300.0, 400.0, 500.0],
     }
@@ -72,7 +70,6 @@ fn test_percentile_calculation() {
 
 #[tokio::test]
 async fn test_filter_pipeline() {
-
     let df = df! {
         "Sex" => ["M", "F", "M"],
         "Equipment" => ["Raw", "Single-ply", "Raw"],
@@ -145,7 +142,11 @@ fn test_weight_class_format_conversion() {
         } else {
             format!("{}kg", input)
         };
-        assert_eq!(result, expected, "Failed to convert '{}' to '{}'", input, expected);
+        assert_eq!(
+            result, expected,
+            "Failed to convert '{}' to '{}'",
+            input, expected
+        );
     }
 }
 

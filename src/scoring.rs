@@ -125,4 +125,3 @@ pub fn calculate_weight_class_expr() -> Expr {
         )
         .alias("WeightClassKg")
 }
-

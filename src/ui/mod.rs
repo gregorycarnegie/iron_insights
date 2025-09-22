@@ -54,7 +54,7 @@ pub fn render_donate() -> Markup {
 /// Rankings page
 pub fn render_rankings(
     rankings: Option<&crate::models::RankingsResponse>,
-    params: &crate::models::RankingsParams
+    params: &crate::models::RankingsParams,
 ) -> Markup {
     rankings_page::render_rankings_page(rankings, params)
 }

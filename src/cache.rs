@@ -65,4 +65,3 @@ pub struct CacheStats {
     pub weighted_size: u64,
     pub hit_rate: f32,
 }
-

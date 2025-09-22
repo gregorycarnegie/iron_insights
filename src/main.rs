@@ -49,7 +49,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return handle_update_command().await;
     }
 
-
     // Normal server startup
     tracing::info!(
         "🚀 Starting Iron Insights - High-Performance Powerlifting Analyzer with DOTS..."
@@ -88,15 +87,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let duckdb_start = std::time::Instant::now();
     let duckdb_analytics = if let Some(parquet_path) = parquet_path {
         match duckdb_analytics::DuckDBAnalytics::from_parquet(&parquet_path) {
-        Ok(analytics) => {
-            tracing::info!("🦆 DuckDB analytics engine initialized in {:?}", duckdb_start.elapsed());
-            Some(analytics)
-        }
-        Err(e) => {
-            tracing::warn!("⚠️  Could not initialize DuckDB: {}", e);
-            tracing::info!("📊 Continuing with Polars-only analytics...");
-            None
-        }
+            Ok(analytics) => {
+                tracing::info!(
+                    "🦆 DuckDB analytics engine initialized in {:?}",
+                    duckdb_start.elapsed()
+                );
+                Some(analytics)
+            }
+            Err(e) => {
+                tracing::warn!("⚠️  Could not initialize DuckDB: {}", e);
+                tracing::info!("📊 Continuing with Polars-only analytics...");
+                None
+            }
         }
     } else {
         tracing::info!("📊 No parquet file found, continuing with Polars-only analytics...");
@@ -148,8 +150,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/rankings", get(get_rankings_api))
         // DuckDB-powered analytics endpoints
         .route("/api/percentiles-duckdb", get(get_percentiles_duckdb))
-        .route("/api/weight-distribution-duckdb", axum::routing::post(get_weight_distribution_duckdb))
-        .route("/api/competitive-analysis-duckdb", axum::routing::post(get_competitive_analysis_duckdb))
+        .route(
+            "/api/weight-distribution-duckdb",
+            axum::routing::post(get_weight_distribution_duckdb),
+        )
+        .route(
+            "/api/competitive-analysis-duckdb",
+            axum::routing::post(get_competitive_analysis_duckdb),
+        )
         .route("/api/summary-stats-duckdb", get(get_summary_stats_duckdb))
         .route("/ws", get(websocket_handler))
         .nest_service("/static", ServeDir::new("static"))
@@ -189,9 +197,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "   {} convert <csv>      - Convert CSV to Parquet format for faster loading",
         args[0]
     );
-    tracing::info!(
-        "   cargo test benchmarks --ignored - Run performance benchmarks"
-    );
+    tracing::info!("   cargo test benchmarks --ignored - Run performance benchmarks");
 
     // Run both servers concurrently
     tokio::select! {
