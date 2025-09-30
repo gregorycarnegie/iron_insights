@@ -178,11 +178,11 @@ fn render_rankings_content(rankings: &RankingsResponse, params: &RankingsParams)
                             th { "Sex" }
                             th { "Eq" }
                             th { "Class" }
-                            th { "BW" }
-                            th { "Squat" }
-                            th { "Bench" }
-                            th { "Deadlift" }
-                            th { "Total" }
+                            th { "BW (Kg)" }
+                            th { "Squat (Kg)" }
+                            th { "Bench (Kg)" }
+                            th { "Deadlift (Kg)" }
+                            th { "Total (Kg)" }
                             th { "DOTS" }
                         }
                     }
