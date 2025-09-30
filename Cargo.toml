@@ -84,7 +84,6 @@ tower = "0.5.2"
 tower-http = { version = "0.6.6", features = ["fs", "compression-br", "compression-gzip", "trace"] }
 
 # HTTP/3 and QUIC support - basic QUIC without TLS complications
-# Using specific versions for compatibility - don't upgrade until v0.11.10
 quinn = { version = "0.11.9", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
 quinn-proto = "0.11.13"
 h3 = "0.0.8"

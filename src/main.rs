@@ -77,14 +77,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start = std::time::Instant::now();
 
     // Get the parquet file path for DuckDB before moving data_processor
-    let parquet_path = data_processor.get_parquet_path();
-
     let data =
         tokio::task::spawn_blocking(move || data_processor.load_and_preprocess_data()).await??;
     tracing::info!("📊 Data loaded in {:?}", start.elapsed());
 
     // Initialize DuckDB analytics engine with the Parquet file
     let duckdb_start = std::time::Instant::now();
+    let parquet_path = DataProcessor::new().get_parquet_path();
     let duckdb_analytics = if let Some(parquet_path) = parquet_path {
         match duckdb_analytics::DuckDBAnalytics::from_parquet(&parquet_path) {
             Ok(analytics) => {
