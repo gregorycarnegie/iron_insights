@@ -1,18 +1,18 @@
 [package]
 name = "iron-insights-wasm"
-version = "0.1.0"
-edition = "2021"
+version = "0.2.0"
+edition = "2024"
 
 [lib]
 crate-type = ["cdylib"]
 path = "lib.rs"
 
 [dependencies]
-wasm-bindgen = "0.2.100"
-js-sys = "0.3.77"
+wasm-bindgen = "0.2.104"
+js-sys = "0.3.81"
 
 [dependencies.web-sys]
-version = "0.3.77"
+version = "0.3.81"
 features = [
   "console",
 ]
