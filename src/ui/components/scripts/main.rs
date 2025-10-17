@@ -342,6 +342,7 @@ pub fn render_main_scripts() -> Markup {
 
             await initWasm();
             // Load analytics dependencies using lazy loader for performance
+            // Defer to avoid blocking main thread (changed from 0 to 100ms for better TTI)
             setTimeout(async () => {
                 try {
                     await loadAnalyticsDependencies();
@@ -351,7 +352,7 @@ pub fn render_main_scripts() -> Markup {
                     setupTimePeriodFilter();
                     setupFederationFilter();
                     setupInputDebugger();
-                    // Schedule chart rendering with a small delay to avoid long tasks during TTI window
+                    // Schedule chart rendering with a delay to avoid long tasks during TTI window
                     setTimeout(() => {
                         updateCharts();
                         // Setup crossfiltering after charts are fully rendered and ready
@@ -359,7 +360,7 @@ pub fn render_main_scripts() -> Markup {
                             console.log('Setting up chart crossfiltering...');
                             setupChartCrossfiltering();
                         }, 2000);
-                    }, 0);
+                    }, 100);
                 } catch (error) {
                     console.error('❌ Failed to load analytics dependencies:', error);
                     // Show error message to user
@@ -368,7 +369,7 @@ pub fn render_main_scripts() -> Markup {
                         container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #dc3545;">Failed to load required dependencies. Please refresh the page.</div>';
                     }
                 }
-            }, 0);
+            }, 100);
         }
         
         // Start the application when page loads

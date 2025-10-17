@@ -2,6 +2,22 @@ use maud::{Markup, PreEscaped};
 
 pub fn render_calculation_scripts() -> Markup {
     PreEscaped(r#"
+        // Batch DOTS calculation for improved performance
+        function batchCalculateDOTS(lifts) {
+            if (!calculate_dots_with_gender_wasm) {
+                // Fallback to individual calculations
+                return lifts.map(({lift, bw, sex}) =>
+                    calculateDOTS(lift, bw, sex)
+                );
+            }
+
+            // Use WASM for batch processing
+            return lifts.map(({lift, bw, sex}) => {
+                const isMale = sex === 'M' || sex === 'Male';
+                return calculate_dots_with_gender_wasm(lift, bw, isMale);
+            });
+        }
+
         // Helper function to calculate gender-specific DOTS score using WASM
         function calculateDOTS(liftKg, bodyweightKg, sex = null) {
             const sexValue = sex || currentSex;

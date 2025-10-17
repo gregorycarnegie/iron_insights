@@ -14,7 +14,9 @@ async fn test_cache_operations() {
     let stats = cache_stats(&state);
     assert_eq!(stats.entry_count, 0);
 
-    cleanup_expired(&state).await;
+    // Cache stats should be accessible
+    assert_eq!(stats.weighted_size, 0);
+    assert!(stats.hit_rate >= 0.0);
 }
 
 #[test]

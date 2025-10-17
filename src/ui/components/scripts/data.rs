@@ -2,26 +2,37 @@ use maud::{Markup, PreEscaped};
 
 pub fn render_data_scripts() -> Markup {
     PreEscaped(r#"
+        // Request deduplication map to avoid redundant network calls
+        const pendingRequests = new Map();
+
         // Function to fetch and parse comprehensive Arrow data
         async function fetchArrowData(params) {
+            const key = JSON.stringify(params);
+
+            // Return existing promise if request is in flight
+            if (pendingRequests.has(key)) {
+                console.log('🔄 Deduplicating request');
+                return pendingRequests.get(key);
+            }
             // Check if Arrow is available
             if (!Arrow || typeof Arrow.tableFromIPC !== 'function') {
                 throw new Error('Apache Arrow library not loaded or tableFromIPC not available');
             }
-            
-            try {
-                const response = await fetch('/api/visualize-arrow', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(params)
-                });
-                
-                if (!response.ok) {
-                    throw new Error('HTTP error! status: ' + response.status);
-                }
-                
-                const arrayBuffer = await response.arrayBuffer();
-                const uint8Array = new Uint8Array(arrayBuffer);
+
+            const promise = (async () => {
+                try {
+                    const response = await fetch('/api/visualize-arrow', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(params)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('HTTP error! status: ' + response.status);
+                    }
+
+                    const arrayBuffer = await response.arrayBuffer();
+                    const uint8Array = new Uint8Array(arrayBuffer);
                 
                 // Parse Arrow IPC stream
                 const table = Arrow.tableFromIPC(uint8Array);
@@ -87,13 +98,24 @@ pub fn render_data_scripts() -> Markup {
                     result.dots_histogram_data.max_val = Math.max(...result.dots_histogram_data.values);
                 }
                 
-                console.log('✅ Arrow IPC data parsed successfully:', result);
-                return result;
-                
-            } catch (error) {
-                console.error('❌ Arrow data fetch error:', error);
-                throw error;
-            }
+                    console.log('✅ Arrow IPC data parsed successfully:', result);
+                    return result;
+
+                } catch (error) {
+                    console.error('❌ Arrow data fetch error:', error);
+                    throw error;
+                }
+            })();
+
+            // Store the promise
+            pendingRequests.set(key, promise);
+
+            // Clean up after request completes
+            promise.finally(() => {
+                pendingRequests.delete(key);
+            });
+
+            return promise;
         }
     "#.to_string())
 }

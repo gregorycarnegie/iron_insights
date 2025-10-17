@@ -2,6 +2,24 @@ use maud::{Markup, PreEscaped};
 
 pub fn render_chart_scripts() -> Markup {
     PreEscaped(r#"
+        // Cache for chart configurations to avoid recreating them
+        const CHART_CONFIGS = new Map();
+
+        function getChartConfig(chartId, layout) {
+            const cacheKey = `${chartId}-${JSON.stringify(layout)}`;
+
+            if (!CHART_CONFIGS.has(cacheKey)) {
+                CHART_CONFIGS.set(cacheKey, {
+                    displayModeBar: false,
+                    staticPlot: false,
+                    responsive: true,
+                    webGlRenderer: true
+                });
+            }
+
+            return CHART_CONFIGS.get(cacheKey);
+        }
+
         function showError(chartId, message) {
             const errorElement = document.getElementById(chartId + 'Error');
             if (errorElement) {
@@ -18,24 +36,19 @@ pub fn render_chart_scripts() -> Markup {
         }
         
         function createPlot(chartId, traces, layout, errorMessage = 'No data available') {
-            if (!traces || traces.length === 0 || 
+            if (!traces || traces.length === 0 ||
                 (traces[0].x && traces[0].x.length === 0) ||
                 (traces[0].values && traces[0].values.length === 0)) {
                 showError(chartId, errorMessage);
                 hideChartSkeleton(chartId);
                 return false;
             }
-            
+
             hideError(chartId);
-            
-            // Enhanced Plotly config for GPU acceleration
-            const config = {
-                displayModeBar: false,
-                staticPlot: false,
-                responsive: true,
-                webGlRenderer: true
-            };
-            
+
+            // Use cached config for better performance
+            const config = getChartConfig(chartId, layout);
+
             try {
                 Plotly.react(chartId, traces, layout, config);
                 // Hide skeleton after successful chart render

@@ -135,6 +135,10 @@ pub struct PersonalRecord {
     pub timestamp: u64,
 }
 
+/// Reconnection backoff delays in seconds
+#[allow(dead_code)]
+const RECONNECT_BACKOFF: [u64; 6] = [1, 2, 5, 10, 30, 60];
+
 /// Shared WebSocket state
 #[derive(Clone)]
 pub struct WebSocketState {
@@ -160,6 +164,12 @@ impl WebSocketState {
             broadcaster: Arc::new(tx),
             stats: Arc::new(WebSocketStats::default()),
         }
+    }
+
+    /// Get reconnection delay based on attempt number
+    #[allow(dead_code)]
+    pub fn get_reconnect_delay(&self, attempt: usize) -> u64 {
+        *RECONNECT_BACKOFF.get(attempt).unwrap_or(&60)
     }
 
     /// Get current connection count

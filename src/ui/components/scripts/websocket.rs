@@ -10,20 +10,23 @@ pub fn render_websocket_scripts() -> Markup {
         let sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         let supportsArrow = checkArrowSupport(); // Detect Arrow.js support
         
+        // Exponential backoff delays (in milliseconds)
+        const BACKOFF_DELAYS = [1000, 2000, 5000, 10000, 30000, 60000];
+
         // Initialize WebSocket connection
         function initWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = protocol + '//' + window.location.host + '/ws';
-            
+
             try {
                 websocket = new WebSocket(wsUrl);
-                
+
                 websocket.onopen = function(event) {
                     console.log('🔗 WebSocket connected');
                     isConnected = true;
                     reconnectAttempts = 0;
                     updateConnectionStatus(true);
-                    
+
                     // Send connection message with Arrow support indication
                     const connectMsg = {
                         type: 'Connect',
@@ -33,7 +36,7 @@ pub fn render_websocket_scripts() -> Markup {
                     };
                     websocket.send(JSON.stringify(connectMsg));
                 };
-                
+
                 websocket.onmessage = function(event) {
                     try {
                         if (event.data instanceof ArrayBuffer) {
@@ -41,12 +44,12 @@ pub fn render_websocket_scripts() -> Markup {
                             if (supportsArrow) {
                                 console.log('📦 Received Arrow binary message:', event.data.byteLength, 'bytes');
                                 console.log('🚀 Arrow binary message received - 27x faster than JSON!');
-                                
+
                                 // For now, we'll acknowledge the Arrow message but can't deserialize it
                                 // without Arrow.js library. In a production environment, you'd add:
                                 // const table = arrow.Table.from(new Uint8Array(event.data));
                                 // handleWebSocketMessage(extractMessageFromArrowTable(table));
-                                
+
                                 // Temporary: Log that we received it successfully
                                 console.log('✅ Arrow message processed (deserialization pending Arrow.js integration)');
                             } else {
@@ -61,24 +64,27 @@ pub fn render_websocket_scripts() -> Markup {
                         console.error('Failed to parse WebSocket message:', error);
                     }
                 };
-                
+
                 websocket.onclose = function(event) {
                     console.log('🔌 WebSocket disconnected');
                     isConnected = false;
                     updateConnectionStatus(false);
-                    
-                    // Attempt to reconnect
+
+                    // Attempt to reconnect with exponential backoff
                     if (reconnectAttempts < maxReconnectAttempts) {
+                        const delay = BACKOFF_DELAYS[reconnectAttempts] || 60000;
                         reconnectAttempts++;
-                        console.log('🔄 Attempting to reconnect... (' + reconnectAttempts + '/' + maxReconnectAttempts + ')');
-                        setTimeout(initWebSocket, 2000 * reconnectAttempts);
+                        console.log('🔄 Reconnecting in ' + (delay/1000) + 's (attempt ' + reconnectAttempts + '/' + maxReconnectAttempts + ')');
+                        setTimeout(initWebSocket, delay);
+                    } else {
+                        console.log('❌ Max reconnection attempts reached');
                     }
                 };
-                
+
                 websocket.onerror = function(error) {
                     console.error('❌ WebSocket error:', error);
                 };
-                
+
             } catch (error) {
                 console.error('❌ Failed to initialize WebSocket:', error);
                 updateConnectionStatus(false);

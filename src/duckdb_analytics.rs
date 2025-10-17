@@ -2,9 +2,10 @@
 use crate::models::{RankingEntry, RankingsParams, RankingsResponse};
 use duckdb::{Connection, Error as DuckError, Result as DuckResult};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tracing::{info, instrument};
 
@@ -49,6 +50,9 @@ pub struct CompetitiveAnalysis {
 pub struct DuckDBAnalytics {
     // Mutex protects against concurrent access since DuckDB Connection is not Sync
     conn: Mutex<Connection>,
+    // Query result cache: cache_key -> (timestamp, serialized_result)
+    #[allow(dead_code)]
+    query_cache: Arc<Mutex<HashMap<String, (SystemTime, Vec<u8>)>>>,
 }
 
 impl DuckDBAnalytics {
@@ -94,7 +98,41 @@ impl DuckDBAnalytics {
         info!("DuckDB analytics engine initialized successfully");
         Ok(Self {
             conn: Mutex::new(conn),
+            query_cache: Arc::new(Mutex::new(HashMap::new())),
         })
+    }
+
+    /// Get cached query result if available and not expired (5 minutes TTL)
+    #[allow(dead_code)]
+    fn get_cached_query(&self, cache_key: &str) -> Option<Vec<u8>> {
+        let cache = self.query_cache.lock().ok()?;
+        if let Some((timestamp, data)) = cache.get(cache_key) {
+            // Cache for 5 minutes (300 seconds)
+            if timestamp.elapsed().ok()?.as_secs() < 300 {
+                info!("Cache hit for query: {}", cache_key);
+                return Some(data.clone());
+            }
+        }
+        None
+    }
+
+    /// Cache query result with timestamp
+    #[allow(dead_code)]
+    fn cache_query_result(&self, cache_key: String, data: Vec<u8>) {
+        if let Ok(mut cache) = self.query_cache.lock() {
+            cache.insert(cache_key, (SystemTime::now(), data));
+
+            // Limit cache size to 100 entries
+            if cache.len() > 100 {
+                // Remove oldest entries (first 20)
+                let mut entries: Vec<_> = cache.iter().map(|(k, (t, _))| (k.clone(), *t)).collect();
+                entries.sort_by_key(|(_, time)| *time);
+                for (key, _) in entries.iter().take(20) {
+                    cache.remove(key);
+                }
+                info!("Cache cleanup: removed 20 oldest entries");
+            }
+        }
     }
 
     /// Calculate DOTS percentiles grouped by sex and equipment

@@ -26,6 +26,13 @@ async function copyAssets(): Promise<void> {
     );
     console.log('✅ Copied arrow.min.js');
 
+    // Copy Service Worker to dist
+    await copyFile(
+      join(projectRoot, 'static', 'sw.js'),
+      join(projectRoot, 'dist', 'sw.js')
+    );
+    console.log('✅ Copied sw.js');
+
     console.log('🎉 All assets copied successfully!');
   } catch (error) {
     console.error('❌ Error copying assets:', error);
