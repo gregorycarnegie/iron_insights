@@ -176,7 +176,7 @@ src/
 │   │   ├── controls.rs       # User input controls (weight class dropdown)
 │   │   ├── head.rs           # HTML head with lazy loading setup
 │   │   ├── header.rs         # Page header
-│   │   ├── scripts/          # Modular TypeScript system
+│   │   ├── scripts/          # Modular JavaScript system
 │   │   │   ├── mod.rs            # Scripts module organization
 │   │   │   ├── init.rs           # WASM initialization & globals
 │   │   │   ├── main.rs           # Main updates & weight class handling
