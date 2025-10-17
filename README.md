@@ -5,7 +5,7 @@
 A blazing-fast web application for analyzing powerlifting performance data using modern DOTS scoring. Built with Rust, featuring a hybrid analytics stack (Polars + DuckDB), WebAssembly integration, and intelligent lazy loading for optimal performance.
 
 ![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)
-![JavaScript](https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E)
+![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
 ![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?style=for-the-badge&logo=WebAssembly&logoColor=white)
 ![Plotly](https://img.shields.io/badge/Plotly-3F4F75.svg?style=for-the-badge&logo=plotly&logoColor=white)
 ![DuckDB](https://img.shields.io/badge/DuckDB-FFF000.svg?style=for-the-badge&logo=duckdb&logoColor=black)
@@ -52,7 +52,8 @@ A blazing-fast web application for analyzing powerlifting performance data using
 ### ⚡ **Performance Optimizations**
 
 - **Hybrid Processing** - Polars for fast transforms, DuckDB for complex analytics
-- **Code Splitting** - Route-based JavaScript loading reduces initial bundle size
+- **Code Splitting** - Route-based TypeScript loading reduces initial bundle size
+- **Type Safety** - Full TypeScript integration for compile-time error checking
 - **Intelligent Caching** - Multi-tier caching with automatic invalidation
 - **Parallel Processing** - Multi-core histogram generation and calculations
 - **WebAssembly Integration** - Client-side calculations for instant UI feedback
@@ -80,7 +81,7 @@ A blazing-fast web application for analyzing powerlifting performance data using
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (1.70+)
-- [Bun](https://bun.sh/) (1.0+) - for building bundled JavaScript assets
+- [Bun](https://bun.sh/) (1.0+) - for building bundled TypeScript assets
 - Git
 
 ### Installation
@@ -92,7 +93,7 @@ A blazing-fast web application for analyzing powerlifting performance data using
    cd iron-insights
    ```
 
-2. **Build JavaScript assets**
+2. **Build TypeScript assets**
 
    ```bash
    bun install
@@ -175,7 +176,7 @@ src/
 │   │   ├── controls.rs       # User input controls (weight class dropdown)
 │   │   ├── head.rs           # HTML head with lazy loading setup
 │   │   ├── header.rs         # Page header
-│   │   ├── scripts/          # Modular JavaScript system
+│   │   ├── scripts/          # Modular TypeScript system
 │   │   │   ├── mod.rs            # Scripts module organization
 │   │   │   ├── init.rs           # WASM initialization & globals
 │   │   │   ├── main.rs           # Main updates & weight class handling
@@ -200,10 +201,15 @@ src/
 
 static/
 ├── js/
-│   ├── lazy-loader.js       # Smart script loading system
+│   ├── lazy-loader.ts       # Smart script loading system (TypeScript)
 │   └── dist/                # Bundled JavaScript libraries
 │       ├── plotly.min.js        # Plotly.js charts (loaded on-demand)
 │       └── arrow.min.js         # Apache Arrow data processing (on-demand)
+scripts/
+├── copy-assets.ts           # Asset copying build script (TypeScript)
+src/assets/
+├── arrow-entry.ts           # Apache Arrow entry point (TypeScript)
+└── plotly-entry.ts          # Plotly.js entry point (TypeScript)
 └── wasm/                # Compiled WebAssembly assets
     ├── iron_insights_wasm.js
     └── iron_insights_wasm_bg.wasm
@@ -212,7 +218,8 @@ static/
 ### 🧱 **Core Components**
 
 - **Hybrid Data Layer** - Polars for fast transforms + DuckDB for complex SQL analytics
-- **Lazy Loading System** - Smart JavaScript loading based on page requirements
+- **TypeScript Frontend** - Type-safe client-side code with full IntelliSense support
+- **Lazy Loading System** - Smart script loading based on page requirements
 - **Weight Class Engine** - Complete weight class filtering across both processing engines
 - **Scoring Engine** - Vectorized DOTS calculations (server + WebAssembly)
 - **Unified Cache Layer** - Shared caching between Polars and DuckDB
@@ -288,6 +295,7 @@ The system provides strength level classifications based on DOTS scores:
 - **Initial Page Load**: ~95% faster for non-analytics pages
 - **Analytics Page**: Libraries load only when chart elements are detected
 - **Memory Usage**: Reduced JavaScript memory footprint
+- **Type Safety**: TypeScript catches errors at compile-time, not runtime
 - **Cache Efficiency**: Better cache hit rates with smaller, focused loads
 
 ### 🔄 **Hybrid Processing Performance**
@@ -331,9 +339,10 @@ Weight classes are automatically calculated based on bodyweight:
 
 ### 🆕 **Major Features Added**
 
+- **TypeScript Migration**: Complete migration from JavaScript to TypeScript for type safety
 - **DuckDB Integration**: SQL-powered analytics engine for complex queries
 - **Weight Class Filtering**: Complete weight class support across all endpoints
-- **Lazy Loading**: Smart JavaScript loading system for optimal performance
+- **Lazy Loading**: Smart script loading system for optimal performance
 - **Hybrid Processing**: Intelligent routing between Polars and DuckDB engines
 
 ### 🔧 **Performance Improvements**
