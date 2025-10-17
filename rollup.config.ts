@@ -2,11 +2,12 @@ import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import terser from '@rollup/plugin-terser';
 import ignore from 'rollup-plugin-ignore';
+import type { RollupOptions } from 'rollup';
 
-export default [
+const config: RollupOptions[] = [
   // Plotly.js bundle
   {
-    input: 'src/assets/plotly-entry.js',
+    input: 'src/assets/plotly-entry.ts',
     output: {
       file: 'static/js/dist/plotly.min.js',
       format: 'iife',
@@ -27,7 +28,7 @@ export default [
   },
   // Apache Arrow bundle
   {
-    input: 'src/assets/arrow-entry.js',
+    input: 'src/assets/arrow-entry.ts',
     output: {
       file: 'static/js/dist/arrow.min.js',
       format: 'iife',
@@ -47,3 +48,5 @@ export default [
     ]
   }
 ];
+
+export default config;
