@@ -80,7 +80,7 @@ A blazing-fast web application for analyzing powerlifting performance data using
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (1.70+)
-- [Node.js](https://nodejs.org/) (18+) - for building bundled JavaScript assets
+- [Bun](https://bun.sh/) (1.0+) - for building bundled JavaScript assets
 - Git
 
 ### Installation
@@ -95,8 +95,8 @@ A blazing-fast web application for analyzing powerlifting performance data using
 2. **Build JavaScript assets**
 
    ```bash
-   npm install
-   npm run build
+   bun install
+   bun run build
    ```
 
 3. **Build and run**
