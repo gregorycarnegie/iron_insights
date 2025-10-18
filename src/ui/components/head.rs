@@ -21,7 +21,8 @@ pub fn render_head() -> Markup {
             link rel="dns-prefetch" href="https://cdnjs.cloudflare.com";
 
             // Critical resource hints for JavaScript modules
-            link rel="modulepreload" href="/static/wasm/iron_insights_wasm.js";
+            // Note: modulepreload removed for WASM to prevent premature preload warnings
+            // The WASM module is loaded on-demand after page load for better TTI
             link rel="modulepreload" href="/static/js/lazy-loader.js";
 
             // Font loading with display=swap for better performance

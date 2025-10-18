@@ -12,7 +12,6 @@ async function copyAssets(): Promise<void> {
   try {
     // Ensure output directory exists
     await mkdir(join(projectRoot, 'static', 'js', 'dist'), { recursive: true });
-    await mkdir(join(projectRoot, 'dist'), { recursive: true });
 
     // Create entry points for Plotly and Arrow if they don't exist
     const plotlyEntry = join(projectRoot, 'src', 'assets', 'plotly-entry.ts');
@@ -72,12 +71,8 @@ async function copyAssets(): Promise<void> {
     });
     console.log('✅ Lazy-loader compiled');
 
-    // Copy Service Worker to dist
-    await copyFile(
-      join(projectRoot, 'static', 'sw.js'),
-      join(projectRoot, 'dist', 'sw.js')
-    );
-    console.log('✅ Copied sw.js');
+    // Note: dist/sw.js is not needed - server serves directly from static/
+    // Removed unnecessary copy operation
 
     console.log('🎉 All assets built and bundled successfully with tree-shaking!');
   } catch (error) {

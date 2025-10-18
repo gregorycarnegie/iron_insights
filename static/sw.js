@@ -1,4 +1,6 @@
-const CACHE_NAME = 'iron-insights-v1';
+// Service Worker for Iron Insights
+// Cache version: increment to force cache invalidation
+const CACHE_NAME = 'iron-insights-v3';
 const STATIC_ASSETS = [
     '/',
     '/analytics',
