@@ -57,6 +57,14 @@ class LazyLoader {
       return Promise.resolve();
     }
 
+    // Check if script tag already exists in DOM
+    const existingScript = document.querySelector(`script[src="${src}"]`);
+    if (existingScript) {
+      console.log(`✅ Script already in DOM: ${src}`);
+      this.loadedScripts.add(src);
+      return Promise.resolve();
+    }
+
     console.log(`🔄 Loading script: ${src}`);
 
     const promise = new Promise<void>((resolve, reject) => {
@@ -283,12 +291,11 @@ window.lazyLoadOnVisible = function(element: Element, callback: () => void): voi
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🚀 Lazy loader initialized');
 
-  // Auto-load page dependencies based on detected page type
-  window.autoLoadPageDependencies().catch((error: unknown) => {
-    console.error('Failed to auto-load page dependencies:', error);
-    // Don't prevent page functionality if dependency loading fails
-  });
+  // Note: Auto-loading is disabled. Pages should explicitly load their dependencies.
+  // This prevents double-loading when both the lazy-loader and page-specific code
+  // try to load the same scripts.
+  // window.autoLoadPageDependencies().catch((error: unknown) => {
+  //   console.error('Failed to auto-load page dependencies:', error);
+  //   // Don't prevent page functionality if dependency loading fails
+  // });
 });
-
-// Export the class to make this a module (required for global augmentation)
-export default LazyLoader;

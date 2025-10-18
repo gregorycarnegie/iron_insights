@@ -160,6 +160,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/summary-stats-duckdb", get(get_summary_stats_duckdb))
         .route("/ws", get(websocket_handler))
         .nest_service("/static", ServeDir::new("static"))
+        // Optimized compression with Brotli, Gzip, and Zstd support
+        // By default, CompressionLayer enables all compression algorithms (br, gzip, zstd, deflate)
+        // The client's Accept-Encoding header determines which one is used
         .layer(CompressionLayer::new())
         .layer(tower_http::trace::TraceLayer::new_for_http()) // Add tracing layer
         .with_state(state.clone());
@@ -213,7 +216,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// Middleware to add Alt-Svc header for HTTP/3 discovery
+// Middleware to add Alt-Svc header for HTTP/3 discovery and resource hints
 async fn add_alt_svc_header(request: Request, next: middleware::Next) -> Response {
     let mut response = next.run(request).await;
 
@@ -221,6 +224,18 @@ async fn add_alt_svc_header(request: Request, next: middleware::Next) -> Respons
     response
         .headers_mut()
         .insert("Alt-Svc", "h3=\":3443\"; ma=86400".parse().unwrap());
+
+    // Add Link header for HTTP/2 Server Push hints for critical resources
+    // Browsers will preload these resources for better performance
+    let link_header = concat!(
+        "</static/wasm/iron_insights_wasm_bg.wasm>; rel=preload; as=fetch; crossorigin, ",
+        "</static/wasm/iron_insights_wasm.js>; rel=modulepreload, ",
+        "</static/js/lazy-loader.js>; rel=modulepreload"
+    );
+
+    response
+        .headers_mut()
+        .insert("Link", link_header.parse().unwrap());
 
     response
 }

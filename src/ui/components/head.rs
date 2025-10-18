@@ -19,7 +19,12 @@ pub fn render_head() -> Markup {
             link rel="preconnect" href="https://fonts.googleapis.com";
             link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="";
             link rel="dns-prefetch" href="https://cdnjs.cloudflare.com";
-            link rel="preload" href="/static/wasm/iron_insights_wasm.js" as="script";
+
+            // Critical resource hints for JavaScript modules
+            link rel="modulepreload" href="/static/wasm/iron_insights_wasm.js";
+            link rel="modulepreload" href="/static/js/lazy-loader.js";
+
+            // Font loading with display=swap for better performance
             link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet";
 
             // Lazy loading module - loads first to enable on-demand loading

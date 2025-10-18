@@ -81,9 +81,16 @@ impl DuckDBAnalytics {
         let cpu_count = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4);
+
+        // Set optimal pragmas for performance
         conn.execute(&format!("PRAGMA threads = {}", cpu_count), [])?;
         conn.execute("PRAGMA enable_object_cache = true", [])?;
-        conn.execute("PRAGMA memory_limit = '8GB'", [])?;
+        conn.execute("PRAGMA memory_limit = '4GB'", [])?; // Lower from 8GB for better stability
+        conn.execute("PRAGMA max_memory = '4GB'", [])?;
+        conn.execute("PRAGMA temp_directory = './tmp/duckdb'", [])?; // Use local temp directory
+
+        // Enable query optimization hints
+        conn.execute("PRAGMA preserve_insertion_order = false", [])?; // Allow reordering for optimization
 
         // Create view from Parquet file (safe path handling)
         let safe_path = resolved_path.to_string_lossy().replace('\'', "''");

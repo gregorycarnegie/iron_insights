@@ -1,7 +1,8 @@
-import { copyFile, mkdir } from 'fs/promises';
+import { copyFile, mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { build } from 'esbuild';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -11,20 +12,65 @@ async function copyAssets(): Promise<void> {
   try {
     // Ensure output directory exists
     await mkdir(join(projectRoot, 'static', 'js', 'dist'), { recursive: true });
+    await mkdir(join(projectRoot, 'dist'), { recursive: true });
 
-    // Copy Plotly.js
-    await copyFile(
-      join(projectRoot, 'node_modules', 'plotly.js-dist-min', 'plotly.min.js'),
-      join(projectRoot, 'static', 'js', 'dist', 'plotly.min.js')
-    );
-    console.log('✅ Copied plotly.min.js');
+    // Create entry points for Plotly and Arrow if they don't exist
+    const plotlyEntry = join(projectRoot, 'src', 'assets', 'plotly-entry.ts');
+    const arrowEntry = join(projectRoot, 'src', 'assets', 'arrow-entry.ts');
 
-    // Copy Apache Arrow
-    await copyFile(
-      join(projectRoot, 'node_modules', 'apache-arrow', 'Arrow.es2015.min.js'),
-      join(projectRoot, 'static', 'js', 'dist', 'arrow.min.js')
-    );
-    console.log('✅ Copied arrow.min.js');
+    await mkdir(join(projectRoot, 'src', 'assets'), { recursive: true });
+
+    // Create Plotly entry point with tree-shaking
+    await writeFile(plotlyEntry, `export * from 'plotly.js-dist-min';`);
+
+    // Create Arrow entry point with tree-shaking
+    await writeFile(arrowEntry, `export * from 'apache-arrow';`);
+
+    console.log('🔨 Building optimized Plotly bundle...');
+    await build({
+      entryPoints: [plotlyEntry],
+      bundle: true,
+      minify: true,
+      treeShaking: true,
+      format: 'iife',
+      globalName: '__PlotlyTemp',  // Use temp name
+      outfile: join(projectRoot, 'static', 'js', 'dist', 'plotly.min.js'),
+      external: [],
+      target: 'es2015',
+      logLevel: 'info',
+      banner: { js: 'if (!window.Plotly) {' },  // Guard against double execution
+      footer: { js: 'window.Plotly = __PlotlyTemp; }' }  // Assign and close guard
+    });
+    console.log('✅ Plotly bundle optimized');
+
+    console.log('🔨 Building optimized Arrow bundle...');
+    await build({
+      entryPoints: [arrowEntry],
+      bundle: true,
+      minify: true,
+      treeShaking: true,
+      format: 'iife',
+      globalName: '__ArrowTemp',  // Use temp name
+      outfile: join(projectRoot, 'static', 'js', 'dist', 'arrow.min.js'),
+      external: [],
+      target: 'es2015',
+      logLevel: 'info',
+      banner: { js: 'if (!window.Arrow) {' },  // Guard against double execution
+      footer: { js: 'window.Arrow = __ArrowTemp; }' }  // Assign and close guard
+    });
+    console.log('✅ Arrow bundle optimized');
+
+    console.log('🔨 Building lazy-loader...');
+    await build({
+      entryPoints: [join(projectRoot, 'static', 'js', 'lazy-loader.ts')],
+      bundle: false,
+      minify: false,
+      outfile: join(projectRoot, 'static', 'js', 'lazy-loader.js'),
+      target: 'es2020',
+      logLevel: 'info',
+      platform: 'browser'
+    });
+    console.log('✅ Lazy-loader compiled');
 
     // Copy Service Worker to dist
     await copyFile(
@@ -33,9 +79,9 @@ async function copyAssets(): Promise<void> {
     );
     console.log('✅ Copied sw.js');
 
-    console.log('🎉 All assets copied successfully!');
+    console.log('🎉 All assets built and bundled successfully with tree-shaking!');
   } catch (error) {
-    console.error('❌ Error copying assets:', error);
+    console.error('❌ Error building assets:', error);
     process.exit(1);
   }
 }

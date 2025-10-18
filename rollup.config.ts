@@ -11,17 +11,23 @@ const config: RollupOptions[] = [
     output: {
       file: 'static/js/dist/plotly.min.js',
       format: 'iife',
-      name: 'Plotly',
-      sourcemap: false
+      name: '__PlotlyTemp',  // Temporary name to avoid conflicts
+      sourcemap: false,
+      banner: 'if (!window.Plotly) {',  // Guard: only execute if Plotly doesn't exist
+      footer: 'window.Plotly = __PlotlyTemp; }',  // Assign to window.Plotly
+      globals: {}
     },
     plugins: [
-      ignore(['*.css', '*.scss', '*.sass']),
+      ignore(['*.css', '*.scss', '*.scss', '*.sass']),
       nodeResolve({ browser: true, preferBuiltins: false }),
       commonjs(),
       terser({
         compress: {
           drop_console: true,
           drop_debugger: true
+        },
+        mangle: {
+          reserved: ['Plotly', '__PlotlyTemp']
         }
       })
     ]
@@ -32,8 +38,11 @@ const config: RollupOptions[] = [
     output: {
       file: 'static/js/dist/arrow.min.js',
       format: 'iife',
-      name: 'Arrow',
-      sourcemap: false
+      name: '__ArrowTemp',  // Temporary name to avoid conflicts
+      sourcemap: false,
+      banner: 'if (!window.Arrow) {',  // Guard: only execute if Arrow doesn't exist
+      footer: 'window.Arrow = __ArrowTemp; }',  // Assign to window.Arrow
+      globals: {}
     },
     plugins: [
       ignore(['*.css', '*.scss', '*.sass']),
@@ -43,6 +52,9 @@ const config: RollupOptions[] = [
         compress: {
           drop_console: true,
           drop_debugger: true
+        },
+        mangle: {
+          reserved: ['Arrow', '__ArrowTemp']
         }
       })
     ]

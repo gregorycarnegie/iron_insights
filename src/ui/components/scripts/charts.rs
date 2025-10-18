@@ -35,6 +35,9 @@ pub fn render_chart_scripts() -> Markup {
             }
         }
         
+        // Use requestAnimationFrame for chart updates to optimize rendering
+        let chartUpdateFrames = new Map();
+
         function createPlot(chartId, traces, layout, errorMessage = 'No data available') {
             if (!traces || traces.length === 0 ||
                 (traces[0].x && traces[0].x.length === 0) ||
@@ -46,20 +49,32 @@ pub fn render_chart_scripts() -> Markup {
 
             hideError(chartId);
 
-            // Use cached config for better performance
-            const config = getChartConfig(chartId, layout);
-
-            try {
-                Plotly.react(chartId, traces, layout, config);
-                // Hide skeleton after successful chart render
-                hideChartSkeleton(chartId);
-                return true;
-            } catch (error) {
-                console.error('Error creating plot:', error);
-                showError(chartId, 'Failed to render chart');
-                hideChartSkeleton(chartId);
-                return false;
+            // Cancel any pending chart update for this chart
+            if (chartUpdateFrames.has(chartId)) {
+                cancelAnimationFrame(chartUpdateFrames.get(chartId));
             }
+
+            // Use requestAnimationFrame for smooth rendering
+            const frameId = requestAnimationFrame(() => {
+                // Use cached config for better performance
+                const config = getChartConfig(chartId, layout);
+
+                try {
+                    // Use Plotly.react for efficient updates (reuses existing DOM)
+                    Plotly.react(chartId, traces, layout, config);
+                    // Hide skeleton after successful chart render
+                    hideChartSkeleton(chartId);
+                    chartUpdateFrames.delete(chartId);
+                } catch (error) {
+                    console.error('Error creating plot:', error);
+                    showError(chartId, 'Failed to render chart');
+                    hideChartSkeleton(chartId);
+                    chartUpdateFrames.delete(chartId);
+                }
+            });
+
+            chartUpdateFrames.set(chartId, frameId);
+            return true;
         }
 
         function hideChartSkeleton(chartId) {
@@ -136,19 +151,29 @@ pub fn render_chart_scripts() -> Markup {
         }
 
         // Crossfilter-style chart linking functionality
+        let crossfilteringSetupAttempts = 0;
+        const MAX_CROSSFILTERING_ATTEMPTS = 10; // Maximum 10 seconds of retries
+
         function setupChartCrossfiltering() {
             const chartIds = ['weightDistribution', 'dotsDistribution', 'bodyweightScatter', 'dotsScatter'];
+            let allChartsReady = true;
+            let readyCount = 0;
 
             chartIds.forEach(chartId => {
                 const chartElement = document.getElementById(chartId);
                 if (!chartElement || !chartElement._fullLayout) {
-                    console.log(`Chart ${chartId} not ready for crossfiltering, retrying...`);
-                    setTimeout(() => setupChartCrossfiltering(), 1000);
+                    allChartsReady = false;
                     return;
                 }
+                readyCount++;
 
                 // Add selection event handlers using Plotly's event system
                 try {
+                    // Remove existing listeners to avoid duplicates
+                    chartElement.removeAllListeners && chartElement.removeAllListeners('plotly_selected');
+                    chartElement.removeAllListeners && chartElement.removeAllListeners('plotly_deselect');
+                    chartElement.removeAllListeners && chartElement.removeAllListeners('plotly_relayout');
+
                     chartElement.on('plotly_selected', function(eventData) {
                         handleChartSelection(chartId, eventData);
                     });
@@ -169,6 +194,21 @@ pub fn render_chart_scripts() -> Markup {
                     console.error(`Failed to setup crossfiltering for ${chartId}:`, error);
                 }
             });
+
+            // Retry logic with maximum attempts
+            if (!allChartsReady) {
+                crossfilteringSetupAttempts++;
+
+                if (crossfilteringSetupAttempts < MAX_CROSSFILTERING_ATTEMPTS) {
+                    console.log(`Charts not ready for crossfiltering (${readyCount}/${chartIds.length} ready), retrying... (attempt ${crossfilteringSetupAttempts}/${MAX_CROSSFILTERING_ATTEMPTS})`);
+                    setTimeout(() => setupChartCrossfiltering(), 1000);
+                } else {
+                    console.warn(`⚠️ Crossfiltering setup timed out after ${MAX_CROSSFILTERING_ATTEMPTS} attempts. ${readyCount}/${chartIds.length} charts ready.`);
+                }
+            } else {
+                console.log(`✅ All ${chartIds.length} charts ready for crossfiltering`);
+                crossfilteringSetupAttempts = 0; // Reset for future calls
+            }
         }
 
         function handleChartSelection(sourceChartId, eventData) {

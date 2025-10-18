@@ -22,7 +22,7 @@ pub struct VizData {
     pub processing_time_ms: u64,
 }
 
-/// Optimized compute function with zero-copy batch processing
+/// Optimized compute function with zero-copy batch processing and aggressive lazy evaluation
 pub fn compute_viz(
     data: &DataFrame,
     params: &FilterParams,
@@ -30,13 +30,35 @@ pub fn compute_viz(
 ) -> PolarsResult<VizData> {
     let t0 = Instant::now();
 
-    // Single collect() point for the entire filter pipeline
-    let filtered = apply_filters_lazy(data, params)?.collect()?;
-
-    println!("🔍 Filtered to {} records", filtered.height());
-
-    // Determine lift type
+    // Determine lift type early
     let lift_type = LiftType::from_str(params.lift_type.as_deref().unwrap_or("squat"));
+
+    // Keep lazy frame as long as possible for optimization
+    let lazy_filtered = apply_filters_lazy(data, params)?;
+
+    // Use scan aggregations for statistics before collecting full data
+    // This is more efficient than collecting all data first
+    let raw_col = lift_type.raw_column();
+    let dots_col = lift_type.dots_column();
+
+    // Parallel stats computation using lazy evaluation
+    let stats_df = lazy_filtered
+        .clone()
+        .select([
+            col(raw_col).min().alias("raw_min"),
+            col(raw_col).max().alias("raw_max"),
+            col(dots_col).min().alias("dots_min"),
+            col(dots_col).max().alias("dots_max"),
+            col("BodyweightKg").count().alias("total_count"),
+        ])
+        .collect()?;
+
+    let total_records = stats_df.column("total_count")?.u32()?.get(0).unwrap_or(0) as usize;
+
+    // Only collect full data once for visualization processing
+    let filtered = lazy_filtered.collect()?;
+
+    println!("🔍 Filtered to {} records", total_records);
 
     // Batch process all visualizations in single pass (zero-copy)
     let (hist, scatter, dots_hist, dots_scatter) =
@@ -66,7 +88,7 @@ pub fn compute_viz(
         dots_scatter,
         user_percentile,
         user_dots_percentile,
-        total_records: filtered.height(),
+        total_records,
         processing_time_ms: t0.elapsed().as_millis() as u64,
     })
 }
