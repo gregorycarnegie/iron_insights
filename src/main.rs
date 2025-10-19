@@ -201,11 +201,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     tracing::info!("   cargo test benchmarks --ignored - Run performance benchmarks");
 
-    // Run both servers concurrently
+    // Set up graceful shutdown signal handler
+    let shutdown_signal = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C signal handler");
+        tracing::info!("🛑 Received shutdown signal (Ctrl+C)");
+        tracing::info!("🧹 Initiating graceful shutdown...");
+    };
+
+    // Run both servers concurrently with graceful shutdown
     tokio::select! {
-        result = axum::serve(listener, app_with_alt_svc) => {
+        result = axum::serve(listener, app_with_alt_svc)
+            .with_graceful_shutdown(shutdown_signal) => {
             if let Err(e) = result {
                 tracing::error!("HTTP/1.1 server error: {}", e);
+            } else {
+                tracing::info!("✅ HTTP/1.1 server shut down gracefully");
             }
         }
         _ = http3_handle => {
@@ -213,6 +225,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    tracing::info!("👋 Iron Insights shut down successfully");
     Ok(())
 }
 
