@@ -1,6 +1,6 @@
 [package]
 name = "iron_insights"
-version = "0.10.4"
+version = "0.10.5"
 edition = "2024"
 
 [dependencies]
@@ -58,9 +58,9 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 
 # Apache Arrow for binary data serialization
-arrow = "56.2.0"
-arrow-ipc = "56.2.0"
-arrow-flight = { version = "56.2.0", features = ["flight-sql-experimental"] }
+arrow = "57.0.0"
+arrow-ipc = "57.0.0"
+arrow-flight = { version = "57.0.0", features = ["flight-sql-experimental"] }
 
 # gRPC support for Arrow Flight
 tonic = "0.14.2"
@@ -88,12 +88,12 @@ quinn = { version = "0.11.9", default-features = false, features = ["runtime-tok
 quinn-proto = "0.11.13"
 h3 = "0.0.8"
 h3-quinn = "0.0.10"
-rustls = { version = "0.23.33", default-features = false, features = ["ring"] }
+rustls = { version = "0.23.34", default-features = false, features = ["ring"] }
 rcgen = { version = "0.14.5", features = ["crypto"] }
 
 [dev-dependencies]
 # Testing dependencies for HTTP/3
-reqwest = { version = "0.12.23", features = ["stream"] }
+reqwest = { version = "0.12.24", features = ["stream"] }
 
 [profile.release]
 lto = true              # Link-time optimization
