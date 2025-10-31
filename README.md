@@ -151,68 +151,81 @@ For real data analysis, download the OpenPowerlifting dataset:
 └───────────────────────────────┘    └───────────────────────────────────┘
 ```
 
-### 📁 **Project Structure**
+### 📁 **Project Structure** (Workspace Architecture)
 
 ```text
-src/
-├── main.rs              # Application entry point and hybrid engine setup
-├── config.rs            # Configuration management
-├── models.rs            # Data structures and API types
-├── data.rs              # Data loading and Polars preprocessing
-├── duckdb_analytics.rs  # DuckDB-powered complex analytics
-├── scoring.rs           # DOTS calculation engine
-├── handlers.rs          # HTTP request handlers (both engines)
-├── cache.rs             # Unified caching layer
-├── filters.rs           # Data filtering logic (Polars + DuckDB)
-├── percentiles.rs       # Percentile calculations
-├── viz.rs               # Data visualization utilities
-├── share_card.rs        # Social sharing card generation
-├── websocket.rs         # WebSocket real-time communication
-├── arrow_utils.rs       # Apache Arrow utilities
-├── ui/                  # Frontend UI components with lazy loading
-│   ├── mod.rs           # UI module organization
-│   ├── components/      # Reusable UI components
-│   │   ├── charts.rs         # Chart rendering
-│   │   ├── controls.rs       # User input controls (weight class dropdown)
-│   │   ├── head.rs           # HTML head with lazy loading setup
-│   │   ├── header.rs         # Page header
-│   │   ├── scripts/          # Modular JavaScript system
-│   │   │   ├── mod.rs            # Scripts module organization
-│   │   │   ├── init.rs           # WASM initialization & globals
-│   │   │   ├── main.rs           # Main updates & weight class handling
-│   │   │   ├── ui.rs             # UI state & form handling
-│   │   │   ├── websocket.rs      # Real-time WebSocket handling
-│   │   │   ├── data.rs           # Arrow data fetching & parsing
-│   │   │   ├── charts.rs         # Plotly chart management
-│   │   │   ├── calculations.rs   # DOTS/Wilks calculations
-│   │   │   └── utils.rs          # Helper functions & utilities
-│   │   └── styles/           # Modular CSS system
-│   │       ├── base.rs           # CSS variables, reset & body
-│   │       ├── layout.rs         # Container, header & layouts
-│   │       ├── components.rs     # Buttons, forms & UI elements
-│   │       ├── charts.rs         # Charts, stats & user metrics
-│   │       └── responsive.rs     # Media queries & mobile
-│   ├── home_page.rs         # Landing page with feature overview
-│   ├── onerepmax_page.rs    # 1RM calculator (lightweight)
-│   └── sharecard_page.rs    # Share card generator
-└── wasm/                # WebAssembly module
-    ├── Cargo.toml       # WASM-specific dependencies
-    └── lib.rs           # WASM bindings for client-side calculations
-
-static/
-├── js/
-│   ├── lazy-loader.ts       # Smart script loading system (TypeScript)
-│   └── dist/                # Bundled JavaScript libraries
-│       ├── plotly.min.js        # Plotly.js charts (loaded on-demand)
-│       └── arrow.min.js         # Apache Arrow data processing (on-demand)
-scripts/
-├── copy-assets.ts           # Asset copying build script (TypeScript)
-src/assets/
-├── arrow-entry.ts           # Apache Arrow entry point (TypeScript)
-└── plotly-entry.ts          # Plotly.js entry point (TypeScript)
-└── wasm/                # Compiled WebAssembly assets
-    ├── iron_insights_wasm.js
-    └── iron_insights_wasm_bg.wasm
+iron_insights/
+├── Cargo.toml               # Workspace root with shared dependencies
+├── crates/                  # Workspace member crates
+│   ├── iron-scoring/        # Pure DOTS calculation logic (~19s compile)
+│   │   ├── Cargo.toml       # Minimal dependencies (rayon, wide)
+│   │   └── src/
+│   │       └── lib.rs       # DOTS coefficients & calculations
+│   │
+│   ├── iron-core/           # Data processing core (~90s compile)
+│   │   ├── Cargo.toml       # Heavy deps (Polars, DuckDB, Arrow)
+│   │   └── src/
+│   │       ├── lib.rs       # Module exports & re-exports
+│   │       ├── data.rs      # CSV/Parquet loading & preprocessing
+│   │       ├── duckdb_analytics.rs  # SQL-powered analytics
+│   │       ├── scoring.rs   # Polars expression builders
+│   │       ├── models.rs    # Data structures & API types
+│   │       ├── filters.rs   # Filtering logic (Polars + DuckDB)
+│   │       ├── viz.rs       # Visualization data computation
+│   │       ├── percentiles.rs    # Percentile calculations
+│   │       ├── cache.rs     # Unified caching layer
+│   │       ├── arrow_utils.rs    # Arrow serialization
+│   │       └── config.rs    # Configuration management
+│   │
+│   ├── iron-ui/             # UI components & templates (~30s compile)
+│   │   ├── Cargo.toml       # UI deps (maud, chrono)
+│   │   └── src/
+│   │       ├── lib.rs       # Page render functions
+│   │       ├── components/  # Reusable UI components
+│   │       │   ├── mod.rs       # Component exports
+│   │       │   ├── charts.rs    # Chart rendering
+│   │       │   ├── controls.rs  # Form controls & dropdowns
+│   │       │   ├── head.rs      # HTML head with lazy loading
+│   │       │   ├── header.rs    # Page header
+│   │       │   ├── scripts/     # Inline TypeScript/JS
+│   │       │   └── styles/      # Modular CSS
+│   │       ├── home_page.rs     # Landing page
+│   │       ├── rankings_page.rs # Rankings leaderboard
+│   │       ├── onerepmax_page.rs # 1RM calculator
+│   │       └── sharecard_page.rs # Share card generator
+│   │
+│   ├── iron-server/         # Web server & handlers (~60s compile)
+│   │   ├── Cargo.toml       # Server deps (Axum, WebSocket, HTTP/3)
+│   │   └── src/
+│   │       ├── lib.rs       # Server library exports
+│   │       ├── main.rs      # Binary entry point
+│   │       ├── handlers.rs  # HTTP endpoint handlers
+│   │       ├── websocket.rs # WebSocket real-time messaging
+│   │       ├── http3_server.rs  # HTTP/3 QUIC server
+│   │       ├── share_card.rs    # SVG share card generation
+│   │       └── websocket_arrow.rs # Arrow WebSocket serialization
+│   │
+│   └── iron-wasm/           # WebAssembly module (~20s compile)
+│       ├── Cargo.toml       # WASM deps (wasm-bindgen, js-sys)
+│       └── src/
+│           └── lib.rs       # Client-side DOTS calculations
+│
+├── static/                  # Frontend assets
+│   ├── js/
+│   │   ├── lazy-loader.ts   # Smart script loading (TypeScript)
+│   │   └── dist/            # Bundled libraries
+│   │       ├── plotly.min.js    # Plotly charts (on-demand)
+│   │       └── arrow.min.js     # Apache Arrow (on-demand)
+│   └── wasm/                # Compiled WebAssembly
+│       ├── iron_insights_wasm.js
+│       └── iron_insights_wasm_bg.wasm
+│
+├── scripts/
+│   └── copy-assets.ts       # Build script for bundling assets
+│
+└── data/                    # Data directory (gitignored)
+    ├── *.csv                # OpenPowerlifting CSV (~744MB)
+    └── *.parquet            # Parquet cache (~21MB, 35x faster!)
 ```
 
 ### 🧱 **Core Components**
