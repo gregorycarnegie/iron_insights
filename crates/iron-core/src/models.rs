@@ -3,14 +3,14 @@ use crate::duckdb_analytics::DuckDBAnalytics;
 use moka::future::Cache;
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{sync::Arc, time::Instant};
+use std::{any::Any, sync::Arc, time::Instant};
 
 // Shared application state
 #[derive(Clone)]
 pub struct AppState {
     pub data: Arc<DataFrame>,
     pub cache: Cache<String, CachedResult>,
-    pub websocket_state: Option<crate::websocket::WebSocketState>,
+    pub websocket_state: Option<Arc<dyn Any + Send + Sync>>,
     pub duckdb: Option<Arc<DuckDBAnalytics>>,
 }
 
@@ -144,6 +144,21 @@ pub struct VisualizationResponse {
     pub user_dots_percentile: Option<f32>,
     pub processing_time_ms: u64,
     pub total_records: usize,
+}
+
+impl From<crate::viz::VizData> for VisualizationResponse {
+    fn from(data: crate::viz::VizData) -> Self {
+        VisualizationResponse {
+            histogram_data: data.hist,
+            scatter_data: data.scatter,
+            dots_histogram_data: data.dots_hist,
+            dots_scatter_data: data.dots_scatter,
+            user_percentile: data.user_percentile,
+            user_dots_percentile: data.user_dots_percentile,
+            processing_time_ms: data.processing_time_ms,
+            total_records: data.total_records,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]

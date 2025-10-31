@@ -1,89 +1,87 @@
-[package]
-name = "iron_insights"
-version = "0.10.5"
+[workspace]
+resolver = "2"
+members = [
+    "crates/iron-core",
+    "crates/iron-scoring",
+    "crates/iron-ui",
+    "crates/iron-server",
+    "crates/iron-wasm",
+]
+
+[workspace.package]
+version = "0.11.0"
 edition = "2024"
+authors = ["Gregory Carnegie"]
+license = "MIT"
 
-[dependencies]
-# Ultra-fast web framework
-axum = { version = "0.8.6", features = ["macros", "ws"] }
+# Shared dependencies across workspace
+[workspace.dependencies]
+# Core data structures
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+chrono = { version = "0.4.42", features = ["serde"] }
+
+# Async runtime
 tokio = { version = "1.48.0", features = ["full"] }
-
-# HTML templating with compile-time safety
-maud = { version = "0.27.0", features = ["axum"] }
-
-# WebSocket support
-axum-extra = { version = "0.10.3", features = ["typed-header"] }
 futures = "0.3.31"
 futures-util = "0.3.31"
-tokio-tungstenite = "0.28.0"
-uuid = { version = "1.18.1", features = ["v4", "serde"] }
 
-# Streaming support
-tokio-stream = "0.1.17"
-bytes = "1.10.1"
+# Web framework
+axum = { version = "0.8.6", features = ["macros", "ws"] }
+axum-extra = { version = "0.10.3", features = ["typed-header"] }
+tower = "0.5.2"
+tower-http = { version = "0.6.6", features = ["fs", "compression-br", "compression-gzip", "trace"] }
 
-# Real-time messaging
-dashmap = "6.1.0"
+# HTML templating
+maud = { version = "0.27.0", features = ["axum"] }
 
-# Data processing - use a stable version with correct features
+# Data processing (heavy dependencies)
 polars = { version = "0.51.0", features = [
     "lazy", "csv", "parquet",
     "temporal", "strings", "dtype-date",
     "dtype-categorical"
 ] }
-
-# In-process SQL analytics engine
 duckdb = { version = "1.4.1", features = ["parquet"] }
 
-# For timestamps in Parquet file names
-chrono = { version = "0.4.42", features = ["serde"] }
+# Apache Arrow
+arrow = "57.0.0"
+arrow-ipc = "57.0.0"
+arrow-flight = { version = "57.0.0", features = ["flight-sql-experimental"] }
 
-# SIMD-optimized math
+# gRPC for Arrow Flight
+tonic = "0.14.2"
+prost = "0.14.1"
+flatbuffers = "25.9.23"
+
+# WebSocket
+tokio-tungstenite = "0.28.0"
+dashmap = "6.1.0"
+uuid = { version = "1.18.1", features = ["v4", "serde"] }
+
+# Streaming
+tokio-stream = "0.1.17"
+bytes = "1.10.1"
+
+# Performance
 rayon = "1.11.0"
 wide = "0.8.1"
+lazy_static = "1.5.0"
+moka = { version = "0.12.11", features = ["future"] }
 
-# Random number generation
+# HTTP client
+reqwest = { version = "0.12.24", features = ["stream"] }
+
+# Utilities
+scraper = "0.24.0"
+zip = "6.0.0"
 rand = "0.9.2"
 rand_distr = "0.5.1"
-
-# Efficient serialization
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
-
-# Performance optimizations
-lazy_static = "1.5.0"
 
 # Logging
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 
-# Apache Arrow for binary data serialization
-arrow = "57.0.0"
-arrow-ipc = "57.0.0"
-arrow-flight = { version = "57.0.0", features = ["flight-sql-experimental"] }
-
-# gRPC support for Arrow Flight
-tonic = "0.14.2"
-prost = "0.14.1"
-flatbuffers = "25.9.23"
-
-# Caching
-moka = { version = "0.12.11", features = ["future"] }
-
-# HTTP client for downloading data
-reqwest = { version = "0.12.24", features = ["stream"] }
-
-# HTML parsing for revision checking
-scraper = "0.24.0"
-
-# Zip extraction
-zip = "6.0.0"
-
-# Static file serving
-tower = "0.5.2"
-tower-http = { version = "0.6.6", features = ["fs", "compression-br", "compression-gzip", "trace"] }
-
-# HTTP/3 and QUIC support - basic QUIC without TLS complications
+# HTTP/3 QUIC
 quinn = { version = "0.11.9", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
 quinn-proto = "0.11.13"
 h3 = "0.0.8"
@@ -91,12 +89,28 @@ h3-quinn = "0.0.10"
 rustls = { version = "0.23.34", default-features = false, features = ["ring"] }
 rcgen = { version = "0.14.5", features = ["crypto"] }
 
-[dev-dependencies]
-# Testing dependencies for HTTP/3
-reqwest = { version = "0.12.24", features = ["stream"] }
+# WebAssembly
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+js-sys = "0.3"
+
+# Internal workspace crates
+iron-core = { path = "crates/iron-core" }
+iron-scoring = { path = "crates/iron-scoring" }
+iron-ui = { path = "crates/iron-ui" }
+iron-server = { path = "crates/iron-server" }
 
 [profile.release]
 lto = true              # Link-time optimization
 codegen-units = 1       # Better optimization
 panic = "abort"         # Smaller binary
 strip = true            # Remove debug symbols
+
+[profile.dev]
+# Faster compile times in development
+opt-level = 1           # Some optimization for dependencies
+incremental = true      # Enable incremental compilation
+
+# Speed up compilation for dev dependencies (mainly proc macros)
+[profile.dev.package."*"]
+opt-level = 2

@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
 use crate::handlers::*;
-use crate::models::AppState;
+use iron_core::models::AppState;
 
 pub struct Http3Server {
     pub state: AppState,

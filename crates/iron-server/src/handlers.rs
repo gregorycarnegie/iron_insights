@@ -12,16 +12,16 @@ use std::convert::Infallible;
 use tokio_stream::{Stream, StreamExt};
 use tracing::{error, info, instrument};
 
-use crate::{
+use crate::share_card::{CardTheme, ShareCardData, generate_themed_share_card_svg};
+use iron_core::{
     arrow_utils::{serialize_all_visualization_data, serialize_stats_to_arrow},
     cache::{cache_get_arrow, cache_put_arrow, make_cache_key},
     models::*,
-    share_card::{CardTheme, ShareCardData, generate_themed_share_card_svg},
-    ui::{
-        render_about, render_analytics, render_donate, render_index, render_onerepmax,
-        render_rankings, render_sharecard,
-    },
     viz::compute_viz,
+};
+use iron_ui::{
+    render_about, render_analytics, render_donate, render_index, render_onerepmax, render_rankings,
+    render_sharecard,
 };
 
 /// Home page - landing page with overview
@@ -76,7 +76,7 @@ pub async fn create_visualizations(
     }
 
     // Compute visualization data
-    let config = crate::config::AppConfig::default();
+    let config = iron_core::config::AppConfig::default();
     let viz_data = compute_viz(&state.data, &params, &config).map_err(|e| {
         error!("Compute error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
@@ -102,7 +102,7 @@ pub async fn create_visualizations_arrow(
 
     // Check cache first
     if let Some(cached) = state.cache.get(&cache_key).await {
-        if cached.computed_at.elapsed().as_secs() < crate::cache::CACHE_TTL_SECS {
+        if cached.computed_at.elapsed().as_secs() < iron_core::cache::CACHE_TTL_SECS {
             info!("Arrow cache hit for key: {}", cache_key);
             return Response::builder()
                 .status(StatusCode::OK)
@@ -114,7 +114,7 @@ pub async fn create_visualizations_arrow(
     }
 
     // Compute visualization data
-    let config = crate::config::AppConfig::default();
+    let config = iron_core::config::AppConfig::default();
     let viz_data = compute_viz(&state.data, &params, &config).map_err(|e| {
         error!("Arrow compute error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
@@ -172,7 +172,7 @@ pub async fn create_visualizations_arrow_stream(
     let _cache_key = make_cache_key(&params, "arrow_stream");
 
     // Compute visualization data
-    let config = crate::config::AppConfig::default();
+    let config = iron_core::config::AppConfig::default();
     let viz_data = compute_viz(&state.data, &params, &config).map_err(|e| {
         error!("Arrow stream compute error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
@@ -195,7 +195,7 @@ pub async fn create_visualizations_arrow_stream(
 /// Get application statistics
 #[instrument(skip(state))]
 pub async fn get_stats(State(state): State<AppState>) -> Json<serde_json::Value> {
-    let cache_stats = crate::cache::cache_stats(&state);
+    let cache_stats = iron_core::cache::cache_stats(&state);
 
     Json(serde_json::json!({
         "total_records": state.data.height(),
@@ -209,7 +209,7 @@ pub async fn get_stats(State(state): State<AppState>) -> Json<serde_json::Value>
 /// Get application statistics in Arrow format - 27x faster!
 #[instrument(skip(state))]
 pub async fn get_stats_arrow(State(state): State<AppState>) -> Result<Response, StatusCode> {
-    let cache_stats = crate::cache::cache_stats(&state);
+    let cache_stats = iron_core::cache::cache_stats(&state);
 
     let stats_data = StatsData {
         total_records: state.data.height() as u32,
@@ -268,7 +268,7 @@ pub struct ShareCardRequest {
 }
 
 /// Create streaming Arrow data in chunks for memory efficiency
-fn create_arrow_data_stream(viz_data: crate::viz::VizData) -> impl Stream<Item = Bytes> + Send {
+fn create_arrow_data_stream(viz_data: iron_core::viz::VizData) -> impl Stream<Item = Bytes> + Send {
     use tokio_stream::iter;
 
     // Convert viz data to Arrow chunks
@@ -296,7 +296,7 @@ fn create_arrow_data_stream(viz_data: crate::viz::VizData) -> impl Stream<Item =
 
 /// Serialize histogram data as Arrow chunk
 fn serialize_histogram_chunk(
-    hist: &crate::models::HistogramData,
+    hist: &iron_core::models::HistogramData,
     _chunk_name: &str,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
     // Simplified Arrow serialization for chunks
@@ -316,7 +316,7 @@ fn serialize_histogram_chunk(
 
 /// Serialize scatter data as Arrow chunk  
 fn serialize_scatter_chunk(
-    scatter: &crate::models::ScatterData,
+    scatter: &iron_core::models::ScatterData,
     _chunk_name: &str,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
     let json_data = serde_json::to_string(&serde_json::json!({
@@ -346,22 +346,6 @@ fn serialize_metadata_chunk(
     }))?;
 
     Ok(json_data.into_bytes())
-}
-
-// DTO conversion implementation
-impl From<crate::viz::VizData> for VisualizationResponse {
-    fn from(data: crate::viz::VizData) -> Self {
-        VisualizationResponse {
-            histogram_data: data.hist,
-            scatter_data: data.scatter,
-            dots_histogram_data: data.dots_hist,
-            dots_scatter_data: data.dots_scatter,
-            user_percentile: data.user_percentile,
-            user_dots_percentile: data.user_dots_percentile,
-            processing_time_ms: data.processing_time_ms,
-            total_records: data.total_records,
-        }
-    }
 }
 
 /// DuckDB-powered percentile calculation endpoint

@@ -1,0 +1,15 @@
+[package]
+name = "iron-scoring"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Minimal dependencies - just scoring logic
+serde = { workspace = true }
+serde_json = { workspace = true }
+rayon = { workspace = true }
+wide = { workspace = true }
+
+[lib]
+name = "iron_scoring"
+path = "src/lib.rs"

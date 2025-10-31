@@ -19,11 +19,9 @@ use std::{
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use crate::{
-    models::AppState,
-    scoring::calculate_dots_score,
-    websocket_arrow::{serialize_websocket_message_to_arrow, should_use_arrow_format},
-};
+use crate::websocket_arrow::{serialize_websocket_message_to_arrow, should_use_arrow_format};
+use iron_core::models::AppState;
+use iron_scoring::calculate_dots_score;
 
 /// WebSocket connection manager
 pub type Connections = Arc<DashMap<String, ConnectionInfo>>;
@@ -245,6 +243,7 @@ pub async fn websocket_handler(
     let ws_state = app_state
         .websocket_state
         .as_ref()
+        .and_then(|any| any.downcast_ref::<WebSocketState>())
         .cloned()
         .unwrap_or_else(|| WebSocketState::new());
     ws.on_upgrade(move |socket| handle_socket(socket, app_state, ws_state))
@@ -716,7 +715,7 @@ fn calculate_percentile_from_data(
     lift_value: f32,
     lift_type: &str,
 ) -> Option<f32> {
-    use crate::models::LiftType;
+    use iron_core::models::LiftType;
 
     let lift_type_enum = LiftType::from_str(lift_type);
     let column_name = lift_type_enum.raw_column();

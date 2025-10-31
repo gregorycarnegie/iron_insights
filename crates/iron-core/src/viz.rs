@@ -4,8 +4,8 @@ use crate::{
     filters::apply_filters_lazy,
     models::{FilterParams, HistogramData, LiftType, ScatterData},
     percentiles::percentile_rank,
-    scoring::calculate_dots_score,
 };
+use iron_scoring::calculate_dots_score;
 use polars::prelude::*;
 use std::time::Instant;
 use wide::f32x4;

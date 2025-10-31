@@ -1,4 +1,4 @@
-use crate::ui::components::*;
+use crate::components::*;
 use maud::{DOCTYPE, Markup, html};
 
 pub fn render_donate_page() -> Markup {

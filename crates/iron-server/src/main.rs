@@ -1,32 +1,16 @@
-// main.rs - Updated with maud HTML templating
+// main.rs - Updated with workspace crates
 use axum::{Router, extract::Request, middleware, response::Response, routing::get};
 use std::sync::Arc;
 use tower_http::{compression::CompressionLayer, services::ServeDir};
 use tracing;
 
-mod arrow_utils;
-mod cache;
-mod config;
-mod data;
-mod duckdb_analytics;
-mod filters;
-mod handlers;
-mod http3_server;
-mod models;
-mod percentiles;
-mod scoring;
-mod share_card;
-mod ui;
-mod viz;
-mod websocket;
-mod websocket_arrow;
-
-use config::AppConfig;
-use data::DataProcessor;
-use handlers::*;
-use http3_server::Http3Server;
-use models::AppState;
-use websocket::{WebSocketState, websocket_handler};
+// Import from workspace crates
+use iron_core::{AppConfig, AppState, DataProcessor};
+use iron_server::{
+    Http3Server,
+    handlers::*,
+    websocket::{WebSocketState, websocket_handler},
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -85,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let duckdb_start = std::time::Instant::now();
     let parquet_path = DataProcessor::new().get_parquet_path();
     let duckdb_analytics = if let Some(parquet_path) = parquet_path {
-        match duckdb_analytics::DuckDBAnalytics::from_parquet(&parquet_path) {
+        match iron_core::duckdb_analytics::DuckDBAnalytics::from_parquet(&parquet_path) {
             Ok(analytics) => {
                 tracing::info!(
                     "🦆 DuckDB analytics engine initialized in {:?}",
@@ -108,7 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(duckdb) = duckdb_analytics {
         state = state.with_duckdb(duckdb);
     }
-    state.websocket_state = Some(WebSocketState::new());
+    state.websocket_state = Some(Arc::new(WebSocketState::new()));
 
     // Spawn background task for cache cleanup
     let cleanup_state = state.clone();
@@ -116,7 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
         loop {
             interval.tick().await;
-            crate::cache::cleanup_expired(&cleanup_state).await;
+            iron_core::cache::cleanup_expired(&cleanup_state).await;
             tracing::debug!("🧹 Cache cleanup completed");
         }
     });

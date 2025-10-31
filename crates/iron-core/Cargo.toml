@@ -1,0 +1,51 @@
+[package]
+name = "iron-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Internal dependencies
+iron-scoring = { workspace = true }
+
+# Data processing (heavy dependencies isolated here)
+polars = { workspace = true }
+duckdb = { workspace = true }
+arrow = { workspace = true }
+arrow-ipc = { workspace = true }
+arrow-flight = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+futures = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+
+# Performance
+rayon = { workspace = true }
+wide = { workspace = true }
+lazy_static = { workspace = true }
+moka = { workspace = true }
+
+# HTTP client for data updates
+reqwest = { workspace = true }
+scraper = { workspace = true }
+zip = { workspace = true }
+
+# Utilities
+rand = { workspace = true }
+rand_distr = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# gRPC
+tonic = { workspace = true }
+prost = { workspace = true }
+flatbuffers = { workspace = true }
+
+[lib]
+name = "iron_core"
+path = "src/lib.rs"

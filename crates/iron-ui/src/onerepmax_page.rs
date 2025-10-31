@@ -1,4 +1,4 @@
-use crate::ui::components::*;
+use crate::components::*;
 use maud::{DOCTYPE, Markup, html};
 
 pub fn render_onerepmax_page() -> Markup {
@@ -82,7 +82,7 @@ pub fn render_onerepmax_page() -> Markup {
                         }
                     }
                 }
-                (crate::ui::components::scripts::render_scripts())
+                (crate::components::scripts::render_scripts())
                 script { (maud::PreEscaped(r#"
                     // 1RM Calculation Formulas
                     window.formulas = {

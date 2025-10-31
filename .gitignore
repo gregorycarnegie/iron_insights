@@ -1,6 +1,7 @@
 /target
 /data/*
 /.claude/
+CLAUDE.md
 
 # Node.js dependencies
 node_modules/

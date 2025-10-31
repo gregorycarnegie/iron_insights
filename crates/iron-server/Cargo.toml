@@ -1,0 +1,60 @@
+[package]
+name = "iron-server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Internal dependencies
+iron-core = { workspace = true }
+iron-scoring = { workspace = true }
+iron-ui = { workspace = true }
+
+# Web framework
+axum = { workspace = true }
+axum-extra = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+
+# WebSocket
+tokio-tungstenite = { workspace = true }
+dashmap = { workspace = true }
+uuid = { workspace = true }
+
+# Streaming
+tokio-stream = { workspace = true }
+bytes = { workspace = true }
+
+# HTTP/3 QUIC
+quinn = { workspace = true }
+quinn-proto = { workspace = true }
+h3 = { workspace = true }
+h3-quinn = { workspace = true }
+rustls = { workspace = true }
+rcgen = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Data formats
+arrow = { workspace = true }
+arrow-ipc = { workspace = true }
+maud = { workspace = true }
+chrono = { workspace = true }
+
+[lib]
+name = "iron_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "iron-insights"
+path = "src/main.rs"

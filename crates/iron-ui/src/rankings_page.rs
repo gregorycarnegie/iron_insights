@@ -1,8 +1,6 @@
 // src/ui/rankings_page.rs - Rankings page with server-side rendering and filters
-use crate::{
-    models::{RankingsParams, RankingsResponse},
-    ui::components::*,
-};
+use crate::components::*;
+use iron_core::models::{RankingsParams, RankingsResponse};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
 
 pub fn render_rankings_page(

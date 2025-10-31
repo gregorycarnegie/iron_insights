@@ -1,7 +1,7 @@
 // src/ui/sharecard_page.rs - Dedicated Share Card generator page
 use maud::{DOCTYPE, Markup, PreEscaped, html};
 
-use crate::ui::components::{render_head_minimal, render_header};
+use crate::components::{render_head_minimal, render_header};
 
 pub fn render_sharecard_page() -> Markup {
     html! {
@@ -94,7 +94,7 @@ pub fn render_sharecard_page() -> Markup {
                     }
                 }
                 // Load global scripts for calculations and utils
-                (crate::ui::components::scripts::render_scripts())
+                (crate::components::scripts::render_scripts())
             }
         }
     }
