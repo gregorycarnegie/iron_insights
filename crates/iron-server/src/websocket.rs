@@ -154,6 +154,12 @@ pub struct WebSocketStats {
     pub recent_calculations: Arc<DashMap<String, RecentCalculation>>,
 }
 
+impl Default for WebSocketState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WebSocketState {
     pub fn new() -> Self {
         let (tx, _) = broadcast::channel(1000);
@@ -245,7 +251,7 @@ pub async fn websocket_handler(
         .as_ref()
         .and_then(|any| any.downcast_ref::<WebSocketState>())
         .cloned()
-        .unwrap_or_else(|| WebSocketState::new());
+        .unwrap_or_else(WebSocketState::new);
     ws.on_upgrade(move |socket| handle_socket(socket, app_state, ws_state))
 }
 
@@ -272,17 +278,13 @@ async fn send_websocket_message(
                 tracing::error!("Failed to serialize to Arrow, falling back to JSON: {}", e);
                 // Fallback to JSON
                 let json = serde_json::to_string(message).unwrap_or_else(|_| "{}".to_string());
-                if let Err(e) = sender.send(Message::Text(json.into())).await {
-                    return Err(e);
-                }
+                sender.send(Message::Text(json.into())).await?;
             }
         }
     } else {
         // Send as JSON text message (default)
         let json = serde_json::to_string(message).unwrap_or_else(|_| "{}".to_string());
-        if let Err(e) = sender.send(Message::Text(json.into())).await {
-            return Err(e);
-        }
+        sender.send(Message::Text(json.into())).await?;
         tracing::debug!(
             "📡 Sent JSON text message: {:?}",
             std::mem::discriminant(message)
@@ -375,11 +377,11 @@ async fn handle_socket(socket: WebSocket, app_state: AppState, ws_state: WebSock
                 broadcast_result = rx.recv() => {
                     match broadcast_result {
                         Ok(broadcast_msg) => {
-                            if let Ok(json) = serde_json::to_string(&broadcast_msg) {
-                                if sender.send(Message::Text(json.into())).await.is_err() {
-                                    println!("❌ Failed to send broadcast to client {}", connection_id_send);
-                                    break;
-                                }
+                            if let Ok(json) = serde_json::to_string(&broadcast_msg)
+                                && sender.send(Message::Text(json.into())).await.is_err()
+                            {
+                                println!("❌ Failed to send broadcast to client {}", connection_id_send);
+                                break;
                             }
                         }
                         Err(broadcast::error::RecvError::Closed) => {
@@ -394,11 +396,11 @@ async fn handle_socket(socket: WebSocket, app_state: AppState, ws_state: WebSock
                 }
                 response_msg = response_rx.recv() => {
                     if let Some(msg) = response_msg {
-                        if let Ok(json) = serde_json::to_string(&msg) {
-                            if sender.send(Message::Text(json.into())).await.is_err() {
-                                println!("❌ Failed to send response to client {}", connection_id_send);
-                                break;
-                            }
+                        if let Ok(json) = serde_json::to_string(&msg)
+                            && sender.send(Message::Text(json.into())).await.is_err()
+                        {
+                            println!("❌ Failed to send response to client {}", connection_id_send);
+                            break;
                         }
                     } else {
                         // Response channel closed
@@ -409,11 +411,11 @@ async fn handle_socket(socket: WebSocket, app_state: AppState, ws_state: WebSock
                 _ = heartbeat_interval.tick() => {
                     // Send periodic ping to keep connection alive
                     let ping_msg = WebSocketMessage::Ping;
-                    if let Ok(json) = serde_json::to_string(&ping_msg) {
-                        if sender.send(Message::Text(json.into())).await.is_err() {
-                            println!("💔 Heartbeat failed for client {}", connection_id_send);
-                            break;
-                        }
+                    if let Ok(json) = serde_json::to_string(&ping_msg)
+                        && sender.send(Message::Text(json.into())).await.is_err()
+                    {
+                        println!("💔 Heartbeat failed for client {}", connection_id_send);
+                        break;
                     }
                 }
                 _ = stats_interval.tick() => {
@@ -424,11 +426,11 @@ async fn handle_socket(socket: WebSocket, app_state: AppState, ws_state: WebSock
                         server_load: calculate_server_load(),
                     };
 
-                    if let Ok(json) = serde_json::to_string(&stats_msg) {
-                        if sender.send(Message::Text(json.into())).await.is_err() {
-                            println!("📊 Stats update failed for client {}", connection_id_send);
-                            break;
-                        }
+                    if let Ok(json) = serde_json::to_string(&stats_msg)
+                        && sender.send(Message::Text(json.into())).await.is_err()
+                    {
+                        println!("📊 Stats update failed for client {}", connection_id_send);
+                        break;
                     }
                 }
             }
@@ -520,14 +522,13 @@ async fn process_message(
                     sex,
                 } => {
                     // Validate input data
-                    if let Some(bw) = bodyweight {
-                        if bw <= 0.0 || bw > 500.0 {
-                            // Reasonable bodyweight limits
-                            return Ok(Some(WebSocketMessage::Error {
-                                message: "Invalid bodyweight: must be between 0 and 500kg"
-                                    .to_string(),
-                            }));
-                        }
+                    if let Some(bw) = bodyweight
+                        && (bw <= 0.0 || bw > 500.0)
+                    {
+                        // Reasonable bodyweight limits
+                        return Ok(Some(WebSocketMessage::Error {
+                            message: "Invalid bodyweight: must be between 0 and 500kg".to_string(),
+                        }));
                     }
 
                     // Calculate DOTS score and broadcast activity
@@ -717,29 +718,29 @@ fn calculate_percentile_from_data(
 ) -> Option<f32> {
     use iron_core::models::LiftType;
 
-    let lift_type_enum = LiftType::from_str(lift_type);
+    let lift_type_enum = LiftType::parse(lift_type);
     let column_name = lift_type_enum.raw_column();
 
     // Extract lift values from the dataset
-    if let Ok(lift_column) = app_state.data.column(column_name) {
-        if let Ok(f32_series) = lift_column.f32() {
-            let lift_values: Vec<f32> = f32_series
-                .into_no_null_iter()
-                .filter(|&x| x > 0.0 && x.is_finite())
-                .collect();
+    if let Ok(lift_column) = app_state.data.column(column_name)
+        && let Ok(f32_series) = lift_column.f32()
+    {
+        let lift_values: Vec<f32> = f32_series
+            .into_no_null_iter()
+            .filter(|&x| x > 0.0 && x.is_finite())
+            .collect();
 
-            if lift_values.is_empty() {
-                return None;
-            }
-
-            let below_count = lift_values
-                .iter()
-                .filter(|&&value| value < lift_value)
-                .count();
-
-            let percentile = (below_count as f32 / lift_values.len() as f32) * 100.0;
-            return Some(percentile.round());
+        if lift_values.is_empty() {
+            return None;
         }
+
+        let below_count = lift_values
+            .iter()
+            .filter(|&&value| value < lift_value)
+            .count();
+
+        let percentile = (below_count as f32 / lift_values.len() as f32) * 100.0;
+        return Some(percentile.round());
     }
 
     None

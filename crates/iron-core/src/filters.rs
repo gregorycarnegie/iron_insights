@@ -39,23 +39,24 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
     // Apply user filters first (most selective)
 
     // Sex filter
-    if let Some(sex) = &params.sex {
-        if sex != "All" {
-            lf = lf.filter(col("Sex").eq(lit(sex.as_str())));
-        }
+    if let Some(sex) = &params.sex
+        && sex != "All"
+    {
+        lf = lf.filter(col("Sex").eq(lit(sex.as_str())));
     }
 
     // Equipment filter using OR chains (is_in not available in this version)
-    if let Some(equipment) = &params.equipment {
-        if !equipment.is_empty() && !equipment.contains(&"All".to_string()) {
-            // Build OR expression for multiple equipment types
-            let eq_filter = equipment
-                .iter()
-                .map(|eq| col("Equipment").eq(lit(eq.clone())))
-                .reduce(|acc, expr| acc.or(expr))
-                .unwrap_or(lit(true));
-            lf = lf.filter(eq_filter);
-        }
+    if let Some(equipment) = &params.equipment
+        && !equipment.is_empty()
+        && !equipment.contains(&"All".to_string())
+    {
+        // Build OR expression for multiple equipment types
+        let eq_filter = equipment
+            .iter()
+            .map(|eq| col("Equipment").eq(lit(eq.clone())))
+            .reduce(|acc, expr| acc.or(expr))
+            .unwrap_or(lit(true));
+        lf = lf.filter(eq_filter);
     }
 
     // Years filter using the Date column (parsed as dates)
@@ -112,15 +113,15 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
     }
 
     // Federation filter
-    if let Some(federation) = &params.federation {
-        if federation != "all" {
-            if has_federation {
-                lf = lf.filter(col("Federation").eq(lit(federation.to_uppercase().as_str())));
-            } else {
-                warn!(
-                    "Federation filter requested but backing data has no Federation column; skipping filter"
-                );
-            }
+    if let Some(federation) = &params.federation
+        && federation != "all"
+    {
+        if has_federation {
+            lf = lf.filter(col("Federation").eq(lit(federation.to_uppercase().as_str())));
+        } else {
+            warn!(
+                "Federation filter requested but backing data has no Federation column; skipping filter"
+            );
         }
     }
 
@@ -133,16 +134,16 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
     }
 
     // Weight class filter
-    if let Some(weight_class) = &params.weight_class {
-        if weight_class != "All" {
-            // Convert dropdown value (e.g., "74") to database format (e.g., "74kg")
-            let db_weight_class = if weight_class.ends_with('+') {
-                format!("{}kg+", weight_class.trim_end_matches('+'))
-            } else {
-                format!("{}kg", weight_class)
-            };
-            lf = lf.filter(col("WeightClassKg").eq(lit(db_weight_class.as_str())));
-        }
+    if let Some(weight_class) = &params.weight_class
+        && weight_class != "All"
+    {
+        // Convert dropdown value (e.g., "74") to database format (e.g., "74kg")
+        let db_weight_class = if weight_class.ends_with('+') {
+            format!("{}kg+", weight_class.trim_end_matches('+'))
+        } else {
+            format!("{}kg", weight_class)
+        };
+        lf = lf.filter(col("WeightClassKg").eq(lit(db_weight_class.as_str())));
     }
 
     // Apply pre-compiled validity filter (most expensive, applied last)
@@ -153,7 +154,7 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
 
 /// Get minimal required columns based on parameters to reduce I/O
 fn get_required_columns(params: &FilterParams, has_federation: bool) -> Vec<Expr> {
-    let _lift_type = LiftType::from_str(params.lift_type.as_deref().unwrap_or("squat"));
+    let _lift_type = LiftType::parse(params.lift_type.as_deref().unwrap_or("squat"));
 
     let mut cols = vec![
         col("BodyweightKg"),
@@ -178,12 +179,11 @@ fn get_required_columns(params: &FilterParams, has_federation: bool) -> Vec<Expr
         cols.push(col("WeightClassKg"));
     }
 
-    if has_federation {
-        if let Some(federation) = params.federation.as_ref() {
-            if federation != "all" {
-                cols.push(col("Federation"));
-            }
-        }
+    if has_federation
+        && let Some(federation) = params.federation.as_ref()
+        && federation != "all"
+    {
+        cols.push(col("Federation"));
     }
 
     // Return all required columns (duplicates handled by Polars)

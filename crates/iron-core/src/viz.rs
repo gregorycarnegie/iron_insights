@@ -31,7 +31,7 @@ pub fn compute_viz(
     let t0 = Instant::now();
 
     // Determine lift type early
-    let lift_type = LiftType::from_str(params.lift_type.as_deref().unwrap_or("squat"));
+    let lift_type = LiftType::parse(params.lift_type.as_deref().unwrap_or("squat"));
 
     // Keep lazy frame as long as possible for optimization
     let lazy_filtered = apply_filters_lazy(data, params)?;
@@ -139,19 +139,17 @@ fn create_all_viz_data_batch(
             raw_values.get(i),
             dots_values.get(i),
             sex.get(i),
-        ) {
-            if bw.is_finite()
-                && raw.is_finite()
-                && dots.is_finite()
-                && bw > 0.0
-                && raw > 0.0
-                && dots > 0.0
-            {
-                valid_bw.push(bw);
-                valid_raw.push(raw);
-                valid_dots.push(dots);
-                valid_sex.push(s.to_string());
-            }
+        ) && bw.is_finite()
+            && raw.is_finite()
+            && dots.is_finite()
+            && bw > 0.0
+            && raw > 0.0
+            && dots > 0.0
+        {
+            valid_bw.push(bw);
+            valid_raw.push(raw);
+            valid_dots.push(dots);
+            valid_sex.push(s.to_string());
         }
     }
 

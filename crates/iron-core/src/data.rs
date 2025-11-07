@@ -12,6 +12,12 @@ pub struct DataProcessor {
     sample_size: usize,
 }
 
+impl Default for DataProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DataProcessor {
     pub fn new() -> Self {
         Self { sample_size: 50000 }
@@ -77,10 +83,10 @@ impl DataProcessor {
             println!("📥 New data available! Downloading...");
             self.download_and_extract_data().await?;
             println!("✅ Data updated successfully!");
-            return Ok(true);
+            Ok(true)
         } else {
             println!("✅ Data is up to date!");
-            return Ok(false);
+            Ok(false)
         }
     }
 
@@ -92,10 +98,9 @@ impl DataProcessor {
             if let Some(revision_part) = filename
                 .strip_prefix("openpowerlifting-")?
                 .strip_suffix(".csv")
+                && let Some(revision) = revision_part.split('-').next_back()
             {
-                if let Some(revision) = revision_part.split('-').last() {
-                    return Some(revision.to_string());
-                }
+                return Some(revision.to_string());
             }
         }
         None
@@ -218,13 +223,12 @@ impl DataProcessor {
         for entry in entries {
             let entry = entry?;
             let path = entry.path();
-            if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                if filename.starts_with("openpowerlifting-")
-                    && (filename.ends_with(".csv") || filename.ends_with(".parquet"))
-                {
-                    println!("🗑️  Removing old file: {}", filename);
-                    std::fs::remove_file(&path)?;
-                }
+            if let Some(filename) = path.file_name().and_then(|n| n.to_str())
+                && filename.starts_with("openpowerlifting-")
+                && (filename.ends_with(".csv") || filename.ends_with(".parquet"))
+            {
+                println!("🗑️  Removing old file: {}", filename);
+                std::fs::remove_file(&path)?;
             }
         }
 

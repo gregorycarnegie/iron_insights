@@ -18,16 +18,28 @@ pub struct ArrowVisualizationResponse {
     pub total_records: usize,
 }
 
+pub struct VisualizationDataBundle<'a> {
+    pub histogram_data: &'a HistogramData,
+    pub scatter_data: &'a ScatterData,
+    pub dots_histogram_data: &'a HistogramData,
+    pub dots_scatter_data: &'a ScatterData,
+    pub user_percentile: Option<f32>,
+    pub user_dots_percentile: Option<f32>,
+    pub processing_time_ms: u64,
+    pub total_records: usize,
+}
+
 pub fn serialize_all_visualization_data(
-    histogram_data: &HistogramData,
-    scatter_data: &ScatterData,
-    dots_histogram_data: &HistogramData,
-    dots_scatter_data: &ScatterData,
-    user_percentile: Option<f32>,
-    user_dots_percentile: Option<f32>,
-    processing_time_ms: u64,
-    total_records: usize,
+    bundle: VisualizationDataBundle,
 ) -> Result<ArrowVisualizationResponse, Box<dyn std::error::Error + Send + Sync>> {
+    let histogram_data = bundle.histogram_data;
+    let scatter_data = bundle.scatter_data;
+    let dots_histogram_data = bundle.dots_histogram_data;
+    let dots_scatter_data = bundle.dots_scatter_data;
+    let user_percentile = bundle.user_percentile;
+    let user_dots_percentile = bundle.user_dots_percentile;
+    let processing_time_ms = bundle.processing_time_ms;
+    let total_records = bundle.total_records;
     // Create a comprehensive schema that includes all data types
     let schema = Schema::new(vec![
         // Data type indicator
@@ -202,16 +214,16 @@ pub fn serialize_all_visualization_data(
 pub fn serialize_visualization_response_to_arrow(
     response: &VisualizationResponse,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
-    serialize_all_visualization_data(
-        &response.histogram_data,
-        &response.scatter_data,
-        &response.dots_histogram_data,
-        &response.dots_scatter_data,
-        response.user_percentile,
-        response.user_dots_percentile,
-        response.processing_time_ms,
-        response.total_records,
-    )
+    serialize_all_visualization_data(VisualizationDataBundle {
+        histogram_data: &response.histogram_data,
+        scatter_data: &response.scatter_data,
+        dots_histogram_data: &response.dots_histogram_data,
+        dots_scatter_data: &response.dots_scatter_data,
+        user_percentile: response.user_percentile,
+        user_dots_percentile: response.user_dots_percentile,
+        processing_time_ms: response.processing_time_ms,
+        total_records: response.total_records,
+    })
     .map(|arrow_response| arrow_response.data)
 }
 
@@ -223,7 +235,7 @@ pub fn deserialize_visualization_response_from_arrow(
     use std::io::Cursor;
 
     let cursor = Cursor::new(data);
-    let mut reader = StreamReader::try_new(cursor, None)?;
+    let reader = StreamReader::try_new(cursor, None)?;
 
     let mut histogram_data = HistogramData {
         values: Vec::new(),
@@ -246,7 +258,7 @@ pub fn deserialize_visualization_response_from_arrow(
     let total_records = 0;
 
     // Read all record batches and reconstruct data
-    while let Some(batch) = reader.next() {
+    for batch in reader {
         let batch = batch?;
         let data_type_array = batch
             .column(0)

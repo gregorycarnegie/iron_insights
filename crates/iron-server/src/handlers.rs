@@ -101,16 +101,16 @@ pub async fn create_visualizations_arrow(
     let cache_key = make_cache_key(&params, "arrow");
 
     // Check cache first
-    if let Some(cached) = state.cache.get(&cache_key).await {
-        if cached.computed_at.elapsed().as_secs() < iron_core::cache::CACHE_TTL_SECS {
-            info!("Arrow cache hit for key: {}", cache_key);
-            return Response::builder()
-                .status(StatusCode::OK)
-                .header(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")
-                .header(header::CACHE_CONTROL, "public, max-age=300")
-                .body(cached.data.into())
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR);
-        }
+    if let Some(cached) = state.cache.get(&cache_key).await
+        && cached.computed_at.elapsed().as_secs() < iron_core::cache::CACHE_TTL_SECS
+    {
+        info!("Arrow cache hit for key: {}", cache_key);
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")
+            .header(header::CACHE_CONTROL, "public, max-age=300")
+            .body(cached.data.into())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     // Compute visualization data
@@ -121,20 +121,21 @@ pub async fn create_visualizations_arrow(
     })?;
 
     // Convert to Arrow format
-    let arrow_response = serialize_all_visualization_data(
-        &viz_data.hist,
-        &viz_data.scatter,
-        &viz_data.dots_hist,
-        &viz_data.dots_scatter,
-        viz_data.user_percentile,
-        viz_data.user_dots_percentile,
-        viz_data.processing_time_ms,
-        viz_data.total_records,
-    )
-    .map_err(|e| {
-        error!("Arrow serialization error: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let arrow_response =
+        serialize_all_visualization_data(iron_core::arrow_utils::VisualizationDataBundle {
+            histogram_data: &viz_data.hist,
+            scatter_data: &viz_data.scatter,
+            dots_histogram_data: &viz_data.dots_hist,
+            dots_scatter_data: &viz_data.dots_scatter,
+            user_percentile: viz_data.user_percentile,
+            user_dots_percentile: viz_data.user_dots_percentile,
+            processing_time_ms: viz_data.processing_time_ms,
+            total_records: viz_data.total_records,
+        })
+        .map_err(|e| {
+            error!("Arrow serialization error: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     // Cache the result
     state
@@ -179,7 +180,7 @@ pub async fn create_visualizations_arrow_stream(
     })?;
 
     // Create streaming response
-    let stream = create_arrow_data_stream(viz_data).map(|chunk| Ok::<Bytes, Infallible>(chunk));
+    let stream = create_arrow_data_stream(viz_data).map(Ok::<Bytes, Infallible>);
 
     let body = Body::from_stream(stream);
 

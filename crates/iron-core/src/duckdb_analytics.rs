@@ -9,6 +9,9 @@ use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tracing::{info, instrument};
 
+type QueryCacheEntry = (SystemTime, Vec<u8>);
+type QueryCache = Arc<Mutex<HashMap<String, QueryCacheEntry>>>;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PercentileData {
     pub sex: String,
@@ -52,7 +55,7 @@ pub struct DuckDBAnalytics {
     conn: Mutex<Connection>,
     // Query result cache: cache_key -> (timestamp, serialized_result)
     #[allow(dead_code)]
-    query_cache: Arc<Mutex<HashMap<String, (SystemTime, Vec<u8>)>>>,
+    query_cache: QueryCache,
 }
 
 impl DuckDBAnalytics {
@@ -615,7 +618,7 @@ impl DuckDBAnalytics {
         }
 
         let total_pages = if total_count > 0 {
-            (total_count + per_page - 1) / per_page
+            total_count.div_ceil(per_page)
         } else {
             1
         };

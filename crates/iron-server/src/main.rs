@@ -2,7 +2,6 @@
 use axum::{Router, extract::Request, middleware, response::Response, routing::get};
 use std::sync::Arc;
 use tower_http::{compression::CompressionLayer, services::ServeDir};
-use tracing;
 
 // Import from workspace crates
 use iron_core::{AppConfig, AppState, DataProcessor};

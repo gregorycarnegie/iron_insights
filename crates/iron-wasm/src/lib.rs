@@ -1,3 +1,4 @@
+use std::fmt;
 use wasm_bindgen::prelude::*;
 
 /// Strength levels enum
@@ -11,15 +12,15 @@ pub enum StrengthLevel {
     WorldClass = 5,
 }
 
-impl StrengthLevel {
-    pub fn to_string(&self) -> String {
+impl fmt::Display for StrengthLevel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            StrengthLevel::Beginner => "Beginner".to_string(),
-            StrengthLevel::Novice => "Novice".to_string(),
-            StrengthLevel::Intermediate => "Intermediate".to_string(),
-            StrengthLevel::Advanced => "Advanced".to_string(),
-            StrengthLevel::Elite => "Elite".to_string(),
-            StrengthLevel::WorldClass => "World Class".to_string(),
+            StrengthLevel::Beginner => write!(f, "Beginner"),
+            StrengthLevel::Novice => write!(f, "Novice"),
+            StrengthLevel::Intermediate => write!(f, "Intermediate"),
+            StrengthLevel::Advanced => write!(f, "Advanced"),
+            StrengthLevel::Elite => write!(f, "Elite"),
+            StrengthLevel::WorldClass => write!(f, "World Class"),
         }
     }
 }

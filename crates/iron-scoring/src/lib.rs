@@ -3,11 +3,11 @@
 /// DOTS coefficients (gender-specific)
 #[derive(Debug, Clone)]
 pub struct DotsCoefficients {
-    pub a: f32,
-    pub b: f32,
-    pub c: f32,
-    pub d: f32,
-    pub e: f32,
+    pub a: f64,
+    pub b: f64,
+    pub c: f64,
+    pub d: f64,
+    pub e: f64,
 }
 
 impl DotsCoefficients {
@@ -47,12 +47,12 @@ pub fn calculate_dots_score(lift_kg: f32, bodyweight_kg: f32, sex: &str) -> f32 
     } else {
         DotsCoefficients::female()
     };
-
+    let x = bodyweight_kg as f64;
     let denominator = coeffs.a
-        + coeffs.b * bodyweight_kg
-        + coeffs.c * bodyweight_kg.powi(2)
-        + coeffs.d * bodyweight_kg.powi(3)
-        + coeffs.e * bodyweight_kg.powi(4);
+        + coeffs.b * x
+        + coeffs.c * x.powi(2)
+        + coeffs.d * x.powi(3)
+        + coeffs.e * x.powi(4);
 
-    lift_kg * 500.0 / denominator
+    lift_kg * 500.0 / denominator as f32
 }

@@ -286,10 +286,10 @@ fn build_page_url(params: &RankingsParams, page: u32) -> String {
     if let Some(year) = params.year {
         url.push_str(&format!("&year={}", year));
     }
-    if let Some(sort_by) = &params.sort_by {
-        if sort_by != "dots" {
-            url.push_str(&format!("&sort_by={}", sort_by));
-        }
+    if let Some(sort_by) = &params.sort_by
+        && sort_by != "dots"
+    {
+        url.push_str(&format!("&sort_by={}", sort_by));
     }
 
     url

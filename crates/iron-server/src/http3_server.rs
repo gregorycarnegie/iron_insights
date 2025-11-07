@@ -1,10 +1,7 @@
 use axum::http::{Response, StatusCode};
 use quinn::{Endpoint, ServerConfig};
 use rcgen::generate_simple_self_signed;
-use rustls::{
-    ServerConfig as TlsServerConfig,
-    pki_types::{CertificateDer, PrivateKeyDer},
-};
+use rustls::{ServerConfig as TlsServerConfig, pki_types::PrivateKeyDer};
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
@@ -140,7 +137,7 @@ impl Http3Server {
     fn create_server_config(&self) -> Result<ServerConfig, Box<dyn std::error::Error>> {
         // Generate self-signed certificate for development
         let cert_key = generate_simple_self_signed(vec!["localhost".into()])?;
-        let cert = CertificateDer::from(cert_key.cert.der().to_owned());
+        let cert = cert_key.cert.der().to_owned();
         let key = PrivateKeyDer::try_from(cert_key.signing_key.serialize_der())?;
 
         let tls_config = TlsServerConfig::builder()
