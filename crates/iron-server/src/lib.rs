@@ -1,4 +1,6 @@
 // iron-server: Web server and HTTP handlers
+#[macro_use]
+pub mod macros;
 pub mod handlers;
 pub mod http3_server;
 pub mod share_card;
