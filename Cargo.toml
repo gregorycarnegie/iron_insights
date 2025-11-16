@@ -28,7 +28,7 @@ futures-util = "0.3.31"
 
 # Web framework
 axum = { version = "0.8.6", features = ["macros", "ws"] }
-axum-extra = { version = "0.10.3", features = ["typed-header"] }
+axum-extra = { version = "0.12.2", features = ["typed-header"] }
 tower = "0.5.2"
 tower-http = { version = "0.6.6", features = ["fs", "compression-br", "compression-gzip", "trace"] }
 
