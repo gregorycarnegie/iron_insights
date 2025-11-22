@@ -2,7 +2,7 @@
 use axum::http::StatusCode;
 use axum::{
     body::Body,
-    extract::{Query, State},
+    extract::State,
     http::header,
     response::{Json, Response},
 };
@@ -20,12 +20,11 @@ use iron_core::{
     viz::compute_viz,
 };
 use iron_ui::{
-    render_about, render_analytics, render_donate, render_index, render_onerepmax, render_rankings,
-    render_sharecard,
+    render_about, render_analytics, render_donate, render_index, render_onerepmax, render_sharecard,
 };
 
 // Import macros from iron_server crate
-use crate::{simple_page_handler, duckdb_handler, log_and_500};
+use crate::{duckdb_handler, log_and_500, simple_page_handler};
 
 // ============================================================================
 // Simple Page Handlers (using simple_page_handler macro)
@@ -113,7 +112,10 @@ pub async fn create_visualizations_arrow(
 
     // Compute visualization data
     let config = iron_core::config::AppConfig::default();
-    let viz_data = log_and_500!(compute_viz(&state.data, &params, &config), "Arrow compute error")?;
+    let viz_data = log_and_500!(
+        compute_viz(&state.data, &params, &config),
+        "Arrow compute error"
+    )?;
 
     // Convert to Arrow format
     let arrow_response = log_and_500!(
@@ -167,7 +169,10 @@ pub async fn create_visualizations_arrow_stream(
 
     // Compute visualization data
     let config = iron_core::config::AppConfig::default();
-    let viz_data = log_and_500!(compute_viz(&state.data, &params, &config), "Arrow stream compute error")?;
+    let viz_data = log_and_500!(
+        compute_viz(&state.data, &params, &config),
+        "Arrow stream compute error"
+    )?;
 
     // Create streaming response
     let stream = create_arrow_data_stream(viz_data).map(Ok::<Bytes, Infallible>);
@@ -210,7 +215,10 @@ pub async fn get_stats_arrow(State(state): State<AppState>) -> Result<Response, 
         status: "operational".to_string(),
     };
 
-    let arrow_data = log_and_500!(serialize_stats_to_arrow(&stats_data), "Stats Arrow serialization error")?;
+    let arrow_data = log_and_500!(
+        serialize_stats_to_arrow(&stats_data),
+        "Stats Arrow serialization error"
+    )?;
 
     Response::builder()
         .status(StatusCode::OK)
@@ -378,8 +386,14 @@ pub async fn get_weight_distribution_duckdb(
         }
     })
     .await
-    .map_err(|e| { error!("Task join error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?
-    .map_err(|e| { error!("DuckDB weight distribution error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    .map_err(|e| {
+        error!("Task join error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .map_err(|e| {
+        error!("DuckDB weight distribution error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     Ok(Json(serde_json::json!({
         "distribution": distribution,
@@ -447,8 +461,14 @@ pub async fn get_competitive_analysis_duckdb(
         }
     })
     .await
-    .map_err(|e| { error!("Task join error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?
-    .map_err(|e| { error!("DuckDB competitive analysis error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    .map_err(|e| {
+        error!("Task join error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .map_err(|e| {
+        error!("DuckDB competitive analysis error: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     Ok(Json(serde_json::json!({
         "analysis": analysis,
@@ -463,51 +483,4 @@ pub async fn get_summary_stats_duckdb(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     duckdb_handler!(state, get_summary_stats, "stats")
-}
-
-/// Rankings page handler - serves the rankings UI
-#[instrument(skip(state))]
-pub async fn serve_rankings_page(
-    State(state): State<AppState>,
-    Query(params): Query<RankingsParams>,
-) -> Result<Markup, StatusCode> {
-    // If DuckDB is not available, show error page
-    let duckdb = state.duckdb.as_ref().ok_or_else(|| {
-        error!("DuckDB not available for rankings");
-        StatusCode::SERVICE_UNAVAILABLE
-    })?;
-
-    // Get rankings data from DuckDB
-    let rankings = tokio::task::spawn_blocking({
-        let duckdb = duckdb.clone();
-        let params = params.clone();
-        move || duckdb.get_rankings_from_full_dataset(&params)
-    })
-    .await
-    .map_err(|e| { error!("Task join error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?
-    .map_err(|e| { error!("DuckDB rankings error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
-
-    Ok(render_rankings(Some(&rankings), &params))
-}
-
-/// Rankings API endpoint - returns JSON data
-#[instrument(skip(state))]
-pub async fn get_rankings_api(
-    State(state): State<AppState>,
-    Query(params): Query<RankingsParams>,
-) -> Result<Json<RankingsResponse>, StatusCode> {
-    let duckdb = state.duckdb.as_ref().ok_or_else(|| {
-        error!("DuckDB not available for rankings");
-        StatusCode::SERVICE_UNAVAILABLE
-    })?;
-
-    let rankings = tokio::task::spawn_blocking({
-        let duckdb = duckdb.clone();
-        move || duckdb.get_rankings_from_full_dataset(&params)
-    })
-    .await
-    .map_err(|e| { error!("Task join error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?
-    .map_err(|e| { error!("DuckDB rankings API error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
-
-    Ok(Json(rankings))
 }

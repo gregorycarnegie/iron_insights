@@ -6,7 +6,6 @@ pub mod components;
 pub mod donate_page;
 pub mod home_page;
 pub mod onerepmax_page;
-pub mod rankings_page;
 pub mod sharecard_page;
 
 // Re-export components
@@ -50,14 +49,6 @@ pub fn render_about() -> Markup {
 /// Donation page
 pub fn render_donate() -> Markup {
     donate_page::render_donate_page()
-}
-
-/// Rankings page
-pub fn render_rankings(
-    rankings: Option<&iron_core::models::RankingsResponse>,
-    params: &iron_core::models::RankingsParams,
-) -> Markup {
-    rankings_page::render_rankings_page(rankings, params)
 }
 
 /// Share Card page (kept for convenience)

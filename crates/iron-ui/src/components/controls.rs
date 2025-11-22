@@ -38,25 +38,89 @@ pub fn render_controls() -> Markup {
                     label for="weightClass" { "Weight Class" }
                     select #weightClass name="weightClass" aria-describedby="weight-class-help" {
                         option value="All" { "All Classes" }
-                        optgroup label="Men's Classes" {
-                            option value="59" { "59 kg" }
-                            option value="66" { "66 kg" }
-                            option value="74" { "74 kg" }
-                            option value="83" { "83 kg" }
-                            option value="93" { "93 kg" }
-                            option value="105" { "105 kg" }
-                            option value="120" { "120 kg" }
+                        optgroup label="Traditional" {
+                            option value="44" { "-44 kg" }
+                            option value="48" { "-48 kg" }
+                            option value="52" { "-52 kg" }
+                            option value="56" { "-56 kg" }
+                            option value="60" { "-60 kg" }
+                            option value="67.5" { "-67.5 kg" }
+                            option value="75" { "-75 kg" }
+                            option value="82.5" { "-82.5 kg" }
+                            option value="90" { "-90 kg" }
+                            option value="90+" { "90+ kg" }
+                            option value="100" { "-100 kg" }
+                            option value="110" { "-110 kg" }
+                            option value="110+" { "110+ kg" }
+                            option value="125" { "-125 kg" }
+                            option value="140" { "-140 kg" }
+                            option value="140+" { "140+ kg" }
+                        }
+                        optgroup label="IPF Men" {
+                            option value="53" { "-53 kg" }
+                            option value="59" { "-59 kg" }
+                            option value="66" { "-66 kg" }
+                            option value="74" { "-74 kg" }
+                            option value="83" { "-83 kg" }
+                            option value="93" { "-93 kg" }
+                            option value="105" { "-105 kg" }
+                            option value="120" { "-120 kg" }
                             option value="120+" { "120+ kg" }
                         }
-                        optgroup label="Women's Classes" {
-                            option value="47" { "47 kg" }
-                            option value="52" { "52 kg" }
-                            option value="57" { "57 kg" }
-                            option value="63" { "63 kg" }
-                            option value="69" { "69 kg" }
-                            option value="76" { "76 kg" }
-                            option value="84" { "84 kg" }
+                        optgroup label="IPF Women" {
+                            option value="43" { "-43 kg" }
+                            option value="47" { "-47 kg" }
+                            option value="52" { "-52 kg" }
+                            option value="57" { "-57 kg" }
+                            option value="63" { "-63 kg" }
+                            option value="69" { "-69 kg" }
+                            option value="76" { "-76 kg" }
+                            option value="84" { "-84 kg" }
                             option value="84+" { "84+ kg" }
+                        }
+                        optgroup label="Para Men" {
+                            option value="49" { "-49 kg" }
+                            option value="54" { "-54 kg" }
+                            option value="59" { "-59 kg" }
+                            option value="65" { "-65 kg" }
+                            option value="72" { "-72 kg" }
+                            option value="80" { "-80 kg" }
+                            option value="88" { "-88 kg" }
+                            option value="97" { "-97 kg" }
+                            option value="107" { "-107 kg" }
+                            option value="107+" { "107+ kg" }
+                        }
+                        optgroup label="Para Women" {
+                            option value="41" { "-41 kg" }
+                            option value="45" { "-45 kg" }
+                            option value="50" { "-50 kg" }
+                            option value="55" { "-55 kg" }
+                            option value="61" { "-61 kg" }
+                            option value="67" { "-67 kg" }
+                            option value="73" { "-73 kg" }
+                            option value="79" { "-79 kg" }
+                            option value="86" { "-86 kg" }
+                            option value="86+" { "86+ kg" }
+                        }
+                        optgroup label="WP Men" {
+                            option value="62" { "-62 kg" }
+                            option value="69" { "-69 kg" }
+                            option value="77" { "-77 kg" }
+                            option value="85" { "-85 kg" }
+                            option value="94" { "-94 kg" }
+                            option value="105" { "-105 kg" }
+                            option value="120" { "-120 kg" }
+                            option value="120+" { "120+ kg" }
+                        }
+                        optgroup label="WP Women" {
+                            option value="48" { "-48 kg" }
+                            option value="53" { "-53 kg" }
+                            option value="58" { "-58 kg" }
+                            option value="64" { "-64 kg" }
+                            option value="72" { "-72 kg" }
+                            option value="84" { "-84 kg" }
+                            option value="100" { "-100 kg" }
+                            option value="100+" { "100+ kg" }
                         }
                     }
                     span.sr-only #weight-class-help { "Select your powerlifting weight class or all classes to compare against" }

@@ -109,8 +109,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(serve_index))
         // Analytics page (moved from root)
         .route("/analytics", get(serve_analytics))
-        // Rankings page
-        .route("/rankings", get(serve_rankings_page))
         // 1RM Calculator page
         .route("/1rm", get(serve_onerepmax_page))
         .route("/about", get(serve_about_page))
@@ -128,8 +126,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/stats", get(get_stats))
         .route("/api/stats-arrow", get(get_stats_arrow))
         .route("/api/share-card", axum::routing::post(generate_share_card))
-        // Rankings API
-        .route("/api/rankings", get(get_rankings_api))
         // DuckDB-powered analytics endpoints
         .route("/api/percentiles-duckdb", get(get_percentiles_duckdb))
         .route(

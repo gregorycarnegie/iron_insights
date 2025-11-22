@@ -34,7 +34,6 @@ pub fn render_header(active_route: Option<&str>) -> Markup {
                     a href="/sharecard" class=(active_class("/sharecard")) aria-current=(current_page("/sharecard")) { "Share Card" }
                     a href="/about" class=(active_class("/about")) aria-current=(current_page("/about")) { "About" }
                     a href="/donate" class=(active_class("/donate")) aria-current=(current_page("/donate")) { "Donate" }
-                    a href="/rankings" class=(active_class("/rankings")) aria-current=(current_page("/rankings")) { "Rankings" }
 
                     button.mobile-menu-toggle onclick="toggleSidebar()" aria-label="Toggle mobile menu" aria-expanded="false" aria-controls="sidebar" {
                         svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" {
