@@ -50,6 +50,7 @@ arrow = { workspace = true }
 arrow-ipc = { workspace = true }
 maud = { workspace = true }
 chrono = { workspace = true }
+svg = "0.18.0"
 
 [lib]
 name = "iron_server"

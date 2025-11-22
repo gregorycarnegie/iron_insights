@@ -9,7 +9,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.11.0"
+version = "0.12.0"
 edition = "2024"
 authors = ["Gregory Carnegie"]
 license = "MIT"
@@ -27,21 +27,30 @@ futures = "0.3.31"
 futures-util = "0.3.31"
 
 # Web framework
-axum = { version = "0.8.6", features = ["macros", "ws"] }
+axum = { version = "0.8.7", features = ["macros", "ws"] }
 axum-extra = { version = "0.12.2", features = ["typed-header"] }
 tower = "0.5.2"
-tower-http = { version = "0.6.6", features = ["fs", "compression-br", "compression-gzip", "trace"] }
+tower-http = { version = "0.6.6", features = [
+    "fs",
+    "compression-br",
+    "compression-gzip",
+    "trace",
+] }
 
 # HTML templating
 maud = { version = "0.27.0", features = ["axum"] }
 
 # Data processing (heavy dependencies)
 polars = { version = "0.51.0", features = [
-    "lazy", "csv", "parquet",
-    "temporal", "strings", "dtype-date",
-    "dtype-categorical"
+    "lazy",
+    "csv",
+    "parquet",
+    "temporal",
+    "strings",
+    "dtype-date",
+    "dtype-categorical",
 ] }
-duckdb = { version = "1.4.1", features = ["parquet"] }
+duckdb = { version = "1.4.2", features = ["parquet"] }
 
 # Apache Arrow
 arrow = "57.0.0"
@@ -64,7 +73,7 @@ bytes = "1.10.1"
 
 # Performance
 rayon = "1.11.0"
-wide = "0.8.1"
+wide = "0.8.3"
 lazy_static = "1.5.0"
 moka = { version = "0.12.11", features = ["future"] }
 
@@ -82,17 +91,20 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 
 # HTTP/3 QUIC
-quinn = { version = "0.11.9", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+quinn = { version = "0.11.9", default-features = false, features = [
+    "runtime-tokio",
+    "rustls-ring",
+] }
 quinn-proto = "0.11.13"
 h3 = "0.0.8"
 h3-quinn = "0.0.10"
-rustls = { version = "0.23.34", default-features = false, features = ["ring"] }
+rustls = { version = "0.23.35", default-features = false, features = ["ring"] }
 rcgen = { version = "0.14.5", features = ["crypto"] }
 
 # WebAssembly
-wasm-bindgen = "0.2"
-serde-wasm-bindgen = "0.6"
-js-sys = "0.3"
+wasm-bindgen = "0.2.105"
+serde-wasm-bindgen = "0.6.5"
+js-sys = "0.3.82"
 
 # Internal workspace crates
 iron-core = { path = "crates/iron-core" }
@@ -101,15 +113,15 @@ iron-ui = { path = "crates/iron-ui" }
 iron-server = { path = "crates/iron-server" }
 
 [profile.release]
-lto = true              # Link-time optimization
-codegen-units = 1       # Better optimization
-panic = "abort"         # Smaller binary
-strip = true            # Remove debug symbols
+lto = true        # Link-time optimization
+codegen-units = 1 # Better optimization
+panic = "abort"   # Smaller binary
+strip = true      # Remove debug symbols
 
 [profile.dev]
 # Faster compile times in development
-opt-level = 1           # Some optimization for dependencies
-incremental = true      # Enable incremental compilation
+opt-level = 1      # Some optimization for dependencies
+incremental = true # Enable incremental compilation
 
 # Speed up compilation for dev dependencies (mainly proc macros)
 [profile.dev.package."*"]
