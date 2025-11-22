@@ -2,7 +2,7 @@ use maud::{Markup, PreEscaped};
 
 pub fn render_component_styles() -> Markup {
     PreEscaped(r#"
-        /* Buttons - Enhanced with micro-interactions */
+        /* Buttons - Enhanced with micro-interactions & Glows */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -15,10 +15,12 @@ pub fn render_component_styles() -> Markup {
             border: 1px solid transparent;
             text-decoration: none;
             cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            will-change: transform;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            will-change: transform, box-shadow;
             position: relative;
             overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
         /* Larger button variant used by calculators */
@@ -30,95 +32,93 @@ pub fn render_component_styles() -> Markup {
         .btn::before {
             content: '';
             position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            transition: width 0.3s ease, height 0.3s ease;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
         }
 
-        .btn:active::before {
-            width: 300px;
-            height: 300px;
+        .btn:hover::before {
+            left: 100%;
         }
 
         .btn:active { 
             transform: translateY(1px) scale(0.98);
-            transition: all 0.1s ease;
         }
         
         .btn-primary { 
             background: linear-gradient(135deg, var(--primary), var(--primary-dark));
             color: #fff;
-            box-shadow: 0 2px 4px rgba(var(--primary-rgb), 0.2);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .btn-primary:hover { 
             background: linear-gradient(135deg, var(--primary-light), var(--primary));
-            box-shadow: 0 8px 25px rgba(var(--primary-rgb), 0.3);
+            box-shadow: 0 0 25px rgba(59, 130, 246, 0.6), 0 0 5px rgba(255, 255, 255, 0.5);
             transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.3);
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
         }
         
         .btn-secondary { 
             background: linear-gradient(135deg, var(--secondary), var(--secondary-dark));
             color: #fff;
-            box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .btn-secondary:hover { 
             background: linear-gradient(135deg, var(--secondary-light), var(--secondary));
-            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
+            box-shadow: 0 0 25px rgba(16, 185, 129, 0.6);
             transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.3);
         }
         
         .btn-tertiary { 
-            background: var(--surface-secondary);
-            color: var(--text-primary);
-            border-color: var(--border);
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(4px);
         }
         
         .btn-tertiary:hover { 
-            background: var(--surface);
+            background: rgba(255, 255, 255, 0.1);
             border-color: var(--primary);
-            color: var(--primary);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
             transform: translateY(-1px);
         }
 
         /* Enhanced glass/elevated cards with micro-interactions */
         .glass-card {
-            background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)) , var(--surface);
-            border: 1px solid rgba(148, 163, 184, 0.18);
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px rgba(2,6,23,0.05), 0 1px 3px rgba(2,6,23,0.1);
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 1rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
         }
 
-        .glass-card::before {
+        .glass-card::after {
             content: '';
             position: absolute;
             top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(var(--primary-rgb), 0.03), transparent);
-            transition: left 0.5s ease;
-        }
-
-        .glass-card:hover::before {
-            left: 100%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
         }
         
         .card-hover:hover { 
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 20px 40px rgba(2,6,23,0.15), 0 8px 16px rgba(var(--primary-rgb), 0.1);
-            border-color: rgba(var(--primary-rgb), 0.2);
+            transform: translateY(-5px) scale(1.01);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 20px rgba(59, 130, 246, 0.2);
+            border-color: rgba(59, 130, 246, 0.3);
         }
 
         /* Feature cards with enhanced interactions */
@@ -133,12 +133,12 @@ pub fn render_component_styles() -> Markup {
         }
 
         .feature-card:hover .icon-wrap {
-            transform: scale(1.1) rotate(2deg);
-            transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            transform: scale(1.1) rotate(5deg);
+            filter: drop-shadow(0 0 8px var(--primary));
         }
 
         .feature-card .icon-wrap {
-            transition: transform 0.3s ease;
+            transition: all 0.3s ease;
         }
 
         /* Stat cards with pulse effect */
@@ -149,12 +149,14 @@ pub fn render_component_styles() -> Markup {
 
         .stat-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 12px 24px rgba(var(--primary-rgb), 0.15);
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.15);
+            border-color: var(--primary);
         }
 
         .stat-card:hover .stat-number {
             transform: scale(1.05);
-            color: var(--primary);
+            color: #fff;
+            text-shadow: 0 0 10px var(--primary);
         }
 
         .stat-number {
@@ -171,87 +173,75 @@ pub fn render_component_styles() -> Markup {
         
         .control-group label {
             display: block;
-            font-size: 0.9rem;
-            font-weight: 500;
+            font-size: 0.85rem;
+            font-weight: 600;
             color: var(--text-secondary);
             margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
         
         .control-group input[type="number"],
         .control-group input[type="text"],
         .control-group select {
             width: 100%;
-            padding: 0.5rem 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: 0.375rem;
-            font-size: 0.875rem;
-            background: white;
-            transition: all 0.2s;
+            padding: 0.6rem 0.85rem;
+            border: 1px solid var(--glass-border);
+            border-radius: 0.5rem;
+            font-size: 0.9rem;
+            background: rgba(0, 0, 0, 0.2);
+            color: #fff;
+            transition: all 0.3s ease;
         }
         
         .control-group input:focus,
         .control-group select:focus {
             outline: none;
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2), 0 0 15px rgba(59, 130, 246, 0.3);
+            background: rgba(0, 0, 0, 0.4);
         }
         
         /* Enhanced Toggle Buttons with micro-interactions */
         .toggle-group {
             display: flex;
-            background: white;
-            border: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
             border-radius: 0.5rem;
             overflow: hidden;
             position: relative;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            transition: box-shadow 0.2s ease;
-        }
-
-        .toggle-group:hover {
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            padding: 2px;
         }
         
         .toggle-button {
             flex: 1;
-            padding: 0.65rem 0.5rem;
+            padding: 0.5rem 0.5rem;
             border: none;
-            background: white;
+            background: transparent;
             color: var(--text-secondary);
-            font-size: 0.875rem;
-            font-weight: 500;
+            font-size: 0.85rem;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            border-right: 1px solid var(--border);
+            transition: all 0.3s ease;
+            border-radius: 0.3rem;
             position: relative;
             z-index: 1;
         }
         
-        .toggle-button:last-child {
-            border-right: none;
-        }
-        
         .toggle-button.active {
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            color: white;
-            box-shadow: 0 2px 4px rgba(var(--primary-rgb), 0.3);
-            transform: scale(1.02);
+            background: var(--surface-active);
+            color: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
         
         .toggle-button:hover:not(.active) {
-            background: var(--light-secondary);
-            transform: scale(1.01);
-            color: var(--primary);
+            color: #fff;
+            background: rgba(255, 255, 255, 0.05);
         }
 
         .toggle-button:focus {
-            outline: 2px solid var(--primary);
-            outline-offset: 2px;
-            z-index: 2;
-        }
-
-        .toggle-button:active {
-            transform: scale(0.98);
+            outline: none;
+            color: #fff;
         }
         
         /* Checkbox Style */
@@ -264,24 +254,46 @@ pub fn render_component_styles() -> Markup {
         .checkbox-label {
             display: flex;
             align-items: center;
-            gap: 0.625rem; /* add a touch more space */
-            font-size: 0.875rem;
-            color: var(--text-primary);
+            gap: 0.625rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
             cursor: pointer;
             padding: 0.25rem 0;
+            transition: color 0.2s;
+        }
+
+        .checkbox-label:hover {
+            color: #fff;
         }
         
         .checkbox-label input[type="checkbox"] {
             width: 1.125rem;
             height: 1.125rem;
-            border: 1px solid var(--border);
+            border: 1px solid var(--glass-border);
             border-radius: 0.25rem;
             cursor: pointer;
-            margin-right: 0.25rem; /* fallback spacing for browsers without flex gap support */
+            margin-right: 0.25rem;
+            background: rgba(0,0,0,0.3);
+            appearance: none;
+            -webkit-appearance: none;
+            position: relative;
+            transition: all 0.2s;
         }
         
         .checkbox-label input[type="checkbox"]:checked {
-            accent-color: var(--primary);
+            background: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .checkbox-label input[type="checkbox"]:checked::after {
+            content: '✓';
+            position: absolute;
+            color: white;
+            font-size: 0.8rem;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
         }
         
         /* Sidebar primary action */
@@ -295,20 +307,23 @@ pub fn render_component_styles() -> Markup {
             display: inline-block;
             padding: 0.25rem 0.75rem;
             font-size: 0.75rem;
-            font-weight: 500;
+            font-weight: 600;
             border-radius: 9999px;
-            background: var(--light-secondary);
+            background: rgba(255, 255, 255, 0.05);
             color: var(--text-secondary);
+            border: 1px solid var(--glass-border);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
         
-        .tag.primary { background: rgba(37, 99, 235, 0.1); color: var(--primary); }
-        .tag.success { background: rgba(16, 185, 129, 0.1); color: var(--secondary); }
-        .tag.danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
-        .tag.warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
+        .tag.primary { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border-color: rgba(59, 130, 246, 0.3); }
+        .tag.success { background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
+        .tag.danger { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+        .tag.warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
         
         /* Loading States - Enhanced Skeletons */
         .skeleton {
-            background: linear-gradient(90deg, var(--surface-secondary) 25%, rgba(var(--primary-rgb), 0.08) 50%, var(--surface-secondary) 75%);
+            background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
             background-size: 200% 100%;
             animation: skeleton-shimmer 2s infinite;
             border-radius: 0.375rem;
@@ -382,7 +397,7 @@ pub fn render_component_styles() -> Markup {
             left: 20px;
             right: 20px;
             height: 20px;
-            background: rgba(var(--primary-rgb), 0.1);
+            background: rgba(255, 255, 255, 0.05);
             border-radius: 4px;
             animation: skeleton-shimmer 2s infinite;
         }
@@ -396,9 +411,8 @@ pub fn render_component_styles() -> Markup {
             top: 60px;
             background: linear-gradient(
                 to top,
-                rgba(var(--primary-rgb), 0.15) 0%,
-                rgba(var(--primary-rgb), 0.08) 30%,
-                rgba(var(--primary-rgb), 0.05) 60%,
+                rgba(255, 255, 255, 0.05) 0%,
+                rgba(255, 255, 255, 0.02) 30%,
                 transparent 100%
             );
             border-radius: 8px;
@@ -436,7 +450,7 @@ pub fn render_component_styles() -> Markup {
             bottom: 100%;
             left: 50%;
             transform: translateX(-50%);
-            background: var(--dark);
+            background: rgba(0, 0, 0, 0.9);
             color: white;
             padding: 0.5rem 0.75rem;
             border-radius: 0.375rem;
@@ -446,6 +460,8 @@ pub fn render_component_styles() -> Markup {
             pointer-events: none;
             transition: opacity 0.2s;
             margin-bottom: 0.5rem;
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(4px);
         }
         
         .tooltip:hover::after {
@@ -483,6 +499,7 @@ pub fn render_component_styles() -> Markup {
         form:invalid .btn-primary {
             opacity: 0.6;
             cursor: not-allowed;
+            box-shadow: none;
         }
 
         /* Loading state for forms */
@@ -498,11 +515,12 @@ pub fn render_component_styles() -> Markup {
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(255, 255, 255, 0.8);
+            background: rgba(0, 0, 0, 0.7);
             display: flex;
             align-items: center;
             justify-content: center;
             border-radius: inherit;
+            backdrop-filter: blur(2px);
         }
     "#.to_string())
 }
