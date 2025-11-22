@@ -8,7 +8,7 @@ pub fn render_onerepmax_page() -> Markup {
             (render_head_minimal())
             body {
                 div.container {
-                    (render_header())
+                    (render_header(Some("/1rm")))
                     div.main-content {
                         div.onerepmax-calculator {
                             div.calculator-header {

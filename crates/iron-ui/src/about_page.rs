@@ -8,7 +8,7 @@ pub fn render_about_page() -> Markup {
             (render_head_minimal())
             body.no-js {
                 div.container {
-                    (render_header())
+                    (render_header(Some("/about")))
                     main #main-content.page-transition role="main" {
                         div.main-content.about-page {
                             section.about-hero aria-labelledby="about-heading" {

@@ -13,7 +13,7 @@ pub fn render_rankings_page(
             (render_head_minimal())
             body.no-js {
                 div.container {
-                    (render_header())
+                    (render_header(Some("/rankings")))
                     main #main-content.page-transition role="main" {
                         div.main-content.rankings-page {
                             (render_rankings_hero(rankings))
@@ -71,6 +71,17 @@ fn render_rankings_hero(rankings: Option<&RankingsResponse>) -> Markup {
 }
 
 fn render_rankings_filters(params: &RankingsParams) -> Markup {
+    let sex = params.sex.as_deref().unwrap_or("");
+
+    let weight_classes = match sex {
+        "M" => vec!["59", "66", "74", "83", "93", "105", "120", "120+"],
+        "F" => vec!["47", "52", "57", "63", "69", "76", "84", "84+"],
+        _ => vec![
+            "47", "52", "57", "59", "63", "66", "69", "74", "76", "83", "84", "84+", "93", "105",
+            "120", "120+",
+        ],
+    };
+
     html! {
         section.rankings-controls aria-label="Rankings filters" {
             h2.section-heading { "Refine the leaderboard" }
@@ -101,14 +112,10 @@ fn render_rankings_filters(params: &RankingsParams) -> Markup {
                             label for="weight_class" { "Weight Class" }
                             select #weight_class name="weight_class" {
                                 option value="" selected=(params.weight_class.is_none()) { "All" }
-                                option value="59" selected=(params.weight_class.as_deref() == Some("59")) { "-59kg" }
-                                option value="66" selected=(params.weight_class.as_deref() == Some("66")) { "-66kg" }
-                                option value="74" selected=(params.weight_class.as_deref() == Some("74")) { "-74kg" }
-                                option value="83" selected=(params.weight_class.as_deref() == Some("83")) { "-83kg" }
-                                option value="93" selected=(params.weight_class.as_deref() == Some("93")) { "-93kg" }
-                                option value="105" selected=(params.weight_class.as_deref() == Some("105")) { "-105kg" }
-                                option value="120" selected=(params.weight_class.as_deref() == Some("120")) { "-120kg" }
-                                option value="120+" selected=(params.weight_class.as_deref() == Some("120+")) { "120kg+" }
+                                @for wc in weight_classes {
+                                    @let label = if wc.ends_with('+') { format!("{}kg", wc) } else { format!("-{}kg", wc) };
+                                    option value=(wc) selected=(params.weight_class.as_deref() == Some(wc)) { (label) }
+                                }
                             }
                         }
 

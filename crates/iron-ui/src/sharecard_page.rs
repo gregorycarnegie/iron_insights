@@ -10,7 +10,7 @@ pub fn render_sharecard_page() -> Markup {
             (render_head_minimal())
             body {
                 div.container {
-                    (render_header())
+                    (render_header(Some("/sharecard")))
                     div.main-content {
                         // Use existing two-column layout: sidebar + content
                         aside.sidebar {

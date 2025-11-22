@@ -67,8 +67,22 @@ pub struct RankingsParams {
     pub equipment: Option<String>,
     pub weight_class: Option<String>,
     pub federation: Option<String>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     pub year: Option<u32>,
     pub sort_by: Option<String>, // "dots", "total", "squat", "bench", "deadlift"
+}
+
+fn empty_string_as_none<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    match opt.as_deref() {
+        None | Some("") => Ok(None),
+        Some(s) => T::from_str(s).map(Some).map_err(serde::de::Error::custom),
+    }
 }
 
 impl Default for RankingsParams {

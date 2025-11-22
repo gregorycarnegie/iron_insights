@@ -25,7 +25,7 @@ pub fn render_analytics() -> Markup {
             (render_head())
             body {
                 div.container {
-                    (render_header())
+                    (render_header(Some("/analytics")))
                     div.main-content {
                         (render_controls())
                         (render_main_content())

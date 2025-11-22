@@ -8,7 +8,7 @@ pub fn render_donate_page() -> Markup {
             (render_head_minimal())
             body.no-js {
                 div.container {
-                    (render_header())
+                    (render_header(Some("/donate")))
                     main #main-content.page-transition role="main" {
                         div.main-content.donate-page {
                             section.donate-hero aria-labelledby="donate-heading" {

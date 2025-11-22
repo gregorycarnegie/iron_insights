@@ -1,7 +1,14 @@
 // src/ui/components/header.rs - Modern header with navigation
 use maud::{Markup, html};
 
-pub fn render_header() -> Markup {
+pub fn render_header(active_route: Option<&str>) -> Markup {
+    let active = active_route.unwrap_or("");
+
+    let active_class = |path: &str| -> &'static str { if active == path { "active" } else { "" } };
+
+    let current_page =
+        |path: &str| -> &'static str { if active == path { "page" } else { "false" } };
+
     html! {
         a.skip-link href="#main-content" { "Skip to main content" }
         header.header role="banner" {
@@ -21,13 +28,13 @@ pub fn render_header() -> Markup {
                 }
 
                 nav.header-nav role="navigation" aria-label="Main navigation" {
-                    a href="/" aria-current="page" { "Home" }
-                    a href="/analytics" { "Analytics" }
-                    a href="/1rm" { "1RM Calculator" }
-                    a href="/sharecard" { "Share Card" }
-                    a href="/about" { "About" }
-                    a href="/donate" { "Donate" }
-                    a href="/rankings" { "Rankings" }
+                    a href="/" class=(active_class("/")) aria-current=(current_page("/")) { "Home" }
+                    a href="/analytics" class=(active_class("/analytics")) aria-current=(current_page("/analytics")) { "Analytics" }
+                    a href="/1rm" class=(active_class("/1rm")) aria-current=(current_page("/1rm")) { "1RM Calculator" }
+                    a href="/sharecard" class=(active_class("/sharecard")) aria-current=(current_page("/sharecard")) { "Share Card" }
+                    a href="/about" class=(active_class("/about")) aria-current=(current_page("/about")) { "About" }
+                    a href="/donate" class=(active_class("/donate")) aria-current=(current_page("/donate")) { "Donate" }
+                    a href="/rankings" class=(active_class("/rankings")) aria-current=(current_page("/rankings")) { "Rankings" }
 
                     button.mobile-menu-toggle onclick="toggleSidebar()" aria-label="Toggle mobile menu" aria-expanded="false" aria-controls="sidebar" {
                         svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" {

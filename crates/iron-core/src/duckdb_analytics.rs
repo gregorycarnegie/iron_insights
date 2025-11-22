@@ -499,13 +499,19 @@ impl DuckDBAnalytics {
 
         if let Some(weight_class) = &params.weight_class {
             // Convert UI weight class format to DB format
-            let db_weight_class = if weight_class.ends_with('+') {
-                format!("{}kg+", weight_class.trim_end_matches('+'))
+            // Handle both "X" and "Xkg" formats in the query to be safe
+            let wc_clean = weight_class.trim_end_matches("kg").trim_end_matches('+');
+            let is_plus = weight_class.ends_with('+');
+
+            let (db_wc_1, db_wc_2) = if is_plus {
+                (format!("{}kg+", wc_clean), format!("{}+", wc_clean))
             } else {
-                format!("{}kg", weight_class)
+                (format!("{}kg", wc_clean), wc_clean.to_string())
             };
-            where_conditions.push("WeightClassKg = ?".to_string());
-            params_vec.push(db_weight_class);
+
+            where_conditions.push("(WeightClassKg = ? OR WeightClassKg = ?)".to_string());
+            params_vec.push(db_wc_1);
+            params_vec.push(db_wc_2);
         }
 
         if let Some(federation) = &params.federation {
@@ -514,7 +520,8 @@ impl DuckDBAnalytics {
         }
 
         if let Some(year) = params.year {
-            where_conditions.push("EXTRACT(YEAR FROM Date) = ?".to_string());
+            // Cast to DATE to ensure EXTRACT works correctly even if Date is stored as string
+            where_conditions.push("EXTRACT(YEAR FROM CAST(Date AS DATE)) = ?".to_string());
             params_vec.push(year.to_string());
         }
 
