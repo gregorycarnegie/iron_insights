@@ -161,37 +161,31 @@ impl Http3Server {
 }
 
 // Helper functions to extract implementation from handlers
-async fn serve_index_impl(
-    state: axum::extract::State<AppState>,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let result = serve_index(state).await;
-    Ok(result.into_string())
+macro_rules! impl_html_handler {
+    ($name:ident, $handler:ident) => {
+        async fn $name(
+            state: axum::extract::State<AppState>,
+        ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+            let result = $handler(state).await;
+            Ok(result.into_string())
+        }
+    };
 }
 
-async fn serve_analytics_impl(
-    state: axum::extract::State<AppState>,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let result = serve_analytics(state).await;
-    Ok(result.into_string())
+macro_rules! impl_json_handler {
+    ($name:ident, $handler:ident) => {
+        async fn $name(
+            state: axum::extract::State<AppState>,
+        ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
+            let result = $handler(state).await;
+            Ok(result.0)
+        }
+    };
 }
 
-async fn serve_onerepmax_page_impl(
-    state: axum::extract::State<AppState>,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let result = serve_onerepmax_page(state).await;
-    Ok(result.into_string())
-}
+impl_html_handler!(serve_index_impl, serve_index);
+impl_html_handler!(serve_analytics_impl, serve_analytics);
+impl_html_handler!(serve_onerepmax_page_impl, serve_onerepmax_page);
+impl_html_handler!(serve_sharecard_page_impl, serve_sharecard_page);
 
-async fn serve_sharecard_page_impl(
-    state: axum::extract::State<AppState>,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let result = serve_sharecard_page(state).await;
-    Ok(result.into_string())
-}
-
-async fn get_stats_impl(
-    state: axum::extract::State<AppState>,
-) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
-    let result = get_stats(state).await;
-    Ok(result.0)
-}
+impl_json_handler!(get_stats_impl, get_stats);
