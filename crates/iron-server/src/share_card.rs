@@ -370,8 +370,8 @@ fn generate_dark_card(data: &ShareCardData) -> String {
 }
 
 fn generate_minimal_card(data: &ShareCardData) -> String {
-    let card_width = 800;
-    let card_height = 500;
+    let card_width = 1000;
+    let card_height = 600;
 
     // Format all lift values
     let squat_display = data
@@ -400,50 +400,83 @@ fn generate_minimal_card(data: &ShareCardData) -> String {
         r##"<svg width="{}" height="{}" viewBox="0 0 {} {}"
             xmlns="http://www.w3.org/2000/svg"
             preserveAspectRatio="xMidYMid meet">
-  <rect width="100%" height="100%" fill="white" rx="8"/>
-  <rect width="100%" height="100%" fill="none" stroke="#e5e5e5" stroke-width="2" rx="8"/>
+  <!-- Background -->
+  <rect width="100%" height="100%" fill="#ffffff"/>
   
-  <line x1="60" y1="60" x2="740" y2="60" stroke="#333" stroke-width="2"/>
-  
-  <text x="60" y="40" font-family="Arial" font-size="18" fill="#666">
-    Iron Insights
-  </text>
-  
-  <text x="400" y="120" font-family="Arial" font-size="42" font-weight="bold" text-anchor="middle" fill="#333">
-    {}
-  </text>
-  
-  <!-- Clean Minimal Lifts Layout -->
-  <g transform="translate(50, 160)">
-    <text x="0" y="20" font-family="Arial" font-size="14" fill="#666" font-weight="600">SQUAT</text>
-    <text x="0" y="45" font-family="Arial" font-size="36" fill="#333" font-weight="300">{}</text>
+  <!-- Main Content Container -->
+  <g transform="translate(50, 50)">
     
-    <text x="180" y="20" font-family="Arial" font-size="14" fill="#666" font-weight="600">BENCH</text>
-    <text x="180" y="45" font-family="Arial" font-size="36" fill="#333" font-weight="300">{}</text>
+    <!-- Header -->
+    <text x="0" y="30" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="2" fill="#000000">
+      IRON INSIGHTS
+    </text>
     
-    <text x="360" y="20" font-family="Arial" font-size="14" fill="#666" font-weight="600">DEADLIFT</text>
-    <text x="360" y="45" font-family="Arial" font-size="36" fill="#333" font-weight="300">{}</text>
+    <!-- Name -->
+    <text x="0" y="120" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="64" font-weight="300" letter-spacing="-1" fill="#000000">
+      {}
+    </text>
     
-    <text x="540" y="20" font-family="Arial" font-size="14" fill="#666" font-weight="600">TOTAL</text>
-    <text x="540" y="45" font-family="Arial" font-size="36" fill="#333" font-weight="bold">{}</text>
+    <!-- Separator -->
+    <line x1="0" y1="160" x2="900" y2="160" stroke="#000000" stroke-width="2"/>
+    
+    <!-- Lifts Grid -->
+    <g transform="translate(0, 240)">
+      <!-- Squat -->
+      <g transform="translate(0, 0)">
+        <text x="0" y="0" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1" fill="#666666">SQUAT</text>
+        <text x="0" y="50" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="48" font-weight="400" fill="#000000">{}</text>
+        <text x="100" y="50" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" fill="#999999">kg</text>
+      </g>
+      
+      <!-- Bench -->
+      <g transform="translate(225, 0)">
+        <text x="0" y="0" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1" fill="#666666">BENCH</text>
+        <text x="0" y="50" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="48" font-weight="400" fill="#000000">{}</text>
+        <text x="100" y="50" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" fill="#999999">kg</text>
+      </g>
+      
+      <!-- Deadlift -->
+      <g transform="translate(450, 0)">
+        <text x="0" y="0" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1" fill="#666666">DEADLIFT</text>
+        <text x="0" y="50" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="48" font-weight="400" fill="#000000">{}</text>
+        <text x="100" y="50" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" fill="#999999">kg</text>
+      </g>
+      
+      <!-- Total -->
+      <g transform="translate(675, 0)">
+        <text x="0" y="0" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1" fill="#000000">TOTAL</text>
+        <text x="0" y="50" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="48" font-weight="700" fill="#000000">{}</text>
+        <text x="100" y="50" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" fill="#999999">kg</text>
+      </g>
+    </g>
+    
+    <!-- Secondary Stats -->
+    <g transform="translate(0, 380)">
+      <!-- DOTS -->
+      <g transform="translate(0, 0)">
+        <text x="0" y="0" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1" fill="#666666">DOTS SCORE</text>
+        <text x="0" y="40" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="32" font-weight="300" fill="#000000">{}</text>
+      </g>
+      
+      <!-- Strength Level -->
+      <g transform="translate(225, 0)">
+        <text x="0" y="0" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1" fill="#666666">CLASSIFICATION</text>
+        <text x="0" y="40" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="32" font-weight="300" fill="#000000">{}</text>
+      </g>
+      
+      <!-- Bodyweight -->
+      <g transform="translate(450, 0)">
+        <text x="0" y="0" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1" fill="#666666">BODYWEIGHT</text>
+        <text x="0" y="40" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="32" font-weight="300" fill="#000000">{:.1}kg</text>
+      </g>
+    </g>
+    
+    <!-- Footer -->
+    <text x="0" y="500" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#999999">
+      Generated on {}
+    </text>
+    
   </g>
-  
-  <!-- Separator Line -->
-  <line x1="60" y1="240" x2="740" y2="240" stroke="#eee" stroke-width="1"/>
-  
-  <!-- DOTS and Level -->
-  <g transform="translate(150, 270)">
-    <text x="0" y="20" font-family="Arial" font-size="14" fill="#666" font-weight="600">DOTS SCORE</text>
-    <text x="0" y="50" font-family="Arial" font-size="42" fill="#333" font-weight="300">{}</text>
-    
-    <text x="300" y="20" font-family="Arial" font-size="14" fill="#666" font-weight="600">STRENGTH LEVEL</text>
-    <text x="300" y="50" font-family="Arial" font-size="32" fill="#333" font-weight="600">{}</text>
-  </g>
-  
-  <text x="60" y="420" font-family="Arial" font-size="12" fill="#999">
-    Generated by Iron Insights • Powerlifting Analytics
-  </text>
-
 </svg>"##,
         card_width,
         card_height,
@@ -455,12 +488,14 @@ fn generate_minimal_card(data: &ShareCardData) -> String {
         deadlift_display,
         total_display,
         dots_display,
-        data.strength_level
+        data.strength_level,
+        data.bodyweight,
+        chrono::Local::now().format("%B %d, %Y")
     )
 }
 
 fn generate_powerlifting_card(data: &ShareCardData) -> String {
-    let card_width = 800;
+    let card_width = 1000;
     let card_height = 600;
 
     let squat_display = data
@@ -489,58 +524,87 @@ fn generate_powerlifting_card(data: &ShareCardData) -> String {
             xmlns="http://www.w3.org/2000/svg"
             preserveAspectRatio="xMidYMid meet">
   <defs>
-    <linearGradient id="powerliftingBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#2c1810;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#8b4513;stop-opacity:1" />
+    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#D4AF37;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#F7EF8A;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#D4AF37;stop-opacity:1" />
     </linearGradient>
+    <pattern id="paper" width="100" height="100" patternUnits="userSpaceOnUse">
+      <rect width="100" height="100" fill="#fdfbf7"/>
+      <path d="M0 0h100v100H0z" fill="#000" fill-opacity="0.02"/>
+    </pattern>
   </defs>
   
-  <rect width="100%" height="100%" fill="url(#powerliftingBg)" rx="15"/>
-  <rect x="0" y="0" width="100%" height="100" fill="#d2691e" rx="15"/>
+  <!-- Background -->
+  <rect width="100%" height="100%" fill="url(#paper)"/>
   
-  <text x="50" y="55" font-family="Arial" font-size="36" font-weight="bold" fill="white">
-    🏋️ POWERLIFTING MEET CARD
+  <!-- Border Frame -->
+  <rect x="20" y="20" width="960" height="560" fill="none" stroke="#8B0000" stroke-width="4"/>
+  <rect x="30" y="30" width="940" height="540" fill="none" stroke="#D4AF37" stroke-width="2"/>
+  
+  <!-- Corner Ornaments -->
+  <path d="M20 20 L80 20 L80 25 L25 25 L25 80 L20 80 Z" fill="#8B0000"/>
+  <path d="M980 20 L920 20 L920 25 L975 25 L975 80 L980 80 Z" fill="#8B0000"/>
+  <path d="M20 580 L80 580 L80 575 L25 575 L25 520 L20 520 Z" fill="#8B0000"/>
+  <path d="M980 580 L920 580 L920 575 L975 575 L975 520 L980 520 Z" fill="#8B0000"/>
+  
+  <!-- Header -->
+  <text x="500" y="80" font-family="Times New Roman, serif" font-size="24" font-weight="bold" letter-spacing="2" text-anchor="middle" fill="#8B0000">
+    OFFICIAL LIFTING RECORD
   </text>
   
-  <text x="400" y="150" font-family="Arial" font-size="42" font-weight="bold" text-anchor="middle" fill="#fffaf0">
+  <!-- Name -->
+  <text x="500" y="140" font-family="Times New Roman, serif" font-size="56" font-weight="bold" text-anchor="middle" fill="#000000">
     {}
   </text>
   
-  <rect x="50" y="180" width="700" height="360" fill="#fffaf0" rx="10" opacity="0.95"/>
+  <!-- Divider -->
+  <path d="M300 160 L700 160" stroke="#D4AF37" stroke-width="2"/>
+  <circle cx="500" cy="160" r="5" fill="#8B0000"/>
   
-  <g transform="translate(80, 220)">
-    <rect x="0" y="0" width="640" height="40" fill="#8b4513"/>
-    <text x="80" y="25" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="white">SQUAT</text>
-    <text x="240" y="25" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="white">BENCH</text>
-    <text x="400" y="25" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="white">DEADLIFT</text>
-    <text x="560" y="25" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="white">TOTAL</text>
+  <!-- Stats Table -->
+  <g transform="translate(100, 220)">
+    <!-- Headers -->
+    <rect x="0" y="0" width="800" height="40" fill="#8B0000"/>
+    <text x="100" y="28" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFFFFF">SQUAT</text>
+    <text x="300" y="28" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFFFFF">BENCH PRESS</text>
+    <text x="500" y="28" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFFFFF">DEADLIFT</text>
+    <text x="700" y="28" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFFFFF">TOTAL</text>
     
-    <rect x="0" y="40" width="640" height="60" fill="#f5deb3" stroke="#8b4513"/>
-    <text x="80" y="75" font-family="Arial" font-size="28" font-weight="bold" text-anchor="middle" fill="#2c1810">{}</text>
-    <text x="240" y="75" font-family="Arial" font-size="28" font-weight="bold" text-anchor="middle" fill="#2c1810">{}</text>
-    <text x="400" y="75" font-family="Arial" font-size="28" font-weight="bold" text-anchor="middle" fill="#2c1810">{}</text>
-    <text x="560" y="75" font-family="Arial" font-size="28" font-weight="bold" text-anchor="middle" fill="#2c1810">{}</text>
+    <!-- Values -->
+    <rect x="0" y="40" width="800" height="80" fill="#f5f5f5" stroke="#cccccc"/>
+    <line x1="200" y1="40" x2="200" y2="120" stroke="#cccccc"/>
+    <line x1="400" y1="40" x2="400" y2="120" stroke="#cccccc"/>
+    <line x1="600" y1="40" x2="600" y2="120" stroke="#cccccc"/>
     
-    <rect x="0" y="120" width="640" height="80" fill="#2c1810"/>
-    <text x="320" y="145" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle" fill="#d2691e">
-      DOTS SCORE
-    </text>
-    <text x="320" y="185" font-family="Arial" font-size="48" font-weight="bold" text-anchor="middle" fill="#fffaf0">
-      {}
-    </text>
-    
-    <rect x="0" y="220" width="640" height="60" fill="#d2691e"/>
-    <text x="320" y="240" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="white">
-      STRENGTH CLASSIFICATION
-    </text>
-    <text x="320" y="265" font-family="Arial" font-size="32" font-weight="bold" text-anchor="middle" fill="white">
-      {}
-    </text>
+    <text x="100" y="90" font-family="Times New Roman, serif" font-size="36" font-weight="bold" text-anchor="middle" fill="#000000">{}</text>
+    <text x="300" y="90" font-family="Times New Roman, serif" font-size="36" font-weight="bold" text-anchor="middle" fill="#000000">{}</text>
+    <text x="500" y="90" font-family="Times New Roman, serif" font-size="36" font-weight="bold" text-anchor="middle" fill="#000000">{}</text>
+    <text x="700" y="90" font-family="Times New Roman, serif" font-size="36" font-weight="bold" text-anchor="middle" fill="#8B0000">{}</text>
   </g>
   
-  <text x="400" y="575" font-family="Arial" font-size="14" text-anchor="middle" fill="#fffaf0" opacity="0.8">
-    Generated by Iron Insights • Bodyweight: {:.1}kg • {}-Class
+  <!-- Secondary Stats Box -->
+  <g transform="translate(250, 360)">
+    <rect x="0" y="0" width="500" height="100" fill="none" stroke="#D4AF37" stroke-width="2"/>
+    <rect x="5" y="5" width="490" height="90" fill="none" stroke="#8B0000" stroke-width="1"/>
+    
+    <!-- DOTS -->
+    <text x="125" y="40" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#666666">DOTS SCORE</text>
+    <text x="125" y="80" font-family="Times New Roman, serif" font-size="32" font-weight="bold" text-anchor="middle" fill="#000000">{}</text>
+    
+    <!-- Divider -->
+    <line x1="250" y1="20" x2="250" y2="80" stroke="#cccccc"/>
+    
+    <!-- Class -->
+    <text x="375" y="40" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#666666">CLASSIFICATION</text>
+    <text x="375" y="80" font-family="Times New Roman, serif" font-size="28" font-weight="bold" text-anchor="middle" fill="#8B0000">{}</text>
+  </g>
+  
+  <!-- Footer -->
+  <text x="500" y="540" font-family="Times New Roman, serif" font-size="14" font-style="italic" text-anchor="middle" fill="#666666">
+    Certified by Iron Insights • Bodyweight: {:.1}kg • {} Class • Date: {}
   </text>
+
 </svg>"##,
         card_width,
         card_height,
@@ -555,5 +619,6 @@ fn generate_powerlifting_card(data: &ShareCardData) -> String {
         data.strength_level,
         data.bodyweight,
         data.sex,
+        chrono::Local::now().format("%Y-%m-%d")
     )
 }
