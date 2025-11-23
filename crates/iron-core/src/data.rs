@@ -1,5 +1,8 @@
 // data.rs - Simplified with better error handling
-use crate::scoring::{calculate_dots_expr, calculate_weight_class_expr};
+use crate::scoring::{
+    calculate_dots_expr, calculate_ipf_weight_class_expr, calculate_para_weight_class_expr,
+    calculate_wp_weight_class_expr,
+};
 use polars::chunked_array::ChunkedArray;
 use polars::datatypes::Categories;
 use polars::datatypes::StringType;
@@ -347,6 +350,16 @@ impl DataProcessor {
             }
         }
 
+        // Add derived weight class columns for each system
+        df = df
+            .lazy()
+            .with_columns([
+                calculate_ipf_weight_class_expr(),
+                calculate_para_weight_class_expr(),
+                calculate_wp_weight_class_expr(),
+            ])
+            .collect()?;
+
         let df = self.apply_sampling(df)?;
         self.validate_dots_data(&df);
 
@@ -408,7 +421,9 @@ impl DataProcessor {
                     .and(col("TotalKg").gt(0.0)),
             )
             .with_columns([
-                calculate_weight_class_expr(),
+                calculate_ipf_weight_class_expr(),
+                calculate_para_weight_class_expr(),
+                calculate_wp_weight_class_expr(),
                 calculate_dots_expr("Best3SquatKg", "SquatDOTS"),
                 calculate_dots_expr("Best3BenchKg", "BenchDOTS"),
                 calculate_dots_expr("Best3DeadliftKg", "DeadliftDOTS"),
@@ -723,7 +738,9 @@ impl SampleDataBuilder {
         let df = df
             .lazy()
             .with_columns([
-                calculate_weight_class_expr(),
+                calculate_ipf_weight_class_expr(),
+                calculate_para_weight_class_expr(),
+                calculate_wp_weight_class_expr(),
                 calculate_dots_expr("Best3SquatKg", "SquatDOTS"),
                 calculate_dots_expr("Best3BenchKg", "BenchDOTS"),
                 calculate_dots_expr("Best3DeadliftKg", "DeadliftDOTS"),

@@ -31,7 +31,9 @@ async fn test_sample_data_generation() {
     assert!(column_names.contains(&"BodyweightKg".to_string()));
     assert!(column_names.contains(&"Best3SquatKg".to_string()));
     assert!(column_names.contains(&"SquatDOTS".to_string()));
-    assert!(column_names.contains(&"WeightClassKg".to_string()));
+    assert!(column_names.contains(&"IPFWeightClassKg".to_string()));
+    assert!(column_names.contains(&"ParaWeightClassKg".to_string()));
+    assert!(column_names.contains(&"WPWeightClassKg".to_string()));
 }
 
 #[test]
@@ -82,7 +84,6 @@ async fn test_filter_pipeline() {
         "BenchDOTS" => [200.0f32, 160.0, 220.0],
         "DeadliftDOTS" => [360.0f32, 320.0, 380.0],
         "TotalDOTS" => [860.0f32, 760.0, 920.0],
-        "WeightClassKg" => ["74kg", "63kg", "83kg"],
         "Date" => ["2024-01-01", "2024-01-02", "2024-01-03"],
     }
     .unwrap();
@@ -124,30 +125,6 @@ async fn test_server_creation() {
     // Verify state was created successfully
     assert!(state.data.height() > 0);
     assert_eq!(state.cache.entry_count(), 0); // Empty cache initially
-}
-
-#[test]
-fn test_weight_class_format_conversion() {
-    // Test that the weight class filtering logic handles format conversion correctly
-    let test_cases = vec![
-        ("74", "74kg"),
-        ("120", "120kg"),
-        ("120+", "120kg+"),
-        ("84+", "84kg+"),
-    ];
-
-    for (input, expected) in test_cases {
-        let result = if input.ends_with('+') {
-            format!("{}kg+", input.trim_end_matches('+'))
-        } else {
-            format!("{}kg", input)
-        };
-        assert_eq!(
-            result, expected,
-            "Failed to convert '{}' to '{}'",
-            input, expected
-        );
-    }
 }
 
 #[test]
@@ -207,7 +184,6 @@ fn test_filter_construction() {
         "BenchDOTS" => [200.0f32, 160.0, 220.0],
         "DeadliftDOTS" => [360.0f32, 320.0, 380.0],
         "TotalDOTS" => [860.0f32, 760.0, 920.0],
-        "WeightClassKg" => ["74kg", "63kg", "83kg"],
     }
     .unwrap();
 

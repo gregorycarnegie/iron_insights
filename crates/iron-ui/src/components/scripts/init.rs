@@ -20,7 +20,7 @@ pub fn render_init_scripts() -> Markup {
         let calculate_strength_level_from_percentile_wasm = null;
         
         // UI state management for modern toggle-based controls
-        let currentSex = 'M';
+        let currentSex = 'All';
         let currentLiftType = 'squat';
         let currentEquipment = ['Raw'];
         let currentTimePeriod = 'last_5_years';

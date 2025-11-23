@@ -5,6 +5,38 @@ use lazy_static::lazy_static;
 use polars::prelude::*;
 use tracing::warn;
 
+fn parse_weight_class(value: &str) -> Option<(&'static str, String)> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("All") {
+        return None;
+    }
+
+    let (system, class_raw) = if let Some((prefix, class)) = trimmed.split_once(':') {
+        (prefix.to_lowercase(), class)
+    } else {
+        ("ipf".to_string(), trimmed)
+    };
+
+    let column = match system.as_str() {
+        "para" => "ParaWeightClassKg",
+        "wp" => "WPWeightClassKg",
+        _ => "IPFWeightClassKg",
+    };
+
+    let class_clean = class_raw.trim();
+    if class_clean.is_empty() {
+        return None;
+    }
+
+    let db_value = if class_clean.ends_with('+') {
+        format!("{}kg+", class_clean.trim_end_matches('+'))
+    } else {
+        format!("{}kg", class_clean)
+    };
+
+    Some((column, db_value))
+}
+
 // Pre-compiled filter expressions for maximum performance
 lazy_static! {
     static ref VALIDITY_EXPR: Expr = col("BodyweightKg")
@@ -137,13 +169,9 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
     if let Some(weight_class) = &params.weight_class
         && weight_class != "All"
     {
-        // Convert dropdown value (e.g., "74") to database format (e.g., "74kg")
-        let db_weight_class = if weight_class.ends_with('+') {
-            format!("{}kg+", weight_class.trim_end_matches('+'))
-        } else {
-            format!("{}kg", weight_class)
-        };
-        lf = lf.filter(col("WeightClassKg").eq(lit(db_weight_class.as_str())));
+        if let Some((column, db_weight_class)) = parse_weight_class(weight_class) {
+            lf = lf.filter(col(column).eq(lit(db_weight_class.as_str())));
+        }
     }
 
     // Apply pre-compiled validity filter (most expensive, applied last)
@@ -176,7 +204,15 @@ fn get_required_columns(params: &FilterParams, has_federation: bool) -> Vec<Expr
     }
 
     if params.weight_class.is_some() {
-        cols.push(col("WeightClassKg"));
+        if let Some((column, _)) =
+            params.weight_class.as_deref().and_then(|wc| parse_weight_class(wc))
+        {
+            cols.push(col(column));
+        } else {
+            cols.push(col("IPFWeightClassKg"));
+            cols.push(col("ParaWeightClassKg"));
+            cols.push(col("WPWeightClassKg"));
+        }
     }
 
     if has_federation

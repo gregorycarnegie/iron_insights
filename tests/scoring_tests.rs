@@ -87,16 +87,16 @@ fn test_weight_class_expr() {
 
     let result = df
         .lazy()
-        .with_columns([calculate_weight_class_expr()])
+        .with_columns([calculate_ipf_weight_class_expr()])
         .collect();
 
     assert!(result.is_ok());
     let df_with_wc = result.unwrap();
 
     // Check that the column was created
-    assert!(df_with_wc.column("WeightClassKg").is_ok());
+    assert!(df_with_wc.column("IPFWeightClassKg").is_ok());
 
-    let wc_col = df_with_wc.column("WeightClassKg").unwrap();
+    let wc_col = df_with_wc.column("IPFWeightClassKg").unwrap();
     let wc_values: Vec<&str> = wc_col.str().unwrap().into_no_null_iter().collect();
 
     // Check expected weight classes

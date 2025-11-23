@@ -8,10 +8,10 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # Internal dependencies
-iron-scoring = { workspace = true }
+iron-scoring.workspace = true
 
 # WebAssembly
-wasm-bindgen = { workspace = true }
-serde = { workspace = true }
-serde-wasm-bindgen = { workspace = true }
-js-sys = { workspace = true }
+wasm-bindgen.workspace = true
+serde.workspace = true
+serde-wasm-bindgen.workspace = true
+js-sys.workspace = true

@@ -225,16 +225,7 @@ impl DuckDBAnalytics {
         };
 
         // Build weight class filter clause
-        let weight_class_filter = if let Some(wc) = weight_class {
-            let db_weight_class = if wc.ends_with('+') {
-                format!("{}kg+", wc.trim_end_matches('+'))
-            } else {
-                format!("{}kg", wc)
-            };
-            format!("AND WeightClassKg = '{}'", db_weight_class)
-        } else {
-            String::new()
-        };
+        let weight_class_filter = weight_class_filter_clause(weight_class);
 
         let query = format!(
             r#"
@@ -242,8 +233,7 @@ impl DuckDBAnalytics {
                 SELECT
                     {lift_column} as lift_weight,
                     TotalDOTS,
-                    BodyweightKg,
-                    WeightClassKg
+                    BodyweightKg
                 FROM lifts
                 WHERE Sex = ?
                     AND Equipment IN ({equipment_filter})
@@ -339,16 +329,7 @@ impl DuckDBAnalytics {
         };
 
         // Build weight class filter clause
-        let weight_class_filter = if let Some(wc) = weight_class {
-            let db_weight_class = if wc.ends_with('+') {
-                format!("{}kg+", wc.trim_end_matches('+'))
-            } else {
-                format!("{}kg", wc)
-            };
-            format!("AND WeightClassKg = '{}'", db_weight_class)
-        } else {
-            String::new()
-        };
+        let weight_class_filter = weight_class_filter_clause(weight_class);
 
         let query = format!(
             r#"
@@ -356,8 +337,7 @@ impl DuckDBAnalytics {
                 SELECT
                     {lift_column} as lift_weight,
                     TotalDOTS,
-                    BodyweightKg,
-                    WeightClassKg
+                    BodyweightKg
                 FROM lifts
                 WHERE Sex = ?
                     AND Equipment IN ({equipment_filter})
@@ -464,6 +444,125 @@ impl DuckDBAnalytics {
         // Connection automatically closes when dropped
         info!("DuckDB analytics engine closed");
         Ok(())
+    }
+}
+
+#[derive(Clone, Copy)]
+enum WeightClassSystem {
+    Ipf,
+    Para,
+    Wp,
+}
+
+fn parse_weight_class_selection(raw: &str) -> Option<(WeightClassSystem, String)> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("all") {
+        return None;
+    }
+
+    let (system_prefix, class_raw) = if let Some((prefix, class)) = trimmed.split_once(':') {
+        (prefix.to_lowercase(), class)
+    } else {
+        ("ipf".to_string(), trimmed)
+    };
+
+    let system = match system_prefix.as_str() {
+        "para" => WeightClassSystem::Para,
+        "wp" => WeightClassSystem::Wp,
+        _ => WeightClassSystem::Ipf,
+    };
+
+    let class_clean = class_raw.trim();
+    if class_clean.is_empty() {
+        return None;
+    }
+
+    let value = if class_clean.ends_with('+') {
+        format!("{}kg+", class_clean.trim_end_matches('+'))
+    } else {
+        format!("{}kg", class_clean)
+    };
+
+    Some((system, value))
+}
+
+fn duckdb_weight_class_case(system: WeightClassSystem) -> &'static str {
+    match system {
+        WeightClassSystem::Ipf => "
+            CASE
+                WHEN Sex = 'M' AND BodyweightKg <= 53 THEN '53kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 59 THEN '59kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 66 THEN '66kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 74 THEN '74kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 83 THEN '83kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 93 THEN '93kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 105 THEN '105kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 120 THEN '120kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 43 THEN '43kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 47 THEN '47kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 52 THEN '52kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 57 THEN '57kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 63 THEN '63kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 69 THEN '69kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 76 THEN '76kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 84 THEN '84kg'
+                ELSE
+                    CASE WHEN Sex = 'M' THEN '120kg+' ELSE '84kg+' END
+            END
+        ",
+        WeightClassSystem::Para => "
+            CASE
+                WHEN Sex = 'M' AND BodyweightKg <= 49 THEN '49kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 54 THEN '54kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 59 THEN '59kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 65 THEN '65kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 72 THEN '72kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 80 THEN '80kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 88 THEN '88kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 97 THEN '97kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 107 THEN '107kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 41 THEN '41kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 45 THEN '45kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 50 THEN '50kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 55 THEN '55kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 61 THEN '61kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 67 THEN '67kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 73 THEN '73kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 79 THEN '79kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 86 THEN '86kg'
+                ELSE
+                    CASE WHEN Sex = 'M' THEN '107kg+' ELSE '86kg+' END
+            END
+        ",
+        WeightClassSystem::Wp => "
+            CASE
+                WHEN Sex = 'M' AND BodyweightKg <= 62 THEN '62kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 69 THEN '69kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 77 THEN '77kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 85 THEN '85kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 94 THEN '94kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 105 THEN '105kg'
+                WHEN Sex = 'M' AND BodyweightKg <= 120 THEN '120kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 48 THEN '48kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 53 THEN '53kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 58 THEN '58kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 64 THEN '64kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 72 THEN '72kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 84 THEN '84kg'
+                WHEN Sex <> 'M' AND BodyweightKg <= 100 THEN '100kg'
+                ELSE
+                    CASE WHEN Sex = 'M' THEN '120kg+' ELSE '100kg+' END
+            END
+        ",
+    }
+}
+
+fn weight_class_filter_clause(weight_class: Option<&str>) -> String {
+    if let Some((system, class_value)) = weight_class.and_then(parse_weight_class_selection) {
+        let case_expr = duckdb_weight_class_case(system);
+        format!("AND ({case_expr}) = '{}'", class_value)
+    } else {
+        String::new()
     }
 }
 

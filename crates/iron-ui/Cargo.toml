@@ -5,18 +5,18 @@ edition.workspace = true
 
 [dependencies]
 # Internal dependencies
-iron-core = { workspace = true }
-iron-scoring = { workspace = true }
+iron-core.workspace = true
+iron-scoring.workspace = true
 
 # HTML templating
-maud = { workspace = true }
+maud.workspace = true
 
 # Serialization
-serde = { workspace = true }
-serde_json = { workspace = true }
+serde.workspace = true
+serde_json.workspace = true
 
 # Date/time for UI components
-chrono = { workspace = true }
+chrono.workspace = true
 
 [lib]
 name = "iron_ui"
