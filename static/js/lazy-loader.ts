@@ -3,6 +3,8 @@
  * Dynamically loads JavaScript libraries based on page requirements
  */
 
+export {};
+
 interface ScriptOptions {
   defer?: boolean;
   charset?: string;

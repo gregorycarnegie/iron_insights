@@ -35,19 +35,6 @@ pub fn render_head(manifest: &AssetManifest) -> Markup {
             // Lazy loading module - loads first to enable on-demand loading
             script src=(lazy_loader_path) defer {}
 
-            // Service Worker registration
-            script {
-                r#"
-                if ('serviceWorker' in navigator) {
-                    window.addEventListener('load', () => {
-                        navigator.serviceWorker.register('/static/sw.js')
-                            .then(reg => console.log('✅ Service Worker registered'))
-                            .catch(err => console.log('❌ Service Worker registration failed:', err));
-                    });
-                }
-                "#
-            }
-
             // Inline critical CSS for faster initial paint
             style { (render_styles()) }
 

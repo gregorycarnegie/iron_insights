@@ -39,19 +39,19 @@ async function copyAssets() {
     // 4. Build Application Bundle
     console.log('🔨 Building application bundle...');
     const appFiles = [
-      'init.js',
-      'utils.js',
-      'calculations.js',
-      'websocket.js',
-      'data.js',
-      'charts.js',
-      'ui.js',
-      'main.js'
+      'init.ts',
+      'utils.ts',
+      'calculations.ts',
+      'websocket.ts',
+      'data.ts',
+      'charts.ts',
+      'ui.ts',
+      'main.ts'
     ];
 
     // Create a temporary entry file
     const appEntryContent = appFiles.map(file => `import './app/${file}';`).join('\n');
-    const appEntryPath = 'static/js/app-entry.js';
+    const appEntryPath = 'static/js/app-entry.ts';
     await writeFile(appEntryPath, appEntryContent);
 
     const appResult = await Bun.build({
@@ -60,6 +60,8 @@ async function copyAssets() {
       naming: 'app.js',
       minify: true,
       target: 'browser',
+      format: 'iife',
+      external: ['/static/wasm/*']
     });
     if (!appResult.success) throw new Error(`App build failed: ${appResult.logs}`);
     console.log('✅ Application bundle compiled');
