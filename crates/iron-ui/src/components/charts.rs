@@ -10,12 +10,10 @@ pub fn render_main_content() -> Markup {
                 div.stat-card {
                     div.stat-label { "Total Athletes" }
                     div.stat-value #totalAthletes { "—" }
-                    div.stat-change.positive { "↑ 12%" }
                 }
                 div.stat-card {
                     div.stat-label { "Avg DOTS Score" }
                     div.stat-value #avgDots { "—" }
-                    div.stat-change.positive { "↑ 3.5" }
                 }
                 div.stat-card {
                     div.stat-label { "Records Analyzed" }

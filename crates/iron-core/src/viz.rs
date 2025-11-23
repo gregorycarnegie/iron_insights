@@ -19,6 +19,7 @@ pub struct VizData {
     pub user_percentile: Option<f32>,
     pub user_dots_percentile: Option<f32>,
     pub total_records: usize,
+    pub avg_dots: Option<f32>,
     pub processing_time_ms: u64,
 }
 
@@ -49,11 +50,13 @@ pub fn compute_viz(
             col(raw_col).max().alias("raw_max"),
             col(dots_col).min().alias("dots_min"),
             col(dots_col).max().alias("dots_max"),
+            col(dots_col).mean().alias("dots_avg"),
             col("BodyweightKg").count().alias("total_count"),
         ])
         .collect()?;
 
     let total_records = stats_df.column("total_count")?.u32()?.get(0).unwrap_or(0) as usize;
+    let avg_dots = stats_df.column("dots_avg")?.f32()?.get(0);
 
     // Only collect full data once for visualization processing
     let filtered = lazy_filtered.collect()?;
@@ -89,6 +92,7 @@ pub fn compute_viz(
         user_percentile,
         user_dots_percentile,
         total_records,
+        avg_dots,
         processing_time_ms: t0.elapsed().as_millis() as u64,
     })
 }

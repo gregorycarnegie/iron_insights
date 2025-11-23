@@ -106,6 +106,7 @@ pub async fn create_visualizations_arrow(
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")
             .header(header::CACHE_CONTROL, "public, max-age=300")
+            .header("X-Cache-Status", "HIT")
             .body(cached.data.into())
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR);
     }
@@ -126,6 +127,7 @@ pub async fn create_visualizations_arrow(
             dots_scatter_data: &viz_data.dots_scatter,
             user_percentile: viz_data.user_percentile,
             user_dots_percentile: viz_data.user_dots_percentile,
+            avg_dots: viz_data.avg_dots,
             processing_time_ms: viz_data.processing_time_ms,
             total_records: viz_data.total_records,
         }),
@@ -149,11 +151,16 @@ pub async fn create_visualizations_arrow(
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/vnd.apache.arrow.stream")
         .header(header::CACHE_CONTROL, "public, max-age=300")
+        .header("X-Cache-Status", "MISS")
         .header(
             "X-Processing-Time-Ms",
             arrow_response.processing_time_ms.to_string(),
         )
         .header("X-Total-Records", arrow_response.total_records.to_string())
+        .header(
+            "X-Avg-Dots",
+            arrow_response.avg_dots.unwrap_or(0.0).to_string(),
+        )
         .body(arrow_response.data.into())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
@@ -281,6 +288,7 @@ fn create_arrow_data_stream(viz_data: iron_core::viz::VizData) -> impl Stream<It
         serialize_metadata_chunk(
             viz_data.user_percentile,
             viz_data.user_dots_percentile,
+            viz_data.avg_dots,
             viz_data.processing_time_ms,
             viz_data.total_records,
         )
@@ -330,6 +338,7 @@ fn serialize_scatter_chunk(
 fn serialize_metadata_chunk(
     user_percentile: Option<f32>,
     user_dots_percentile: Option<f32>,
+    avg_dots: Option<f32>,
     processing_time_ms: u64,
     total_records: usize,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
@@ -337,6 +346,7 @@ fn serialize_metadata_chunk(
         "type": "metadata",
         "user_percentile": user_percentile,
         "user_dots_percentile": user_dots_percentile,
+        "avg_dots": avg_dots,
         "processing_time_ms": processing_time_ms,
         "total_records": total_records,
     }))?;

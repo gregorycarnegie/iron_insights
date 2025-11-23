@@ -355,13 +355,19 @@ async function updateCharts(): Promise<void> {
     const processingTime = document.getElementById('processingTime');
     const recordsAnalyzed = document.getElementById('recordsAnalyzed');
     const totalAthletes = document.getElementById('totalAthletes');
-    if (processingTime) processingTime.textContent = data.processing_time_ms + 'ms';
+    if (processingTime) {
+      processingTime.textContent = data.is_cached
+        ? `Cached (${data.processing_time_ms}ms)`
+        : `${data.processing_time_ms}ms`;
+    }
     if (recordsAnalyzed) recordsAnalyzed.textContent = data.total_records.toLocaleString();
     if (totalAthletes) totalAthletes.textContent = data.total_records.toLocaleString();
 
     // Update average DOTS display if element exists
-    if (bodyweight !== null && userLift !== null && !isNaN(bodyweight) && !isNaN(userLift)) {
-      const avgDotsEl = document.getElementById('avgDots');
+    const avgDotsEl = document.getElementById('avgDots');
+    if (avgDotsEl && data.avg_dots !== null) {
+      avgDotsEl.textContent = data.avg_dots.toFixed(1);
+    } else if (bodyweight !== null && userLift !== null && !isNaN(bodyweight) && !isNaN(userLift)) {
       if (avgDotsEl) {
         const dots = window.calculateDOTS(userLift, bodyweight);
         avgDotsEl.textContent = dots.toFixed(1);

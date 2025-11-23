@@ -94,6 +94,7 @@ pub struct VisualizationResponse {
     pub dots_scatter_data: ScatterData,
     pub user_percentile: Option<f32>,
     pub user_dots_percentile: Option<f32>,
+    pub avg_dots: Option<f32>,
     pub processing_time_ms: u64,
     pub total_records: usize,
 }
@@ -107,6 +108,7 @@ impl From<crate::viz::VizData> for VisualizationResponse {
             dots_scatter_data: data.dots_scatter,
             user_percentile: data.user_percentile,
             user_dots_percentile: data.user_dots_percentile,
+            avg_dots: data.avg_dots,
             processing_time_ms: data.processing_time_ms,
             total_records: data.total_records,
         }

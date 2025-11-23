@@ -23,8 +23,10 @@ export interface ArrowResponse {
   dots_scatter_data: ScatterData;
   user_percentile: number | null;
   user_dots_percentile: number | null;
+  avg_dots: number | null;
   processing_time_ms: number;
   total_records: number;
+  is_cached: boolean;
 }
 
 export interface ArrowTableColumn<T = number> {

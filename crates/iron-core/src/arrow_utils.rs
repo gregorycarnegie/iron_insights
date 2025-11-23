@@ -14,6 +14,7 @@ pub struct ArrowVisualizationResponse {
     pub data: Vec<u8>, // Combined Arrow IPC stream
     pub user_percentile: Option<f32>,
     pub user_dots_percentile: Option<f32>,
+    pub avg_dots: Option<f32>,
     pub processing_time_ms: u64,
     pub total_records: usize,
 }
@@ -25,6 +26,7 @@ pub struct VisualizationDataBundle<'a> {
     pub dots_scatter_data: &'a ScatterData,
     pub user_percentile: Option<f32>,
     pub user_dots_percentile: Option<f32>,
+    pub avg_dots: Option<f32>,
     pub processing_time_ms: u64,
     pub total_records: usize,
 }
@@ -38,6 +40,7 @@ pub fn serialize_all_visualization_data(
     let dots_scatter_data = bundle.dots_scatter_data;
     let user_percentile = bundle.user_percentile;
     let user_dots_percentile = bundle.user_dots_percentile;
+    let avg_dots = bundle.avg_dots;
     let processing_time_ms = bundle.processing_time_ms;
     let total_records = bundle.total_records;
     // Create a comprehensive schema that includes all data types
@@ -205,6 +208,7 @@ pub fn serialize_all_visualization_data(
         data: buffer.into_inner(),
         user_percentile,
         user_dots_percentile,
+        avg_dots,
         processing_time_ms,
         total_records,
     })
@@ -221,6 +225,7 @@ pub fn serialize_visualization_response_to_arrow(
         dots_scatter_data: &response.dots_scatter_data,
         user_percentile: response.user_percentile,
         user_dots_percentile: response.user_dots_percentile,
+        avg_dots: response.avg_dots,
         processing_time_ms: response.processing_time_ms,
         total_records: response.total_records,
     })
@@ -254,6 +259,7 @@ pub fn deserialize_visualization_response_from_arrow(
 
     let user_percentile = None;
     let user_dots_percentile = None;
+    let avg_dots = None;
     let processing_time_ms = 0;
     let total_records = 0;
 
@@ -344,6 +350,7 @@ pub fn deserialize_visualization_response_from_arrow(
         dots_scatter_data,
         user_percentile,
         user_dots_percentile,
+        avg_dots,
         processing_time_ms,
         total_records,
     })

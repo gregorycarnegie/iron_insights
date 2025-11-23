@@ -50,8 +50,10 @@ async function fetchArrowData(params: FetchParams): Promise<ArrowResponse> {
         dots_scatter_data: { x: [], y: [], sex: [] },
         user_percentile: null,
         user_dots_percentile: null,
+        avg_dots: null,
         processing_time_ms: 0,
-        total_records: 0
+        total_records: 0,
+        is_cached: false
       };
 
       // Get column arrays from the table using getChildAt
@@ -105,11 +107,17 @@ async function fetchArrowData(params: FetchParams): Promise<ArrowResponse> {
       const userDotsPercentileHeader = response.headers.get('X-User-Dots-Percentile');
       result.user_dots_percentile = userDotsPercentileHeader ? parseFloat(userDotsPercentileHeader) : null;
 
+      const avgDotsHeader = response.headers.get('X-Avg-Dots');
+      result.avg_dots = avgDotsHeader ? parseFloat(avgDotsHeader) : null;
+
       const processingTimeHeader = response.headers.get('X-Processing-Time-Ms');
       result.processing_time_ms = processingTimeHeader ? parseInt(processingTimeHeader, 10) : 0;
 
       const totalRecordsHeader = response.headers.get('X-Total-Records');
       result.total_records = totalRecordsHeader ? parseInt(totalRecordsHeader, 10) : 0;
+
+      const cacheStatusHeader = response.headers.get('X-Cache-Status');
+      result.is_cached = cacheStatusHeader === 'HIT';
 
       console.log('ƒo. Arrow IPC data parsed successfully:', result);
       return result;
