@@ -168,10 +168,9 @@ pub fn apply_filters_lazy(df: &DataFrame, params: &FilterParams) -> PolarsResult
     // Weight class filter
     if let Some(weight_class) = &params.weight_class
         && weight_class != "All"
+        && let Some((column, db_weight_class)) = parse_weight_class(weight_class)
     {
-        if let Some((column, db_weight_class)) = parse_weight_class(weight_class) {
-            lf = lf.filter(col(column).eq(lit(db_weight_class.as_str())));
-        }
+        lf = lf.filter(col(column).eq(lit(db_weight_class.as_str())));
     }
 
     // Apply pre-compiled validity filter (most expensive, applied last)
