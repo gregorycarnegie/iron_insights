@@ -11,30 +11,7 @@ pub fn render_home_page(manifest: &AssetManifest) -> Markup {
                 div.container {
                     (render_header(Some("/")))
                     main #main-content.page-transition role="main" {
-                        div.main-content {
-                            // Quick stats section (as in mock)
-                            section.quick-stats aria-labelledby="stats-heading" {
-                                h2 #stats-heading { "Quick Stats Overview" }
-
-                                // Stats content (visible without skeletons)
-                                div #stats-content {
-                                    div.stats-grid role="group" aria-label="Statistics summary" {
-                                        div.stat-card.card-hover role="img" aria-labelledby="total-records-label" aria-describedby="total-records-value" {
-                                            span.stat-number #total-records-value aria-live="polite" { "-" }
-                                            span.stat-label #total-records-label { "Total Records" }
-                                        }
-                                        div.stat-card.card-hover role="img" aria-labelledby="avg-wilks-label" aria-describedby="avg-wilks-value" {
-                                            span.stat-number #avg-wilks-value aria-live="polite" { "-" }
-                                            span.stat-label #avg-wilks-label { "Avg Wilks Score" }
-                                        }
-                                        div.stat-card.card-hover role="img" aria-labelledby="top-percentile-label" aria-describedby="top-percentile-value" {
-                                            span.stat-number #top-percentile-value aria-live="polite" { "-" }
-                                            span.stat-label #top-percentile-label { "Top Percentile" }
-                                        }
-                                    }
-                                }
-                            }
-
+                        div.home-layout {
                             // Hero and feature cards
                             section.hero-section aria-labelledby="hero-heading" {
                                 h1 #hero-heading { "Iron Insights" }
@@ -44,31 +21,64 @@ pub fn render_home_page(manifest: &AssetManifest) -> Markup {
 
                                 div.feature-grid.stagger-children role="group" aria-label="Available features" {
                                     // Analytics
-                                    article.feature-card.glass-card.card-hover {
-                                        div.icon-wrap aria-hidden="true" { (analytics_icon()) }
-                                        h3 class="feature-title" { "Analytics" }
-                                        p class="feature-desc" { "Deep dive into your lifting data with advanced visualizations and statistical analysis." }
-                                        a href="/analytics" class="btn btn-primary feature-cta" aria-describedby="analytics-description" { "View Analytics" }
-                                        span.sr-only #analytics-description { "Navigate to the analytics page to view detailed lifting statistics and charts" }
-                                    }
+                                    (render_feature_card(
+                                        analytics_icon(),
+                                        "Analytics",
+                                        "Deep dive into your lifting data with advanced visualizations and statistical analysis.",
+                                        "/analytics",
+                                        "btn-primary",
+                                        "View Analytics",
+                                        "analytics-description",
+                                        "Navigate to the analytics page to view detailed lifting statistics and charts"
+                                    ))
 
                                     // Share Cards
-                                    article.feature-card.glass-card.card-hover {
-                                        div.icon-wrap aria-hidden="true" { (share_icon()) }
-                                        h3 class="feature-title" { "Share Cards" }
-                                        p class="feature-desc" { "Create beautiful social media cards to share your lifting achievements." }
-                                        a href="/sharecard" class="btn btn-secondary feature-cta" aria-describedby="sharecard-description" { "Create Share Card" }
-                                        span.sr-only #sharecard-description { "Navigate to the share card creator to make social media posts" }
-                                    }
+                                    (render_feature_card(
+                                        share_icon(),
+                                        "Share Cards",
+                                        "Create beautiful social media cards to share your lifting achievements.",
+                                        "/sharecard",
+                                        "btn-secondary",
+                                        "Create Share Card",
+                                        "sharecard-description",
+                                        "Navigate to the share card creator to make social media posts"
+                                    ))
 
                                     // 1RM Calculator
-                                    article.feature-card.glass-card.card-hover {
-                                        div.icon-wrap aria-hidden="true" { (one_rm_icon()) }
-                                        h3 class="feature-title" { "1RM Calculator" }
-                                        p class="feature-desc" { "Estimate your one-rep max using proven formulas (Epley, Brzycki, Lombardi)." }
-                                        a href="/1rm" class="btn btn-tertiary feature-cta" aria-describedby="one-rm-description" { "Open 1RM Calculator" }
-                                        span.sr-only #one-rm-description { "Navigate to the one-repetition maximum calculator" }
-                                    }
+                                    (render_feature_card(
+                                        one_rm_icon(),
+                                        "1RM Calculator",
+                                        "Estimate your one-rep max using proven formulas (Epley, Brzycki, Lombardi).",
+                                        "/1rm",
+                                        "btn-tertiary",
+                                        "Open 1RM Calculator",
+                                        "one-rm-description",
+                                        "Navigate to the one-repetition maximum calculator"
+                                    ))
+
+                                    // About
+                                    (render_feature_card(
+                                        about_icon(),
+                                        "About",
+                                        "Learn more about the project, the methodology, and the developer behind Iron Insights.",
+                                        "/about",
+                                        "btn-tertiary",
+                                        "Read About",
+                                        "about-description",
+                                        "Navigate to the about page"
+                                    ))
+
+                                    // Donate
+                                    (render_feature_card(
+                                        donate_icon(),
+                                        "Donate",
+                                        "Support the development and maintenance of this open-source powerlifting analytics platform.",
+                                        "/donate",
+                                        "btn-primary",
+                                        "Support Project",
+                                        "donate-description",
+                                        "Navigate to the donation page"
+                                    ))
                                 }
                             }
                         }
@@ -96,42 +106,24 @@ pub fn render_home_page(manifest: &AssetManifest) -> Markup {
                             wsButton.style.display = 'inline-flex';
                         }
                     });
-
-                    // Simple stats loader (no skeletons)
-                    (function(){
-                        async function loadStats() {
-                            try {
-                                const response = await fetch('/api/stats');
-                                if (response && response.ok) {
-                                    const stats = await response.json();
-                                    const totalRecords = document.getElementById('total-records-value');
-                                    const avgWilks = document.getElementById('avg-wilks-value');
-                                    const topPercentile = document.getElementById('top-percentile-value');
-                                    if (totalRecords) totalRecords.textContent = stats.total_records?.toLocaleString() || '-';
-                                    if (avgWilks) avgWilks.textContent = stats.avg_wilks?.toFixed(1) || '-';
-                                    if (topPercentile) topPercentile.textContent = (stats.top_percentile?.toFixed(1) + '%') || '-';
-                                }
-                            } catch (e) {
-                                console.warn('Could not load quick stats:', e);
-                            }
-                        }
-
-                        if (document.readyState === 'loading') {
-                            document.addEventListener('DOMContentLoaded', loadStats);
-                        } else {
-                            loadStats();
-                        }
-                    })();
                     "#
                 }
                 style {
                     r#"
+                    .home-layout {
+                        width: 100%;
+                        max-width: 1440px;
+                        margin: 0 auto;
+                        padding: 0 1rem;
+                        min-height: calc(100vh - 65px);
+                    }
+
                     .hero-section {
                         text-align: center;
                         padding: 3.5rem 1.25rem;
                         border-radius: 16px;
                         margin: 2rem auto 2.25rem;
-                        max-width: 1100px;
+                        max-width: 100%;
                         position: relative;
                         background: radial-gradient(1200px 500px at -10% -40%, rgba(var(--primary-rgb),0.18), transparent 70%),
                                     radial-gradient(900px 500px at 110% -30%, rgba(16,185,129,0.18), transparent 70%),
@@ -155,7 +147,7 @@ pub fn render_home_page(manifest: &AssetManifest) -> Markup {
                         display: grid;
                         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
                         gap: 1.25rem;
-                        max-width: 1100px;
+                        max-width: 100%;
                         margin: 0 auto;
                         align-items: stretch;
                     }
@@ -189,15 +181,6 @@ pub fn render_home_page(manifest: &AssetManifest) -> Markup {
                     .btn-tertiary { background: var(--surface-secondary); color: var(--text-primary); border: 2px solid var(--border); }
                     .btn-tertiary:hover { background: var(--border); transform: translateY(-2px); }
 
-                    .quick-stats { margin-top: 2rem; }
-                    .quick-stats h2 { text-align: center; margin-bottom: 2rem; color: var(--text-primary); }
-
-                    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; }
-                    .stat-card { background: var(--surface); padding: 2rem; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.2s ease; border: 1px solid var(--border); }
-                    .stat-card:hover { transform: translateY(-2px); }
-                    .stat-number { display: block; font-size: 2.5rem; font-weight: 700; color: var(--primary); margin-bottom: 0.5rem; }
-                    .stat-label { display: block; color: var(--text-secondary); font-weight: 500; }
-
                     @media (max-width: 768px) {
                         .hero-section h1 { font-size: 2rem; }
                         .hero-description { font-size: 1.1rem; }
@@ -206,6 +189,28 @@ pub fn render_home_page(manifest: &AssetManifest) -> Markup {
                     "#
                 }
             }
+        }
+    }
+}
+
+// Helper function to render feature cards
+fn render_feature_card(
+    icon: Markup,
+    title: &str,
+    desc: &str,
+    link: &str,
+    btn_class: &str,
+    btn_text: &str,
+    desc_id: &str,
+    sr_desc: &str,
+) -> Markup {
+    html! {
+        article.feature-card.glass-card.card-hover {
+            div.icon-wrap aria-hidden="true" { (icon) }
+            h3 class="feature-title" { (title) }
+            p class="feature-desc" { (desc) }
+            a href=(link) class=(format!("btn {} feature-cta", btn_class)) aria-describedby=(desc_id) { (btn_text) }
+            span.sr-only id=(desc_id) { (sr_desc) }
         }
     }
 }
@@ -250,6 +255,24 @@ fn one_rm_icon() -> Markup {
             line x1="16" y1="10" x2="22" y2="10" {}
             rect x="16.5" y="8" width="1" height="4" {}
             rect x="20.5" y="8" width="1" height="4" {}
+        }
+    }
+}
+
+fn about_icon() -> Markup {
+    html! {
+        svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-primary);" {
+            circle cx="12" cy="12" r="9" {}
+            line x1="12" y1="11" x2="12" y2="16" {}
+            circle cx="12" cy="8" r="0.8" {}
+        }
+    }
+}
+
+fn donate_icon() -> Markup {
+    html! {
+        svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);" {
+            path d="M12 21l-1.45-1.32C6 15 4 12.5 4 10a4.5 4.5 0 0 1 8-2.5A4.5 4.5 0 0 1 20 10c0 2.5-2 5-6.55 9.68L12 21z" {}
         }
     }
 }

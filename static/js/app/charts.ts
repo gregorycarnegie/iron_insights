@@ -137,18 +137,7 @@ function changeBins(element: HTMLElement, chartId: string): void {
   window.updateCharts();
 }
 
-function switchRankings(element: HTMLElement): void {
-  const type = element.getAttribute('data-type');
 
-  // Update active state
-  element.parentElement?.querySelectorAll('.chart-option').forEach(btn => {
-    btn.classList.remove('active');
-  });
-  element.classList.add('active');
-
-  // Update rankings table based on type
-  updateRankingsTable(type || '');
-}
 
 function toggleTrendline(chartId: string): void {
   // Implement trendline toggle
@@ -160,10 +149,7 @@ function togglePoints(chartId: string): void {
   console.log('Toggle points for', chartId);
 }
 
-function updateRankingsTable(type: string): void {
-  // Implementation for updating rankings table
-  console.log('Update rankings table with type:', type);
-}
+
 
 // Crossfilter-style chart linking functionality
 let crossfilteringSetupAttempts = 0;
@@ -536,7 +522,7 @@ function toggleExportDropdown(button: HTMLElement): void {
 
 // Expose functions to global scope
 window.changeBins = changeBins;
-window.switchRankings = switchRankings;
+
 window.toggleTrendline = toggleTrendline;
 window.togglePoints = togglePoints;
 window.exportAllCharts = exportAllCharts;

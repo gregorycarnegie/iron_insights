@@ -64,36 +64,6 @@ pub fn render_main_content() -> Markup {
                 (render_chart_container("bodyweightScatter", "Performance vs Bodyweight", false))
                 (render_chart_container("dotsScatter", "DOTS vs Bodyweight", false))
             }
-
-            // Rankings Table
-            div.chart-container {
-                div.chart-header {
-                    h3.chart-title { "Top Performances" }
-                    div.chart-options {
-                        button.chart-option.active data-type="dots" onclick="switchRankings(this)" { "DOTS" }
-                        button.chart-option data-type="raw" onclick="switchRankings(this)" { "Raw" }
-                    }
-                }
-                div style="padding: 1rem;" {
-                    table.data-table #rankingsTable {
-                        thead {
-                            tr {
-                                th { "Rank" }
-                                th { "Name" }
-                                th { "BW" }
-                                th { "Squat" }
-                                th { "Bench" }
-                                th { "Deadlift" }
-                                th { "Total" }
-                                th { "DOTS" }
-                            }
-                        }
-                        tbody #rankingsBody {
-                            // Populated dynamically
-                        }
-                    }
-                }
-            }
         }
     }
 }
