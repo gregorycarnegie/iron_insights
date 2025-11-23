@@ -488,7 +488,8 @@ fn parse_weight_class_selection(raw: &str) -> Option<(WeightClassSystem, String)
 
 fn duckdb_weight_class_case(system: WeightClassSystem) -> &'static str {
     match system {
-        WeightClassSystem::Ipf => "
+        WeightClassSystem::Ipf => {
+            "
             CASE
                 WHEN Sex = 'M' AND BodyweightKg <= 53 THEN '53kg'
                 WHEN Sex = 'M' AND BodyweightKg <= 59 THEN '59kg'
@@ -509,8 +510,10 @@ fn duckdb_weight_class_case(system: WeightClassSystem) -> &'static str {
                 ELSE
                     CASE WHEN Sex = 'M' THEN '120kg+' ELSE '84kg+' END
             END
-        ",
-        WeightClassSystem::Para => "
+        "
+        }
+        WeightClassSystem::Para => {
+            "
             CASE
                 WHEN Sex = 'M' AND BodyweightKg <= 49 THEN '49kg'
                 WHEN Sex = 'M' AND BodyweightKg <= 54 THEN '54kg'
@@ -533,8 +536,10 @@ fn duckdb_weight_class_case(system: WeightClassSystem) -> &'static str {
                 ELSE
                     CASE WHEN Sex = 'M' THEN '107kg+' ELSE '86kg+' END
             END
-        ",
-        WeightClassSystem::Wp => "
+        "
+        }
+        WeightClassSystem::Wp => {
+            "
             CASE
                 WHEN Sex = 'M' AND BodyweightKg <= 62 THEN '62kg'
                 WHEN Sex = 'M' AND BodyweightKg <= 69 THEN '69kg'
@@ -553,7 +558,8 @@ fn duckdb_weight_class_case(system: WeightClassSystem) -> &'static str {
                 ELSE
                     CASE WHEN Sex = 'M' THEN '120kg+' ELSE '100kg+' END
             END
-        ",
+        "
+        }
     }
 }
 

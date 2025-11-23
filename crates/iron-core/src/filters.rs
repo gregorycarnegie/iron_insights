@@ -203,8 +203,10 @@ fn get_required_columns(params: &FilterParams, has_federation: bool) -> Vec<Expr
     }
 
     if params.weight_class.is_some() {
-        if let Some((column, _)) =
-            params.weight_class.as_deref().and_then(|wc| parse_weight_class(wc))
+        if let Some((column, _)) = params
+            .weight_class
+            .as_deref()
+            .and_then(|wc| parse_weight_class(wc))
         {
             cols.push(col(column));
         } else {
