@@ -2,7 +2,11 @@
 use super::styles::render_styles;
 use maud::{Markup, html};
 
-pub fn render_head() -> Markup {
+use crate::AssetManifest;
+
+pub fn render_head(manifest: &AssetManifest) -> Markup {
+    let lazy_loader_path = manifest.get("lazy-loader.js");
+
     html! {
         head {
             meta charset="UTF-8";
@@ -23,13 +27,13 @@ pub fn render_head() -> Markup {
             // Critical resource hints for JavaScript modules
             // Note: modulepreload removed for WASM to prevent premature preload warnings
             // The WASM module is loaded on-demand after page load for better TTI
-            link rel="modulepreload" href="/static/js/lazy-loader.js";
+            link rel="modulepreload" href=(lazy_loader_path);
 
             // Font loading with display=swap for better performance
             link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet";
 
             // Lazy loading module - loads first to enable on-demand loading
-            script src="/static/js/lazy-loader.js" defer {}
+            script src=(lazy_loader_path) defer {}
 
             // Service Worker registration
             script {
@@ -54,7 +58,10 @@ pub fn render_head() -> Markup {
 }
 
 // Minimal head for non-analytics pages: avoids webfonts and heavy libs to prevent CLS/TBT
-pub fn render_head_minimal() -> Markup {
+// Minimal head for non-analytics pages: avoids webfonts and heavy libs to prevent CLS/TBT
+pub fn render_head_minimal(manifest: &AssetManifest) -> Markup {
+    let lazy_loader_path = manifest.get("lazy-loader.js");
+
     html! {
         head {
             meta charset="UTF-8";
@@ -68,7 +75,7 @@ pub fn render_head_minimal() -> Markup {
             title { "Iron Insights - Professional Powerlifting Analytics" }
 
             // Lazy loading module for optimal performance
-            script src="/static/js/lazy-loader.js" defer {}
+            script src=(lazy_loader_path) defer {}
 
             // Inline critical CSS only (system font stack used from base styles)
             style { (render_styles()) }

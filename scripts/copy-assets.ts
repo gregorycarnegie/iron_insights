@@ -1,80 +1,97 @@
-import { copyFile, mkdir, writeFile } from 'fs/promises';
+import { copyFile, mkdir, writeFile, readFile } from 'fs/promises';
 import { join } from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-import { build } from 'esbuild';
+import { createHash } from 'crypto';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const projectRoot = join(__dirname, '..');
-
-async function copyAssets(): Promise<void> {
+async function copyAssets() {
   try {
+    console.log('🏗️ Starting build process with Bun...');
+
     // Ensure output directory exists
-    await mkdir(join(projectRoot, 'static', 'js', 'dist'), { recursive: true });
+    await mkdir('static/js/dist', { recursive: true });
+    await mkdir('src/assets', { recursive: true });
 
-    // Create entry points for Plotly and Arrow if they don't exist
-    const plotlyEntry = join(projectRoot, 'src', 'assets', 'plotly-entry.ts');
-    const arrowEntry = join(projectRoot, 'src', 'assets', 'arrow-entry.ts');
-
-    await mkdir(join(projectRoot, 'src', 'assets'), { recursive: true });
-
-    // Create Plotly entry point with tree-shaking
-    await writeFile(plotlyEntry, `export * from 'plotly.js-dist-min';`);
-
-    // Create Arrow entry point with tree-shaking
-    await writeFile(arrowEntry, `export * from 'apache-arrow';`);
-
-    console.log('🔨 Building optimized Plotly bundle...');
-    await build({
-      entryPoints: [plotlyEntry],
-      bundle: true,
-      minify: true,
-      treeShaking: true,
-      format: 'iife',
-      globalName: '__PlotlyTemp',  // Use temp name
-      outfile: join(projectRoot, 'static', 'js', 'dist', 'plotly.min.js'),
-      external: [],
-      target: 'es2015',
-      logLevel: 'info',
-      banner: { js: 'if (!window.Plotly) {' },  // Guard against double execution
-      footer: { js: 'window.Plotly = __PlotlyTemp; }' }  // Assign and close guard
-    });
-    console.log('✅ Plotly bundle optimized');
-
-    console.log('🔨 Building optimized Arrow bundle...');
-    await build({
-      entryPoints: [arrowEntry],
-      bundle: true,
-      minify: true,
-      treeShaking: true,
-      format: 'iife',
-      globalName: '__ArrowTemp',  // Use temp name
-      outfile: join(projectRoot, 'static', 'js', 'dist', 'arrow.min.js'),
-      external: [],
-      target: 'es2015',
-      logLevel: 'info',
-      banner: { js: 'if (!window.Arrow) {' },  // Guard against double execution
-      footer: { js: 'window.Arrow = __ArrowTemp; }' }  // Assign and close guard
-    });
-    console.log('✅ Arrow bundle optimized');
-
+    // 1. Build lazy-loader
     console.log('🔨 Building lazy-loader...');
-    await build({
-      entryPoints: [join(projectRoot, 'static', 'js', 'lazy-loader.ts')],
-      bundle: false,
-      minify: false,
-      outfile: join(projectRoot, 'static', 'js', 'lazy-loader.js'),
-      target: 'es2020',
-      logLevel: 'info',
-      platform: 'browser'
+    const lazyResult = await Bun.build({
+      entrypoints: ['static/js/lazy-loader.ts'],
+      outdir: 'static/js/dist',
+      naming: 'lazy-loader.js',
+      minify: true,
+      target: 'browser',
     });
+    if (!lazyResult.success) throw new Error(`Lazy loader build failed: ${lazyResult.logs}`);
     console.log('✅ Lazy-loader compiled');
 
-    // Note: dist/sw.js is not needed - server serves directly from static/
-    // Removed unnecessary copy operation
+    // 2. Copy pre-built Plotly
+    console.log('📦 Copying pre-built Plotly bundle...');
+    const plotlySource = 'node_modules/plotly.js-dist-min/plotly.min.js';
+    const plotlyDest = 'static/js/dist/plotly.min.js';
+    await copyFile(plotlySource, plotlyDest);
+    console.log('✅ Plotly bundle copied');
 
-    console.log('🎉 All assets built and bundled successfully with tree-shaking!');
+    // 3. Copy pre-built Arrow
+    console.log('📦 Copying pre-built Arrow bundle...');
+    const arrowSource = 'node_modules/apache-arrow/Arrow.es2015.min.js';
+    const arrowDest = 'static/js/dist/arrow.min.js';
+    await copyFile(arrowSource, arrowDest);
+    console.log('✅ Arrow bundle copied');
+
+    // 4. Build Application Bundle
+    console.log('🔨 Building application bundle...');
+    const appFiles = [
+      'init.js',
+      'utils.js',
+      'calculations.js',
+      'websocket.js',
+      'data.js',
+      'charts.js',
+      'ui.js',
+      'main.js'
+    ];
+
+    // Create a temporary entry file
+    const appEntryContent = appFiles.map(file => `import './app/${file}';`).join('\n');
+    const appEntryPath = 'static/js/app-entry.js';
+    await writeFile(appEntryPath, appEntryContent);
+
+    const appResult = await Bun.build({
+      entrypoints: [appEntryPath],
+      outdir: 'static/js/dist',
+      naming: 'app.js',
+      minify: true,
+      target: 'browser',
+    });
+    if (!appResult.success) throw new Error(`App build failed: ${appResult.logs}`);
+    console.log('✅ Application bundle compiled');
+
+    // 5. Generate content hashes and manifest
+    console.log('🔐 Generating content hashes...');
+    const manifest: Record<string, string> = {};
+
+    const filesToHash = [
+      { name: 'app.js', path: 'static/js/dist/app.js' },
+      { name: 'lazy-loader.js', path: 'static/js/dist/lazy-loader.js' }
+    ];
+
+    for (const file of filesToHash) {
+      const content = await readFile(file.path);
+      const hash = createHash('md5').update(content).digest('hex').slice(0, 8);
+      const hashedName = file.name.replace('.js', `.${hash}.js`);
+      const hashedPath = `static/js/dist/${hashedName}`;
+
+      await copyFile(file.path, hashedPath);
+      manifest[file.name] = hashedName;
+      console.log(`   ${file.name} -> ${hashedName}`);
+    }
+
+    // Write manifest
+    await writeFile(
+      'static/js/dist/manifest.json',
+      JSON.stringify(manifest, null, 2)
+    );
+    console.log('✅ Manifest generated');
+
+    console.log('🎉 All assets built and bundled successfully!');
   } catch (error) {
     console.error('❌ Error building assets:', error);
     process.exit(1);

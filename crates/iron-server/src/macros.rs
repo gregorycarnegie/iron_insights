@@ -22,9 +22,9 @@
 macro_rules! simple_page_handler {
     ($(#[$meta:meta])* $fn_name:ident => $render_fn:ident) => {
         $(#[$meta])*
-        #[instrument(skip(_state))]
-        pub async fn $fn_name(State(_state): State<AppState>) -> Markup {
-            $render_fn()
+        #[instrument(skip(state))]
+        pub async fn $fn_name(State(state): State<AppState>) -> Markup {
+            $render_fn(&state.manifest)
         }
     };
 }

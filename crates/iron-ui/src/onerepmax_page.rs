@@ -1,11 +1,12 @@
+use crate::AssetManifest;
 use crate::components::*;
 use maud::{DOCTYPE, Markup, html};
 
-pub fn render_onerepmax_page() -> Markup {
+pub fn render_onerepmax_page(manifest: &AssetManifest) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
-            (render_head_minimal())
+            (render_head_minimal(manifest))
             body {
                 div.container {
                     (render_header(Some("/1rm")))
@@ -82,7 +83,7 @@ pub fn render_onerepmax_page() -> Markup {
                         }
                     }
                 }
-                (crate::components::scripts::render_scripts())
+                (crate::components::scripts::render_scripts(manifest))
                 script { (maud::PreEscaped(r#"
                     // 1RM Calculation Formulas
                     window.formulas = {

@@ -12,10 +12,15 @@ pub struct AppState {
     pub cache: Cache<String, CachedResult>,
     pub websocket_state: Option<Arc<dyn Any + Send + Sync>>,
     pub duckdb: Option<Arc<DuckDBAnalytics>>,
+    pub manifest: AssetManifest,
 }
 
 impl AppState {
-    pub fn new(data: Arc<DataFrame>, cache_config: (u64, std::time::Duration)) -> Self {
+    pub fn new(
+        data: Arc<DataFrame>,
+        cache_config: (u64, std::time::Duration),
+        manifest: AssetManifest,
+    ) -> Self {
         let cache = Cache::builder()
             .max_capacity(cache_config.0)
             .time_to_live(cache_config.1)
@@ -26,12 +31,34 @@ impl AppState {
             cache,
             websocket_state: None,
             duckdb: None,
+            manifest,
         }
     }
 
     pub fn with_duckdb(mut self, duckdb: DuckDBAnalytics) -> Self {
         self.duckdb = Some(Arc::new(duckdb));
         self
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct AssetManifest {
+    pub assets: std::collections::HashMap<String, String>,
+}
+
+impl AssetManifest {
+    pub fn new() -> Self {
+        Self {
+            assets: std::collections::HashMap::new(),
+        }
+    }
+
+    pub fn get(&self, key: &str) -> String {
+        if let Some(hashed_name) = self.assets.get(key) {
+            format!("/static/js/dist/{}", hashed_name)
+        } else {
+            format!("/static/js/{}", key)
+        }
     }
 }
 

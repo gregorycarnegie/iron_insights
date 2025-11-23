@@ -1,11 +1,12 @@
+use crate::AssetManifest;
 use crate::components::*;
 use maud::{DOCTYPE, Markup, html};
 
-pub fn render_home_page() -> Markup {
+pub fn render_home_page(manifest: &AssetManifest) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
-            (render_head_minimal())
+            (render_head_minimal(manifest))
             body.no-js {
                 div.container {
                     (render_header(Some("/")))

@@ -87,7 +87,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    let mut state = AppState::new(Arc::new(data), config.cache_config());
+    // Load asset manifest
+    let manifest_path = "static/js/dist/manifest.json";
+    let manifest = if std::path::Path::new(manifest_path).exists() {
+        match std::fs::File::open(manifest_path) {
+            Ok(file) => {
+                let reader = std::io::BufReader::new(file);
+                match serde_json::from_reader(reader) {
+                    Ok(assets) => {
+                        tracing::info!("✅ Loaded asset manifest from {}", manifest_path);
+                        iron_core::models::AssetManifest { assets }
+                    }
+                    Err(e) => {
+                        tracing::warn!("⚠️  Failed to parse asset manifest: {}", e);
+                        iron_core::models::AssetManifest::new()
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!("⚠️  Failed to open asset manifest: {}", e);
+                iron_core::models::AssetManifest::new()
+            }
+        }
+    } else {
+        tracing::info!(
+            "ℹ️  No asset manifest found at {}, using default paths",
+            manifest_path
+        );
+        iron_core::models::AssetManifest::new()
+    };
+
+    let mut state = AppState::new(Arc::new(data), config.cache_config(), manifest);
     if let Some(duckdb) = duckdb_analytics {
         state = state.with_duckdb(duckdb);
     }
