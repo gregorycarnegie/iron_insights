@@ -240,6 +240,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 // Middleware to add Alt-Svc header for HTTP/3 discovery and resource hints
 async fn add_alt_svc_header(request: Request, next: middleware::Next) -> Response {
+    let path = request.uri().path().to_owned();
     let mut response = next.run(request).await;
 
     // Add Alt-Svc header to advertise HTTP/3 availability
@@ -248,16 +249,17 @@ async fn add_alt_svc_header(request: Request, next: middleware::Next) -> Respons
         .insert("Alt-Svc", "h3=\":3443\"; ma=86400".parse().unwrap());
 
     // Add Link header for HTTP/2 Server Push hints for critical resources
-    // Browsers will preload these resources for better performance
-    let link_header = concat!(
-        "</static/wasm/iron_insights_wasm_bg.wasm>; rel=preload; as=fetch; crossorigin, ",
-        "</static/wasm/iron_insights_wasm.js>; rel=modulepreload, ",
-        "</static/js/lazy-loader.js>; rel=modulepreload"
-    );
+    // Browsers will preload these resources for better performance on analytics pages
+    if matches!(path.as_str(), "/analytics" | "/analytics/") {
+        // Limit preload to analytics to avoid unused preload warnings on lightweight pages
+        // Avoid preloading the raw WASM binary to prevent unused-preload warnings
+        // Only hint the lightweight lazy loader; avoid preloading WASM or its JS wrapper to prevent warnings
+        let link_header = "</static/js/lazy-loader.js>; rel=modulepreload";
 
-    response
-        .headers_mut()
-        .insert("Link", link_header.parse().unwrap());
+        response
+            .headers_mut()
+            .insert("Link", link_header.parse().unwrap());
+    }
 
     response
 }

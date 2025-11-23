@@ -1,11 +1,7 @@
 // Service Worker for Iron Insights
 // Cache version: increment to force cache invalidation
-const CACHE_NAME = 'iron-insights-v3';
+const CACHE_NAME = 'iron-insights-v4';
 const STATIC_ASSETS = [
-    '/',
-    '/analytics',
-    '/1rm',
-    '/sharecard',
     '/static/js/dist/plotly.min.js',
     '/static/js/dist/arrow.min.js',
     '/static/wasm/iron_insights_wasm.js',
@@ -52,6 +48,12 @@ self.addEventListener('fetch', (event) => {
                 })
                 .catch(() => caches.match(request))
         );
+        return;
+    }
+
+    // Always fetch latest HTML to avoid stale head/link headers (no cache for navigation)
+    if (request.mode === 'navigate') {
+        event.respondWith(fetch(request));
         return;
     }
 
