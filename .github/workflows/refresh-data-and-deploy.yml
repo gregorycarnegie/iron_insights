@@ -143,8 +143,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
           cd app
-          trunk build --release --dist ../docs
+          trunk build --release --dist ../docs --public-url "/${REPO_NAME}/"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
