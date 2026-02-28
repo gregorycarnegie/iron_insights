@@ -88,13 +88,13 @@ Goal: visitors can change bin sizes *without refetching massive data*.
 
 ## 5) Build outputs (what /data contains)
 
-- [ ] `/data/vYYYY-MM-DD/`
-  - [ ] `/hist/{sex}/{equip}/{tested}/{lift}.bin`
-  - [ ] `/heat/{sex}/{equip}/{tested}/{lift}.bin`
-  - [ ] `/meta/{sex}/{equip}/{tested}/{lift}.json` (ranges, base bins, totals)
-- [ ] `/data/latest.json` updated to point to newest version folder
-- [ ] Optional: keep only last N versions to limit repo size
-  - [ ] N=4 (last month) is a good default
+- [x] `/data/vYYYY-MM-DD/`
+  - [x] `/hist/{sex}/{equip}/{tested}/{lift}.bin`
+  - [x] `/heat/{sex}/{equip}/{tested}/{lift}.bin`
+  - [x] `/meta/{sex}/{equip}/{tested}/{lift}.json` (ranges, base bins, totals)
+- [x] `/data/latest.json` updated to point to newest version folder
+- [x] Optional: keep only last N versions to limit repo size
+  - [x] N=4 (last month) is a good default
 
 ## 6) Leptos UI (MVP)
 

@@ -87,7 +87,7 @@ fn build_records(input_parquet: &PathBuf, spec: LiftSpec, tested_only: bool) -> 
         .filter(col("Sanctioned").eq(lit("Yes")))
         .filter(event_filter(spec.events))
         .filter(col(spec.column).is_not_null())
-        .filter(col(spec.column).gt(lit(0.0)))
+        .filter(col(spec.column).gt(lit(0.0f32)))
         .filter(col("Place").neq(lit("DQ")))
         .filter(col("Place").neq(lit("DD")))
         .filter(col("Place").neq(lit("NS")))
@@ -97,8 +97,10 @@ fn build_records(input_parquet: &PathBuf, spec: LiftSpec, tested_only: bool) -> 
             col("Sex"),
             col("Equipment"),
             col("TestedBucket"),
-            col(spec.column).alias("lift_value"),
-            col("BodyweightKg"),
+            col(spec.column).cast(DataType::Float32).alias("lift_value"),
+            col("BodyweightKg")
+                .cast(DataType::Float32)
+                .alias("BodyweightKg"),
             col("Date"),
             col("Federation"),
             col("MeetName"),
