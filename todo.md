@@ -2,86 +2,86 @@
 
 ## 0) Decide the “best lift” definition (based on OPL bulk CSV docs)
 
-- [ ] Use **sanctioned meets only** (`Sanctioned == "Yes"`) so we match how rankings/records treat unsanctioned meets (OPL docs: unsanctioned “do not count for rankings or records”).
-- [ ] Use **Best3 lift columns** as the canonical meet result for each lift:
-  - [ ] `Best3SquatKg`
-  - [ ] `Best3BenchKg`
-  - [ ] `Best3DeadliftKg`
-  - [ ] (Optional for total) `TotalKg` (only present when all 3 lifts succeed; blank if failed/DQ/etc.)
-- [ ] Define **per-lifter best (recommended)** to avoid prolific lifters overweighting distributions:
-  - [ ] Identify a lifter by `Name` (OPL disambiguates duplicates via `#` suffix, e.g. `John Doe #1`).
-  - [ ] For each lifter, compute `best_lift = max(Best3*Kg)` within a chosen population slice.
-  - [ ] Store the *meet context* for that best lift (at least `BodyweightKg`, `Date`, `Federation`, `MeetName`) so you can plot BW vs lift at time of the best.
-- [ ] Define population slices (MVP):
-  - [ ] `Sex` (M/F/Mx)
-  - [ ] `Equipment` (Raw/Wraps/Single-ply/Multi-ply/Unlimited/Straps)
-  - [ ] `Tested` (Yes vs empty) as a toggle
-  - [ ] `Event` filter appropriate to the lift:
-    - [ ] For squat comparisons: include rows where `Event` ∈ {SBD, SD, SB, S}
-    - [ ] For bench comparisons: include rows where `Event` ∈ {SBD, BD, SB, B}
-    - [ ] For deadlift comparisons: include rows where `Event` ∈ {SBD, BD, SD, D}
-    - [ ] For total comparisons: `Event == "SBD"` only (or make it an explicit toggle)
-- [ ] Data hygiene rules (keep it sane):
-  - [ ] Drop rows where the relevant `Best3*Kg` is null/<=0 (some feds can report odd negatives; ignore for “best”).
-  - [ ] Exclude disqualified/no-show rows when deriving “best” (e.g., `Place` in {DQ, DD, NS}) **unless** the lift fields are still valid and you intentionally want them (default: exclude).
-  - [ ] Require `BodyweightKg` for BW scatter; allow missing BW for histogram.
+- [x] Use **sanctioned meets only** (`Sanctioned == "Yes"`) so we match how rankings/records treat unsanctioned meets (OPL docs: unsanctioned “do not count for rankings or records”).
+- [x] Use **Best3 lift columns** as the canonical meet result for each lift:
+  - [x] `Best3SquatKg`
+  - [x] `Best3BenchKg`
+  - [x] `Best3DeadliftKg`
+  - [x] Use `TotalKg` for total comparisons (SBD only; blank/invalid totals excluded)
+- [x] Define **per-lifter best (recommended)** to avoid prolific lifters overweighting distributions:
+  - [x] Identify a lifter by `Name` (OPL disambiguates duplicates via `#` suffix, e.g. `John Doe #1`).
+  - [x] For each lifter, compute `best_lift = max(Best3*Kg)` within a chosen population slice.
+  - [x] Store the *meet context* for that best lift (at least `BodyweightKg`, `Date`, `Federation`, `MeetName`) so you can plot BW vs lift at time of the best.
+- [x] Define population slices (MVP):
+  - [x] `Sex` (M/F/Mx)
+  - [x] `Equipment` (Raw/Wraps/Single-ply/Multi-ply/Unlimited/Straps)
+  - [x] `Tested` (Yes vs empty) as a toggle
+  - [x] `Event` filter appropriate to the lift:
+    - [x] For squat comparisons: include rows where `Event` ∈ {SBD, SD, SB, S}
+    - [x] For bench comparisons: include rows where `Event` ∈ {SBD, BD, SB, B}
+    - [x] For deadlift comparisons: include rows where `Event` ∈ {SBD, BD, SD, D}
+    - [x] For total comparisons: `Event == "SBD"` only
+- [x] Data hygiene rules (keep it sane):
+  - [x] Drop rows where the relevant `Best3*Kg` is null/<=0 (some feds can report odd negatives; ignore for “best”).
+  - [x] Exclude disqualified/no-show rows when deriving “best” (e.g., `Place` in {DQ, DD, NS}) for MVP defaults.
+  - [x] Require `BodyweightKg` for BW scatter; allow missing BW for histogram.
 
 ## 1) Repo + deployment layout (GitHub Pages)
 
-- [ ] Create repo (or monorepo) with:
-  - [ ] `/app` (Leptos project)
-  - [ ] `/data` (generated aggregate blobs + `latest.json`)
-  - [ ] `/docs` (Pages publish folder) **or** configure Pages to serve from `gh-pages` branch
-- [ ] Add `latest.json` format:
-  - [ ] `{"version":"vYYYY-MM-DD","revision":"<opl revision if available>"}`
+- [x] Create repo (or monorepo) with:
+  - [x] `/app` (Leptos project)
+  - [x] `/data` (generated aggregate blobs + `latest.json`)
+  - [x] `/docs` (Pages publish folder) **or** configure Pages to serve from `gh-pages` branch
+- [x] Add `latest.json` format:
+  - [x] `{"version":"vYYYY-MM-DD","revision":"<opl revision if available>"}`
 - [ ] Ensure Leptos fetch path works on Pages subpath (base URL):
   - [ ] set `LEPTOS_SITE_ROOT` / router base path (or use relative fetches like `./data/...`)
 
 ## 2) Data pipeline (Rust + Polars, lazy-first)
 
-- [ ] Write `pipeline/src/bin/01_download.rs`:
-  - [ ] Download `openpowerlifting-latest.zip` (bulk CSV)
-  - [ ] Extract CSV to temp workspace
-  - [ ] Convert extracted CSV to Parquet (`openpowerlifting-latest.parquet`) for faster downstream scans
-    - [ ] Use a one-time CSV -> Parquet conversion per refresh run, then use Parquet as the canonical pipeline input
-  - [ ] Remove temporary source files after successful conversion:
-    - [ ] Delete downloaded ZIP (`openpowerlifting-latest.zip`)
-    - [ ] Delete extracted CSV (`openpowerlifting-latest.csv`)
-  - [ ] Record the dataset updated date + revision (from the bulk download page) into build metadata
-- [ ] Write `pipeline/src/bin/02_build_aggregates.rs` (Polars `LazyFrame`):
-  - [ ] Scan Parquet lazily (`scan_parquet`) for speed/memory efficiency
-  - [ ] Apply filters early (lazy predicates):
-    - [ ] `Sanctioned == "Yes"`
-    - [ ] optional `Tested` toggle outputs (build both “tested” + “all” slices)
-    - [ ] relevant `Event` membership for each lift type
-  - [ ] Compute per-lifter best:
-    - [ ] Group by: `Name`, `Sex`, `Equipment`, `Tested`(bucketed), plus lift type
-    - [ ] Aggregate: `max(Best3*Kg)` and capture `BodyweightKg` at that max
+- [x] Write `pipeline/src/bin/01_download.rs`:
+  - [x] Download `openpowerlifting-latest.zip` (bulk CSV)
+  - [x] Extract CSV to temp workspace
+  - [x] Convert extracted CSV to Parquet (`openpowerlifting-latest.parquet`) for faster downstream scans
+    - [x] Use a one-time CSV -> Parquet conversion per refresh run, then use Parquet as the canonical pipeline input
+  - [x] Remove temporary source files after successful conversion:
+    - [x] Delete downloaded ZIP (`openpowerlifting-latest.zip`)
+    - [x] Delete extracted CSV (`openpowerlifting-latest.csv`)
+  - [x] Record the dataset updated date + revision (from the bulk download page) into build metadata
+- [x] Write `pipeline/src/bin/02_build_aggregates.rs` (Polars `LazyFrame`):
+  - [x] Scan Parquet lazily (`scan_parquet`) for speed/memory efficiency
+  - [x] Apply filters early (lazy predicates):
+    - [x] `Sanctioned == "Yes"`
+    - [x] optional `Tested` toggle outputs (build both “tested” + “all” slices)
+    - [x] relevant `Event` membership for each lift type
+  - [x] Compute per-lifter best:
+    - [x] Group by: `Name`, `Sex`, `Equipment`, `Tested`(bucketed), plus lift type
+    - [x] Aggregate: `max(Best3*Kg)` and capture `BodyweightKg` at that max
       - [ ] Use `sort_by(Best3*Kg).last()` pattern or `arg_max` logic to carry BW/Date from the best row
-  - [ ] Produce “records table” per slice: `{best_lift, bodyweight_at_best, ...}`
+  - [x] Produce “records table” per slice: `{best_lift, bodyweight_at_best, ...}`
 
 ## 3) Bin strategy with “user-adjustable bin sizes”
 
 Goal: visitors can change bin sizes *without refetching massive data*.
 
-- [ ] Choose **base (smallest) bin sizes** for stored aggregates:
-  - [ ] `lift_bin_base_kg = 2.5` (or 1.0 if you can keep files small)
-  - [ ] `bw_bin_base_kg = 1.0` (or 2.0 if you need smaller files)
-- [ ] Store aggregates at base resolution, then **re-bin client-side** by summing adjacent bins:
-  - [ ] Histogram rebin: combine `k` bins → bin_size = `k * base`
-  - [ ] Heatmap rebin: combine `kx × ky` blocks
-- [ ] Define allowed multipliers in UI to keep it simple and fast:
-  - [ ] Lift bin multipliers: 1×, 2×, 4× (2.5kg → 5kg → 10kg)
-  - [ ] BW bin multipliers: 1×, 2×, 5× (1kg → 2kg → 5kg)
-- [ ] Implement client-side rebin functions (pure, fast):
-  - [ ] `rebin_1d(counts: Vec<u32>, k: usize) -> Vec<u32>`
-  - [ ] `rebin_2d(grid: Vec<u32>, w: usize, h: usize, kx: usize, ky: usize) -> (Vec<u32>, w2, h2)`
+- [x] Choose **base (smallest) bin sizes** for stored aggregates:
+  - [x] `lift_bin_base_kg = 2.5`
+  - [x] `bw_bin_base_kg = 1.0`
+- [x] Store aggregates at base resolution, then **re-bin client-side** by summing adjacent bins:
+  - [x] Histogram rebin: combine `k` bins → bin_size = `k * base`
+  - [x] Heatmap rebin: combine `kx × ky` blocks
+- [x] Define allowed multipliers in UI to keep it simple and fast:
+  - [x] Lift bin multipliers: 1×, 2×, 4× (2.5kg → 5kg → 10kg)
+  - [x] BW bin multipliers: 1×, 2×, 5× (1kg → 2kg → 5kg)
+- [x] Implement client-side rebin functions (pure, fast):
+  - [x] `rebin_1d(counts: Vec<u32>, k: usize) -> Vec<u32>`
+  - [x] `rebin_2d(grid: Vec<u32>, w: usize, h: usize, kx: usize, ky: usize) -> (Vec<u32>, w2, h2)`
 
 ## 4) File formats (keep payloads tiny)
 
-- [ ] Pick a compact binary format for counts (recommended):
-  - [ ] Header (little-endian): version, base_bin_size, min, max, dims
-  - [ ] Payload: `u32` counts (hist) or `u32` flattened grid (heatmap)
+- [x] Pick a compact binary format for counts (recommended):
+  - [x] Header (little-endian): version, base_bin_size, min, max, dims
+  - [x] Payload: `u32` counts (hist) or `u32` flattened grid (heatmap)
 - [ ] Add a tiny JSON “index” per population slice so the client knows which file to fetch:
   - [ ] Example key: `sex=M|equip=Raw|tested=Yes|lift=D`
   - [ ] Points to: `hist.bin` + `heat.bin` + metadata ranges
