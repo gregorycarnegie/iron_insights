@@ -1,0 +1,158 @@
+name: Refresh Data And Deploy
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  refresh-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Trunk
+        run: cargo install trunk --locked
+
+      - name: Capture previous latest version
+        id: previous
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f data/latest.json ]]; then
+            PREV_VERSION=$(jq -r '.version // empty' data/latest.json)
+            echo "previous_version=${PREV_VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            echo "previous_version=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run data pipeline
+        shell: bash
+        run: |
+          set -euo pipefail
+          DATE_UTC=$(date -u +%Y-%m-%d)
+          VERSION="v${DATE_UTC}"
+
+          echo "DATA_VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+          cargo run --manifest-path pipeline/Cargo.toml --bin 01_download -- \
+            --dataset-version "${VERSION}"
+
+          cargo run --manifest-path pipeline/Cargo.toml --bin 02_build_aggregates
+
+          cargo run --manifest-path pipeline/Cargo.toml --bin 03_publish_data -- \
+            --data-dir data \
+            --version "${VERSION}" \
+            --keep-versions 4
+
+      - name: Safeguards and metadata report
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Guard: essential files must exist.
+          test -s "pipeline/output/openpowerlifting-latest.parquet"
+          test -s "pipeline/output/build_metadata.json"
+          test -s "data/latest.json"
+          test -s "data/${DATA_VERSION}/index.json"
+
+          # Aggregate row-count proxy (sum of histogram totals across slices).
+          NEW_TOTAL=$(find "data/${DATA_VERSION}/meta" -type f -name '*.json' -print0 \
+            | xargs -0 jq -s '[.[].hist.total] | add // 0')
+
+          if [[ -z "${NEW_TOTAL}" || "${NEW_TOTAL}" == "0" ]]; then
+            echo "Computed NEW_TOTAL is empty/zero; failing."
+            exit 1
+          fi
+
+          PREV_VERSION='${{ steps.previous.outputs.previous_version }}'
+          PREV_TOTAL=0
+          if [[ -n "${PREV_VERSION}" && -d "data/${PREV_VERSION}/meta" ]]; then
+            PREV_TOTAL=$(find "data/${PREV_VERSION}/meta" -type f -name '*.json' -print0 \
+              | xargs -0 jq -s '[.[].hist.total] | add // 0')
+          fi
+
+          if [[ "${PREV_TOTAL}" != "0" ]]; then
+            python3 - <<PY
+prev_total = int("${PREV_TOTAL}")
+new_total = int("${NEW_TOTAL}")
+if new_total < prev_total * 0.5:
+    raise SystemExit(f"New total ({new_total}) dropped below 50% of previous ({prev_total}).")
+print(f"Previous total: {prev_total}")
+print(f"New total: {new_total}")
+PY
+          else
+            echo "No previous total baseline available; skipping drop-threshold check."
+            echo "New total: ${NEW_TOTAL}"
+          fi
+
+          echo "Build metadata:"
+          cat pipeline/output/build_metadata.json
+
+      - name: Commit refreshed data back to main
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- data; then
+            echo "No data changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data
+          git commit -m "chore(data): weekly refresh ${DATA_VERSION}"
+          git push
+
+      - name: Sync app data for trunk copy step
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf app/data
+          mkdir -p app/data
+          cp -a data/. app/data/
+
+      - name: Build static site to docs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd app
+          trunk build --release --dist ../docs
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

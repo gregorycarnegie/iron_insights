@@ -117,19 +117,19 @@ Goal: visitors can change bin sizes *without refetching massive data*.
 
 ## 7) CI/CD (weekly scheduled refresh + Pages deploy)
 
-- [ ] Add GitHub Actions workflow:
-  - [ ] `schedule:` weekly (e.g., Sunday 03:00 UTC)
-  - [ ] Manual trigger `workflow_dispatch`
-- [ ] Steps:
-  - [ ] Checkout repo
-  - [ ] Set up Python (and cache deps)
-  - [ ] Run download + aggregate scripts
-  - [ ] Commit `/data` changes back to `main` **OR** push to separate `data` branch/repo
-  - [ ] Build Leptos site
-  - [ ] Deploy to GitHub Pages
-- [ ] Add safeguards:
-  - [ ] Fail build if download corrupt / row count drops unexpectedly
-  - [ ] Print build metadata (dataset updated date, revision, row count)
+- [x] Add GitHub Actions workflow:
+  - [x] `schedule:` weekly (e.g., Sunday 03:00 UTC)
+  - [x] Manual trigger `workflow_dispatch`
+- [x] Steps:
+  - [x] Checkout repo
+  - [x] Set up Rust toolchain (and cache deps)
+  - [x] Run download + aggregate scripts
+  - [x] Commit `/data` changes back to `main` **OR** push to separate `data` branch/repo
+  - [x] Build Leptos site
+  - [x] Deploy to GitHub Pages
+- [x] Add safeguards:
+  - [x] Fail build if download corrupt / row count drops unexpectedly
+  - [x] Print build metadata (dataset updated date, revision, row count proxy)
 
 ## 8) QA + sanity checks
 
