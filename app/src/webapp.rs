@@ -15,7 +15,6 @@ struct LatestJson {
 
 #[derive(Debug, Clone, Deserialize)]
 struct SliceIndex {
-    version: String,
     slices: BTreeMap<String, SliceIndexEntry>,
 }
 

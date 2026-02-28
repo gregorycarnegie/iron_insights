@@ -133,6 +133,7 @@ Goal: visitors can change bin sizes *without refetching massive data*.
 
 ## 8) QA + sanity checks
 
+- [x] Add QA scripts to validate `/data` integrity and report payload/load budget (`scripts/qa.ps1`, `scripts/qa.sh`)
 - [ ] Spot-check percentiles against known expectations (e.g., your 320 @ 109kg, Raw, M)
 - [ ] Confirm Event filtering works (D-only meets don’t appear in SBD total)
 - [ ] Confirm distributions change reasonably when toggling Tested/Equipment/Sex

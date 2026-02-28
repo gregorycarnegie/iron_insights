@@ -147,6 +147,13 @@ jobs:
           cd app
           trunk build --release --dist ../docs --public-url "/${REPO_NAME}/"
 
+      - name: QA report (data + payload)
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/qa.sh
+          ./scripts/qa.sh data docs
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 

@@ -1,0 +1,195 @@
+param(
+  [string]$DataDir = "data",
+  [string]$SiteDir = "docs",
+  [string]$BaseUrl = "",
+  [string]$SliceKey = ""
+)
+
+$ErrorActionPreference = 'Stop'
+
+function Fail([string]$Message) {
+  Write-Error "[qa] ERROR: $Message"
+  exit 1
+}
+
+function Format-Bytes([Int64]$Bytes) {
+  if ($Bytes -ge 1GB) { return "{0:N2} GB" -f ($Bytes / 1GB) }
+  if ($Bytes -ge 1MB) { return "{0:N2} MB" -f ($Bytes / 1MB) }
+  if ($Bytes -ge 1KB) { return "{0:N2} KB" -f ($Bytes / 1KB) }
+  return "$Bytes B"
+}
+
+function Join-Url([string]$Left, [string]$Right) {
+  $l = $Left.TrimEnd('/')
+  $r = $Right.TrimStart('./').TrimStart('/')
+  return "$l/$r"
+}
+
+if (-not (Test-Path $DataDir)) { Fail "data directory not found: $DataDir" }
+
+$latestPath = Join-Path $DataDir 'latest.json'
+if (-not (Test-Path $latestPath)) { Fail "missing latest.json: $latestPath" }
+
+$latest = Get-Content $latestPath -Raw | ConvertFrom-Json
+if (-not $latest.version) { Fail "latest.json missing .version" }
+
+$version = $latest.version
+$versionDir = Join-Path $DataDir $version
+if (-not (Test-Path $versionDir)) { Fail "version directory missing: $versionDir" }
+
+$indexPath = Join-Path $versionDir 'index.json'
+if (-not (Test-Path $indexPath)) { Fail "missing index.json: $indexPath" }
+
+$index = Get-Content $indexPath -Raw | ConvertFrom-Json
+if (-not $index.slices) { Fail "index.json missing .slices" }
+
+$sliceProps = $index.slices.PSObject.Properties
+if (@($sliceProps).Count -eq 0) { Fail "index has no slice entries" }
+
+Write-Host "[qa] Version: $version"
+Write-Host "[qa] Slice entries: $(@($sliceProps).Count)"
+
+$missing = 0
+$invalid = 0
+$histTotalSum = 0
+
+foreach ($prop in $sliceProps) {
+  $key = $prop.Name
+  $entry = $prop.Value
+
+  foreach ($rel in @($entry.meta, $entry.hist, $entry.heat)) {
+    if ([string]::IsNullOrWhiteSpace($rel)) {
+      Write-Host "[qa] invalid empty path in index ($key)" -ForegroundColor Yellow
+      $invalid++
+      continue
+    }
+
+    if ($rel.StartsWith('/')) {
+      Write-Host "[qa] invalid absolute path in index ($key): $rel" -ForegroundColor Yellow
+      $invalid++
+      continue
+    }
+
+    $full = Join-Path $versionDir $rel
+    if (-not (Test-Path $full)) {
+      Write-Host "[qa] missing file for ${key}: $rel" -ForegroundColor Yellow
+      $missing++
+      continue
+    }
+
+    $len = (Get-Item $full).Length
+    if ($len -le 0) {
+      Write-Host "[qa] empty file for ${key}: $rel" -ForegroundColor Yellow
+      $missing++
+    }
+  }
+
+  $metaPath = Join-Path $versionDir $entry.meta
+  if (Test-Path $metaPath) {
+    $meta = Get-Content $metaPath -Raw | ConvertFrom-Json
+    $bins = [int]($meta.hist.bins)
+    $total = [int64]($meta.hist.total)
+    $w = [int]($meta.heat.width)
+    $h = [int]($meta.heat.height)
+
+    if ($bins -lt 1) {
+      Write-Host "[qa] bad histogram bins for ${key}: $bins" -ForegroundColor Yellow
+      $invalid++
+    }
+
+    if ($total -lt 0) {
+      Write-Host "[qa] bad hist.total for ${key}: $total" -ForegroundColor Yellow
+      $invalid++
+    } else {
+      $histTotalSum += $total
+    }
+
+    if ($w -eq 0 -or $h -eq 0) {
+      Write-Host "[qa] warning: zero-dimension heatmap for $key (${w}x${h})"
+    }
+  }
+}
+
+if ($missing -gt 0) { Fail "found $missing missing/empty referenced files" }
+if ($invalid -gt 0) { Fail "found $invalid invalid slice entries" }
+if ($histTotalSum -le 0) { Fail "aggregate hist.total is zero" }
+
+$allFiles = Get-ChildItem $versionDir -Recurse -File | Where-Object { $_.Name -match '\.(bin|json)$' }
+$binBytes = ($allFiles | Where-Object { $_.Extension -eq '.bin' } | Measure-Object -Property Length -Sum).Sum
+$jsonBytes = ($allFiles | Where-Object { $_.Extension -eq '.json' } | Measure-Object -Property Length -Sum).Sum
+if (-not $binBytes) { $binBytes = 0 }
+if (-not $jsonBytes) { $jsonBytes = 0 }
+$totalBytes = $binBytes + $jsonBytes
+
+Write-Host "[qa] Aggregate hist.total sum: $histTotalSum"
+Write-Host "[qa] Files checked: $($allFiles.Count)"
+Write-Host "[qa] Data payload: total=$(Format-Bytes $totalBytes) (bin=$(Format-Bytes $binBytes), json=$(Format-Bytes $jsonBytes))"
+
+$selectedProp = $null
+if ($SliceKey) {
+  $selectedProp = $sliceProps | Where-Object { $_.Name -eq $SliceKey } | Select-Object -First 1
+  if (-not $selectedProp) {
+    Write-Host "[qa] warning: requested SliceKey not found, using first slice."
+  }
+}
+if (-not $selectedProp) {
+  $selectedProp = $sliceProps | Select-Object -First 1
+}
+$selectedEntry = $selectedProp.Value
+$selectedName = $selectedProp.Name
+
+$sampleMetaPath = Join-Path $versionDir $selectedEntry.meta
+$sampleHistPath = Join-Path $versionDir $selectedEntry.hist
+$sampleHeatPath = Join-Path $versionDir $selectedEntry.heat
+$sampleMetaBytes = if (Test-Path $sampleMetaPath) { (Get-Item $sampleMetaPath).Length } else { 0 }
+$sampleHistBytes = if (Test-Path $sampleHistPath) { (Get-Item $sampleHistPath).Length } else { 0 }
+$sampleHeatBytes = if (Test-Path $sampleHeatPath) { (Get-Item $sampleHeatPath).Length } else { 0 }
+$latestBytes = (Get-Item $latestPath).Length
+$indexBytes = (Get-Item $indexPath).Length
+$sampleDataBytes = $latestBytes + $indexBytes + $sampleMetaBytes + $sampleHistBytes + $sampleHeatBytes
+
+Write-Host "[qa] Sample slice: $selectedName"
+Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index+meta+hist+heat)"
+
+$siteBudgetBytes = 0
+if (Test-Path $SiteDir) {
+  $siteFiles = Get-ChildItem $SiteDir -File -Recurse | Where-Object {
+    $_.Extension -in @('.html', '.css', '.js', '.wasm')
+  }
+  $siteBudgetBytes = ($siteFiles | Measure-Object -Property Length -Sum).Sum
+  if (-not $siteBudgetBytes) { $siteBudgetBytes = 0 }
+  Write-Host "[qa] Site static payload (.html/.css/.js/.wasm): $(Format-Bytes $siteBudgetBytes)"
+} else {
+  Write-Host "[qa] SiteDir not found ($SiteDir), skipping static payload summary."
+}
+
+$firstViewBudget = $siteBudgetBytes + $sampleDataBytes
+if ($firstViewBudget -gt 0) {
+  Write-Host "[qa] Estimated first-view payload: $(Format-Bytes $firstViewBudget)"
+}
+
+if (-not [string]::IsNullOrWhiteSpace($BaseUrl)) {
+  Write-Host "[qa] URL timing probe:"
+  $probeUrls = @(
+    (Join-Url $BaseUrl "data/latest.json"),
+    (Join-Url $BaseUrl ("data/$version/index.json")),
+    (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.meta.Replace('\', '/'))),
+    (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.hist.Replace('\', '/'))),
+    (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.heat.Replace('\', '/')))
+  )
+
+  foreach ($u in $probeUrls) {
+    try {
+      $sw = [System.Diagnostics.Stopwatch]::StartNew()
+      $resp = Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 30
+      $sw.Stop()
+      $len = if ($resp.RawContentLength -gt 0) { $resp.RawContentLength } else { 0 }
+      Write-Host ("[qa]  {0,4}  {1,6} ms  {2,10}  {3}" -f $resp.StatusCode, [int]$sw.Elapsed.TotalMilliseconds, (Format-Bytes $len), $u)
+    } catch {
+      Write-Host "[qa]  FAIL        --       --  $u" -ForegroundColor Yellow
+      Write-Host "[qa]    $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+  }
+}
+
+Write-Host "[qa] OK"
