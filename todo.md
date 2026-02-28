@@ -42,9 +42,14 @@
 - [ ] Write `pipeline/src/bin/01_download.rs`:
   - [ ] Download `openpowerlifting-latest.zip` (bulk CSV)
   - [ ] Extract CSV to temp workspace
+  - [ ] Convert extracted CSV to Parquet (`openpowerlifting-latest.parquet`) for faster downstream scans
+    - [ ] Use a one-time CSV -> Parquet conversion per refresh run, then use Parquet as the canonical pipeline input
+  - [ ] Remove temporary source files after successful conversion:
+    - [ ] Delete downloaded ZIP (`openpowerlifting-latest.zip`)
+    - [ ] Delete extracted CSV (`openpowerlifting-latest.csv`)
   - [ ] Record the dataset updated date + revision (from the bulk download page) into build metadata
 - [ ] Write `pipeline/src/bin/02_build_aggregates.rs` (Polars `LazyFrame`):
-  - [ ] Scan CSV lazily (`LazyCsvReader` / `scan_csv`) with explicit dtypes for speed/memory
+  - [ ] Scan Parquet lazily (`scan_parquet`) for speed/memory efficiency
   - [ ] Apply filters early (lazy predicates):
     - [ ] `Sanctioned == "Yes"`
     - [ ] optional `Tested` toggle outputs (build both “tested” + “all” slices)
