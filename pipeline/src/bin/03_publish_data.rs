@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -94,6 +94,31 @@ struct HeatmapData {
     total: u64,
 }
 
+#[derive(Debug, Default)]
+struct SliceAccumulator {
+    lift_values: Vec<f32>,
+    heat_points: Vec<(f32, f32)>,
+}
+
+#[derive(Debug, Serialize)]
+struct SliceIndex {
+    version: String,
+    slices: BTreeMap<String, SliceIndexEntry>,
+}
+
+#[derive(Debug, Serialize)]
+struct SliceIndexEntry {
+    meta: String,
+    hist: String,
+    heat: String,
+    hist_min_kg: f32,
+    hist_max_kg: f32,
+    heat_min_x_kg: f32,
+    heat_max_x_kg: f32,
+    heat_min_y_kg: f32,
+    heat_max_y_kg: f32,
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     fs::create_dir_all(&args.data_dir)
@@ -106,6 +131,8 @@ fn main() -> Result<()> {
     fs::create_dir_all(&version_dir)
         .with_context(|| format!("failed to create {}", version_dir.display()))?;
 
+    let mut slice_index = BTreeMap::<String, SliceIndexEntry>::new();
+
     for tested in ["all", "tested"] {
         for lift in ["squat", "bench", "deadlift", "total"] {
             let records_path = args
@@ -116,9 +143,24 @@ fn main() -> Result<()> {
                 continue;
             }
 
-            publish_records_for_lift(&records_path, &version_dir, &version, tested, lift)?;
+            publish_records_for_lift(
+                &records_path,
+                &version_dir,
+                &version,
+                tested,
+                lift,
+                &mut slice_index,
+            )?;
         }
     }
+
+    let index = SliceIndex {
+        version: version.clone(),
+        slices: slice_index,
+    };
+    let index_path = version_dir.join("index.json");
+    fs::write(&index_path, serde_json::to_vec_pretty(&index)?)
+        .with_context(|| format!("failed writing {}", index_path.display()))?;
 
     let latest = LatestJson {
         version: version.clone(),
@@ -142,6 +184,7 @@ fn publish_records_for_lift(
     version: &str,
     tested: &str,
     lift: &str,
+    slice_index: &mut BTreeMap<String, SliceIndexEntry>,
 ) -> Result<()> {
     let parquet_path = records_path.to_string_lossy();
     let df = LazyFrame::scan_parquet(parquet_path.as_ref().into(), ScanArgsParquet::default())
@@ -170,42 +213,34 @@ fn publish_records_for_lift(
         .f32()
         .context("bodyweight_at_best column not f32")?;
 
-    let mut slices = BTreeSet::<(String, String)>::new();
+    let mut slices = BTreeMap::<(String, String), SliceAccumulator>::new();
     for i in 0..df.height() {
-        if let (Some(sex), Some(equipment)) = (sex_col.get(i), equip_col.get(i)) {
-            slices.insert((sex.to_string(), equipment.to_string()));
-        }
-    }
-
-    for (sex, equipment) in slices {
-        let mut lift_values = Vec::new();
-        let mut heat_points = Vec::new();
-
-        for i in 0..df.height() {
-            let row_sex = sex_col.get(i);
-            let row_equipment = equip_col.get(i);
-            if row_sex != Some(sex.as_str()) || row_equipment != Some(equipment.as_str()) {
-                continue;
-            }
-
-            if let Some(lift_value) = lift_col.get(i) {
-                if lift_value > 0.0 {
-                    lift_values.push(lift_value);
-                    if let Some(bw_value) = bw_col.get(i)
-                        && bw_value > 0.0
-                    {
-                        heat_points.push((lift_value, bw_value));
-                    }
-                }
-            }
-        }
-
-        if lift_values.is_empty() {
+        let (Some(sex), Some(equipment), Some(lift_value)) =
+            (sex_col.get(i), equip_col.get(i), lift_col.get(i))
+        else {
+            continue;
+        };
+        if lift_value <= 0.0 {
             continue;
         }
 
-        let hist_data = build_histogram(&lift_values, LIFT_BIN_BASE_KG)?;
-        let heat_data = build_heatmap(&heat_points, LIFT_BIN_BASE_KG, BW_BIN_BASE_KG)?;
+        let key = (sex.to_string(), equipment.to_string());
+        let entry = slices.entry(key).or_default();
+        entry.lift_values.push(lift_value);
+        if let Some(bw_value) = bw_col.get(i)
+            && bw_value > 0.0
+        {
+            entry.heat_points.push((lift_value, bw_value));
+        }
+    }
+
+    for ((sex, equipment), acc) in slices {
+        if acc.lift_values.is_empty() {
+            continue;
+        }
+
+        let hist_data = build_histogram(&acc.lift_values, LIFT_BIN_BASE_KG)?;
+        let heat_data = build_heatmap(&acc.heat_points, LIFT_BIN_BASE_KG, BW_BIN_BASE_KG)?;
 
         let sex_slug = slug(&sex);
         let equip_slug = slug(&equipment);
@@ -223,8 +258,8 @@ fn publish_records_for_lift(
 
         let meta = SliceMeta {
             version: version.to_string(),
-            sex,
-            equipment,
+            sex: sex.clone(),
+            equipment: equipment.clone(),
             tested: tested.to_string(),
             lift: lift.to_string(),
             hist: HistMeta {
@@ -255,6 +290,36 @@ fn publish_records_for_lift(
         }
         fs::write(&meta_path, serde_json::to_vec_pretty(&meta)?)
             .with_context(|| format!("failed writing {}", meta_path.display()))?;
+
+        let key = format!(
+            "sex={}|equip={}|tested={}|lift={}",
+            sex,
+            equipment,
+            tested_bucket(tested),
+            lift_code(lift)
+        );
+        slice_index.insert(
+            key,
+            SliceIndexEntry {
+                meta: meta_rel,
+                hist: hist_path
+                    .strip_prefix(version_dir)
+                    .unwrap_or(&hist_path)
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+                heat: heat_path
+                    .strip_prefix(version_dir)
+                    .unwrap_or(&heat_path)
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+                hist_min_kg: hist_data.min,
+                hist_max_kg: hist_data.max,
+                heat_min_x_kg: heat_data.min_x,
+                heat_max_x_kg: heat_data.max_x,
+                heat_min_y_kg: heat_data.min_y,
+                heat_max_y_kg: heat_data.max_y,
+            },
+        );
     }
 
     Ok(())
@@ -463,4 +528,18 @@ fn slug(input: &str) -> String {
             _ => '_',
         })
         .collect()
+}
+
+fn tested_bucket(tested: &str) -> &'static str {
+    if tested == "tested" { "Yes" } else { "All" }
+}
+
+fn lift_code(lift: &str) -> &'static str {
+    match lift {
+        "squat" => "S",
+        "bench" => "B",
+        "deadlift" => "D",
+        "total" => "T",
+        _ => "U",
+    }
 }

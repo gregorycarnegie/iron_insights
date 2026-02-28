@@ -1,11 +1,14 @@
 use std::fs::{self, File};
 use std::io::{self, BufWriter, copy};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use pipeline::{BuildMetadata, DEFAULT_ZIP_URL};
-use polars::prelude::{CsvReadOptions, ParquetWriter, SerReader};
+use polars::prelude::{
+    CsvReadOptions, DataType, Field, ParquetWriter, Schema, SchemaRef, SerReader,
+};
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -113,8 +116,11 @@ fn extract_first_csv(zip_path: &Path, csv_out_path: &Path) -> Result<()> {
 }
 
 fn convert_csv_to_parquet(csv_path: &Path, parquet_path: &Path) -> Result<()> {
+    let schema_overwrite = opl_numeric_schema_overrides();
     let mut df = CsvReadOptions::default()
         .with_has_header(true)
+        .with_infer_schema_length(Some(10_000))
+        .with_schema_overwrite(Some(schema_overwrite))
         .try_into_reader_with_file_path(Some(csv_path.to_path_buf()))
         .with_context(|| format!("failed opening csv {}", csv_path.display()))?
         .finish()
@@ -127,4 +133,38 @@ fn convert_csv_to_parquet(csv_path: &Path, parquet_path: &Path) -> Result<()> {
         .with_context(|| format!("failed writing parquet {}", parquet_path.display()))?;
 
     Ok(())
+}
+
+fn opl_numeric_schema_overrides() -> SchemaRef {
+    let numeric_cols = [
+        "BodyweightKg",
+        "Squat1Kg",
+        "Squat2Kg",
+        "Squat3Kg",
+        "Squat4Kg",
+        "Best3SquatKg",
+        "Bench1Kg",
+        "Bench2Kg",
+        "Bench3Kg",
+        "Bench4Kg",
+        "Best3BenchKg",
+        "Deadlift1Kg",
+        "Deadlift2Kg",
+        "Deadlift3Kg",
+        "Deadlift4Kg",
+        "Best3DeadliftKg",
+        "TotalKg",
+        "Wilks",
+        "McCulloch",
+        "Glossbrenner",
+        "IPFPoints",
+        "Dots",
+        "Goodlift",
+    ];
+
+    Arc::new(Schema::from_iter(
+        numeric_cols
+            .into_iter()
+            .map(|name| Field::new(name.into(), DataType::Float32)),
+    ))
 }

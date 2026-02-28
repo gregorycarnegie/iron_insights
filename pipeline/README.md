@@ -36,6 +36,7 @@ Outputs:
 - `data/vYYYY-MM-DD/hist/{sex}/{equip}/{tested}/{lift}.bin`
 - `data/vYYYY-MM-DD/heat/{sex}/{equip}/{tested}/{lift}.bin`
 - `data/vYYYY-MM-DD/meta/{sex}/{equip}/{tested}/{lift}.json`
+- `data/vYYYY-MM-DD/index.json` (slice lookup table)
 - `data/latest.json`
 
 Older `data/vYYYY-MM-DD` folders are pruned to the configured retention count.

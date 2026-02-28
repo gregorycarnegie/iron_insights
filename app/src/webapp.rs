@@ -1,0 +1,709 @@
+use gloo_net::http::Request;
+use leptos::html::Canvas;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use serde::Deserialize;
+use std::collections::{BTreeMap, BTreeSet};
+use wasm_bindgen::JsCast;
+use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlInputElement};
+
+#[derive(Debug, Clone, Deserialize)]
+struct LatestJson {
+    version: String,
+    revision: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct SliceIndex {
+    version: String,
+    slices: BTreeMap<String, SliceIndexEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+struct SliceIndexEntry {
+    meta: String,
+    hist: String,
+    heat: String,
+    hist_min_kg: f32,
+    hist_max_kg: f32,
+    heat_min_x_kg: f32,
+    heat_max_x_kg: f32,
+    heat_min_y_kg: f32,
+    heat_max_y_kg: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct SliceKey {
+    sex: String,
+    equip: String,
+    tested: String,
+    lift: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct SliceRow {
+    key: SliceKey,
+    entry: SliceIndexEntry,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct HistogramBin {
+    min: f32,
+    max: f32,
+    base_bin: f32,
+    counts: Vec<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct HeatmapBin {
+    min_x: f32,
+    max_x: f32,
+    min_y: f32,
+    max_y: f32,
+    base_x: f32,
+    base_y: f32,
+    width: usize,
+    height: usize,
+    grid: Vec<u32>,
+}
+
+pub fn run() {
+    mount_to_body(|| view! { <App /> });
+}
+
+#[component]
+fn App() -> impl IntoView {
+    let (latest, set_latest) = signal(None::<LatestJson>);
+    let (slice_rows, set_slice_rows) = signal(Vec::<SliceRow>::new());
+    let (load_error, set_load_error) = signal(None::<String>);
+
+    let (sex, set_sex) = signal(String::new());
+    let (equip, set_equip) = signal(String::new());
+    let (tested, set_tested) = signal(String::new());
+    let (lift, set_lift) = signal(String::new());
+
+    let (squat, set_squat) = signal(180.0f32);
+    let (bench, set_bench) = signal(120.0f32);
+    let (deadlift, set_deadlift) = signal(220.0f32);
+    let (bodyweight, set_bodyweight) = signal(90.0f32);
+
+    let (lift_mult, set_lift_mult) = signal(1usize);
+    let (bw_mult, set_bw_mult) = signal(1usize);
+
+    let (hist, set_hist) = signal(None::<HistogramBin>);
+    let (heat, set_heat) = signal(None::<HeatmapBin>);
+
+    let canvas_ref: NodeRef<Canvas> = NodeRef::new();
+
+    {
+        let set_latest = set_latest;
+        let set_slice_rows = set_slice_rows;
+        let set_sex = set_sex;
+        let set_equip = set_equip;
+        let set_tested = set_tested;
+        let set_lift = set_lift;
+        let set_load_error = set_load_error;
+
+        spawn_local(async move {
+            let latest_json =
+                fetch_json_first::<LatestJson>(&["./data/latest.json", "/data/latest.json"]).await;
+            let Ok(latest_json) = latest_json else {
+                set_load_error.set(Some(
+                    "Failed to load latest dataset pointer (data/latest.json).".to_string(),
+                ));
+                return;
+            };
+            set_latest.set(Some(latest_json.clone()));
+
+            let index_url = format!("./data/{}/index.json", latest_json.version);
+            let index_url_abs = format!("/data/{}/index.json", latest_json.version);
+            let index = fetch_json_first::<SliceIndex>(&[&index_url, &index_url_abs]).await;
+            let Ok(index) = index else {
+                if let Err(err) = index {
+                    set_load_error.set(Some(format!(
+                        "Failed to load slice index for {}: {}",
+                        latest_json.version, err
+                    )));
+                }
+                return;
+            };
+            set_load_error.set(None);
+
+            let mut rows = Vec::with_capacity(index.slices.len());
+            for (raw_key, entry) in index.slices {
+                if let Some(key) = parse_slice_key(&raw_key) {
+                    rows.push(SliceRow { key, entry });
+                }
+            }
+            rows.sort_by(|a, b| a.key.cmp(&b.key));
+
+            if let Some(first) = rows.first() {
+                set_sex.set(first.key.sex.clone());
+                set_equip.set(first.key.equip.clone());
+                set_tested.set(first.key.tested.clone());
+                set_lift.set(first.key.lift.clone());
+            }
+
+            set_slice_rows.set(rows);
+        });
+    }
+
+    let current_row = Memo::new(move |_| {
+        let s = sex.get();
+        let e = equip.get();
+        let t = tested.get();
+        let l = lift.get();
+
+        slice_rows.get().into_iter().find(|row| {
+            row.key.sex == s && row.key.equip == e && row.key.tested == t && row.key.lift == l
+        })
+    });
+
+    {
+        let set_hist = set_hist;
+        let set_heat = set_heat;
+        Effect::new(move |_| {
+            let row = current_row.get();
+            let latest_v = latest.get();
+
+            if let (Some(row), Some(latest_v)) = (row, latest_v) {
+                let hist_url = format!("./data/{}/{}", latest_v.version, row.entry.hist);
+                let heat_url = format!("./data/{}/{}", latest_v.version, row.entry.heat);
+
+                let set_hist = set_hist;
+                let set_heat = set_heat;
+                spawn_local(async move {
+                    if let Ok(resp) = Request::get(&hist_url).send().await
+                        && let Ok(bytes) = resp.binary().await
+                    {
+                        set_hist.set(parse_hist_bin(&bytes));
+                    }
+
+                    if let Ok(resp) = Request::get(&heat_url).send().await
+                        && let Ok(bytes) = resp.binary().await
+                    {
+                        set_heat.set(parse_heat_bin(&bytes));
+                    }
+                });
+            }
+        });
+    }
+
+    let sex_options =
+        Memo::new(move |_| unique(slice_rows.get().iter().map(|r| r.key.sex.clone())));
+    let equip_options = Memo::new(move |_| {
+        let s = sex.get();
+        unique(
+            slice_rows
+                .get()
+                .iter()
+                .filter(|r| r.key.sex == s)
+                .map(|r| r.key.equip.clone()),
+        )
+    });
+    let tested_options = Memo::new(move |_| {
+        let s = sex.get();
+        let e = equip.get();
+        unique(
+            slice_rows
+                .get()
+                .iter()
+                .filter(|r| r.key.sex == s && r.key.equip == e)
+                .map(|r| r.key.tested.clone()),
+        )
+    });
+    let lift_options = Memo::new(move |_| {
+        let s = sex.get();
+        let e = equip.get();
+        let t = tested.get();
+        unique(
+            slice_rows
+                .get()
+                .iter()
+                .filter(|r| r.key.sex == s && r.key.equip == e && r.key.tested == t)
+                .map(|r| r.key.lift.clone()),
+        )
+    });
+
+    let user_lift = Memo::new(move |_| match lift.get().as_str() {
+        "S" => squat.get(),
+        "B" => bench.get(),
+        "D" => deadlift.get(),
+        "T" => squat.get() + bench.get() + deadlift.get(),
+        _ => 0.0,
+    });
+
+    let rebinned_hist = Memo::new(move |_| {
+        hist.get().map(|h| {
+            let k = lift_mult.get();
+            let counts = rebin_1d(h.counts, k);
+            let bin = h.base_bin * k as f32;
+            HistogramBin {
+                min: h.min,
+                max: h.max,
+                base_bin: bin,
+                counts,
+            }
+        })
+    });
+
+    let rebinned_heat = Memo::new(move |_| {
+        heat.get().map(|h| {
+            let (grid, w2, h2) =
+                rebin_2d(h.grid, h.width, h.height, lift_mult.get(), bw_mult.get());
+            HeatmapBin {
+                min_x: h.min_x,
+                max_x: h.max_x,
+                min_y: h.min_y,
+                max_y: h.max_y,
+                base_x: h.base_x * lift_mult.get() as f32,
+                base_y: h.base_y * bw_mult.get() as f32,
+                width: w2,
+                height: h2,
+                grid,
+            }
+        })
+    });
+
+    let percentile =
+        Memo::new(move |_| percentile_for_value(rebinned_hist.get().as_ref(), user_lift.get()));
+
+    {
+        let canvas_ref = canvas_ref;
+        Effect::new(move |_| {
+            let Some(canvas) = canvas_ref.get() else {
+                return;
+            };
+            let Some(heat) = rebinned_heat.get() else {
+                return;
+            };
+            draw_heatmap(&canvas, &heat, user_lift.get(), bodyweight.get());
+        });
+    }
+
+    view! {
+        <div class="page">
+            <header class="hero">
+                <h1>"How Do I Stack Up?"</h1>
+                <p>
+                    {move || {
+                        if let Some(err) = load_error.get() {
+                            err
+                        } else if let Some(l) = latest.get() {
+                            if let Some(r) = l.revision {
+                                format!("Data version {} ({})", l.version, r)
+                            } else {
+                                format!("Data version {}", l.version)
+                            }
+                        } else {
+                            "Loading data...".to_string()
+                        }
+                    }}
+                </p>
+            </header>
+
+            <section class="panel">
+                <div class="grid">
+                    <label>"Sex"
+                        <select on:change=move |ev| set_sex.set(event_target_value(&ev))>
+                            <For each=move || sex_options.get() key=|v| v.clone() let:value>
+                                <option
+                                    selected={
+                                        let selected_value = value.clone();
+                                        move || sex.get() == selected_value
+                                    }
+                                    value={value.clone()}
+                                >
+                                    {value.clone()}
+                                </option>
+                            </For>
+                        </select>
+                    </label>
+
+                    <label>"Equipment"
+                        <select on:change=move |ev| set_equip.set(event_target_value(&ev))>
+                            <For each=move || equip_options.get() key=|v| v.clone() let:value>
+                                <option
+                                    selected={
+                                        let selected_value = value.clone();
+                                        move || equip.get() == selected_value
+                                    }
+                                    value={value.clone()}
+                                >
+                                    {value.clone()}
+                                </option>
+                            </For>
+                        </select>
+                    </label>
+
+                    <label>"Tested"
+                        <select on:change=move |ev| set_tested.set(event_target_value(&ev))>
+                            <For each=move || tested_options.get() key=|v| v.clone() let:value>
+                                <option
+                                    selected={
+                                        let selected_value = value.clone();
+                                        move || tested.get() == selected_value
+                                    }
+                                    value={value.clone()}
+                                >
+                                    {value.clone()}
+                                </option>
+                            </For>
+                        </select>
+                    </label>
+
+                    <label>"Lift"
+                        <select on:change=move |ev| set_lift.set(event_target_value(&ev))>
+                            <For each=move || lift_options.get() key=|v| v.clone() let:value>
+                                <option
+                                    selected={
+                                        let selected_value = value.clone();
+                                        move || lift.get() == selected_value
+                                    }
+                                    value={value.clone()}
+                                >
+                                    {lift_label(&value).to_string()}
+                                </option>
+                            </For>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="grid numbers">
+                    <label>"Squat (kg)"
+                        <input type="number" prop:value=move || squat.get().to_string() on:input=move |ev| set_squat.set(parse_f32_input(&ev)) />
+                    </label>
+                    <label>"Bench (kg)"
+                        <input type="number" prop:value=move || bench.get().to_string() on:input=move |ev| set_bench.set(parse_f32_input(&ev)) />
+                    </label>
+                    <label>"Deadlift (kg)"
+                        <input type="number" prop:value=move || deadlift.get().to_string() on:input=move |ev| set_deadlift.set(parse_f32_input(&ev)) />
+                    </label>
+                    <label>"Bodyweight (kg)"
+                        <input type="number" prop:value=move || bodyweight.get().to_string() on:input=move |ev| set_bodyweight.set(parse_f32_input(&ev)) />
+                    </label>
+                </div>
+
+                <div class="grid">
+                    <label>"Lift bin"
+                        <select on:change=move |ev| set_lift_mult.set(event_target_value(&ev).parse::<usize>().unwrap_or(1))>
+                            <option value="1">"2.5kg"</option>
+                            <option value="2">"5kg"</option>
+                            <option value="4">"10kg"</option>
+                        </select>
+                    </label>
+                    <label>"BW bin"
+                        <select on:change=move |ev| set_bw_mult.set(event_target_value(&ev).parse::<usize>().unwrap_or(1))>
+                            <option value="1">"1kg"</option>
+                            <option value="2">"2kg"</option>
+                            <option value="5">"5kg"</option>
+                        </select>
+                    </label>
+                </div>
+            </section>
+
+            <section class="panel stats">
+                <h2>"Percentile"</h2>
+                <p>
+                    {move || match percentile.get() {
+                        Some((pct, rank, total)) => format!("{:.1}% percentile | rank ~{} / {}", pct * 100.0, rank, total),
+                        None => "No distribution loaded for this slice.".to_string(),
+                    }}
+                </p>
+            </section>
+
+            <section class="panel">
+                <h2>"Histogram"</h2>
+                {move || match rebinned_hist.get() {
+                    Some(h) => render_histogram_svg(&h, user_lift.get()),
+                    None => view! { <p>"No histogram available."</p> }.into_any(),
+                }}
+            </section>
+
+            <section class="panel">
+                <h2>"Bodyweight vs Lift Heatmap"</h2>
+                <canvas node_ref=canvas_ref width="800" height="420"></canvas>
+            </section>
+        </div>
+    }
+}
+
+fn unique(items: impl Iterator<Item = String>) -> Vec<String> {
+    let mut set = BTreeSet::new();
+    for item in items {
+        set.insert(item);
+    }
+    set.into_iter().collect()
+}
+
+fn parse_slice_key(raw: &str) -> Option<SliceKey> {
+    let mut sex = None;
+    let mut equip = None;
+    let mut tested = None;
+    let mut lift = None;
+
+    for part in raw.split('|') {
+        let (k, v) = part.split_once('=')?;
+        match k {
+            "sex" => sex = Some(v.to_string()),
+            "equip" => equip = Some(v.to_string()),
+            "tested" => tested = Some(v.to_string()),
+            "lift" => lift = Some(v.to_string()),
+            _ => {}
+        }
+    }
+
+    Some(SliceKey {
+        sex: sex?,
+        equip: equip?,
+        tested: tested?,
+        lift: lift?,
+    })
+}
+
+fn parse_hist_bin(bytes: &[u8]) -> Option<HistogramBin> {
+    if bytes.len() < 22 || &bytes[0..4] != b"IIH1" {
+        return None;
+    }
+
+    let base = f32::from_le_bytes(bytes[6..10].try_into().ok()?);
+    let min = f32::from_le_bytes(bytes[10..14].try_into().ok()?);
+    let max = f32::from_le_bytes(bytes[14..18].try_into().ok()?);
+    let bins = u32::from_le_bytes(bytes[18..22].try_into().ok()?) as usize;
+
+    let payload = bytes.get(22..)?;
+    if payload.len() != bins * 4 {
+        return None;
+    }
+
+    let mut counts = Vec::with_capacity(bins);
+    for chunk in payload.chunks_exact(4) {
+        counts.push(u32::from_le_bytes(chunk.try_into().ok()?));
+    }
+
+    Some(HistogramBin {
+        min,
+        max,
+        base_bin: base,
+        counts,
+    })
+}
+
+fn parse_heat_bin(bytes: &[u8]) -> Option<HeatmapBin> {
+    if bytes.len() < 38 || &bytes[0..4] != b"IIM1" {
+        return None;
+    }
+
+    let base_x = f32::from_le_bytes(bytes[6..10].try_into().ok()?);
+    let base_y = f32::from_le_bytes(bytes[10..14].try_into().ok()?);
+    let min_x = f32::from_le_bytes(bytes[14..18].try_into().ok()?);
+    let max_x = f32::from_le_bytes(bytes[18..22].try_into().ok()?);
+    let min_y = f32::from_le_bytes(bytes[22..26].try_into().ok()?);
+    let max_y = f32::from_le_bytes(bytes[26..30].try_into().ok()?);
+    let width = u32::from_le_bytes(bytes[30..34].try_into().ok()?) as usize;
+    let height = u32::from_le_bytes(bytes[34..38].try_into().ok()?) as usize;
+
+    let payload = bytes.get(38..)?;
+    if payload.len() != width * height * 4 {
+        return None;
+    }
+
+    let mut grid = Vec::with_capacity(width * height);
+    for chunk in payload.chunks_exact(4) {
+        grid.push(u32::from_le_bytes(chunk.try_into().ok()?));
+    }
+
+    Some(HeatmapBin {
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+        base_x,
+        base_y,
+        width,
+        height,
+        grid,
+    })
+}
+
+fn percentile_for_value(hist: Option<&HistogramBin>, value: f32) -> Option<(f32, usize, u32)> {
+    let hist = hist?;
+    if hist.counts.is_empty() {
+        return None;
+    }
+
+    let total: u32 = hist.counts.iter().copied().sum();
+    if total == 0 {
+        return None;
+    }
+
+    let bin_idx = ((value - hist.min) / hist.base_bin)
+        .floor()
+        .clamp(0.0, (hist.counts.len() - 1) as f32) as usize;
+
+    let below: u32 = hist.counts.iter().take(bin_idx).copied().sum();
+    let current = hist.counts[bin_idx] as f32;
+    let cdf = below as f32 + 0.5 * current;
+    let pct = cdf / total as f32;
+    let rank = ((1.0 - pct) * total as f32).round().max(1.0) as usize;
+
+    Some((pct, rank, total))
+}
+
+fn rebin_1d(counts: Vec<u32>, k: usize) -> Vec<u32> {
+    if k <= 1 {
+        return counts;
+    }
+    counts
+        .chunks(k)
+        .map(|chunk| chunk.iter().copied().sum())
+        .collect()
+}
+
+fn rebin_2d(
+    grid: Vec<u32>,
+    width: usize,
+    height: usize,
+    kx: usize,
+    ky: usize,
+) -> (Vec<u32>, usize, usize) {
+    if kx <= 1 && ky <= 1 {
+        return (grid, width, height);
+    }
+
+    let w2 = width.div_ceil(kx.max(1));
+    let h2 = height.div_ceil(ky.max(1));
+    let mut out = vec![0u32; w2 * h2];
+
+    for y in 0..height {
+        for x in 0..width {
+            let src = y * width + x;
+            let dst = (y / ky.max(1)) * w2 + (x / kx.max(1));
+            out[dst] = out[dst].saturating_add(grid[src]);
+        }
+    }
+
+    (out, w2, h2)
+}
+
+fn parse_f32_input(ev: &web_sys::Event) -> f32 {
+    event_target::<HtmlInputElement>(ev)
+        .value()
+        .parse::<f32>()
+        .unwrap_or(0.0)
+}
+
+fn lift_label(code: &str) -> &'static str {
+    match code {
+        "S" => "Squat",
+        "B" => "Bench",
+        "D" => "Deadlift",
+        "T" => "Total",
+        _ => "Unknown",
+    }
+}
+
+fn render_histogram_svg(hist: &HistogramBin, user_value: f32) -> AnyView {
+    let max_count = hist.counts.iter().copied().max().unwrap_or(1) as f32;
+    let w = 760.0f32;
+    let h = 220.0f32;
+    let bar_w = (w / hist.counts.len().max(1) as f32).max(1.0);
+
+    let marker_x =
+        ((user_value - hist.min) / (hist.max - hist.min).max(0.0001)).clamp(0.0, 1.0) * w;
+    let bars: Vec<(usize, u32)> = hist.counts.iter().copied().enumerate().collect();
+
+    view! {
+        <svg class="hist" viewBox="0 0 760 240" preserveAspectRatio="none">
+            <rect x="0" y="0" width={w.to_string()} height={h.to_string()} fill="#f7f5ef" />
+            {bars
+                .into_iter()
+                .map(|(i, c)| {
+                    let bh = (c as f32 / max_count) * (h - 12.0);
+                    let x = i as f32 * bar_w;
+                    let y = h - bh;
+                    view! {
+                        <rect
+                            x={x.to_string()}
+                            y={y.to_string()}
+                            width={(bar_w - 1.0).max(0.5).to_string()}
+                            height={bh.to_string()}
+                            fill="#154734"
+                        />
+                    }
+                })
+                .collect_view()}
+            <line x1={marker_x.to_string()} y1="0" x2={marker_x.to_string()} y2={h.to_string()} stroke="#d6452b" stroke-width="3" />
+        </svg>
+    }
+    .into_any()
+}
+
+fn draw_heatmap(canvas: &HtmlCanvasElement, heat: &HeatmapBin, user_lift: f32, user_bw: f32) {
+    let Ok(Some(ctx)) = canvas.get_context("2d") else {
+        return;
+    };
+    let Ok(ctx) = ctx.dyn_into::<CanvasRenderingContext2d>() else {
+        return;
+    };
+
+    let cw = canvas.width() as f64;
+    let ch = canvas.height() as f64;
+
+    ctx.set_fill_style_str("#fcfaf4");
+    ctx.fill_rect(0.0, 0.0, cw, ch);
+
+    if heat.width == 0 || heat.height == 0 || heat.grid.is_empty() {
+        return;
+    }
+
+    let max_cell = heat.grid.iter().copied().max().unwrap_or(1) as f64;
+    let cell_w = cw / heat.width as f64;
+    let cell_h = ch / heat.height as f64;
+
+    for y in 0..heat.height {
+        for x in 0..heat.width {
+            let idx = y * heat.width + x;
+            let v = heat.grid[idx] as f64;
+            if v <= 0.0 {
+                continue;
+            }
+            let a = (v / max_cell).clamp(0.05, 1.0);
+            let color = format!("rgba(11, 89, 160, {a})");
+            ctx.set_fill_style_str(&color);
+            ctx.fill_rect(
+                x as f64 * cell_w,
+                ch - ((y + 1) as f64 * cell_h),
+                cell_w,
+                cell_h,
+            );
+        }
+    }
+
+    let x = ((user_lift - heat.min_x) / (heat.max_x - heat.min_x).max(0.0001)).clamp(0.0, 1.0)
+        as f64
+        * cw;
+    let y = ch
+        - (((user_bw - heat.min_y) / (heat.max_y - heat.min_y).max(0.0001)).clamp(0.0, 1.0) as f64
+            * ch);
+
+    ctx.begin_path();
+    ctx.set_fill_style_str("#d6452b");
+    let _ = ctx.arc(x, y, 5.0, 0.0, std::f64::consts::PI * 2.0);
+    ctx.fill();
+}
+
+async fn fetch_json_first<T: for<'de> Deserialize<'de>>(urls: &[&str]) -> Result<T, String> {
+    let mut errors = Vec::new();
+    for url in urls {
+        match Request::get(url).send().await {
+            Ok(resp) if resp.ok() => match resp.json::<T>().await {
+                Ok(value) => return Ok(value),
+                Err(err) => errors.push(format!("{url}: parse error: {err}")),
+            },
+            Ok(resp) => errors.push(format!("{url}: http {}", resp.status())),
+            Err(err) => errors.push(format!("{url}: request error: {err}")),
+        }
+    }
+    Err(errors.join(" | "))
+}

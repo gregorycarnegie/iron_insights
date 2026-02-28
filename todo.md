@@ -82,9 +82,9 @@ Goal: visitors can change bin sizes *without refetching massive data*.
 - [x] Pick a compact binary format for counts (recommended):
   - [x] Header (little-endian): version, base_bin_size, min, max, dims
   - [x] Payload: `u32` counts (hist) or `u32` flattened grid (heatmap)
-- [ ] Add a tiny JSON “index” per population slice so the client knows which file to fetch:
-  - [ ] Example key: `sex=M|equip=Raw|tested=Yes|lift=D`
-  - [ ] Points to: `hist.bin` + `heat.bin` + metadata ranges
+- [x] Add a tiny JSON “index” per population slice so the client knows which file to fetch:
+  - [x] Example key: `sex=M|equip=Raw|tested=Yes|lift=D`
+  - [x] Points to: `hist.bin` + `heat.bin` + metadata ranges
 
 ## 5) Build outputs (what /data contains)
 
@@ -98,22 +98,22 @@ Goal: visitors can change bin sizes *without refetching massive data*.
 
 ## 6) Leptos UI (MVP)
 
-- [ ] Inputs panel:
-  - [ ] Squat / Bench / Deadlift / Bodyweight (kg)
-  - [ ] Sex, Equipment, Tested toggles
-  - [ ] Bin size selectors (lift bin, BW bin) using multipliers
-- [ ] Outputs:
-  - [ ] Percentile + rank estimate (from histogram CDF)
-  - [ ] Histogram chart with “your lift” vertical line
-  - [ ] BW vs lift heatmap with “your point” overlay
-- [ ] Rendering approach:
-  - [ ] Histogram: SVG (simple) or Canvas (fast)
-  - [ ] Heatmap: Canvas (recommended)
-- [ ] Calculations client-side:
-  - [ ] Percentile from counts:
-    - [ ] `cdf = sum(counts[0..bin]) + 0.5*counts[bin]`
-    - [ ] `pct = cdf / total`
-  - [ ] “Top X%” formatting + guard rails when out of range
+- [x] Inputs panel:
+  - [x] Squat / Bench / Deadlift / Bodyweight (kg)
+  - [x] Sex, Equipment, Tested toggles
+  - [x] Bin size selectors (lift bin, BW bin) using multipliers
+- [x] Outputs:
+  - [x] Percentile + rank estimate (from histogram CDF)
+  - [x] Histogram chart with “your lift” vertical line
+  - [x] BW vs lift heatmap with “your point” overlay
+- [x] Rendering approach:
+  - [x] Histogram: SVG (simple) or Canvas (fast)
+  - [x] Heatmap: Canvas (recommended)
+- [x] Calculations client-side:
+  - [x] Percentile from counts:
+    - [x] `cdf = sum(counts[0..bin]) + 0.5*counts[bin]`
+    - [x] `pct = cdf / total`
+  - [x] “Top X%” formatting + guard rails when out of range
 
 ## 7) CI/CD (weekly scheduled refresh + Pages deploy)
 

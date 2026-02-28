@@ -1,0 +1,27 @@
+{
+  "version": "v2026-02-28",
+  "sex": "Mx",
+  "equipment": "Wraps",
+  "tested": "all",
+  "lift": "total",
+  "hist": {
+    "file": "hist/mx/wraps/all/total.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 420.0,
+    "max_kg": 557.5,
+    "bins": 55,
+    "total": 3
+  },
+  "heat": {
+    "file": "heat/mx/wraps/all/total.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 420.0,
+    "max_x_kg": 557.5,
+    "min_y_kg": 84.0,
+    "max_y_kg": 134.0,
+    "width": 55,
+    "height": 50,
+    "total": 3
+  }
+}

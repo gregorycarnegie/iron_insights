@@ -1,1 +1,4 @@
 /target
+/app/target
+/app/dist
+/app/data

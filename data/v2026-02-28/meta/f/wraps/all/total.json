@@ -1,0 +1,27 @@
+{
+  "version": "v2026-02-28",
+  "sex": "F",
+  "equipment": "Wraps",
+  "tested": "all",
+  "lift": "total",
+  "hist": {
+    "file": "hist/f/wraps/all/total.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 42.5,
+    "max_kg": 777.5,
+    "bins": 294,
+    "total": 28373
+  },
+  "heat": {
+    "file": "heat/f/wraps/all/total.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 42.5,
+    "max_x_kg": 777.5,
+    "min_y_kg": 17.0,
+    "max_y_kg": 190.0,
+    "width": 294,
+    "height": 173,
+    "total": 28317
+  }
+}

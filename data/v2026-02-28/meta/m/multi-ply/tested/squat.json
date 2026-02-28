@@ -1,0 +1,27 @@
+{
+  "version": "v2026-02-28",
+  "sex": "M",
+  "equipment": "Multi-ply",
+  "tested": "tested",
+  "lift": "squat",
+  "hist": {
+    "file": "hist/m/multi-ply/tested/squat.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 22.5,
+    "max_kg": 505.0,
+    "bins": 193,
+    "total": 4571
+  },
+  "heat": {
+    "file": "heat/m/multi-ply/tested/squat.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 22.5,
+    "max_x_kg": 505.0,
+    "min_y_kg": 39.0,
+    "max_y_kg": 227.0,
+    "width": 193,
+    "height": 188,
+    "total": 4510
+  }
+}

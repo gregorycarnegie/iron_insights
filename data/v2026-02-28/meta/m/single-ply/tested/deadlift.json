@@ -1,0 +1,27 @@
+{
+  "version": "v2026-02-28",
+  "sex": "M",
+  "equipment": "Single-ply",
+  "tested": "tested",
+  "lift": "deadlift",
+  "hist": {
+    "file": "hist/m/single-ply/tested/deadlift.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 0.0,
+    "max_kg": 432.5,
+    "bins": 173,
+    "total": 193425
+  },
+  "heat": {
+    "file": "heat/m/single-ply/tested/deadlift.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 0.0,
+    "max_x_kg": 432.5,
+    "min_y_kg": 21.0,
+    "max_y_kg": 261.0,
+    "width": 173,
+    "height": 240,
+    "total": 192082
+  }
+}

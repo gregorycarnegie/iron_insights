@@ -1,0 +1,27 @@
+{
+  "version": "v2026-02-28",
+  "sex": "F",
+  "equipment": "Single-ply",
+  "tested": "all",
+  "lift": "total",
+  "hist": {
+    "file": "hist/f/single-ply/all/total.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 25.0,
+    "max_kg": 795.0,
+    "bins": 308,
+    "total": 69050
+  },
+  "heat": {
+    "file": "heat/f/single-ply/all/total.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 25.0,
+    "max_x_kg": 795.0,
+    "min_y_kg": 16.0,
+    "max_y_kg": 199.0,
+    "width": 308,
+    "height": 183,
+    "total": 67957
+  }
+}

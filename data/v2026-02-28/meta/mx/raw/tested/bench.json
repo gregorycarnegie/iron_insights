@@ -1,0 +1,27 @@
+{
+  "version": "v2026-02-28",
+  "sex": "Mx",
+  "equipment": "Raw",
+  "tested": "tested",
+  "lift": "bench",
+  "hist": {
+    "file": "hist/mx/raw/tested/bench.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 30.0,
+    "max_kg": 152.5,
+    "bins": 49,
+    "total": 49
+  },
+  "heat": {
+    "file": "heat/mx/raw/tested/bench.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 30.0,
+    "max_x_kg": 152.5,
+    "min_y_kg": 50.0,
+    "max_y_kg": 148.0,
+    "width": 49,
+    "height": 98,
+    "total": 49
+  }
+}
