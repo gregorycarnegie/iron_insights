@@ -2,3 +2,9 @@
 /app/target
 /app/dist
 /app/data
+
+/docs/*
+!/docs/.gitkeep
+
+/docs/*
+!/docs/.gitkeep
