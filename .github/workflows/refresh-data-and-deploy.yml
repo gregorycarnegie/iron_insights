@@ -97,14 +97,12 @@ jobs:
           fi
 
           if [[ "${PREV_TOTAL}" != "0" ]]; then
-            python3 - <<PY
-prev_total = int("${PREV_TOTAL}")
-new_total = int("${NEW_TOTAL}")
-if new_total < prev_total * 0.5:
-    raise SystemExit(f"New total ({new_total}) dropped below 50% of previous ({prev_total}).")
-print(f"Previous total: {prev_total}")
-print(f"New total: {new_total}")
-PY
+            if (( NEW_TOTAL * 2 < PREV_TOTAL )); then
+              echo "New total (${NEW_TOTAL}) dropped below 50% of previous (${PREV_TOTAL})."
+              exit 1
+            fi
+            echo "Previous total: ${PREV_TOTAL}"
+            echo "New total: ${NEW_TOTAL}"
           else
             echo "No previous total baseline available; skipping drop-threshold check."
             echo "New total: ${NEW_TOTAL}"
