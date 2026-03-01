@@ -14,6 +14,7 @@ const HEAT_MAGIC: [u8; 4] = *b"IIM1";
 const FORMAT_VERSION: u16 = 1;
 const LIFT_BIN_BASE_KG: f32 = 2.5;
 const BW_BIN_BASE_KG: f32 = 1.0;
+const SCORE_BIN_BASE_POINTS: f32 = 2.5;
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -48,6 +49,7 @@ struct SliceMeta {
     age_class: String,
     tested: String,
     lift: String,
+    metric: String,
     hist: HistMeta,
     heat: HeatMeta,
 }
@@ -102,6 +104,14 @@ struct SliceAccumulator {
     heat_points: Vec<(f32, f32)>,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum Metric {
+    Kg,
+    Dots,
+    Wilks,
+    Gl,
+}
+
 #[derive(Debug, Serialize)]
 struct RootIndex {
     version: String,
@@ -139,14 +149,17 @@ fn main() -> Result<()> {
                 continue;
             }
 
-            publish_records_for_lift(
-                &records_path,
-                &version_dir,
-                &version,
-                tested,
-                lift,
-                &mut shard_indices,
-            )?;
+            for metric in metrics_for_lift(lift) {
+                publish_records_for_lift(
+                    &records_path,
+                    &version_dir,
+                    &version,
+                    tested,
+                    lift,
+                    *metric,
+                    &mut shard_indices,
+                )?;
+            }
         }
     }
 
@@ -201,6 +214,7 @@ fn publish_records_for_lift(
     version: &str,
     tested: &str,
     lift: &str,
+    metric: Metric,
     shard_indices: &mut BTreeMap<String, BTreeSet<String>>,
 ) -> Result<()> {
     let parquet_path = records_path.to_string_lossy();
@@ -242,15 +256,13 @@ fn publish_records_for_lift(
 
     let mut slices = BTreeMap::<(String, String, String, String), SliceAccumulator>::new();
     for i in 0..df.height() {
-        let (Some(sex), Some(equipment), Some(weight_class), Some(age_class), Some(lift_value)) =
-            (
-                sex_col.get(i),
-                equip_col.get(i),
-                wc_col.get(i),
-                age_col.get(i),
-                lift_col.get(i),
-            )
-        else {
+        let (Some(sex), Some(equipment), Some(weight_class), Some(age_class), Some(lift_value)) = (
+            sex_col.get(i),
+            equip_col.get(i),
+            wc_col.get(i),
+            age_col.get(i),
+            lift_col.get(i),
+        ) else {
             continue;
         };
         if lift_value <= 0.0 {
@@ -264,6 +276,9 @@ fn publish_records_for_lift(
         let valid_bw = bw_col
             .get(i)
             .and_then(|bw| if bw > 0.0 { Some(bw) } else { None });
+        let Some(x_value) = metric_value(metric, lift, &sex, &equipment, lift_value, valid_bw) else {
+            continue;
+        };
 
         // Publish specific and roll-up slices so UI can offer "All" for equipment/wc/age.
         let keys = [
@@ -318,9 +333,9 @@ fn publish_records_for_lift(
         ];
         for key in keys {
             let entry = slices.entry(key).or_default();
-            entry.lift_values.push(lift_value);
+            entry.lift_values.push(x_value);
             if let Some(bw_value) = valid_bw {
-                entry.heat_points.push((lift_value, bw_value));
+                entry.heat_points.push((x_value, bw_value));
             }
         }
     }
@@ -330,24 +345,32 @@ fn publish_records_for_lift(
             continue;
         }
 
-        let hist_data = build_histogram(&acc.lift_values, LIFT_BIN_BASE_KG)?;
-        let heat_data = build_heatmap(&acc.heat_points, LIFT_BIN_BASE_KG, BW_BIN_BASE_KG)?;
+        let x_base = metric_base_bin(metric);
+        let hist_data = build_histogram(&acc.lift_values, x_base)?;
+        let heat_data = build_heatmap(&acc.heat_points, x_base, BW_BIN_BASE_KG)?;
 
         let sex_slug = slug(&sex);
         let equip_slug = slug(&equipment);
         let wc_slug = slug(&weight_class);
         let age_slug = slug(&age_class);
 
-        let hist_rel = format!("hist/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{lift}.bin");
-        let heat_rel = format!("heat/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{lift}.bin");
-        let meta_rel = format!("meta/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{lift}.json");
+        let metric_slug = metric_slug(metric);
+        let hist_rel = format!(
+            "hist/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.bin"
+        );
+        let heat_rel = format!(
+            "heat/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.bin"
+        );
+        let meta_rel = format!(
+            "meta/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.json"
+        );
 
         let hist_path = version_dir.join(&hist_rel);
         let heat_path = version_dir.join(&heat_rel);
         let meta_path = version_dir.join(&meta_rel);
 
-        write_hist_bin(&hist_path, &hist_data)?;
-        write_heat_bin(&heat_path, &heat_data)?;
+        write_hist_bin(&hist_path, &hist_data, x_base)?;
+        write_heat_bin(&heat_path, &heat_data, x_base, BW_BIN_BASE_KG)?;
 
         let meta = SliceMeta {
             version: version.to_string(),
@@ -357,9 +380,10 @@ fn publish_records_for_lift(
             age_class: age_class.clone(),
             tested: tested.to_string(),
             lift: lift.to_string(),
+            metric: metric_code(metric).to_string(),
             hist: HistMeta {
                 file: hist_rel,
-                base_bin_size_kg: LIFT_BIN_BASE_KG,
+                base_bin_size_kg: x_base,
                 min_kg: hist_data.min,
                 max_kg: hist_data.max,
                 bins: hist_data.counts.len(),
@@ -367,7 +391,7 @@ fn publish_records_for_lift(
             },
             heat: HeatMeta {
                 file: heat_rel,
-                x_base_bin_size_kg: LIFT_BIN_BASE_KG,
+                x_base_bin_size_kg: x_base,
                 y_base_bin_size_kg: BW_BIN_BASE_KG,
                 min_x_kg: heat_data.min_x,
                 max_x_kg: heat_data.max_x,
@@ -387,13 +411,14 @@ fn publish_records_for_lift(
             .with_context(|| format!("failed writing {}", meta_path.display()))?;
 
         let key = format!(
-            "sex={}|equip={}|wc={}|age={}|tested={}|lift={}",
+            "sex={}|equip={}|wc={}|age={}|tested={}|lift={}|metric={}",
             sex,
             equipment,
             weight_class,
             age_class,
             tested_bucket(tested),
-            lift_code(lift)
+            lift_code(lift),
+            metric_code(metric),
         );
         let shard_key = format!("sex={}|equip={}", sex, equipment);
         shard_indices.entry(shard_key).or_default().insert(key);
@@ -485,11 +510,11 @@ fn build_heatmap(points: &[(f32, f32)], x_base: f32, y_base: f32) -> Result<Heat
     })
 }
 
-fn write_hist_bin(path: &Path, hist: &HistogramData) -> Result<()> {
+fn write_hist_bin(path: &Path, hist: &HistogramData, x_base: f32) -> Result<()> {
     let mut bytes = Vec::with_capacity(4 + 2 + (3 * 4) + 4 + hist.counts.len() * 4);
     bytes.extend_from_slice(&HIST_MAGIC);
     bytes.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
-    bytes.extend_from_slice(&LIFT_BIN_BASE_KG.to_le_bytes());
+    bytes.extend_from_slice(&x_base.to_le_bytes());
     bytes.extend_from_slice(&hist.min.to_le_bytes());
     bytes.extend_from_slice(&hist.max.to_le_bytes());
     bytes.extend_from_slice(&(hist.counts.len() as u32).to_le_bytes());
@@ -499,12 +524,12 @@ fn write_hist_bin(path: &Path, hist: &HistogramData) -> Result<()> {
     write_bytes(path, &bytes)
 }
 
-fn write_heat_bin(path: &Path, heat: &HeatmapData) -> Result<()> {
+fn write_heat_bin(path: &Path, heat: &HeatmapData, x_base: f32, y_base: f32) -> Result<()> {
     let mut bytes = Vec::with_capacity(4 + 2 + (6 * 4) + (2 * 4) + heat.grid.len() * 4);
     bytes.extend_from_slice(&HEAT_MAGIC);
     bytes.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
-    bytes.extend_from_slice(&LIFT_BIN_BASE_KG.to_le_bytes());
-    bytes.extend_from_slice(&BW_BIN_BASE_KG.to_le_bytes());
+    bytes.extend_from_slice(&x_base.to_le_bytes());
+    bytes.extend_from_slice(&y_base.to_le_bytes());
     bytes.extend_from_slice(&heat.min_x.to_le_bytes());
     bytes.extend_from_slice(&heat.max_x.to_le_bytes());
     bytes.extend_from_slice(&heat.min_y.to_le_bytes());
@@ -642,5 +667,137 @@ fn lift_code(lift: &str) -> &'static str {
         "deadlift" => "D",
         "total" => "T",
         _ => "U",
+    }
+}
+
+fn metrics_for_lift(lift: &str) -> &'static [Metric] {
+    if lift == "total" {
+        &[Metric::Kg, Metric::Dots, Metric::Wilks, Metric::Gl]
+    } else {
+        &[Metric::Kg]
+    }
+}
+
+fn metric_base_bin(metric: Metric) -> f32 {
+    match metric {
+        Metric::Kg => LIFT_BIN_BASE_KG,
+        Metric::Dots | Metric::Wilks | Metric::Gl => SCORE_BIN_BASE_POINTS,
+    }
+}
+
+fn metric_slug(metric: Metric) -> &'static str {
+    match metric {
+        Metric::Kg => "kg",
+        Metric::Dots => "dots",
+        Metric::Wilks => "wilks",
+        Metric::Gl => "gl",
+    }
+}
+
+fn metric_code(metric: Metric) -> &'static str {
+    match metric {
+        Metric::Kg => "Kg",
+        Metric::Dots => "Dots",
+        Metric::Wilks => "Wilks",
+        Metric::Gl => "GL",
+    }
+}
+
+fn metric_value(
+    metric: Metric,
+    lift: &str,
+    sex: &str,
+    equipment: &str,
+    lift_value: f32,
+    bodyweight_kg: Option<f32>,
+) -> Option<f32> {
+    match metric {
+        Metric::Kg => Some(lift_value),
+        Metric::Dots => {
+            if lift != "total" {
+                return None;
+            }
+            Some(dots_points(sex, bodyweight_kg?, lift_value))
+        }
+        Metric::Wilks => {
+            if lift != "total" {
+                return None;
+            }
+            Some(wilks_points(sex, bodyweight_kg?, lift_value))
+        }
+        Metric::Gl => {
+            if lift != "total" {
+                return None;
+            }
+            Some(goodlift_points(sex, equipment, bodyweight_kg?, lift_value))
+        }
+    }
+}
+
+fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
+    let bw = match sex {
+        "F" => bodyweight_kg.clamp(40.0, 150.0),
+        _ => bodyweight_kg.clamp(40.0, 210.0),
+    };
+    let denom = if sex == "F" {
+        -57.96288
+            + 13.6175032 * bw
+            - 0.1126655495 * bw.powi(2)
+            + 0.0005158568 * bw.powi(3)
+            - 0.0000010706 * bw.powi(4)
+    } else {
+        -307.75076
+            + 24.0900756 * bw
+            - 0.1918759221 * bw.powi(2)
+            + 0.0007391293 * bw.powi(3)
+            - 0.0000010930 * bw.powi(4)
+    };
+    if denom <= 0.0 {
+        0.0
+    } else {
+        total_kg * 500.0 / denom
+    }
+}
+
+fn wilks_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
+    let bw = match sex {
+        "F" => bodyweight_kg.clamp(26.51, 154.53),
+        _ => bodyweight_kg.clamp(40.0, 201.9),
+    };
+    let denom = if sex == "F" {
+        594.31747775582
+            - 27.23842536447 * bw
+            + 0.82112226871 * bw.powi(2)
+            - 0.00930733913 * bw.powi(3)
+            + 0.00004731582 * bw.powi(4)
+            - 0.00000009054 * bw.powi(5)
+    } else {
+        -216.0475144
+            + 16.2606339 * bw
+            - 0.002388645 * bw.powi(2)
+            - 0.00113732 * bw.powi(3)
+            + 0.00000701863 * bw.powi(4)
+            - 0.00000001291 * bw.powi(5)
+    };
+    if denom <= 0.0 {
+        0.0
+    } else {
+        total_kg * 500.0 / denom
+    }
+}
+
+fn goodlift_points(sex: &str, equipment: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
+    let classic = matches!(equipment, "Raw" | "Wraps" | "Straps");
+    let (a, b, c) = match (sex, classic) {
+        ("F", true) => (610.32796, 1045.59282, 0.03048),
+        ("F", false) => (758.63878, 949.31382, 0.02435),
+        ("M", true) => (1199.72839, 1025.18162, 0.00921),
+        _ => (1236.25115, 1449.21864, 0.01644),
+    };
+    let denom = a - (b * (-c * bodyweight_kg).exp());
+    if denom <= 0.0 {
+        0.0
+    } else {
+        total_kg * 100.0 / denom
     }
 }

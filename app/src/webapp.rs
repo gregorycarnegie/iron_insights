@@ -46,6 +46,7 @@ struct SliceKey {
     age: String,
     tested: String,
     lift: String,
+    metric: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -92,6 +93,7 @@ fn App() -> impl IntoView {
     let (age, set_age) = signal(String::new());
     let (tested, set_tested) = signal(String::new());
     let (lift, set_lift) = signal(String::new());
+    let (metric, set_metric) = signal(String::new());
 
     let (squat, set_squat) = signal(180.0f32);
     let (bench, set_bench) = signal(120.0f32);
@@ -231,6 +233,7 @@ fn App() -> impl IntoView {
         let a = age.get();
         let t = tested.get();
         let l = lift.get();
+        let m = metric.get();
 
         slice_rows.get().into_iter().find(|row| {
             row.key.sex == s
@@ -239,6 +242,7 @@ fn App() -> impl IntoView {
                 && row.key.age == a
                 && row.key.tested == t
                 && row.key.lift == l
+                && row.key.metric == m
         })
     });
 
@@ -355,6 +359,28 @@ fn App() -> impl IntoView {
                 .map(|r| r.key.lift.clone()),
         )
     });
+    let metric_options = Memo::new(move |_| {
+        let s = sex.get();
+        let e = equip.get();
+        let w = wc.get();
+        let a = age.get();
+        let t = tested.get();
+        let l = lift.get();
+        unique(
+            slice_rows
+                .get()
+                .iter()
+                .filter(|r| {
+                    r.key.sex == s
+                        && r.key.equip == e
+                        && r.key.wc == w
+                        && r.key.age == a
+                        && r.key.tested == t
+                        && r.key.lift == l
+                })
+                .map(|r| r.key.metric.clone()),
+        )
+    });
 
     {
         let set_equip = set_equip;
@@ -425,13 +451,43 @@ fn App() -> impl IntoView {
             }
         });
     }
+    {
+        let set_metric = set_metric;
+        Effect::new(move |_| {
+            let options = metric_options.get();
+            let current = metric.get();
+            if options.is_empty() {
+                return;
+            }
+            if !options.iter().any(|v| v == &current) {
+                let preferred = if lift.get() == "T" { "Kg" } else { "Kg" };
+                set_metric.set(pick_preferred(options, preferred));
+            }
+        });
+    }
 
-    let user_lift = Memo::new(move |_| match lift.get().as_str() {
-        "S" => squat.get(),
-        "B" => bench.get(),
-        "D" => deadlift.get(),
-        "T" => squat.get() + bench.get() + deadlift.get(),
-        _ => 0.0,
+    let user_lift = Memo::new(move |_| {
+        let total = squat.get() + bench.get() + deadlift.get();
+        match (lift.get(), metric.get()) {
+            (l, _) if l == "S" => squat.get(),
+            (l, _) if l == "B" => bench.get(),
+            (l, _) if l == "D" => deadlift.get(),
+            (l, m) if l == "T" && m == "Dots" => dots_points(&sex.get(), bodyweight.get(), total),
+            (l, m) if l == "T" && m == "Wilks" => wilks_points(&sex.get(), bodyweight.get(), total),
+            (l, m) if l == "T" && m == "GL" => {
+                goodlift_points(&sex.get(), &equip.get(), bodyweight.get(), total)
+            }
+            (l, _) if l == "T" => total,
+            _ => 0.0,
+        }
+    });
+
+    let hist_x_label = Memo::new(move |_| {
+        if lift.get() != "T" || metric.get() == "Kg" {
+            "Lift (kg)".to_string()
+        } else {
+            format!("{} Points", metric_label(&metric.get()))
+        }
     });
 
     let rebinned_hist = Memo::new(move |_| {
@@ -478,7 +534,13 @@ fn App() -> impl IntoView {
             let Some(heat) = rebinned_heat.get() else {
                 return;
             };
-            draw_heatmap(&canvas, &heat, user_lift.get(), bodyweight.get());
+            draw_heatmap(
+                &canvas,
+                &heat,
+                user_lift.get(),
+                bodyweight.get(),
+                &hist_x_label.get(),
+            );
         });
     }
 
@@ -600,6 +662,22 @@ fn App() -> impl IntoView {
                             </For>
                         </select>
                     </label>
+
+                    <label>"Compare by"
+                        <select on:change=move |ev| set_metric.set(event_target_value(&ev))>
+                            <For each=move || metric_options.get() key=|v| v.clone() let:value>
+                                <option
+                                    selected={
+                                        let selected_value = value.clone();
+                                        move || metric.get() == selected_value
+                                    }
+                                    value={value.clone()}
+                                >
+                                    {metric_label(&value).to_string()}
+                                </option>
+                            </For>
+                        </select>
+                    </label>
                 </div>
 
                 <div class="grid numbers">
@@ -623,9 +701,9 @@ fn App() -> impl IntoView {
                             prop:value=move || lift_mult.get().to_string()
                             on:change=move |ev| set_lift_mult.set(event_target_value(&ev).parse::<usize>().unwrap_or(4))
                         >
-                            <option value="1">"2.5kg"</option>
-                            <option value="2">"5kg"</option>
-                            <option value="4">"10kg"</option>
+                            <option value="1">"1x base"</option>
+                            <option value="2">"2x base"</option>
+                            <option value="4">"4x base"</option>
                         </select>
                     </label>
                     <label>"BW bin"
@@ -654,13 +732,13 @@ fn App() -> impl IntoView {
             <section class="panel">
                 <h2>"Histogram"</h2>
                 {move || match rebinned_hist.get() {
-                    Some(h) => render_histogram_svg(&h, user_lift.get()),
+                    Some(h) => render_histogram_svg(&h, user_lift.get(), &hist_x_label.get()),
                     None => view! { <p>"No histogram available."</p> }.into_any(),
                 }}
             </section>
 
             <section class="panel">
-                <h2>"Bodyweight vs Lift Heatmap"</h2>
+                <h2>{move || format!("Bodyweight vs {}", hist_x_label.get())}</h2>
                 <canvas node_ref=canvas_ref width="800" height="420"></canvas>
             </section>
         </div>
@@ -692,6 +770,7 @@ fn parse_slice_key(raw: &str) -> Option<SliceKey> {
     let mut age = None;
     let mut tested = None;
     let mut lift = None;
+    let mut metric = None;
 
     for part in raw.split('|') {
         let (k, v) = part.split_once('=')?;
@@ -702,6 +781,7 @@ fn parse_slice_key(raw: &str) -> Option<SliceKey> {
             "age" => age = Some(v.to_string()),
             "tested" => tested = Some(v.to_string()),
             "lift" => lift = Some(v.to_string()),
+            "metric" => metric = Some(v.to_string()),
             _ => {}
         }
     }
@@ -713,6 +793,7 @@ fn parse_slice_key(raw: &str) -> Option<SliceKey> {
         age: age?,
         tested: tested?,
         lift: lift?,
+        metric: metric.unwrap_or_else(|| "Kg".to_string()),
     })
 }
 
@@ -738,7 +819,13 @@ fn entry_from_slice_key(raw: &str) -> Option<(SliceKey, SliceIndexEntry)> {
     let age_slug = slug(&key.age);
     let lift_name = lift_name_from_code(&key.lift)?;
     let tested_dir = tested_dir_from_bucket(&key.tested);
-    let base = format!("{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested_dir}/{lift_name}");
+    let has_metric = raw.split('|').any(|part| part.starts_with("metric="));
+    let base = if has_metric {
+        let metric_dir = slug(&key.metric);
+        format!("{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested_dir}/{metric_dir}/{lift_name}")
+    } else {
+        format!("{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested_dir}/{lift_name}")
+    };
     Some((
         key,
         SliceIndexEntry {
@@ -879,6 +966,74 @@ fn percentile_for_value(hist: Option<&HistogramBin>, value: f32) -> Option<(f32,
     Some((pct, rank, total))
 }
 
+fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
+    let bw = match sex {
+        "F" => bodyweight_kg.clamp(40.0, 150.0),
+        _ => bodyweight_kg.clamp(40.0, 210.0),
+    };
+    let denom = if sex == "F" {
+        -57.96288
+            + 13.6175032 * bw
+            - 0.1126655495 * bw.powi(2)
+            + 0.0005158568 * bw.powi(3)
+            - 0.0000010706 * bw.powi(4)
+    } else {
+        -307.75076
+            + 24.0900756 * bw
+            - 0.1918759221 * bw.powi(2)
+            + 0.0007391293 * bw.powi(3)
+            - 0.0000010930 * bw.powi(4)
+    };
+    if denom <= 0.0 {
+        0.0
+    } else {
+        total_kg * 500.0 / denom
+    }
+}
+
+fn wilks_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
+    let bw = match sex {
+        "F" => bodyweight_kg.clamp(26.51, 154.53),
+        _ => bodyweight_kg.clamp(40.0, 201.9),
+    };
+    let denom = if sex == "F" {
+        594.31747775582
+            - 27.23842536447 * bw
+            + 0.82112226871 * bw.powi(2)
+            - 0.00930733913 * bw.powi(3)
+            + 0.00004731582 * bw.powi(4)
+            - 0.00000009054 * bw.powi(5)
+    } else {
+        -216.0475144
+            + 16.2606339 * bw
+            - 0.002388645 * bw.powi(2)
+            - 0.00113732 * bw.powi(3)
+            + 0.00000701863 * bw.powi(4)
+            - 0.00000001291 * bw.powi(5)
+    };
+    if denom <= 0.0 {
+        0.0
+    } else {
+        total_kg * 500.0 / denom
+    }
+}
+
+fn goodlift_points(sex: &str, equipment: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
+    let classic = matches!(equipment, "Raw" | "Wraps" | "Straps");
+    let (a, b, c) = match (sex, classic) {
+        ("F", true) => (610.32796, 1045.59282, 0.03048),
+        ("F", false) => (758.63878, 949.31382, 0.02435),
+        ("M", true) => (1199.72839, 1025.18162, 0.00921),
+        _ => (1236.25115, 1449.21864, 0.01644),
+    };
+    let denom = a - (b * (-c * bodyweight_kg).exp());
+    if denom <= 0.0 {
+        0.0
+    } else {
+        total_kg * 100.0 / denom
+    }
+}
+
 fn rebin_1d(counts: Vec<u32>, k: usize) -> Vec<u32> {
     if k <= 1 {
         return counts;
@@ -932,6 +1087,16 @@ fn lift_label(code: &str) -> &'static str {
     }
 }
 
+fn metric_label(code: &str) -> &'static str {
+    match code {
+        "Kg" => "Kg",
+        "Dots" => "DOTS",
+        "Wilks" => "Wilks",
+        "GL" => "GL",
+        _ => "Kg",
+    }
+}
+
 fn age_label(code: &str) -> String {
     match code {
         "All Ages" => "All Ages".to_string(),
@@ -966,7 +1131,7 @@ fn age_class_sort_key(class: &str) -> (u8, i32) {
     (1, start)
 }
 
-fn render_histogram_svg(hist: &HistogramBin, user_value: f32) -> AnyView {
+fn render_histogram_svg(hist: &HistogramBin, user_value: f32, x_label: &str) -> AnyView {
     let max_count = hist.counts.iter().copied().max().unwrap_or(1) as f32;
     let w = 760.0f32;
     let h = 240.0f32;
@@ -1016,7 +1181,7 @@ fn render_histogram_svg(hist: &HistogramBin, user_value: f32) -> AnyView {
             <text x={(left - 8.0).to_string()} y={(top + plot_h * 0.5 + 4.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="end">{y_tick_mid.to_string()}</text>
             <text x={(left - 8.0).to_string()} y={(top + 4.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="end">{(max_count.round() as u32).to_string()}</text>
 
-            <text x={(left + plot_w * 0.5).to_string()} y={(h - 4.0).to_string()} font-size="12" fill="#20342c" text-anchor="middle">"Lift (kg)"</text>
+            <text x={(left + plot_w * 0.5).to_string()} y={(h - 4.0).to_string()} font-size="12" fill="#20342c" text-anchor="middle">{x_label.to_string()}</text>
             <text x="14" y={(top + plot_h * 0.5).to_string()} font-size="12" fill="#20342c" text-anchor="middle" transform={format!("rotate(-90,14,{})", top + plot_h * 0.5)}>"Lifter count"</text>
 
             <rect x={(w - 142.0).to_string()} y="10" width="132" height="34" rx="6" fill="#ffffff" stroke="#d5d2c7" />
@@ -1029,7 +1194,13 @@ fn render_histogram_svg(hist: &HistogramBin, user_value: f32) -> AnyView {
     .into_any()
 }
 
-fn draw_heatmap(canvas: &HtmlCanvasElement, heat: &HeatmapBin, user_lift: f32, user_bw: f32) {
+fn draw_heatmap(
+    canvas: &HtmlCanvasElement,
+    heat: &HeatmapBin,
+    user_lift: f32,
+    user_bw: f32,
+    x_label: &str,
+) {
     let Ok(Some(ctx)) = canvas.get_context("2d") else {
         return;
     };
@@ -1122,7 +1293,7 @@ fn draw_heatmap(canvas: &HtmlCanvasElement, heat: &HeatmapBin, user_lift: f32, u
     ctx.set_font("12px Space Grotesk, sans-serif");
     ctx.set_text_align("center");
     ctx.set_text_baseline("top");
-    let _ = ctx.fill_text("Lift (kg)", left + plot_w * 0.5, ch - 18.0);
+    let _ = ctx.fill_text(x_label, left + plot_w * 0.5, ch - 18.0);
 
     let _ = ctx.save();
     let _ = ctx.translate(16.0, top + plot_h * 0.5);

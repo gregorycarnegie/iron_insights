@@ -55,7 +55,11 @@ function Resolve-PathsFromSliceKey([string]$Key) {
   }
 
   $testedDir = if ($parts['tested'].Equals('Yes', [System.StringComparison]::OrdinalIgnoreCase)) { 'tested' } else { & $slug $parts['tested'] }
-  $base = "{0}/{1}/{2}/{3}/{4}/{5}" -f (& $slug $parts['sex']), (& $slug $parts['equip']), (& $slug $parts['wc']), (& $slug $parts['age']), $testedDir, $lift
+  $metricDir = ""
+  if ($parts.ContainsKey('metric') -and -not [string]::IsNullOrWhiteSpace($parts['metric'])) {
+    $metricDir = "/" + (& $slug $parts['metric'])
+  }
+  $base = "{0}/{1}/{2}/{3}/{4}{5}/{6}" -f (& $slug $parts['sex']), (& $slug $parts['equip']), (& $slug $parts['wc']), (& $slug $parts['age']), $testedDir, $metricDir, $lift
 
   return [PSCustomObject]@{
     Meta = "meta/$base.json"

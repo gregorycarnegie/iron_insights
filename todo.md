@@ -144,5 +144,5 @@ Goal: visitors can change bin sizes *without refetching massive data*.
 - [x] Add IPF weight-class filtering derived from `Sex + BodyweightKg` (pipeline + UI selector)
 - [x] Exclude `Mx` slices from published stats due insufficient sample size
 - [x] Add AgeClass / Division filters
-- [ ] Add “compare totals using DOTS/Wilks/GL points” toggle (all computable client-side)
+- [x] Add “compare totals using DOTS/Wilks/GL points” toggle (pipeline-published score distributions + client-side conversion)
 - [ ] Add “IPF-only dataset” option using `openipf-latest.zip`

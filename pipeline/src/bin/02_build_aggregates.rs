@@ -1,5 +1,6 @@
 use std::fs::{self, File};
 use std::path::PathBuf;
+use std::thread;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -48,6 +49,21 @@ const LIFT_SPECS: &[LiftSpec] = &[
 ];
 
 fn main() -> Result<()> {
+    // Some Windows runs hit STATUS_STACK_OVERFLOW in deep Polars execution paths.
+    // Run the workload on a larger stack to keep the pipeline stable.
+    let handle = thread::Builder::new()
+        .name("build-aggregates".to_string())
+        .stack_size(64 * 1024 * 1024)
+        .spawn(run)
+        .context("failed to spawn build-aggregates worker thread")?;
+
+    match handle.join() {
+        Ok(result) => result,
+        Err(panic) => std::panic::resume_unwind(panic),
+    }
+}
+
+fn run() -> Result<()> {
     let args = Args::parse();
     fs::create_dir_all(&args.output_dir)
         .with_context(|| format!("failed to create {}", args.output_dir.display()))?;
@@ -121,8 +137,9 @@ fn build_records(input_parquet: &PathBuf, spec: LiftSpec, tested_only: bool) -> 
         filtered = filtered.filter(col("TestedBucket").eq(lit("Yes")));
     }
 
-    // MVP: build per-lifter best-lift table. We keep context columns with simple reducers;
-    // selecting context exactly from the max-lift row can be improved in a follow-up pass.
+    // MVP: build per-lifter best-lift table. We keep context columns with simple reducers.
+    // NOTE: using sort_by(...).last() for context columns caused stack overflow on Windows
+    // in this Polars query path, so we keep the stable reducers here.
     let result = filtered
         .group_by([
             col("Name"),

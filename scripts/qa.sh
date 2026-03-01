@@ -61,21 +61,27 @@ field_from_key() {
 
 paths_from_key() {
   local key="$1"
-  local sex equip wc age tested tested_dir lift_code lift
+  local sex equip wc age tested tested_dir lift_code lift metric metric_dir
   sex="$(field_from_key "$key" "sex")"
   equip="$(field_from_key "$key" "equip")"
   wc="$(field_from_key "$key" "wc")"
   age="$(field_from_key "$key" "age")"
   tested="$(field_from_key "$key" "tested")"
+  metric="$(field_from_key "$key" "metric")"
   if [[ "${tested,,}" == "yes" ]]; then
     tested_dir="tested"
   else
     tested_dir="$(slug "$tested")"
   fi
+  if [[ -n "$metric" ]]; then
+    metric_dir="/$(slug "$metric")"
+  else
+    metric_dir=""
+  fi
   lift_code="$(field_from_key "$key" "lift")"
   lift="$(lift_name_from_code "$lift_code")" || return 1
   local base
-  base="$(slug "$sex")/$(slug "$equip")/$(slug "$wc")/$(slug "$age")/$tested_dir/$lift"
+  base="$(slug "$sex")/$(slug "$equip")/$(slug "$wc")/$(slug "$age")/$tested_dir${metric_dir}/$lift"
   printf 'meta/%s.json\thist/%s.bin\theat/%s.bin' "$base" "$base" "$base"
 }
 
