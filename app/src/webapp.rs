@@ -14,7 +14,13 @@ struct LatestJson {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+struct RootIndex {
+    shards: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 struct SliceIndex {
+    shard_key: String,
     slices: BTreeMap<String, SliceIndexEntry>,
 }
 
@@ -75,6 +81,7 @@ pub fn run() {
 #[component]
 fn App() -> impl IntoView {
     let (latest, set_latest) = signal(None::<LatestJson>);
+    let (root_index, set_root_index) = signal(None::<RootIndex>);
     let (slice_rows, set_slice_rows) = signal(Vec::<SliceRow>::new());
     let (load_error, set_load_error) = signal(None::<String>);
 
@@ -100,13 +107,9 @@ fn App() -> impl IntoView {
 
     {
         let set_latest = set_latest;
-        let set_slice_rows = set_slice_rows;
+        let set_root_index = set_root_index;
         let set_sex = set_sex;
         let set_equip = set_equip;
-        let set_wc = set_wc;
-        let set_age = set_age;
-        let set_tested = set_tested;
-        let set_lift = set_lift;
         let set_load_error = set_load_error;
 
         spawn_local(async move {
@@ -122,7 +125,7 @@ fn App() -> impl IntoView {
 
             let index_url = format!("./data/{}/index.json", latest_json.version);
             let index_url_abs = format!("/data/{}/index.json", latest_json.version);
-            let index = fetch_json_first::<SliceIndex>(&[&index_url, &index_url_abs]).await;
+            let index = fetch_json_first::<RootIndex>(&[&index_url, &index_url_abs]).await;
             let Ok(index) = index else {
                 if let Err(err) = index {
                     set_load_error.set(Some(format!(
@@ -133,84 +136,77 @@ fn App() -> impl IntoView {
                 return;
             };
             set_load_error.set(None);
+            set_root_index.set(Some(index.clone()));
 
-            let mut rows = Vec::with_capacity(index.slices.len());
-            for (raw_key, entry) in index.slices {
-                if let Some(key) = parse_slice_key(&raw_key) {
-                    rows.push(SliceRow { key, entry });
-                }
-            }
-            rows.sort_by(|a, b| a.key.cmp(&b.key));
-            set_slice_rows.set(rows.clone());
-
-            if !rows.is_empty() {
-                let sex_default = pick_preferred(
-                    unique(rows.iter().map(|r| r.key.sex.clone())),
-                    "M",
+            let mut shard_keys: Vec<String> = index.shards.keys().cloned().collect();
+            shard_keys.sort();
+            if !shard_keys.is_empty() {
+                let sexes = unique(
+                    shard_keys
+                        .iter()
+                        .filter_map(|k| parse_shard_key(k).map(|(s, _)| s.to_string())),
                 );
-                let equip_default = pick_preferred(
-                    unique(
-                        rows.iter()
-                            .filter(|r| r.key.sex == sex_default)
-                            .map(|r| r.key.equip.clone()),
-                    ),
-                    "Raw",
+                let sex_default = pick_preferred(sexes, "M");
+                let equips = unique(
+                    shard_keys.iter().filter_map(|k| {
+                        parse_shard_key(k).and_then(|(s, e)| {
+                            if s == sex_default {
+                                Some(e.to_string())
+                            } else {
+                                None
+                            }
+                        })
+                    }),
                 );
-                let wc_default = pick_preferred(
-                    unique(
-                        rows.iter()
-                            .filter(|r| r.key.sex == sex_default && r.key.equip == equip_default)
-                            .map(|r| r.key.wc.clone()),
-                    ),
-                    "All",
-                );
-                let tested_default = pick_preferred(
-                    unique(
-                        rows.iter()
-                            .filter(|r| {
-                                r.key.sex == sex_default
-                                    && r.key.equip == equip_default
-                                    && r.key.wc == wc_default
-                            })
-                            .map(|r| r.key.tested.clone()),
-                    ),
-                    "All",
-                );
-                let age_default = pick_preferred(
-                    unique(
-                        rows.iter()
-                            .filter(|r| {
-                                r.key.sex == sex_default
-                                    && r.key.equip == equip_default
-                                    && r.key.wc == wc_default
-                                    && r.key.tested == tested_default
-                            })
-                            .map(|r| r.key.age.clone()),
-                    ),
-                    "All Ages",
-                );
-                let lift_default = pick_preferred(
-                    unique(
-                        rows.iter()
-                            .filter(|r| {
-                                r.key.sex == sex_default
-                                    && r.key.equip == equip_default
-                                    && r.key.wc == wc_default
-                                    && r.key.age == age_default
-                                    && r.key.tested == tested_default
-                            })
-                            .map(|r| r.key.lift.clone()),
-                    ),
-                    "T",
-                );
-
+                let equip_default = pick_preferred(equips, "Raw");
                 set_sex.set(sex_default);
                 set_equip.set(equip_default);
-                set_wc.set(wc_default);
-                set_age.set(age_default);
-                set_tested.set(tested_default);
-                set_lift.set(lift_default);
             }
+        });
+    }
+
+    {
+        let set_slice_rows = set_slice_rows;
+        let set_load_error = set_load_error;
+        Effect::new(move |_| {
+            let latest_v = latest.get();
+            let root = root_index.get();
+            let s = sex.get();
+            let e = equip.get();
+
+            let (Some(latest_v), Some(root)) = (latest_v, root) else {
+                return;
+            };
+
+            let shard_key = format!("sex={s}|equip={e}");
+            let Some(shard_rel) = root.shards.get(&shard_key).cloned() else {
+                set_slice_rows.set(Vec::new());
+                return;
+            };
+
+            let set_slice_rows = set_slice_rows;
+            let set_load_error = set_load_error;
+            spawn_local(async move {
+                let url_rel = format!("./data/{}/{}", latest_v.version, shard_rel);
+                let url_abs = format!("/data/{}/{}", latest_v.version, shard_rel);
+                let shard = fetch_json_first::<SliceIndex>(&[&url_rel, &url_abs]).await;
+                let Ok(shard) = shard else {
+                    if let Err(err) = shard {
+                        set_load_error.set(Some(format!("Failed to load shard {shard_key}: {err}")));
+                    }
+                    set_slice_rows.set(Vec::new());
+                    return;
+                };
+                let mut rows = Vec::with_capacity(shard.slices.len());
+                for (raw_key, entry) in shard.slices {
+                    if let Some(key) = parse_slice_key(&raw_key) {
+                        rows.push(SliceRow { key, entry });
+                    }
+                }
+                rows.sort_by(|a, b| a.key.cmp(&b.key));
+                set_load_error.set(None);
+                set_slice_rows.set(rows);
+            });
         });
     }
 
@@ -262,17 +258,28 @@ fn App() -> impl IntoView {
         });
     }
 
-    let sex_options =
-        Memo::new(move |_| unique(slice_rows.get().iter().map(|r| r.key.sex.clone())));
+    let sex_options = Memo::new(move |_| {
+        root_index
+            .get()
+            .map(|root| {
+                unique(
+                    root.shards
+                        .keys()
+                        .filter_map(|k| parse_shard_key(k).map(|(s, _)| s.to_string())),
+                )
+            })
+            .unwrap_or_default()
+    });
     let equip_options = Memo::new(move |_| {
         let s = sex.get();
-        unique(
-            slice_rows
-                .get()
-                .iter()
-                .filter(|r| r.key.sex == s)
-                .map(|r| r.key.equip.clone()),
-        )
+        root_index
+            .get()
+            .map(|root| {
+                unique(root.shards.keys().filter_map(|k| {
+                    parse_shard_key(k).and_then(|(sx, eq)| if sx == s { Some(eq.to_string()) } else { None })
+                }))
+            })
+            .unwrap_or_default()
     });
     let tested_options = Memo::new(move |_| {
         let s = sex.get();
@@ -687,6 +694,20 @@ fn parse_slice_key(raw: &str) -> Option<SliceKey> {
         tested: tested?,
         lift: lift?,
     })
+}
+
+fn parse_shard_key(raw: &str) -> Option<(&str, &str)> {
+    let mut sex = None;
+    let mut equip = None;
+    for part in raw.split('|') {
+        let (k, v) = part.split_once('=')?;
+        match k {
+            "sex" => sex = Some(v),
+            "equip" => equip = Some(v),
+            _ => {}
+        }
+    }
+    Some((sex?, equip?))
 }
 
 fn ipf_class_sort_key(class: &str) -> (u8, i32) {

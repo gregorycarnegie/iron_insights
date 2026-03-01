@@ -31,8 +31,28 @@ VERSION_DIR="$DATA_DIR/$VERSION"
 INDEX_JSON="$VERSION_DIR/index.json"
 [[ -s "$INDEX_JSON" ]] || fail "missing or empty index.json: $INDEX_JSON"
 
-ENTRY_COUNT="$(jq '.slices | length' "$INDEX_JSON")"
-[[ "$ENTRY_COUNT" -gt 0 ]] || fail "index has no slices"
+mode="$(jq -r 'if has("slices") then "flat" elif has("shards") then "sharded" else "unknown" end' "$INDEX_JSON")"
+[[ "$mode" != "unknown" ]] || fail "index.json missing .slices or .shards"
+
+slice_source_files=()
+index_budget_bytes="$(wc -c < "$INDEX_JSON")"
+if [[ "$mode" == "flat" ]]; then
+  ENTRY_COUNT="$(jq '.slices | length' "$INDEX_JSON")"
+  [[ "$ENTRY_COUNT" -gt 0 ]] || fail "index has no slices"
+  slice_source_files+=("$INDEX_JSON")
+else
+  while IFS=$'\t' read -r shard_key shard_rel; do
+    [[ -n "$shard_rel" ]] || fail "empty shard path for $shard_key"
+    [[ "$shard_rel" != /* ]] || fail "invalid absolute shard path for $shard_key: $shard_rel"
+    shard_abs="$VERSION_DIR/$shard_rel"
+    [[ -s "$shard_abs" ]] || fail "missing or empty shard file for $shard_key: $shard_rel"
+    slice_source_files+=("$shard_abs")
+    index_budget_bytes=$((index_budget_bytes + $(wc -c < "$shard_abs")))
+  done < <(jq -r '.shards | to_entries[] | "\(.key)\t\(.value)"' "$INDEX_JSON")
+  [[ "${#slice_source_files[@]}" -gt 0 ]] || fail "sharded index has no shard files"
+  ENTRY_COUNT="$(jq -s '[.[].slices | length] | add // 0' "${slice_source_files[@]}")"
+  [[ "$ENTRY_COUNT" -gt 0 ]] || fail "sharded index has no slices"
+fi
 
 echo "[qa] Version: $VERSION"
 echo "[qa] Slice entries: $ENTRY_COUNT"
@@ -83,7 +103,7 @@ while IFS= read -r row_b64; do
       echo "[qa] warning: zero-dimension heatmap for $key (${h_width}x${h_height})"
     fi
   fi
-done < <(jq -r '.slices | to_entries[] | @base64' "$INDEX_JSON")
+done < <(jq -r '.slices | to_entries[] | @base64' "${slice_source_files[@]}")
 
 [[ "$missing" -eq 0 ]] || fail "found $missing missing/empty referenced files"
 [[ "$invalid" -eq 0 ]] || fail "found $invalid invalid slice entries"
@@ -116,15 +136,13 @@ fmt_bytes() {
 
 sample_row=""
 if [[ -n "$SLICE_KEY" ]]; then
-  sample_row="$(jq -rc --arg k "$SLICE_KEY" '.slices[$k] | select(.)' "$INDEX_JSON")"
+  sample_row="$(jq -rc --arg k "$SLICE_KEY" '.slices[$k] | select(.) | {key: $k, value: .}' "${slice_source_files[@]}" | head -n1)"
   if [[ -z "$sample_row" ]]; then
     echo "[qa] warning: requested slice key not found, using first slice."
   fi
 fi
 if [[ -z "$sample_row" ]]; then
-  sample_row="$(jq -rc '.slices | to_entries[0] | {key: .key, value: .value}' "$INDEX_JSON")"
-else
-  sample_row="$(jq -rc --arg k "$SLICE_KEY" '.slices | {key: $k, value: .[$k]}' "$INDEX_JSON")"
+  sample_row="$(jq -rc '.slices | to_entries[0] | {key: .key, value: .value}' "${slice_source_files[0]}")"
 fi
 
 sample_name="$(printf '%s' "$sample_row" | jq -r '.key')"
@@ -133,11 +151,10 @@ sample_hist_rel="$(printf '%s' "$sample_row" | jq -r '.value.hist')"
 sample_heat_rel="$(printf '%s' "$sample_row" | jq -r '.value.heat')"
 
 latest_bytes="$(wc -c < "$LATEST_JSON")"
-index_bytes="$(wc -c < "$INDEX_JSON")"
 sample_meta_bytes="$(wc -c < "$VERSION_DIR/$sample_meta_rel")"
 sample_hist_bytes="$(wc -c < "$VERSION_DIR/$sample_hist_rel")"
 sample_heat_bytes="$(wc -c < "$VERSION_DIR/$sample_heat_rel")"
-sample_data_bytes=$((latest_bytes + index_bytes + sample_meta_bytes + sample_hist_bytes + sample_heat_bytes))
+sample_data_bytes=$((latest_bytes + index_budget_bytes + sample_meta_bytes + sample_hist_bytes + sample_heat_bytes))
 
 site_budget_bytes=0
 if [[ -d "$SITE_DIR" ]]; then

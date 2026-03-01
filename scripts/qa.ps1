@@ -41,9 +41,25 @@ $indexPath = Join-Path $versionDir 'index.json'
 if (-not (Test-Path $indexPath)) { Fail "missing index.json: $indexPath" }
 
 $index = Get-Content $indexPath -Raw | ConvertFrom-Json
-if (-not $index.slices) { Fail "index.json missing .slices" }
+if (-not $index.slices -and -not $index.shards) { Fail "index.json missing .slices or .shards" }
 
-$sliceProps = $index.slices.PSObject.Properties
+$indexBudgetBytes = (Get-Item $indexPath).Length
+$sliceProps = @()
+if ($index.slices) {
+  $sliceProps = @($index.slices.PSObject.Properties)
+} else {
+  foreach ($sp in @($index.shards.PSObject.Properties)) {
+    $rel = [string]$sp.Value
+    if ([string]::IsNullOrWhiteSpace($rel)) { Fail "empty shard path for $($sp.Name)" }
+    if ($rel.StartsWith('/')) { Fail "invalid absolute shard path for $($sp.Name): $rel" }
+    $shardPath = Join-Path $versionDir $rel
+    if (-not (Test-Path $shardPath)) { Fail "missing shard file for $($sp.Name): $rel" }
+    $indexBudgetBytes += (Get-Item $shardPath).Length
+    $shard = Get-Content $shardPath -Raw | ConvertFrom-Json
+    if (-not $shard.slices) { continue }
+    $sliceProps += @($shard.slices.PSObject.Properties)
+  }
+}
 if (@($sliceProps).Count -eq 0) { Fail "index has no slice entries" }
 
 Write-Host "[qa] Version: $version"
@@ -145,8 +161,7 @@ $sampleMetaBytes = if (Test-Path $sampleMetaPath) { (Get-Item $sampleMetaPath).L
 $sampleHistBytes = if (Test-Path $sampleHistPath) { (Get-Item $sampleHistPath).Length } else { 0 }
 $sampleHeatBytes = if (Test-Path $sampleHeatPath) { (Get-Item $sampleHeatPath).Length } else { 0 }
 $latestBytes = (Get-Item $latestPath).Length
-$indexBytes = (Get-Item $indexPath).Length
-$sampleDataBytes = $latestBytes + $indexBytes + $sampleMetaBytes + $sampleHistBytes + $sampleHeatBytes
+$sampleDataBytes = $latestBytes + $indexBudgetBytes + $sampleMetaBytes + $sampleHistBytes + $sampleHeatBytes
 
 Write-Host "[qa] Sample slice: $selectedName"
 Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index+meta+hist+heat)"

@@ -103,8 +103,15 @@ struct SliceAccumulator {
 }
 
 #[derive(Debug, Serialize)]
+struct RootIndex {
+    version: String,
+    shards: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Serialize)]
 struct SliceIndex {
     version: String,
+    shard_key: String,
     slices: BTreeMap<String, SliceIndexEntry>,
 }
 
@@ -133,7 +140,7 @@ fn main() -> Result<()> {
     fs::create_dir_all(&version_dir)
         .with_context(|| format!("failed to create {}", version_dir.display()))?;
 
-    let mut slice_index = BTreeMap::<String, SliceIndexEntry>::new();
+    let mut shard_indices = BTreeMap::<String, BTreeMap<String, SliceIndexEntry>>::new();
 
     for tested in ["all", "tested"] {
         for lift in ["squat", "bench", "deadlift", "total"] {
@@ -151,17 +158,38 @@ fn main() -> Result<()> {
                 &version,
                 tested,
                 lift,
-                &mut slice_index,
+                &mut shard_indices,
             )?;
         }
     }
 
-    let index = SliceIndex {
+    let mut shard_paths = BTreeMap::<String, String>::new();
+    for (shard_key, slices) in shard_indices {
+        let Some((sex, equipment)) = parse_shard_key(&shard_key) else {
+            continue;
+        };
+        let shard_rel = format!("index_shards/{}/{}/index.json", slug(sex), slug(equipment));
+        let shard_path = version_dir.join(&shard_rel);
+        if let Some(parent) = shard_path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed creating {}", parent.display()))?;
+        }
+        let shard_index = SliceIndex {
+            version: version.clone(),
+            shard_key: shard_key.clone(),
+            slices,
+        };
+        fs::write(&shard_path, serde_json::to_vec(&shard_index)?)
+            .with_context(|| format!("failed writing {}", shard_path.display()))?;
+        shard_paths.insert(shard_key, shard_rel);
+    }
+
+    let index = RootIndex {
         version: version.clone(),
-        slices: slice_index,
+        shards: shard_paths,
     };
     let index_path = version_dir.join("index.json");
-    fs::write(&index_path, serde_json::to_vec_pretty(&index)?)
+    fs::write(&index_path, serde_json::to_vec(&index)?)
         .with_context(|| format!("failed writing {}", index_path.display()))?;
 
     let latest = LatestJson {
@@ -186,7 +214,7 @@ fn publish_records_for_lift(
     version: &str,
     tested: &str,
     lift: &str,
-    slice_index: &mut BTreeMap<String, SliceIndexEntry>,
+    shard_indices: &mut BTreeMap<String, BTreeMap<String, SliceIndexEntry>>,
 ) -> Result<()> {
     let parquet_path = records_path.to_string_lossy();
     let df = LazyFrame::scan_parquet(parquet_path.as_ref().into(), ScanArgsParquet::default())
@@ -368,7 +396,7 @@ fn publish_records_for_lift(
             fs::create_dir_all(parent)
                 .with_context(|| format!("failed creating {}", parent.display()))?;
         }
-        fs::write(&meta_path, serde_json::to_vec_pretty(&meta)?)
+        fs::write(&meta_path, serde_json::to_vec(&meta)?)
             .with_context(|| format!("failed writing {}", meta_path.display()))?;
 
         let key = format!(
@@ -380,7 +408,11 @@ fn publish_records_for_lift(
             tested_bucket(tested),
             lift_code(lift)
         );
-        slice_index.insert(
+        let shard_key = format!("sex={}|equip={}", sex, equipment);
+        shard_indices
+            .entry(shard_key)
+            .or_default()
+            .insert(
             key,
             SliceIndexEntry {
                 meta: meta_rel,
@@ -620,6 +652,20 @@ fn slug(input: &str) -> String {
             _ => '_',
         })
         .collect()
+}
+
+fn parse_shard_key(raw: &str) -> Option<(&str, &str)> {
+    let mut sex = None;
+    let mut equip = None;
+    for part in raw.split('|') {
+        let (k, v) = part.split_once('=')?;
+        match k {
+            "sex" => sex = Some(v),
+            "equip" => equip = Some(v),
+            _ => {}
+        }
+    }
+    Some((sex?, equip?))
 }
 
 fn tested_bucket(tested: &str) -> &'static str {
