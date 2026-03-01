@@ -1,0 +1,29 @@
+{
+  "version": "v2026-03-01",
+  "sex": "M",
+  "equipment": "Multi-ply",
+  "ipf_weight_class": "59",
+  "age_class": "13-15",
+  "tested": "all",
+  "lift": "squat",
+  "hist": {
+    "file": "hist/m/multi-ply/59/13-15/all/squat.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 52.5,
+    "max_kg": 202.5,
+    "bins": 60,
+    "total": 73
+  },
+  "heat": {
+    "file": "heat/m/multi-ply/59/13-15/all/squat.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 52.5,
+    "max_x_kg": 202.5,
+    "min_y_kg": 53.0,
+    "max_y_kg": 60.0,
+    "width": 60,
+    "height": 7,
+    "total": 73
+  }
+}

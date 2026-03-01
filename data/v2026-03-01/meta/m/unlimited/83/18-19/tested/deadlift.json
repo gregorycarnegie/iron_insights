@@ -1,0 +1,29 @@
+{
+  "version": "v2026-03-01",
+  "sex": "M",
+  "equipment": "Unlimited",
+  "ipf_weight_class": "83",
+  "age_class": "18-19",
+  "tested": "tested",
+  "lift": "deadlift",
+  "hist": {
+    "file": "hist/m/unlimited/83/18-19/tested/deadlift.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 112.5,
+    "max_kg": 315.0,
+    "bins": 81,
+    "total": 194
+  },
+  "heat": {
+    "file": "heat/m/unlimited/83/18-19/tested/deadlift.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 112.5,
+    "max_x_kg": 315.0,
+    "min_y_kg": 74.0,
+    "max_y_kg": 83.0,
+    "width": 81,
+    "height": 9,
+    "total": 194
+  }
+}

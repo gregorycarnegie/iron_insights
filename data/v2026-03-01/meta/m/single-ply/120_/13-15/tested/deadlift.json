@@ -1,0 +1,29 @@
+{
+  "version": "v2026-03-01",
+  "sex": "M",
+  "equipment": "Single-ply",
+  "ipf_weight_class": "120+",
+  "age_class": "13-15",
+  "tested": "tested",
+  "lift": "deadlift",
+  "hist": {
+    "file": "hist/m/single-ply/120_/13-15/tested/deadlift.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 70.0,
+    "max_kg": 285.0,
+    "bins": 86,
+    "total": 228
+  },
+  "heat": {
+    "file": "heat/m/single-ply/120_/13-15/tested/deadlift.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 70.0,
+    "max_x_kg": 285.0,
+    "min_y_kg": 120.0,
+    "max_y_kg": 182.0,
+    "width": 86,
+    "height": 62,
+    "total": 228
+  }
+}

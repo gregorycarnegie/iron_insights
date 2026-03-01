@@ -1,0 +1,29 @@
+{
+  "version": "v2026-03-01",
+  "sex": "F",
+  "equipment": "Wraps",
+  "ipf_weight_class": "76",
+  "age_class": "60-64",
+  "tested": "tested",
+  "lift": "bench",
+  "hist": {
+    "file": "hist/f/wraps/76/60-64/tested/bench.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 32.5,
+    "max_kg": 95.0,
+    "bins": 25,
+    "total": 26
+  },
+  "heat": {
+    "file": "heat/f/wraps/76/60-64/tested/bench.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 32.5,
+    "max_x_kg": 95.0,
+    "min_y_kg": 69.0,
+    "max_y_kg": 76.0,
+    "width": 25,
+    "height": 7,
+    "total": 26
+  }
+}

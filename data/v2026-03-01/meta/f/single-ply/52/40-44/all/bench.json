@@ -1,0 +1,29 @@
+{
+  "version": "v2026-03-01",
+  "sex": "F",
+  "equipment": "Single-ply",
+  "ipf_weight_class": "52",
+  "age_class": "40-44",
+  "tested": "all",
+  "lift": "bench",
+  "hist": {
+    "file": "hist/f/single-ply/52/40-44/all/bench.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 25.0,
+    "max_kg": 127.5,
+    "bins": 41,
+    "total": 303
+  },
+  "heat": {
+    "file": "heat/f/single-ply/52/40-44/all/bench.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 25.0,
+    "max_x_kg": 127.5,
+    "min_y_kg": 47.0,
+    "max_y_kg": 53.0,
+    "width": 41,
+    "height": 6,
+    "total": 303
+  }
+}

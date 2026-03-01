@@ -1,0 +1,29 @@
+{
+  "version": "v2026-03-01",
+  "sex": "F",
+  "equipment": "Multi-ply",
+  "ipf_weight_class": "84+",
+  "age_class": "35-39",
+  "tested": "all",
+  "lift": "total",
+  "hist": {
+    "file": "hist/f/multi-ply/84_/35-39/all/total.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 312.5,
+    "max_kg": 862.5,
+    "bins": 220,
+    "total": 70
+  },
+  "heat": {
+    "file": "heat/f/multi-ply/84_/35-39/all/total.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 312.5,
+    "max_x_kg": 862.5,
+    "min_y_kg": 84.0,
+    "max_y_kg": 156.0,
+    "width": 220,
+    "height": 72,
+    "total": 70
+  }
+}

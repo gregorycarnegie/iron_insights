@@ -1,0 +1,29 @@
+{
+  "version": "v2026-03-01",
+  "sex": "M",
+  "equipment": "Unlimited",
+  "ipf_weight_class": "83",
+  "age_class": "35-39",
+  "tested": "all",
+  "lift": "total",
+  "hist": {
+    "file": "hist/m/unlimited/83/35-39/all/total.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 497.5,
+    "max_kg": 980.0,
+    "bins": 193,
+    "total": 13
+  },
+  "heat": {
+    "file": "heat/m/unlimited/83/35-39/all/total.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 497.5,
+    "max_x_kg": 980.0,
+    "min_y_kg": 77.0,
+    "max_y_kg": 83.0,
+    "width": 193,
+    "height": 6,
+    "total": 13
+  }
+}

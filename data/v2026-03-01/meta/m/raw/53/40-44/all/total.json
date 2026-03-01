@@ -1,0 +1,29 @@
+{
+  "version": "v2026-03-01",
+  "sex": "M",
+  "equipment": "Raw",
+  "ipf_weight_class": "53",
+  "age_class": "40-44",
+  "tested": "all",
+  "lift": "total",
+  "hist": {
+    "file": "hist/m/raw/53/40-44/all/total.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 100.0,
+    "max_kg": 415.0,
+    "bins": 126,
+    "total": 12
+  },
+  "heat": {
+    "file": "heat/m/raw/53/40-44/all/total.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 100.0,
+    "max_x_kg": 415.0,
+    "min_y_kg": 44.0,
+    "max_y_kg": 53.0,
+    "width": 126,
+    "height": 9,
+    "total": 12
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "version": "v2026-03-01",
+  "sex": "M",
+  "equipment": "Multi-ply",
+  "ipf_weight_class": "All",
+  "age_class": "75-79",
+  "tested": "all",
+  "lift": "bench",
+  "hist": {
+    "file": "hist/m/multi-ply/all/75-79/all/bench.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 42.5,
+    "max_kg": 182.5,
+    "bins": 56,
+    "total": 145
+  },
+  "heat": {
+    "file": "heat/m/multi-ply/all/75-79/all/bench.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 42.5,
+    "max_x_kg": 182.5,
+    "min_y_kg": 56.0,
+    "max_y_kg": 126.0,
+    "width": 56,
+    "height": 70,
+    "total": 145
+  }
+}

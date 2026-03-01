@@ -1,0 +1,29 @@
+{
+  "version": "v2026-03-01",
+  "sex": "M",
+  "equipment": "Multi-ply",
+  "ipf_weight_class": "120+",
+  "age_class": "50-54",
+  "tested": "all",
+  "lift": "total",
+  "hist": {
+    "file": "hist/m/multi-ply/120_/50-54/all/total.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 240.0,
+    "max_kg": 1055.0,
+    "bins": 326,
+    "total": 139
+  },
+  "heat": {
+    "file": "heat/m/multi-ply/120_/50-54/all/total.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 240.0,
+    "max_x_kg": 1055.0,
+    "min_y_kg": 120.0,
+    "max_y_kg": 182.0,
+    "width": 326,
+    "height": 62,
+    "total": 139
+  }
+}

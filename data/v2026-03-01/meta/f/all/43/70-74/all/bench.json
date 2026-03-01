@@ -1,0 +1,29 @@
+{
+  "version": "v2026-03-01",
+  "sex": "F",
+  "equipment": "All",
+  "ipf_weight_class": "43",
+  "age_class": "70-74",
+  "tested": "all",
+  "lift": "bench",
+  "hist": {
+    "file": "hist/f/all/43/70-74/all/bench.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 30.0,
+    "max_kg": 52.5,
+    "bins": 9,
+    "total": 4
+  },
+  "heat": {
+    "file": "heat/f/all/43/70-74/all/bench.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 30.0,
+    "max_x_kg": 52.5,
+    "min_y_kg": 41.0,
+    "max_y_kg": 43.0,
+    "width": 9,
+    "height": 2,
+    "total": 4
+  }
+}

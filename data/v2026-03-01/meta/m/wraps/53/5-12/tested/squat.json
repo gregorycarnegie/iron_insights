@@ -1,0 +1,29 @@
+{
+  "version": "v2026-03-01",
+  "sex": "M",
+  "equipment": "Wraps",
+  "ipf_weight_class": "53",
+  "age_class": "5-12",
+  "tested": "tested",
+  "lift": "squat",
+  "hist": {
+    "file": "hist/m/wraps/53/5-12/tested/squat.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 22.5,
+    "max_kg": 102.5,
+    "bins": 32,
+    "total": 74
+  },
+  "heat": {
+    "file": "heat/m/wraps/53/5-12/tested/squat.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 22.5,
+    "max_x_kg": 102.5,
+    "min_y_kg": 21.0,
+    "max_y_kg": 53.0,
+    "width": 32,
+    "height": 32,
+    "total": 74
+  }
+}
