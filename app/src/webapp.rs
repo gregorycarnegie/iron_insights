@@ -730,9 +730,9 @@ fn entry_from_slice_key(raw: &str) -> Option<(SliceKey, SliceIndexEntry)> {
     let equip_slug = slug(&key.equip);
     let wc_slug = slug(&key.wc);
     let age_slug = slug(&key.age);
-    let tested_slug = slug(&key.tested);
     let lift_name = lift_name_from_code(&key.lift)?;
-    let base = format!("{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested_slug}/{lift_name}");
+    let tested_dir = tested_dir_from_bucket(&key.tested);
+    let base = format!("{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested_dir}/{lift_name}");
     Some((
         key,
         SliceIndexEntry {
@@ -761,6 +761,14 @@ fn lift_name_from_code(code: &str) -> Option<&'static str> {
         "D" => Some("deadlift"),
         "T" => Some("total"),
         _ => None,
+    }
+}
+
+fn tested_dir_from_bucket(bucket: &str) -> String {
+    if bucket.eq_ignore_ascii_case("yes") {
+        "tested".to_string()
+    } else {
+        slug(bucket)
     }
 }
 

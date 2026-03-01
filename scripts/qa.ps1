@@ -54,7 +54,8 @@ function Resolve-PathsFromSliceKey([string]$Key) {
     return (($s.ToLowerInvariant()) -replace '[^a-z0-9-]', '_')
   }
 
-  $base = "{0}/{1}/{2}/{3}/{4}/{5}" -f (& $slug $parts['sex']), (& $slug $parts['equip']), (& $slug $parts['wc']), (& $slug $parts['age']), (& $slug $parts['tested']), $lift
+  $testedDir = if ($parts['tested'].Equals('Yes', [System.StringComparison]::OrdinalIgnoreCase)) { 'tested' } else { & $slug $parts['tested'] }
+  $base = "{0}/{1}/{2}/{3}/{4}/{5}" -f (& $slug $parts['sex']), (& $slug $parts['equip']), (& $slug $parts['wc']), (& $slug $parts['age']), $testedDir, $lift
 
   return [PSCustomObject]@{
     Meta = "meta/$base.json"
