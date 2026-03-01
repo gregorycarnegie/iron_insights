@@ -228,6 +228,12 @@ if ($SliceKey) {
   }
 }
 if (-not $selectedProp) {
+  $selectedProp = $sliceEntries | Where-Object { $_.Key -like 'sex=F|equip=All|wc=*|age=24-34|tested=All|lift=B' } | Select-Object -First 1
+}
+if (-not $selectedProp) {
+  $selectedProp = $sliceEntries | Where-Object { $_.Key -like 'sex=F|equip=Raw|wc=*|age=24-34|tested=All|lift=B' } | Select-Object -First 1
+}
+if (-not $selectedProp) {
   $selectedProp = $sliceEntries | Select-Object -First 1
 }
 $selectedEntry = $selectedProp
@@ -251,6 +257,17 @@ $sampleHistBytes = if (Test-Path $sampleHistPath) { (Get-Item $sampleHistPath).L
 $sampleHeatBytes = if (Test-Path $sampleHeatPath) { (Get-Item $sampleHeatPath).Length } else { 0 }
 $latestBytes = (Get-Item $latestPath).Length
 $sampleDataBytes = $latestBytes + $sampleIndexBytes + $sampleMetaBytes + $sampleHistBytes + $sampleHeatBytes
+
+$maleProbe = $sliceEntries | Where-Object { $_.Key -like 'sex=M|equip=All|wc=*|age=24-34|tested=All|lift=B' } | Select-Object -First 1
+if (-not $maleProbe) {
+  $maleProbe = $sliceEntries | Where-Object { $_.Key -like 'sex=M|equip=Raw|wc=*|age=24-34|tested=All|lift=B' } | Select-Object -First 1
+}
+if (-not $maleProbe) {
+  $maleProbe = $sliceEntries | Where-Object { $_.Key -like 'sex=M|equip=All|*' } | Select-Object -First 1
+}
+if (-not $maleProbe) {
+  $maleProbe = $sliceEntries | Where-Object { $_.Key -like 'sex=M|equip=Raw|*' } | Select-Object -First 1
+}
 
 Write-Host "[qa] Sample slice: $selectedName"
 if ($isSharded) {
@@ -278,25 +295,37 @@ if ($firstViewBudget -gt 0) {
 
 if (-not [string]::IsNullOrWhiteSpace($BaseUrl)) {
   Write-Host "[qa] URL timing probe:"
-  $probeUrls = [System.Collections.Generic.List[string]]::new()
-  $probeUrls.Add((Join-Url $BaseUrl "data/latest.json"))
-  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/index.json")))
+  $probeItems = [System.Collections.Generic.List[object]]::new()
+  $probeItems.Add([PSCustomObject]@{ Label = "base"; Url = (Join-Url $BaseUrl "data/latest.json") })
+  $probeItems.Add([PSCustomObject]@{ Label = "base"; Url = (Join-Url $BaseUrl ("data/$version/index.json")) })
   if ($isSharded -and -not [string]::IsNullOrWhiteSpace($sampleShardRel)) {
-    $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $sampleShardRel.Replace('\', '/'))))
+    $probeItems.Add([PSCustomObject]@{ Label = "sample"; Url = (Join-Url $BaseUrl ("data/$version/" + $sampleShardRel.Replace('\', '/'))) })
   }
-  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Meta.Replace('\', '/'))))
-  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Hist.Replace('\', '/'))))
-  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Heat.Replace('\', '/'))))
+  $probeItems.Add([PSCustomObject]@{ Label = "sample"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Meta.Replace('\', '/'))) })
+  $probeItems.Add([PSCustomObject]@{ Label = "sample"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Hist.Replace('\', '/'))) })
+  $probeItems.Add([PSCustomObject]@{ Label = "sample"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Heat.Replace('\', '/'))) })
 
-  foreach ($u in $probeUrls) {
+  if ($maleProbe -and ($maleProbe.Key -ne $selectedEntry.Key)) {
+    Write-Host "[qa] Probe sample (M/All): $($maleProbe.Key)"
+    if ($isSharded -and -not [string]::IsNullOrWhiteSpace([string]$maleProbe.ShardRel)) {
+      $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.ShardRel.Replace('\', '/'))) })
+    }
+    $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.Meta.Replace('\', '/'))) })
+    $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.Hist.Replace('\', '/'))) })
+    $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.Heat.Replace('\', '/'))) })
+  }
+
+  foreach ($item in $probeItems) {
+    $u = [string]$item.Url
+    $label = [string]$item.Label
     try {
       $sw = [System.Diagnostics.Stopwatch]::StartNew()
       $resp = Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 30
       $sw.Stop()
       $len = if ($resp.RawContentLength -gt 0) { $resp.RawContentLength } else { 0 }
-      Write-Host ("[qa]  {0,4}  {1,6} ms  {2,10}  {3}" -f $resp.StatusCode, [int]$sw.Elapsed.TotalMilliseconds, (Format-Bytes $len), $u)
+      Write-Host ("[qa]  [{0}] {1,4}  {2,6} ms  {3,10}  {4}" -f $label, $resp.StatusCode, [int]$sw.Elapsed.TotalMilliseconds, (Format-Bytes $len), $u)
     } catch {
-      Write-Host "[qa]  FAIL        --       --  $u" -ForegroundColor Yellow
+      Write-Host "[qa]  [$label] FAIL        --       --  $u" -ForegroundColor Yellow
       Write-Host "[qa]    $($_.Exception.Message)" -ForegroundColor Yellow
     }
   }

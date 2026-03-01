@@ -207,6 +207,12 @@ if [[ -n "$SLICE_KEY" ]]; then
   fi
 fi
 if [[ -z "$sample_line" ]]; then
+  sample_line="$(awk -F'\t' '$1 ~ /^sex=F\|equip=All\|wc=[^|]+\|age=24-34\|tested=All\|lift=B$/ {print; exit}' "$entries_tsv")"
+fi
+if [[ -z "$sample_line" ]]; then
+  sample_line="$(awk -F'\t' '$1 ~ /^sex=F\|equip=Raw\|wc=[^|]+\|age=24-34\|tested=All\|lift=B$/ {print; exit}' "$entries_tsv")"
+fi
+if [[ -z "$sample_line" ]]; then
   sample_line="$(head -n1 "$entries_tsv")"
 fi
 IFS=$'\t' read -r sample_name sample_meta_rel sample_hist_rel sample_heat_rel sample_shard_rel <<<"$sample_line"
@@ -223,6 +229,25 @@ sample_meta_bytes="$(wc -c < "$VERSION_DIR/$sample_meta_rel")"
 sample_hist_bytes="$(wc -c < "$VERSION_DIR/$sample_hist_rel")"
 sample_heat_bytes="$(wc -c < "$VERSION_DIR/$sample_heat_rel")"
 sample_data_bytes=$((latest_bytes + index_budget_sample_bytes + sample_meta_bytes + sample_hist_bytes + sample_heat_bytes))
+
+male_probe_line="$(awk -F'\t' '$1 ~ /^sex=M\|equip=All\|wc=[^|]+\|age=24-34\|tested=All\|lift=B$/ {print; exit}' "$entries_tsv")"
+if [[ -z "$male_probe_line" ]]; then
+  male_probe_line="$(awk -F'\t' '$1 ~ /^sex=M\|equip=Raw\|wc=[^|]+\|age=24-34\|tested=All\|lift=B$/ {print; exit}' "$entries_tsv")"
+fi
+if [[ -z "$male_probe_line" ]]; then
+  male_probe_line="$(awk -F'\t' '$1 ~ /^sex=M\|equip=All\|/ {print; exit}' "$entries_tsv")"
+fi
+if [[ -z "$male_probe_line" ]]; then
+  male_probe_line="$(awk -F'\t' '$1 ~ /^sex=M\|equip=Raw\|/ {print; exit}' "$entries_tsv")"
+fi
+male_probe_name=""
+male_probe_meta_rel=""
+male_probe_hist_rel=""
+male_probe_heat_rel=""
+male_probe_shard_rel=""
+if [[ -n "$male_probe_line" ]]; then
+  IFS=$'\t' read -r male_probe_name male_probe_meta_rel male_probe_hist_rel male_probe_heat_rel male_probe_shard_rel <<<"$male_probe_line"
+fi
 
 site_budget_bytes=0
 if [[ -d "$SITE_DIR" ]]; then
@@ -255,28 +280,48 @@ if [[ -n "$BASE_URL" ]]; then
   need_cmd curl
   base="${BASE_URL%/}"
   echo "[qa] URL timing probe:"
-  urls=(
-    "$base/data/latest.json"
-    "$base/data/$VERSION/index.json"
-  )
+  urls=()
+  labels=()
+  urls+=("$base/data/latest.json")
+  labels+=("base")
+  urls+=("$base/data/$VERSION/index.json")
+  labels+=("base")
   if [[ "$mode" == "sharded" && -n "$sample_shard_rel" ]]; then
     urls+=("$base/data/$VERSION/$sample_shard_rel")
+    labels+=("sample")
   fi
-  urls+=(
-    "$base/data/$VERSION/$sample_meta_rel"
-    "$base/data/$VERSION/$sample_hist_rel"
-    "$base/data/$VERSION/$sample_heat_rel"
-  )
-  for u in "${urls[@]}"; do
+  urls+=("$base/data/$VERSION/$sample_meta_rel")
+  labels+=("sample")
+  urls+=("$base/data/$VERSION/$sample_hist_rel")
+  labels+=("sample")
+  urls+=("$base/data/$VERSION/$sample_heat_rel")
+  labels+=("sample")
+
+  if [[ -n "$male_probe_name" && "$male_probe_name" != "$sample_name" ]]; then
+    echo "[qa] Probe sample (M/All): $male_probe_name"
+    if [[ "$mode" == "sharded" && -n "$male_probe_shard_rel" ]]; then
+      urls+=("$base/data/$VERSION/$male_probe_shard_rel")
+      labels+=("m_all")
+    fi
+    urls+=("$base/data/$VERSION/$male_probe_meta_rel")
+    labels+=("m_all")
+    urls+=("$base/data/$VERSION/$male_probe_hist_rel")
+    labels+=("m_all")
+    urls+=("$base/data/$VERSION/$male_probe_heat_rel")
+    labels+=("m_all")
+  fi
+  for i in "${!urls[@]}"; do
+    u="${urls[$i]}"
+    label="${labels[$i]}"
     line="$(curl -L -sS -o /dev/null -w '%{http_code} %{time_total} %{size_download}' "$u" || true)"
     code="$(printf '%s' "$line" | awk '{print $1}')"
     time_s="$(printf '%s' "$line" | awk '{print $2}')"
     size_b="$(printf '%s' "$line" | awk '{print $3}')"
     if [[ -z "$code" || "$code" == "000" ]]; then
-      echo "[qa]  FAIL   -- ms       --  $u"
+      echo "[qa]  [$label] FAIL   -- ms       --  $u"
     else
       time_ms="$(awk -v t="$time_s" 'BEGIN { printf "%.0f", t*1000 }')"
-      echo "[qa]  $code  ${time_ms}ms  $(fmt_bytes "$size_b")  $u"
+      echo "[qa]  [$label] $code  ${time_ms}ms  $(fmt_bytes "$size_b")  $u"
     fi
   done
 fi
