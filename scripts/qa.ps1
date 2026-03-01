@@ -299,11 +299,11 @@ if (-not [string]::IsNullOrWhiteSpace($BaseUrl)) {
   $probeItems.Add([PSCustomObject]@{ Label = "base"; Url = (Join-Url $BaseUrl "data/latest.json") })
   $probeItems.Add([PSCustomObject]@{ Label = "base"; Url = (Join-Url $BaseUrl ("data/$version/index.json")) })
   if ($isSharded -and -not [string]::IsNullOrWhiteSpace($sampleShardRel)) {
-    $probeItems.Add([PSCustomObject]@{ Label = "sample"; Url = (Join-Url $BaseUrl ("data/$version/" + $sampleShardRel.Replace('\', '/'))) })
+    $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $sampleShardRel.Replace('\', '/'))) })
   }
-  $probeItems.Add([PSCustomObject]@{ Label = "sample"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Meta.Replace('\', '/'))) })
-  $probeItems.Add([PSCustomObject]@{ Label = "sample"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Hist.Replace('\', '/'))) })
-  $probeItems.Add([PSCustomObject]@{ Label = "sample"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Heat.Replace('\', '/'))) })
+  $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Meta.Replace('\', '/'))) })
+  $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Hist.Replace('\', '/'))) })
+  $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Heat.Replace('\', '/'))) })
 
   if ($maleProbe -and ($maleProbe.Key -ne $selectedEntry.Key)) {
     Write-Host "[qa] Probe sample (M/All): $($maleProbe.Key)"
