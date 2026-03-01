@@ -1,0 +1,28 @@
+{
+  "version": "v2026-03-01",
+  "sex": "M",
+  "equipment": "All",
+  "ipf_weight_class": "59",
+  "tested": "tested",
+  "lift": "total",
+  "hist": {
+    "file": "hist/m/all/59/tested/total.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 60.0,
+    "max_kg": 767.5,
+    "bins": 283,
+    "total": 28546
+  },
+  "heat": {
+    "file": "heat/m/all/59/tested/total.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 60.0,
+    "max_x_kg": 767.5,
+    "min_y_kg": 53.0,
+    "max_y_kg": 60.0,
+    "width": 283,
+    "height": 7,
+    "total": 28546
+  }
+}

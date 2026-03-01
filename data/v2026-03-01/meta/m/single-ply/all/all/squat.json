@@ -1,0 +1,28 @@
+{
+  "version": "v2026-03-01",
+  "sex": "M",
+  "equipment": "Single-ply",
+  "ipf_weight_class": "All",
+  "tested": "all",
+  "lift": "squat",
+  "hist": {
+    "file": "hist/m/single-ply/all/all/squat.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 0.0,
+    "max_kg": 545.0,
+    "bins": 218,
+    "total": 312418
+  },
+  "heat": {
+    "file": "heat/m/single-ply/all/all/squat.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 0.0,
+    "max_x_kg": 545.0,
+    "min_y_kg": 21.0,
+    "max_y_kg": 276.0,
+    "width": 218,
+    "height": 255,
+    "total": 312418
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "version": "v2026-03-01",
+  "sex": "F",
+  "equipment": "Unlimited",
+  "ipf_weight_class": "All",
+  "tested": "all",
+  "lift": "total",
+  "hist": {
+    "file": "hist/f/unlimited/all/all/total.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 67.5,
+    "max_kg": 827.5,
+    "bins": 304,
+    "total": 37735
+  },
+  "heat": {
+    "file": "heat/f/unlimited/all/all/total.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 67.5,
+    "max_x_kg": 827.5,
+    "min_y_kg": 33.0,
+    "max_y_kg": 191.0,
+    "width": 304,
+    "height": 158,
+    "total": 37735
+  }
+}
