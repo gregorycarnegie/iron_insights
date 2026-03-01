@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -112,20 +112,7 @@ struct RootIndex {
 struct SliceIndex {
     version: String,
     shard_key: String,
-    slices: BTreeMap<String, SliceIndexEntry>,
-}
-
-#[derive(Debug, Serialize)]
-struct SliceIndexEntry {
-    meta: String,
-    hist: String,
-    heat: String,
-    hist_min_kg: f32,
-    hist_max_kg: f32,
-    heat_min_x_kg: f32,
-    heat_max_x_kg: f32,
-    heat_min_y_kg: f32,
-    heat_max_y_kg: f32,
+    slices: Vec<String>,
 }
 
 fn main() -> Result<()> {
@@ -140,7 +127,7 @@ fn main() -> Result<()> {
     fs::create_dir_all(&version_dir)
         .with_context(|| format!("failed to create {}", version_dir.display()))?;
 
-    let mut shard_indices = BTreeMap::<String, BTreeMap<String, SliceIndexEntry>>::new();
+    let mut shard_indices = BTreeMap::<String, BTreeSet<String>>::new();
 
     for tested in ["all", "tested"] {
         for lift in ["squat", "bench", "deadlift", "total"] {
@@ -164,7 +151,7 @@ fn main() -> Result<()> {
     }
 
     let mut shard_paths = BTreeMap::<String, String>::new();
-    for (shard_key, slices) in shard_indices {
+    for (shard_key, slice_keys) in shard_indices {
         let Some((sex, equipment)) = parse_shard_key(&shard_key) else {
             continue;
         };
@@ -177,7 +164,7 @@ fn main() -> Result<()> {
         let shard_index = SliceIndex {
             version: version.clone(),
             shard_key: shard_key.clone(),
-            slices,
+            slices: slice_keys.into_iter().collect(),
         };
         fs::write(&shard_path, serde_json::to_vec(&shard_index)?)
             .with_context(|| format!("failed writing {}", shard_path.display()))?;
@@ -214,7 +201,7 @@ fn publish_records_for_lift(
     version: &str,
     tested: &str,
     lift: &str,
-    shard_indices: &mut BTreeMap<String, BTreeMap<String, SliceIndexEntry>>,
+    shard_indices: &mut BTreeMap<String, BTreeSet<String>>,
 ) -> Result<()> {
     let parquet_path = records_path.to_string_lossy();
     let df = LazyFrame::scan_parquet(parquet_path.as_ref().into(), ScanArgsParquet::default())
@@ -409,31 +396,7 @@ fn publish_records_for_lift(
             lift_code(lift)
         );
         let shard_key = format!("sex={}|equip={}", sex, equipment);
-        shard_indices
-            .entry(shard_key)
-            .or_default()
-            .insert(
-            key,
-            SliceIndexEntry {
-                meta: meta_rel,
-                hist: hist_path
-                    .strip_prefix(version_dir)
-                    .unwrap_or(&hist_path)
-                    .to_string_lossy()
-                    .replace('\\', "/"),
-                heat: heat_path
-                    .strip_prefix(version_dir)
-                    .unwrap_or(&heat_path)
-                    .to_string_lossy()
-                    .replace('\\', "/"),
-                hist_min_kg: hist_data.min,
-                hist_max_kg: hist_data.max,
-                heat_min_x_kg: heat_data.min_x,
-                heat_max_x_kg: heat_data.max_x,
-                heat_min_y_kg: heat_data.min_y,
-                heat_max_y_kg: heat_data.max_y,
-            },
-        );
+        shard_indices.entry(shard_key).or_default().insert(key);
     }
 
     Ok(())

@@ -25,6 +25,44 @@ function Join-Url([string]$Left, [string]$Right) {
   return "$l/$r"
 }
 
+function Resolve-PathsFromSliceKey([string]$Key) {
+  $parts = @{}
+  foreach ($segment in ($Key -split '\|')) {
+    $kv = $segment -split '=', 2
+    if ($kv.Count -eq 2) {
+      $parts[$kv[0]] = $kv[1]
+    }
+  }
+
+  foreach ($required in @('sex', 'equip', 'wc', 'age', 'tested', 'lift')) {
+    if (-not $parts.ContainsKey($required)) {
+      return $null
+    }
+  }
+
+  $lift = switch ($parts['lift']) {
+    'S' { 'squat' }
+    'B' { 'bench' }
+    'D' { 'deadlift' }
+    'T' { 'total' }
+    default { $null }
+  }
+  if (-not $lift) { return $null }
+
+  $slug = {
+    param([string]$s)
+    return (($s.ToLowerInvariant()) -replace '[^a-z0-9-]', '_')
+  }
+
+  $base = "{0}/{1}/{2}/{3}/{4}/{5}" -f (& $slug $parts['sex']), (& $slug $parts['equip']), (& $slug $parts['wc']), (& $slug $parts['age']), (& $slug $parts['tested']), $lift
+
+  return [PSCustomObject]@{
+    Meta = "meta/$base.json"
+    Hist = "hist/$base.bin"
+    Heat = "heat/$base.bin"
+  }
+}
+
 if (-not (Test-Path $DataDir)) { Fail "data directory not found: $DataDir" }
 
 $latestPath = Join-Path $DataDir 'latest.json'
@@ -46,11 +84,46 @@ if (-not $index.slices -and -not $index.shards) { Fail "index.json missing .slic
 $isSharded = [bool]$index.shards
 $indexRootBytes = (Get-Item $indexPath).Length
 $indexBudgetBytes = $indexRootBytes
-$sliceToShardRel = @{}
+$sliceEntries = [System.Collections.Generic.List[object]]::new()
 $shardSizeByRel = @{}
-$sliceProps = @()
+
+$appendSlices = {
+  param(
+    [object]$sliceNode,
+    [string]$shardRel
+  )
+
+  if ($null -eq $sliceNode) { return }
+
+  if ($sliceNode -is [System.Array]) {
+    foreach ($k in @($sliceNode)) {
+      $key = [string]$k
+      $paths = Resolve-PathsFromSliceKey $key
+      if ($null -eq $paths) { Fail "invalid compact slice key: $key" }
+      $sliceEntries.Add([PSCustomObject]@{
+        Key = $key
+        Meta = [string]$paths.Meta
+        Hist = [string]$paths.Hist
+        Heat = [string]$paths.Heat
+        ShardRel = $shardRel
+      })
+    }
+    return
+  }
+
+  foreach ($p in @($sliceNode.PSObject.Properties)) {
+    $sliceEntries.Add([PSCustomObject]@{
+      Key = [string]$p.Name
+      Meta = [string]$p.Value.meta
+      Hist = [string]$p.Value.hist
+      Heat = [string]$p.Value.heat
+      ShardRel = $shardRel
+    })
+  }
+}
+
 if ($index.slices) {
-  $sliceProps = @($index.slices.PSObject.Properties)
+  & $appendSlices $index.slices "index.json"
 } else {
   foreach ($sp in @($index.shards.PSObject.Properties)) {
     $rel = [string]$sp.Value
@@ -62,30 +135,23 @@ if ($index.slices) {
     $indexBudgetBytes += $shardSize
     $shardSizeByRel[$rel] = $shardSize
     $shard = Get-Content $shardPath -Raw | ConvertFrom-Json
-    if (-not $shard.slices) { continue }
-    $shardProps = @($shard.slices.PSObject.Properties)
-    $sliceProps += $shardProps
-    foreach ($p in $shardProps) {
-      if (-not $sliceToShardRel.ContainsKey($p.Name)) {
-        $sliceToShardRel[$p.Name] = $rel
-      }
-    }
+    & $appendSlices $shard.slices $rel
   }
 }
-if (@($sliceProps).Count -eq 0) { Fail "index has no slice entries" }
+
+if ($sliceEntries.Count -eq 0) { Fail "index has no slice entries" }
 
 Write-Host "[qa] Version: $version"
-Write-Host "[qa] Slice entries: $(@($sliceProps).Count)"
+Write-Host "[qa] Slice entries: $($sliceEntries.Count)"
 
 $missing = 0
 $invalid = 0
 $histTotalSum = 0
 
-foreach ($prop in $sliceProps) {
-  $key = $prop.Name
-  $entry = $prop.Value
+foreach ($entry in $sliceEntries) {
+  $key = $entry.Key
 
-  foreach ($rel in @($entry.meta, $entry.hist, $entry.heat)) {
+  foreach ($rel in @($entry.Meta, $entry.Hist, $entry.Heat)) {
     if ([string]::IsNullOrWhiteSpace($rel)) {
       Write-Host "[qa] invalid empty path in index ($key)" -ForegroundColor Yellow
       $invalid++
@@ -112,7 +178,7 @@ foreach ($prop in $sliceProps) {
     }
   }
 
-  $metaPath = Join-Path $versionDir $entry.meta
+  $metaPath = Join-Path $versionDir $entry.Meta
   if (Test-Path $metaPath) {
     $meta = Get-Content $metaPath -Raw | ConvertFrom-Json
     $bins = [int]($meta.hist.bins)
@@ -155,32 +221,30 @@ Write-Host "[qa] Data payload: total=$(Format-Bytes $totalBytes) (bin=$(Format-B
 
 $selectedProp = $null
 if ($SliceKey) {
-  $selectedProp = $sliceProps | Where-Object { $_.Name -eq $SliceKey } | Select-Object -First 1
+  $selectedProp = $sliceEntries | Where-Object { $_.Key -eq $SliceKey } | Select-Object -First 1
   if (-not $selectedProp) {
     Write-Host "[qa] warning: requested SliceKey not found, using first slice."
   }
 }
 if (-not $selectedProp) {
-  $selectedProp = $sliceProps | Select-Object -First 1
+  $selectedProp = $sliceEntries | Select-Object -First 1
 }
-$selectedEntry = $selectedProp.Value
-$selectedName = $selectedProp.Name
+$selectedEntry = $selectedProp
+$selectedName = $selectedProp.Key
 
 $sampleIndexBytes = $indexRootBytes
 $sampleShardRel = $null
 if ($isSharded) {
-  if ($sliceToShardRel.ContainsKey($selectedName)) {
-    $sampleShardRel = [string]$sliceToShardRel[$selectedName]
-  }
+  $sampleShardRel = [string]$selectedEntry.ShardRel
   if ([string]::IsNullOrWhiteSpace($sampleShardRel)) {
     Fail "failed to resolve shard index for sample slice: $selectedName"
   }
   $sampleIndexBytes += [int64]($shardSizeByRel[$sampleShardRel])
 }
 
-$sampleMetaPath = Join-Path $versionDir $selectedEntry.meta
-$sampleHistPath = Join-Path $versionDir $selectedEntry.hist
-$sampleHeatPath = Join-Path $versionDir $selectedEntry.heat
+$sampleMetaPath = Join-Path $versionDir $selectedEntry.Meta
+$sampleHistPath = Join-Path $versionDir $selectedEntry.Hist
+$sampleHeatPath = Join-Path $versionDir $selectedEntry.Heat
 $sampleMetaBytes = if (Test-Path $sampleMetaPath) { (Get-Item $sampleMetaPath).Length } else { 0 }
 $sampleHistBytes = if (Test-Path $sampleHistPath) { (Get-Item $sampleHistPath).Length } else { 0 }
 $sampleHeatBytes = if (Test-Path $sampleHeatPath) { (Get-Item $sampleHeatPath).Length } else { 0 }
@@ -219,9 +283,9 @@ if (-not [string]::IsNullOrWhiteSpace($BaseUrl)) {
   if ($isSharded -and -not [string]::IsNullOrWhiteSpace($sampleShardRel)) {
     $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $sampleShardRel.Replace('\', '/'))))
   }
-  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $selectedEntry.meta.Replace('\', '/'))))
-  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $selectedEntry.hist.Replace('\', '/'))))
-  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $selectedEntry.heat.Replace('\', '/'))))
+  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Meta.Replace('\', '/'))))
+  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Hist.Replace('\', '/'))))
+  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Heat.Replace('\', '/'))))
 
   foreach ($u in $probeUrls) {
     try {

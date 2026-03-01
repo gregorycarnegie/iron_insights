@@ -34,16 +34,53 @@ INDEX_JSON="$VERSION_DIR/index.json"
 mode="$(jq -r 'if has("slices") then "flat" elif has("shards") then "sharded" else "unknown" end' "$INDEX_JSON")"
 [[ "$mode" != "unknown" ]] || fail "index.json missing .slices or .shards"
 
-slice_source_files=()
-slice_source_rels=()
+slug() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]/_/g'
+}
+
+lift_name_from_code() {
+  case "$1" in
+    S) echo "squat" ;;
+    B) echo "bench" ;;
+    D) echo "deadlift" ;;
+    T) echo "total" ;;
+    *) return 1 ;;
+  esac
+}
+
+field_from_key() {
+  local key="$1"
+  local name="$2"
+  awk -F'=' -v n="$name" '
+    {
+      for (i=1; i<=NF; i++) {
+        if (i % 2 == 1 && $i == n) { print $(i+1); exit }
+      }
+    }' <<<"$(printf '%s' "$key" | tr '|' '=')"
+}
+
+paths_from_key() {
+  local key="$1"
+  local sex equip wc age tested lift_code lift
+  sex="$(field_from_key "$key" "sex")"
+  equip="$(field_from_key "$key" "equip")"
+  wc="$(field_from_key "$key" "wc")"
+  age="$(field_from_key "$key" "age")"
+  tested="$(field_from_key "$key" "tested")"
+  lift_code="$(field_from_key "$key" "lift")"
+  lift="$(lift_name_from_code "$lift_code")" || return 1
+  local base
+  base="$(slug "$sex")/$(slug "$equip")/$(slug "$wc")/$(slug "$age")/$(slug "$tested")/$lift"
+  printf 'meta/%s.json\thist/%s.bin\theat/%s.bin' "$base" "$base" "$base"
+}
+
 index_root_bytes="$(wc -c < "$INDEX_JSON")"
 index_budget_all_bytes="$index_root_bytes"
 index_budget_sample_bytes="$index_root_bytes"
-sample_shard_rel=""
-declare -A slice_to_shard_rel
+
+slice_source_files=()
+slice_source_rels=()
 if [[ "$mode" == "flat" ]]; then
-  ENTRY_COUNT="$(jq '.slices | length' "$INDEX_JSON")"
-  [[ "$ENTRY_COUNT" -gt 0 ]] || fail "index has no slices"
   slice_source_files+=("$INDEX_JSON")
   slice_source_rels+=("index.json")
 else
@@ -54,17 +91,35 @@ else
     [[ -s "$shard_abs" ]] || fail "missing or empty shard file for $shard_key: $shard_rel"
     slice_source_files+=("$shard_abs")
     slice_source_rels+=("$shard_rel")
-    shard_bytes="$(wc -c < "$shard_abs")"
-    index_budget_all_bytes=$((index_budget_all_bytes + shard_bytes))
-    while IFS= read -r sk; do
-      [[ -n "$sk" ]] || continue
-      [[ -n "${slice_to_shard_rel[$sk]:-}" ]] || slice_to_shard_rel["$sk"]="$shard_rel"
-    done < <(jq -r '.slices | keys[]' "$shard_abs")
+    index_budget_all_bytes=$((index_budget_all_bytes + $(wc -c < "$shard_abs")))
   done < <(jq -r '.shards | to_entries[] | "\(.key)\t\(.value)"' "$INDEX_JSON")
   [[ "${#slice_source_files[@]}" -gt 0 ]] || fail "sharded index has no shard files"
-  ENTRY_COUNT="$(jq -s '[.[].slices | length] | add // 0' "${slice_source_files[@]}")"
-  [[ "$ENTRY_COUNT" -gt 0 ]] || fail "sharded index has no slices"
 fi
+
+entries_tsv="$(mktemp)"
+trap 'rm -f "$entries_tsv"' EXIT
+
+for i in "${!slice_source_files[@]}"; do
+  src="${slice_source_files[$i]}"
+  rel="${slice_source_rels[$i]}"
+  slice_type="$(jq -r '.slices | type' "$src")"
+  if [[ "$slice_type" == "object" ]]; then
+    jq -r --arg rel "$rel" '.slices | to_entries[] | [.key, .value.meta, .value.hist, .value.heat, $rel] | @tsv' "$src" >> "$entries_tsv"
+  elif [[ "$slice_type" == "array" ]]; then
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      if ! paths="$(paths_from_key "$key")"; then
+        fail "invalid compact slice key: $key"
+      fi
+      printf '%s\t%s\t%s\n' "$key" "$paths" "$rel" >> "$entries_tsv"
+    done < <(jq -r '.slices[]' "$src")
+  else
+    fail "unsupported .slices type in $src: $slice_type"
+  fi
+done
+
+ENTRY_COUNT="$(wc -l < "$entries_tsv" | awk '{print $1}')"
+[[ "$ENTRY_COUNT" -gt 0 ]] || fail "index has no slices"
 
 echo "[qa] Version: $VERSION"
 echo "[qa] Slice entries: $ENTRY_COUNT"
@@ -73,14 +128,7 @@ missing=0
 invalid=0
 meta_total_sum=0
 
-while IFS= read -r row_b64; do
-  row_json="$(printf '%s' "$row_b64" | base64 -d)"
-
-  key="$(printf '%s' "$row_json" | jq -r '.key')"
-  meta_rel="$(printf '%s' "$row_json" | jq -r '.value.meta')"
-  hist_rel="$(printf '%s' "$row_json" | jq -r '.value.hist')"
-  heat_rel="$(printf '%s' "$row_json" | jq -r '.value.heat')"
-
+while IFS=$'\t' read -r key meta_rel hist_rel heat_rel shard_rel; do
   for rel in "$meta_rel" "$hist_rel" "$heat_rel"; do
     [[ "$rel" != /* ]] || {
       echo "[qa] invalid absolute path in index ($key): $rel" >&2
@@ -115,7 +163,7 @@ while IFS= read -r row_b64; do
       echo "[qa] warning: zero-dimension heatmap for $key (${h_width}x${h_height})"
     fi
   fi
-done < <(jq -r '.slices | to_entries[] | @base64' "${slice_source_files[@]}")
+done < "$entries_tsv"
 
 [[ "$missing" -eq 0 ]] || fail "found $missing missing/empty referenced files"
 [[ "$invalid" -eq 0 ]] || fail "found $invalid invalid slice entries"
@@ -146,31 +194,19 @@ fmt_bytes() {
   }'
 }
 
-sample_row=""
-sample_source_idx=0
+sample_line=""
 if [[ -n "$SLICE_KEY" ]]; then
-  for i in "${!slice_source_files[@]}"; do
-    sample_row="$(jq -rc --arg k "$SLICE_KEY" '.slices[$k] | select(.) | {key: $k, value: .}' "${slice_source_files[$i]}" | head -n1)"
-    if [[ -n "$sample_row" ]]; then
-      sample_source_idx="$i"
-      break
-    fi
-  done
-  if [[ -z "$sample_row" ]]; then
+  sample_line="$(awk -F'\t' -v k="$SLICE_KEY" '$1==k {print; exit}' "$entries_tsv")"
+  if [[ -z "$sample_line" ]]; then
     echo "[qa] warning: requested slice key not found, using first slice."
   fi
 fi
-if [[ -z "$sample_row" ]]; then
-  sample_row="$(jq -rc '.slices | to_entries[0] | {key: .key, value: .value}' "${slice_source_files[0]}")"
-  sample_source_idx=0
+if [[ -z "$sample_line" ]]; then
+  sample_line="$(head -n1 "$entries_tsv")"
 fi
+IFS=$'\t' read -r sample_name sample_meta_rel sample_hist_rel sample_heat_rel sample_shard_rel <<<"$sample_line"
 
-sample_name="$(printf '%s' "$sample_row" | jq -r '.key')"
-sample_meta_rel="$(printf '%s' "$sample_row" | jq -r '.value.meta')"
-sample_hist_rel="$(printf '%s' "$sample_row" | jq -r '.value.hist')"
-sample_heat_rel="$(printf '%s' "$sample_row" | jq -r '.value.heat')"
 if [[ "$mode" == "sharded" ]]; then
-  sample_shard_rel="${slice_to_shard_rel[$sample_name]:-${slice_source_rels[$sample_source_idx]:-}}"
   [[ -n "$sample_shard_rel" ]] || fail "failed to resolve shard index for sample slice: $sample_name"
   index_budget_sample_bytes=$((index_root_bytes + $(wc -c < "$VERSION_DIR/$sample_shard_rel")))
 else

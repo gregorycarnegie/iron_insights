@@ -21,7 +21,14 @@ struct RootIndex {
 #[derive(Debug, Clone, Deserialize)]
 struct SliceIndex {
     shard_key: String,
-    slices: BTreeMap<String, SliceIndexEntry>,
+    slices: SliceIndexEntries,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum SliceIndexEntries {
+    Map(BTreeMap<String, SliceIndexEntry>),
+    Keys(Vec<String>),
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -29,12 +36,6 @@ struct SliceIndexEntry {
     meta: String,
     hist: String,
     heat: String,
-    hist_min_kg: f32,
-    hist_max_kg: f32,
-    heat_min_x_kg: f32,
-    heat_max_x_kg: f32,
-    heat_min_y_kg: f32,
-    heat_max_y_kg: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -197,10 +198,23 @@ fn App() -> impl IntoView {
                     set_slice_rows.set(Vec::new());
                     return;
                 };
-                let mut rows = Vec::with_capacity(shard.slices.len());
-                for (raw_key, entry) in shard.slices {
-                    if let Some(key) = parse_slice_key(&raw_key) {
-                        rows.push(SliceRow { key, entry });
+                let mut rows = Vec::new();
+                match shard.slices {
+                    SliceIndexEntries::Map(entries) => {
+                        rows.reserve(entries.len());
+                        for (raw_key, entry) in entries {
+                            if let Some(key) = parse_slice_key(&raw_key) {
+                                rows.push(SliceRow { key, entry });
+                            }
+                        }
+                    }
+                    SliceIndexEntries::Keys(keys) => {
+                        rows.reserve(keys.len());
+                        for raw_key in keys {
+                            if let Some((key, entry)) = entry_from_slice_key(&raw_key) {
+                                rows.push(SliceRow { key, entry });
+                            }
+                        }
                     }
                 }
                 rows.sort_by(|a, b| a.key.cmp(&b.key));
@@ -708,6 +722,46 @@ fn parse_shard_key(raw: &str) -> Option<(&str, &str)> {
         }
     }
     Some((sex?, equip?))
+}
+
+fn entry_from_slice_key(raw: &str) -> Option<(SliceKey, SliceIndexEntry)> {
+    let key = parse_slice_key(raw)?;
+    let sex_slug = slug(&key.sex);
+    let equip_slug = slug(&key.equip);
+    let wc_slug = slug(&key.wc);
+    let age_slug = slug(&key.age);
+    let tested_slug = slug(&key.tested);
+    let lift_name = lift_name_from_code(&key.lift)?;
+    let base = format!("{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested_slug}/{lift_name}");
+    Some((
+        key,
+        SliceIndexEntry {
+            meta: format!("meta/{base}.json"),
+            hist: format!("hist/{base}.bin"),
+            heat: format!("heat/{base}.bin"),
+        },
+    ))
+}
+
+fn slug(input: &str) -> String {
+    input
+        .chars()
+        .map(|c| match c {
+            'A'..='Z' => c.to_ascii_lowercase(),
+            'a'..='z' | '0'..='9' | '-' => c,
+            _ => '_',
+        })
+        .collect()
+}
+
+fn lift_name_from_code(code: &str) -> Option<&'static str> {
+    match code {
+        "S" => Some("squat"),
+        "B" => Some("bench"),
+        "D" => Some("deadlift"),
+        "T" => Some("total"),
+        _ => None,
+    }
 }
 
 fn ipf_class_sort_key(class: &str) -> (u8, i32) {
