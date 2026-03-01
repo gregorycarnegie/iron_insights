@@ -43,7 +43,11 @@ if (-not (Test-Path $indexPath)) { Fail "missing index.json: $indexPath" }
 $index = Get-Content $indexPath -Raw | ConvertFrom-Json
 if (-not $index.slices -and -not $index.shards) { Fail "index.json missing .slices or .shards" }
 
-$indexBudgetBytes = (Get-Item $indexPath).Length
+$isSharded = [bool]$index.shards
+$indexRootBytes = (Get-Item $indexPath).Length
+$indexBudgetBytes = $indexRootBytes
+$sliceToShardRel = @{}
+$shardSizeByRel = @{}
 $sliceProps = @()
 if ($index.slices) {
   $sliceProps = @($index.slices.PSObject.Properties)
@@ -54,10 +58,18 @@ if ($index.slices) {
     if ($rel.StartsWith('/')) { Fail "invalid absolute shard path for $($sp.Name): $rel" }
     $shardPath = Join-Path $versionDir $rel
     if (-not (Test-Path $shardPath)) { Fail "missing shard file for $($sp.Name): $rel" }
-    $indexBudgetBytes += (Get-Item $shardPath).Length
+    $shardSize = (Get-Item $shardPath).Length
+    $indexBudgetBytes += $shardSize
+    $shardSizeByRel[$rel] = $shardSize
     $shard = Get-Content $shardPath -Raw | ConvertFrom-Json
     if (-not $shard.slices) { continue }
-    $sliceProps += @($shard.slices.PSObject.Properties)
+    $shardProps = @($shard.slices.PSObject.Properties)
+    $sliceProps += $shardProps
+    foreach ($p in $shardProps) {
+      if (-not $sliceToShardRel.ContainsKey($p.Name)) {
+        $sliceToShardRel[$p.Name] = $rel
+      }
+    }
   }
 }
 if (@($sliceProps).Count -eq 0) { Fail "index has no slice entries" }
@@ -154,6 +166,18 @@ if (-not $selectedProp) {
 $selectedEntry = $selectedProp.Value
 $selectedName = $selectedProp.Name
 
+$sampleIndexBytes = $indexRootBytes
+$sampleShardRel = $null
+if ($isSharded) {
+  if ($sliceToShardRel.ContainsKey($selectedName)) {
+    $sampleShardRel = [string]$sliceToShardRel[$selectedName]
+  }
+  if ([string]::IsNullOrWhiteSpace($sampleShardRel)) {
+    Fail "failed to resolve shard index for sample slice: $selectedName"
+  }
+  $sampleIndexBytes += [int64]($shardSizeByRel[$sampleShardRel])
+}
+
 $sampleMetaPath = Join-Path $versionDir $selectedEntry.meta
 $sampleHistPath = Join-Path $versionDir $selectedEntry.hist
 $sampleHeatPath = Join-Path $versionDir $selectedEntry.heat
@@ -161,10 +185,14 @@ $sampleMetaBytes = if (Test-Path $sampleMetaPath) { (Get-Item $sampleMetaPath).L
 $sampleHistBytes = if (Test-Path $sampleHistPath) { (Get-Item $sampleHistPath).Length } else { 0 }
 $sampleHeatBytes = if (Test-Path $sampleHeatPath) { (Get-Item $sampleHeatPath).Length } else { 0 }
 $latestBytes = (Get-Item $latestPath).Length
-$sampleDataBytes = $latestBytes + $indexBudgetBytes + $sampleMetaBytes + $sampleHistBytes + $sampleHeatBytes
+$sampleDataBytes = $latestBytes + $sampleIndexBytes + $sampleMetaBytes + $sampleHistBytes + $sampleHeatBytes
 
 Write-Host "[qa] Sample slice: $selectedName"
-Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index+meta+hist+heat)"
+if ($isSharded) {
+  Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index_root+index_shard+meta+hist+heat)"
+} else {
+  Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index+meta+hist+heat)"
+}
 
 $siteBudgetBytes = 0
 if (Test-Path $SiteDir) {
@@ -185,13 +213,15 @@ if ($firstViewBudget -gt 0) {
 
 if (-not [string]::IsNullOrWhiteSpace($BaseUrl)) {
   Write-Host "[qa] URL timing probe:"
-  $probeUrls = @(
-    (Join-Url $BaseUrl "data/latest.json"),
-    (Join-Url $BaseUrl ("data/$version/index.json")),
-    (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.meta.Replace('\', '/'))),
-    (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.hist.Replace('\', '/'))),
-    (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.heat.Replace('\', '/')))
-  )
+  $probeUrls = [System.Collections.Generic.List[string]]::new()
+  $probeUrls.Add((Join-Url $BaseUrl "data/latest.json"))
+  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/index.json")))
+  if ($isSharded -and -not [string]::IsNullOrWhiteSpace($sampleShardRel)) {
+    $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $sampleShardRel.Replace('\', '/'))))
+  }
+  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $selectedEntry.meta.Replace('\', '/'))))
+  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $selectedEntry.hist.Replace('\', '/'))))
+  $probeUrls.Add((Join-Url $BaseUrl ("data/$version/" + $selectedEntry.heat.Replace('\', '/'))))
 
   foreach ($u in $probeUrls) {
     try {

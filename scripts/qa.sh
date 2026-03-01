@@ -35,11 +35,17 @@ mode="$(jq -r 'if has("slices") then "flat" elif has("shards") then "sharded" el
 [[ "$mode" != "unknown" ]] || fail "index.json missing .slices or .shards"
 
 slice_source_files=()
-index_budget_bytes="$(wc -c < "$INDEX_JSON")"
+slice_source_rels=()
+index_root_bytes="$(wc -c < "$INDEX_JSON")"
+index_budget_all_bytes="$index_root_bytes"
+index_budget_sample_bytes="$index_root_bytes"
+sample_shard_rel=""
+declare -A slice_to_shard_rel
 if [[ "$mode" == "flat" ]]; then
   ENTRY_COUNT="$(jq '.slices | length' "$INDEX_JSON")"
   [[ "$ENTRY_COUNT" -gt 0 ]] || fail "index has no slices"
   slice_source_files+=("$INDEX_JSON")
+  slice_source_rels+=("index.json")
 else
   while IFS=$'\t' read -r shard_key shard_rel; do
     [[ -n "$shard_rel" ]] || fail "empty shard path for $shard_key"
@@ -47,7 +53,13 @@ else
     shard_abs="$VERSION_DIR/$shard_rel"
     [[ -s "$shard_abs" ]] || fail "missing or empty shard file for $shard_key: $shard_rel"
     slice_source_files+=("$shard_abs")
-    index_budget_bytes=$((index_budget_bytes + $(wc -c < "$shard_abs")))
+    slice_source_rels+=("$shard_rel")
+    shard_bytes="$(wc -c < "$shard_abs")"
+    index_budget_all_bytes=$((index_budget_all_bytes + shard_bytes))
+    while IFS= read -r sk; do
+      [[ -n "$sk" ]] || continue
+      [[ -n "${slice_to_shard_rel[$sk]:-}" ]] || slice_to_shard_rel["$sk"]="$shard_rel"
+    done < <(jq -r '.slices | keys[]' "$shard_abs")
   done < <(jq -r '.shards | to_entries[] | "\(.key)\t\(.value)"' "$INDEX_JSON")
   [[ "${#slice_source_files[@]}" -gt 0 ]] || fail "sharded index has no shard files"
   ENTRY_COUNT="$(jq -s '[.[].slices | length] | add // 0' "${slice_source_files[@]}")"
@@ -135,26 +147,41 @@ fmt_bytes() {
 }
 
 sample_row=""
+sample_source_idx=0
 if [[ -n "$SLICE_KEY" ]]; then
-  sample_row="$(jq -rc --arg k "$SLICE_KEY" '.slices[$k] | select(.) | {key: $k, value: .}' "${slice_source_files[@]}" | head -n1)"
+  for i in "${!slice_source_files[@]}"; do
+    sample_row="$(jq -rc --arg k "$SLICE_KEY" '.slices[$k] | select(.) | {key: $k, value: .}' "${slice_source_files[$i]}" | head -n1)"
+    if [[ -n "$sample_row" ]]; then
+      sample_source_idx="$i"
+      break
+    fi
+  done
   if [[ -z "$sample_row" ]]; then
     echo "[qa] warning: requested slice key not found, using first slice."
   fi
 fi
 if [[ -z "$sample_row" ]]; then
   sample_row="$(jq -rc '.slices | to_entries[0] | {key: .key, value: .value}' "${slice_source_files[0]}")"
+  sample_source_idx=0
 fi
 
 sample_name="$(printf '%s' "$sample_row" | jq -r '.key')"
 sample_meta_rel="$(printf '%s' "$sample_row" | jq -r '.value.meta')"
 sample_hist_rel="$(printf '%s' "$sample_row" | jq -r '.value.hist')"
 sample_heat_rel="$(printf '%s' "$sample_row" | jq -r '.value.heat')"
+if [[ "$mode" == "sharded" ]]; then
+  sample_shard_rel="${slice_to_shard_rel[$sample_name]:-${slice_source_rels[$sample_source_idx]:-}}"
+  [[ -n "$sample_shard_rel" ]] || fail "failed to resolve shard index for sample slice: $sample_name"
+  index_budget_sample_bytes=$((index_root_bytes + $(wc -c < "$VERSION_DIR/$sample_shard_rel")))
+else
+  index_budget_sample_bytes="$index_root_bytes"
+fi
 
 latest_bytes="$(wc -c < "$LATEST_JSON")"
 sample_meta_bytes="$(wc -c < "$VERSION_DIR/$sample_meta_rel")"
 sample_hist_bytes="$(wc -c < "$VERSION_DIR/$sample_hist_rel")"
 sample_heat_bytes="$(wc -c < "$VERSION_DIR/$sample_heat_rel")"
-sample_data_bytes=$((latest_bytes + index_budget_bytes + sample_meta_bytes + sample_hist_bytes + sample_heat_bytes))
+sample_data_bytes=$((latest_bytes + index_budget_sample_bytes + sample_meta_bytes + sample_hist_bytes + sample_heat_bytes))
 
 site_budget_bytes=0
 if [[ -d "$SITE_DIR" ]]; then
@@ -171,7 +198,11 @@ echo "[qa] Aggregate hist.total sum: $meta_total_sum"
 echo "[qa] Files checked: $file_count"
 echo "[qa] Data payload: total=$(fmt_bytes "$total_bytes") (bin=$(fmt_bytes "$bin_bytes"), json=$(fmt_bytes "$json_bytes"))"
 echo "[qa] Sample slice: $sample_name"
-echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index+meta+hist+heat)"
+if [[ "$mode" == "sharded" ]]; then
+  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index_root+index_shard+meta+hist+heat)"
+else
+  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index+meta+hist+heat)"
+fi
 if [[ "$site_budget_bytes" -gt 0 ]]; then
   echo "[qa] Site static payload (.html/.css/.js/.wasm): $(fmt_bytes "$site_budget_bytes")"
 fi
@@ -186,6 +217,11 @@ if [[ -n "$BASE_URL" ]]; then
   urls=(
     "$base/data/latest.json"
     "$base/data/$VERSION/index.json"
+  )
+  if [[ "$mode" == "sharded" && -n "$sample_shard_rel" ]]; then
+    urls+=("$base/data/$VERSION/$sample_shard_rel")
+  fi
+  urls+=(
     "$base/data/$VERSION/$sample_meta_rel"
     "$base/data/$VERSION/$sample_hist_rel"
     "$base/data/$VERSION/$sample_heat_rel"
