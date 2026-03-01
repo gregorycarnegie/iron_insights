@@ -134,14 +134,15 @@ Goal: visitors can change bin sizes *without refetching massive data*.
 ## 8) QA + sanity checks
 
 - [x] Add QA scripts to validate `/data` integrity and report payload/load budget (`scripts/qa.ps1`, `scripts/qa.sh`)
-- [ ] Spot-check percentiles against known expectations (e.g., your 320 @ 109kg, Raw, M)
-- [ ] Confirm Event filtering works (D-only meets don’t appear in SBD total)
-- [ ] Confirm distributions change reasonably when toggling Tested/Equipment/Sex
-- [ ] Measure payload sizes and first-load time (target: <1–2s on normal connection)
+- [x] Spot-check percentiles against known expectations (e.g., your 320 @ 109kg, Raw, M)
+- [x] Confirm Event filtering works (D-only meets don’t appear in SBD total)
+- [x] Confirm distributions change reasonably when toggling Tested/Equipment/Sex
+- [x] Measure payload sizes and first-load time (target: <1–2s on normal connection)
 
 ## 9) Nice-to-haves (after MVP)
 
-- [ ] Add WeightClassKg filtering + “use recorded BW vs weight class”
+- [x] Add IPF weight-class filtering derived from `Sex + BodyweightKg` (pipeline + UI selector)
+- [x] Exclude `Mx` slices from published stats due insufficient sample size
 - [ ] Add AgeClass / Division filters
 - [ ] Add “compare totals using DOTS/Wilks/GL points” toggle (all computable client-side)
 - [ ] Add “IPF-only dataset” option using `openipf-latest.zip`

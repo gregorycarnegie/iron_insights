@@ -1,0 +1,28 @@
+{
+  "version": "v2026-02-28",
+  "sex": "F",
+  "equipment": "Unlimited",
+  "ipf_weight_class": "47",
+  "tested": "all",
+  "lift": "squat",
+  "hist": {
+    "file": "hist/f/unlimited/47/all/squat.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 22.5,
+    "max_kg": 172.5,
+    "bins": 60,
+    "total": 1996
+  },
+  "heat": {
+    "file": "heat/f/unlimited/47/all/squat.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 22.5,
+    "max_x_kg": 172.5,
+    "min_y_kg": 43.0,
+    "max_y_kg": 47.0,
+    "width": 60,
+    "height": 4,
+    "total": 1996
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "version": "v2026-02-28",
+  "sex": "M",
+  "equipment": "All",
+  "ipf_weight_class": "120+",
+  "tested": "all",
+  "lift": "deadlift",
+  "hist": {
+    "file": "hist/m/all/120_/all/deadlift.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 17.5,
+    "max_kg": 490.0,
+    "bins": 189,
+    "total": 67040
+  },
+  "heat": {
+    "file": "heat/m/all/120_/all/deadlift.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 17.5,
+    "max_x_kg": 490.0,
+    "min_y_kg": 120.0,
+    "max_y_kg": 301.0,
+    "width": 189,
+    "height": 181,
+    "total": 67040
+  }
+}

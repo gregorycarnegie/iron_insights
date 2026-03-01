@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow};
+use chrono::Utc;
 use clap::Parser;
 use pipeline::{BuildMetadata, DEFAULT_ZIP_URL};
 use polars::prelude::{
@@ -21,7 +22,7 @@ struct Args {
     #[arg(long, default_value = "pipeline/output")]
     output_dir: PathBuf,
 
-    #[arg(long, default_value = "v0000-00-00")]
+    #[arg(long, default_value = "auto")]
     dataset_version: String,
 
     #[arg(long)]
@@ -46,7 +47,7 @@ fn main() -> Result<()> {
     convert_csv_to_parquet(&csv_path, &parquet_path)?;
 
     let metadata = BuildMetadata::new(
-        args.dataset_version,
+        resolve_dataset_version(&args.dataset_version),
         args.dataset_revision,
         args.zip_url,
         zip_path.display().to_string(),
@@ -67,6 +68,22 @@ fn main() -> Result<()> {
     println!("Wrote: {}", metadata_path.display());
 
     Ok(())
+}
+
+fn resolve_dataset_version(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty()
+        || trimmed.eq_ignore_ascii_case("auto")
+        || trimmed == "v0000-00-00"
+        || trimmed == "vYYYY-MM-DD"
+    {
+        return format!("v{}", Utc::now().format("%Y-%m-%d"));
+    }
+    if trimmed.starts_with('v') {
+        trimmed.to_string()
+    } else {
+        format!("v{trimmed}")
+    }
 }
 
 fn download_zip(zip_url: &str, zip_path: &Path) -> Result<()> {

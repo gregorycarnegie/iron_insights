@@ -35,6 +35,7 @@ struct SliceIndexEntry {
 struct SliceKey {
     sex: String,
     equip: String,
+    wc: String,
     tested: String,
     lift: String,
 }
@@ -78,6 +79,7 @@ fn App() -> impl IntoView {
 
     let (sex, set_sex) = signal(String::new());
     let (equip, set_equip) = signal(String::new());
+    let (wc, set_wc) = signal(String::new());
     let (tested, set_tested) = signal(String::new());
     let (lift, set_lift) = signal(String::new());
 
@@ -99,6 +101,7 @@ fn App() -> impl IntoView {
         let set_slice_rows = set_slice_rows;
         let set_sex = set_sex;
         let set_equip = set_equip;
+        let set_wc = set_wc;
         let set_tested = set_tested;
         let set_lift = set_lift;
         let set_load_error = set_load_error;
@@ -135,26 +138,77 @@ fn App() -> impl IntoView {
                 }
             }
             rows.sort_by(|a, b| a.key.cmp(&b.key));
+            set_slice_rows.set(rows.clone());
 
-            if let Some(first) = rows.first() {
-                set_sex.set(first.key.sex.clone());
-                set_equip.set(first.key.equip.clone());
-                set_tested.set(first.key.tested.clone());
-                set_lift.set(first.key.lift.clone());
+            if !rows.is_empty() {
+                let sex_default = pick_preferred(
+                    unique(rows.iter().map(|r| r.key.sex.clone())),
+                    "M",
+                );
+                let equip_default = pick_preferred(
+                    unique(
+                        rows.iter()
+                            .filter(|r| r.key.sex == sex_default)
+                            .map(|r| r.key.equip.clone()),
+                    ),
+                    "Raw",
+                );
+                let wc_default = pick_preferred(
+                    unique(
+                        rows.iter()
+                            .filter(|r| r.key.sex == sex_default && r.key.equip == equip_default)
+                            .map(|r| r.key.wc.clone()),
+                    ),
+                    "All",
+                );
+                let tested_default = pick_preferred(
+                    unique(
+                        rows.iter()
+                            .filter(|r| {
+                                r.key.sex == sex_default
+                                    && r.key.equip == equip_default
+                                    && r.key.wc == wc_default
+                            })
+                            .map(|r| r.key.tested.clone()),
+                    ),
+                    "All",
+                );
+                let lift_default = pick_preferred(
+                    unique(
+                        rows.iter()
+                            .filter(|r| {
+                                r.key.sex == sex_default
+                                    && r.key.equip == equip_default
+                                    && r.key.wc == wc_default
+                                    && r.key.tested == tested_default
+                            })
+                            .map(|r| r.key.lift.clone()),
+                    ),
+                    "T",
+                );
+
+                set_sex.set(sex_default);
+                set_equip.set(equip_default);
+                set_wc.set(wc_default);
+                set_tested.set(tested_default);
+                set_lift.set(lift_default);
             }
-
-            set_slice_rows.set(rows);
         });
     }
 
     let current_row = Memo::new(move |_| {
         let s = sex.get();
         let e = equip.get();
+        let w = wc.get();
         let t = tested.get();
         let l = lift.get();
 
         slice_rows.get().into_iter().find(|row| {
-            row.key.sex == s && row.key.equip == e && row.key.tested == t && row.key.lift == l
+            row.key.sex == s
+                && row.key.equip == e
+                && row.key.wc == w
+                && row.key.tested == t
+                && row.key.lift == l
         })
     });
 
@@ -203,26 +257,97 @@ fn App() -> impl IntoView {
     let tested_options = Memo::new(move |_| {
         let s = sex.get();
         let e = equip.get();
+        let w = wc.get();
         unique(
             slice_rows
                 .get()
                 .iter()
-                .filter(|r| r.key.sex == s && r.key.equip == e)
+                .filter(|r| r.key.sex == s && r.key.equip == e && r.key.wc == w)
                 .map(|r| r.key.tested.clone()),
         )
+    });
+    let wc_options = Memo::new(move |_| {
+        let s = sex.get();
+        let e = equip.get();
+        let mut classes = unique(
+            slice_rows
+                .get()
+                .iter()
+                .filter(|r| r.key.sex == s && r.key.equip == e)
+                .map(|r| r.key.wc.clone()),
+        );
+        classes.sort_by_key(|c| ipf_class_sort_key(c));
+        classes
     });
     let lift_options = Memo::new(move |_| {
         let s = sex.get();
         let e = equip.get();
+        let w = wc.get();
         let t = tested.get();
         unique(
             slice_rows
                 .get()
                 .iter()
-                .filter(|r| r.key.sex == s && r.key.equip == e && r.key.tested == t)
+                .filter(|r| r.key.sex == s && r.key.equip == e && r.key.wc == w && r.key.tested == t)
                 .map(|r| r.key.lift.clone()),
         )
     });
+
+    {
+        let set_equip = set_equip;
+        Effect::new(move |_| {
+            let options = equip_options.get();
+            let current = equip.get();
+            if options.is_empty() {
+                return;
+            }
+            if !options.iter().any(|v| v == &current) {
+                set_equip.set(pick_preferred(options, "Raw"));
+            }
+        });
+    }
+
+    {
+        let set_wc = set_wc;
+        Effect::new(move |_| {
+            let options = wc_options.get();
+            let current = wc.get();
+            if options.is_empty() {
+                return;
+            }
+            if !options.iter().any(|v| v == &current) {
+                set_wc.set(pick_preferred(options, "All"));
+            }
+        });
+    }
+
+    {
+        let set_tested = set_tested;
+        Effect::new(move |_| {
+            let options = tested_options.get();
+            let current = tested.get();
+            if options.is_empty() {
+                return;
+            }
+            if !options.iter().any(|v| v == &current) {
+                set_tested.set(pick_preferred(options, "All"));
+            }
+        });
+    }
+
+    {
+        let set_lift = set_lift;
+        Effect::new(move |_| {
+            let options = lift_options.get();
+            let current = lift.get();
+            if options.is_empty() {
+                return;
+            }
+            if !options.iter().any(|v| v == &current) {
+                set_lift.set(pick_preferred(options, "T"));
+            }
+        });
+    }
 
     let user_lift = Memo::new(move |_| match lift.get().as_str() {
         "S" => squat.get(),
@@ -335,6 +460,22 @@ fn App() -> impl IntoView {
                         </select>
                     </label>
 
+                    <label>"IPF class"
+                        <select on:change=move |ev| set_wc.set(event_target_value(&ev))>
+                            <For each=move || wc_options.get() key=|v| v.clone() let:value>
+                                <option
+                                    selected={
+                                        let selected_value = value.clone();
+                                        move || wc.get() == selected_value
+                                    }
+                                    value={value.clone()}
+                                >
+                                    {value.clone()}
+                                </option>
+                            </For>
+                        </select>
+                    </label>
+
                     <label>"Tested"
                         <select on:change=move |ev| set_tested.set(event_target_value(&ev))>
                             <For each=move || tested_options.get() key=|v| v.clone() let:value>
@@ -435,9 +576,20 @@ fn unique(items: impl Iterator<Item = String>) -> Vec<String> {
     set.into_iter().collect()
 }
 
+fn pick_preferred(options: Vec<String>, preferred: &str) -> String {
+    if options.is_empty() {
+        return String::new();
+    }
+    if let Some(v) = options.iter().find(|v| v.as_str() == preferred) {
+        return v.clone();
+    }
+    options[0].clone()
+}
+
 fn parse_slice_key(raw: &str) -> Option<SliceKey> {
     let mut sex = None;
     let mut equip = None;
+    let mut wc = None;
     let mut tested = None;
     let mut lift = None;
 
@@ -446,6 +598,7 @@ fn parse_slice_key(raw: &str) -> Option<SliceKey> {
         match k {
             "sex" => sex = Some(v.to_string()),
             "equip" => equip = Some(v.to_string()),
+            "wc" => wc = Some(v.to_string()),
             "tested" => tested = Some(v.to_string()),
             "lift" => lift = Some(v.to_string()),
             _ => {}
@@ -455,9 +608,22 @@ fn parse_slice_key(raw: &str) -> Option<SliceKey> {
     Some(SliceKey {
         sex: sex?,
         equip: equip?,
+        wc: wc?,
         tested: tested?,
         lift: lift?,
     })
+}
+
+fn ipf_class_sort_key(class: &str) -> (u8, i32) {
+    if let Some(prefix) = class.strip_suffix('+') {
+        if let Ok(v) = prefix.parse::<i32>() {
+            return (1, v);
+        }
+    }
+    if let Ok(v) = class.parse::<i32>() {
+        return (0, v);
+    }
+    (2, i32::MAX)
 }
 
 fn parse_hist_bin(bytes: &[u8]) -> Option<HistogramBin> {

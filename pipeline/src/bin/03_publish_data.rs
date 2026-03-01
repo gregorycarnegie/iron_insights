@@ -44,6 +44,7 @@ struct SliceMeta {
     version: String,
     sex: String,
     equipment: String,
+    ipf_weight_class: String,
     tested: String,
     lift: String,
     hist: HistMeta,
@@ -202,6 +203,11 @@ fn publish_records_for_lift(
         .context("missing Equipment column")?
         .str()
         .context("Equipment column not string")?;
+    let wc_col = df
+        .column("IpfWeightClass")
+        .context("missing IpfWeightClass column")?
+        .str()
+        .context("IpfWeightClass column not string")?;
     let lift_col = df
         .column("best_lift")
         .context("missing best_lift column")?
@@ -213,10 +219,10 @@ fn publish_records_for_lift(
         .f32()
         .context("bodyweight_at_best column not f32")?;
 
-    let mut slices = BTreeMap::<(String, String), SliceAccumulator>::new();
+    let mut slices = BTreeMap::<(String, String, String), SliceAccumulator>::new();
     for i in 0..df.height() {
-        let (Some(sex), Some(equipment), Some(lift_value)) =
-            (sex_col.get(i), equip_col.get(i), lift_col.get(i))
+        let (Some(sex), Some(equipment), Some(weight_class), Some(lift_value)) =
+            (sex_col.get(i), equip_col.get(i), wc_col.get(i), lift_col.get(i))
         else {
             continue;
         };
@@ -224,17 +230,30 @@ fn publish_records_for_lift(
             continue;
         }
 
-        let key = (sex.to_string(), equipment.to_string());
-        let entry = slices.entry(key).or_default();
-        entry.lift_values.push(lift_value);
-        if let Some(bw_value) = bw_col.get(i)
-            && bw_value > 0.0
-        {
-            entry.heat_points.push((lift_value, bw_value));
+        let sex = sex.to_string();
+        let equipment = equipment.to_string();
+        let weight_class = weight_class.to_string();
+        let valid_bw = bw_col
+            .get(i)
+            .and_then(|bw| if bw > 0.0 { Some(bw) } else { None });
+
+        // Publish specific and roll-up slices so UI can offer "All" for equipment/wc.
+        let keys = [
+            (sex.clone(), equipment.clone(), weight_class.clone()),
+            (sex.clone(), "All".to_string(), weight_class.clone()),
+            (sex.clone(), equipment.clone(), "All".to_string()),
+            (sex, "All".to_string(), "All".to_string()),
+        ];
+        for key in keys {
+            let entry = slices.entry(key).or_default();
+            entry.lift_values.push(lift_value);
+            if let Some(bw_value) = valid_bw {
+                entry.heat_points.push((lift_value, bw_value));
+            }
         }
     }
 
-    for ((sex, equipment), acc) in slices {
+    for ((sex, equipment, weight_class), acc) in slices {
         if acc.lift_values.is_empty() {
             continue;
         }
@@ -244,10 +263,11 @@ fn publish_records_for_lift(
 
         let sex_slug = slug(&sex);
         let equip_slug = slug(&equipment);
+        let wc_slug = slug(&weight_class);
 
-        let hist_rel = format!("hist/{sex_slug}/{equip_slug}/{tested}/{lift}.bin");
-        let heat_rel = format!("heat/{sex_slug}/{equip_slug}/{tested}/{lift}.bin");
-        let meta_rel = format!("meta/{sex_slug}/{equip_slug}/{tested}/{lift}.json");
+        let hist_rel = format!("hist/{sex_slug}/{equip_slug}/{wc_slug}/{tested}/{lift}.bin");
+        let heat_rel = format!("heat/{sex_slug}/{equip_slug}/{wc_slug}/{tested}/{lift}.bin");
+        let meta_rel = format!("meta/{sex_slug}/{equip_slug}/{wc_slug}/{tested}/{lift}.json");
 
         let hist_path = version_dir.join(&hist_rel);
         let heat_path = version_dir.join(&heat_rel);
@@ -260,6 +280,7 @@ fn publish_records_for_lift(
             version: version.to_string(),
             sex: sex.clone(),
             equipment: equipment.clone(),
+            ipf_weight_class: weight_class.clone(),
             tested: tested.to_string(),
             lift: lift.to_string(),
             hist: HistMeta {
@@ -292,9 +313,10 @@ fn publish_records_for_lift(
             .with_context(|| format!("failed writing {}", meta_path.display()))?;
 
         let key = format!(
-            "sex={}|equip={}|tested={}|lift={}",
+            "sex={}|equip={}|wc={}|tested={}|lift={}",
             sex,
             equipment,
+            weight_class,
             tested_bucket(tested),
             lift_code(lift)
         );
@@ -465,7 +487,10 @@ fn resolve_version(cli: Option<String>, metadata: Option<&BuildMetadata>) -> Str
     }
 
     if let Some(meta) = metadata {
-        return normalize_version(meta.dataset_version.clone());
+        let normalized = normalize_version(meta.dataset_version.clone());
+        if is_valid_effective_version(&normalized) {
+            return normalized;
+        }
     }
 
     let today = Utc::now().format("%Y-%m-%d").to_string();
@@ -478,6 +503,13 @@ fn normalize_version(version: String) -> String {
     } else {
         format!("v{version}")
     }
+}
+
+fn is_valid_effective_version(version: &str) -> bool {
+    if version == "vYYYY-MM-DD" || version == "v0000-00-00" {
+        return false;
+    }
+    is_version_dir_name(version)
 }
 
 fn prune_old_versions(data_dir: &Path, keep_versions: usize) -> Result<()> {
