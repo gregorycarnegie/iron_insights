@@ -41,6 +41,17 @@ jobs:
       - name: Install Trunk
         run: cargo install trunk --locked
 
+      - name: Quality gates (tests + clippy)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --workspace
+          cargo test --manifest-path pipeline/Cargo.toml
+          cargo test --manifest-path app/Cargo.toml
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo clippy --manifest-path pipeline/Cargo.toml --all-targets -- -D warnings
+          cargo clippy --manifest-path app/Cargo.toml --all-targets -- -D warnings
+
       - name: Capture previous latest version
         id: previous
         shell: bash

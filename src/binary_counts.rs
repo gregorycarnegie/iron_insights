@@ -6,6 +6,7 @@ const MAGIC_HIST: [u8; 4] = *b"IIH1";
 const MAGIC_HEAT: [u8; 4] = *b"IIM1";
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Header for histogram binary payloads.
 pub struct HistogramHeader {
     pub version: u16,
     pub base_bin_size: f32,
@@ -15,6 +16,7 @@ pub struct HistogramHeader {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Header for heatmap binary payloads.
 pub struct HeatmapHeader {
     pub version: u16,
     pub base_bin_size_x: f32,
@@ -27,6 +29,9 @@ pub struct HeatmapHeader {
     pub height: u32,
 }
 
+/// Writes a histogram payload in the compact `IIH1` little-endian format.
+///
+/// Fails if `counts.len()` does not match `header.bins`.
 pub fn write_histogram_bin(path: &Path, header: HistogramHeader, counts: &[u32]) -> Result<()> {
     if counts.len() != header.bins as usize {
         return Err(Error::new(
@@ -51,6 +56,9 @@ pub fn write_histogram_bin(path: &Path, header: HistogramHeader, counts: &[u32])
     Ok(())
 }
 
+/// Reads and validates a histogram payload in the `IIH1` format.
+///
+/// Returns the parsed header and count vector.
 pub fn read_histogram_bin(path: &Path) -> Result<(HistogramHeader, Vec<u32>)> {
     let bytes = fs::read(path)?;
     if bytes.len() < 22 {
@@ -97,6 +105,9 @@ pub fn read_histogram_bin(path: &Path) -> Result<(HistogramHeader, Vec<u32>)> {
     ))
 }
 
+/// Writes a heatmap payload in the compact `IIM1` little-endian format.
+///
+/// Fails if `grid.len()` does not match `header.width * header.height`.
 pub fn write_heatmap_bin(path: &Path, header: HeatmapHeader, grid: &[u32]) -> Result<()> {
     if grid.len() != (header.width as usize * header.height as usize) {
         return Err(Error::new(
@@ -125,6 +136,9 @@ pub fn write_heatmap_bin(path: &Path, header: HeatmapHeader, grid: &[u32]) -> Re
     Ok(())
 }
 
+/// Reads and validates a heatmap payload in the `IIM1` format.
+///
+/// Returns the parsed header and flattened row-major grid.
 pub fn read_heatmap_bin(path: &Path) -> Result<(HeatmapHeader, Vec<u32>)> {
     let bytes = fs::read(path)?;
     if bytes.len() < 38 {
@@ -185,8 +199,6 @@ mod tests {
         HeatmapHeader, HistogramHeader, read_heatmap_bin, read_histogram_bin, write_heatmap_bin,
         write_histogram_bin,
     };
-    use std::path::PathBuf;
-
     #[test]
     fn histogram_roundtrip() {
         let mut path = std::env::temp_dir();
@@ -256,6 +268,6 @@ mod tests {
 
         let result = read_histogram_bin(&path);
         assert!(result.is_err());
-        let _ = std::fs::remove_file(PathBuf::from(path));
+        let _ = std::fs::remove_file(path);
     }
 }

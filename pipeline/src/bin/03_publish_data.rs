@@ -594,16 +594,16 @@ fn is_valid_effective_version(version: &str) -> bool {
 
 fn prune_old_versions(data_dir: &Path, keep_versions: usize) -> Result<()> {
     let mut versions: Vec<PathBuf> = fs::read_dir(data_dir)
-        .with_context(|| format!("failed reading {}", data_dir.display()))?
-        .filter_map(|entry| entry.ok())
-        .map(|entry| entry.path())
-        .filter(|path| path.is_dir())
-        .filter(|path| {
-            path.file_name()
-                .and_then(|n| n.to_str())
-                .is_some_and(|n| is_version_dir_name(n))
-        })
-        .collect();
+                .with_context(|| format!("failed reading {}", data_dir.display()))?
+                .filter_map(|entry| entry.ok())
+                .map(|entry| entry.path())
+                .filter(|path| path.is_dir())
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(is_version_dir_name)
+                })
+                .collect();
 
     versions.sort();
 
@@ -734,6 +734,7 @@ fn metric_value(
     }
 }
 
+#[allow(clippy::excessive_precision)]
 fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     let bw = match sex {
         "F" => bodyweight_kg.clamp(40.0, 150.0),
@@ -759,6 +760,7 @@ fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     }
 }
 
+#[allow(clippy::excessive_precision)]
 fn wilks_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     let bw = match sex {
         "F" => bodyweight_kg.clamp(26.51, 154.53),
@@ -786,6 +788,7 @@ fn wilks_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     }
 }
 
+#[allow(clippy::excessive_precision)]
 fn goodlift_points(sex: &str, equipment: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     let classic = matches!(equipment, "Raw" | "Wraps" | "Straps");
     let (a, b, c) = match (sex, classic) {
@@ -799,5 +802,81 @@ fn goodlift_points(sex: &str, equipment: &str, bodyweight_kg: f32, total_kg: f32
         0.0
     } else {
         total_kg * 100.0 / denom
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        build_heatmap, build_histogram, dots_points, goodlift_points, wilks_points, BW_BIN_BASE_KG,
+        LIFT_BIN_BASE_KG,
+    };
+
+    #[test]
+    fn dots_points_increase_with_total() {
+        let low = dots_points("M", 90.0, 500.0);
+        let high = dots_points("M", 90.0, 600.0);
+        assert!(high > low);
+        assert!(low > 0.0);
+    }
+
+    #[test]
+    fn wilks_points_increase_with_total() {
+        let low = wilks_points("F", 63.0, 350.0);
+        let high = wilks_points("F", 63.0, 420.0);
+        assert!(high > low);
+        assert!(low > 0.0);
+    }
+
+    #[test]
+    fn goodlift_points_differs_by_equipment() {
+        let raw = goodlift_points("M", "Raw", 90.0, 700.0);
+        let equipped = goodlift_points("M", "Single-ply", 90.0, 700.0);
+        assert!(raw.is_finite());
+        assert!(equipped.is_finite());
+        assert_ne!(raw, equipped);
+    }
+
+    #[test]
+    fn build_histogram_uses_expected_edges_and_total() {
+        let values = vec![100.0, 101.0, 102.4, 104.9, 105.0];
+        let hist = build_histogram(&values, LIFT_BIN_BASE_KG).expect("histogram should build");
+
+        assert_eq!(hist.min, 100.0);
+        assert_eq!(hist.max, 107.5);
+        assert_eq!(hist.counts, vec![3, 1, 1]);
+        assert_eq!(hist.total, 5);
+        assert_eq!(hist.counts.iter().copied().map(u64::from).sum::<u64>(), hist.total);
+    }
+
+    #[test]
+    fn build_heatmap_empty_is_zero_shape() {
+        let heat = build_heatmap(&[], LIFT_BIN_BASE_KG, BW_BIN_BASE_KG).expect("heatmap should build");
+        assert_eq!(heat.width, 0);
+        assert_eq!(heat.height, 0);
+        assert_eq!(heat.total, 0);
+        assert!(heat.grid.is_empty());
+    }
+
+    #[test]
+    fn build_heatmap_bins_points_and_preserves_total() {
+        let points = vec![
+            (100.0, 80.0),
+            (101.0, 80.2),
+            (102.4, 80.9),
+            (104.9, 81.1),
+            (105.0, 81.9),
+        ];
+        let heat =
+            build_heatmap(&points, LIFT_BIN_BASE_KG, BW_BIN_BASE_KG).expect("heatmap should build");
+
+        assert_eq!(heat.min_x, 100.0);
+        assert_eq!(heat.max_x, 107.5);
+        assert_eq!(heat.min_y, 80.0);
+        assert_eq!(heat.max_y, 82.0);
+        assert_eq!(heat.width, 3);
+        assert_eq!(heat.height, 2);
+        assert_eq!(heat.total, points.len() as u64);
+        assert_eq!(heat.grid.iter().copied().map(u64::from).sum::<u64>(), heat.total);
     }
 }

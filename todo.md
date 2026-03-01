@@ -1,148 +1,95 @@
-# todo.md — Leptos “How do I stack up?” (GitHub Pages, weekly data refresh)
+# TODO - Iron Insights 2 (Post-Review Backlog)
 
-## 0) Decide the “best lift” definition (based on OPL bulk CSV docs)
+## P0 - Correctness and User Trust
 
-- [x] Use **sanctioned meets only** (`Sanctioned == "Yes"`) so we match how rankings/records treat unsanctioned meets (OPL docs: unsanctioned “do not count for rankings or records”).
-- [x] Use **Best3 lift columns** as the canonical meet result for each lift:
-  - [x] `Best3SquatKg`
-  - [x] `Best3BenchKg`
-  - [x] `Best3DeadliftKg`
-  - [x] Use `TotalKg` for total comparisons (SBD only; blank/invalid totals excluded)
-- [x] Define **per-lifter best (recommended)** to avoid prolific lifters overweighting distributions:
-  - [x] Identify a lifter by `Name` (OPL disambiguates duplicates via `#` suffix, e.g. `John Doe #1`).
-  - [x] For each lifter, compute `best_lift = max(Best3*Kg)` within a chosen population slice.
-  - [x] Store the *meet context* for that best lift (at least `BodyweightKg`, `Date`, `Federation`, `MeetName`) so you can plot BW vs lift at time of the best.
-- [x] Define population slices (MVP):
-  - [x] `Sex` (M/F/Mx)
-  - [x] `Equipment` (Raw/Wraps/Single-ply/Multi-ply/Unlimited/Straps)
-  - [x] `Tested` (Yes vs empty) as a toggle
-  - [x] `Event` filter appropriate to the lift:
-    - [x] For squat comparisons: include rows where `Event` ∈ {SBD, SD, SB, S}
-    - [x] For bench comparisons: include rows where `Event` ∈ {SBD, BD, SB, B}
-    - [x] For deadlift comparisons: include rows where `Event` ∈ {SBD, BD, SD, D}
-    - [x] For total comparisons: `Event == "SBD"` only
-- [x] Data hygiene rules (keep it sane):
-  - [x] Drop rows where the relevant `Best3*Kg` is null/<=0 (some feds can report odd negatives; ignore for “best”).
-  - [x] Exclude disqualified/no-show rows when deriving “best” (e.g., `Place` in {DQ, DD, NS}) for MVP defaults.
-  - [x] Require `BodyweightKg` for BW scatter; allow missing BW for histogram.
+- [x] Fix stale async result race in frontend data loading
+  - [x] Add request token/versioning for shard loads (`slice_rows` fetch path)
+  - [x] Add request token/versioning for hist/heat loads (`current_row` fetch path)
+  - [x] Ignore late responses that do not match latest token
+  - [x] Add lightweight logging message for ignored stale responses (debug only)
+  - Files: `app/src/webapp.rs`
 
-## 1) Repo + deployment layout (GitHub Pages)
+- [x] Clear visualization state on load miss/failure
+  - [x] Clear `hist` + `heat` when no matching `current_row`
+  - [x] Clear `hist` + `heat` when fetch fails or parse fails
+  - [x] Ensure percentile/stat card shows empty-state for missing data
+  - Files: `app/src/webapp.rs`
 
-- [x] Create repo (or monorepo) with:
-  - [x] `/app` (Leptos project)
-  - [x] `/data` (generated aggregate blobs + `latest.json`)
-  - [x] `/docs` (Pages publish folder) **or** configure Pages to serve from `gh-pages` branch
-- [x] Add `latest.json` format:
-  - [x] `{"version":"vYYYY-MM-DD","revision":"<opl revision if available>"}`
-- [ ] Ensure Leptos fetch path works on Pages subpath (base URL):
-  - [ ] set `LEPTOS_SITE_ROOT` / router base path (or use relative fetches like `./data/...`)
+- [x] Enforce binary format version checks in frontend parser
+  - [x] Parse and validate histogram version (currently only magic checked)
+  - [x] Parse and validate heatmap version (currently only magic checked)
+  - [x] Fail fast to `None` on unsupported version
+  - [x] Surface parsing failure in `load_error` where practical
+  - Files: `app/src/webapp.rs`, `pipeline/src/bin/03_publish_data.rs`
 
-## 2) Data pipeline (Rust + Polars, lazy-first)
+## P1 - Test Coverage for High-Risk Paths
 
-- [x] Write `pipeline/src/bin/01_download.rs`:
-  - [x] Download `openpowerlifting-latest.zip` (bulk CSV)
-  - [x] Extract CSV to temp workspace
-  - [x] Convert extracted CSV to Parquet (`openpowerlifting-latest.parquet`) for faster downstream scans
-    - [x] Use a one-time CSV -> Parquet conversion per refresh run, then use Parquet as the canonical pipeline input
-  - [x] Remove temporary source files after successful conversion:
-    - [x] Delete downloaded ZIP (`openpowerlifting-latest.zip`)
-    - [x] Delete extracted CSV (`openpowerlifting-latest.csv`)
-  - [x] Record the dataset updated date + revision (from the bulk download page) into build metadata
-- [x] Write `pipeline/src/bin/02_build_aggregates.rs` (Polars `LazyFrame`):
-  - [x] Scan Parquet lazily (`scan_parquet`) for speed/memory efficiency
-  - [x] Apply filters early (lazy predicates):
-    - [x] `Sanctioned == "Yes"`
-    - [x] optional `Tested` toggle outputs (build both “tested” + “all” slices)
-    - [x] relevant `Event` membership for each lift type
-  - [x] Compute per-lifter best:
-    - [x] Group by: `Name`, `Sex`, `Equipment`, `Tested`(bucketed), plus lift type
-    - [x] Aggregate: `max(Best3*Kg)` and capture `BodyweightKg` at that max
-      - [ ] Use `sort_by(Best3*Kg).last()` pattern or `arg_max` logic to carry BW/Date from the best row
-  - [x] Produce “records table” per slice: `{best_lift, bodyweight_at_best, ...}`
+- [x] Add unit tests for pipeline scoring and binning behavior
+  - [x] `dots_points` numeric sanity tests
+  - [x] `wilks_points` numeric sanity tests
+  - [x] `goodlift_points` numeric sanity tests
+  - [x] `build_histogram` edge bins and totals
+  - [x] `build_heatmap` empty and non-empty behavior
+  - Files: `pipeline/src/bin/03_publish_data.rs` (or extract to testable module)
 
-## 3) Bin strategy with “user-adjustable bin sizes”
+- [x] Add unit tests for frontend binary parsing and percentile logic
+  - [x] `parse_hist_bin` valid/invalid payload cases
+  - [x] `parse_heat_bin` valid/invalid payload cases
+  - [x] version mismatch parse rejection
+  - [x] `percentile_for_value` boundary behavior
+  - Files: `app/src/core.rs` (pure helper module used by `webapp.rs`)
 
-Goal: visitors can change bin sizes *without refetching massive data*.
+- [x] Add regression test for rebin behavior parity (frontend vs root helpers)
+  - [x] `rebin_1d` and `rebin_2d` preserve totals
+  - [x] partial edge bin behavior documented in tests
+  - Files: `app/src/core.rs`, `src/rebin.rs`
 
-- [x] Choose **base (smallest) bin sizes** for stored aggregates:
-  - [x] `lift_bin_base_kg = 2.5`
-  - [x] `bw_bin_base_kg = 1.0`
-- [x] Store aggregates at base resolution, then **re-bin client-side** by summing adjacent bins:
-  - [x] Histogram rebin: combine `k` bins → bin_size = `k * base`
-  - [x] Heatmap rebin: combine `kx × ky` blocks
-- [x] Define allowed multipliers in UI to keep it simple and fast:
-  - [x] Lift bin multipliers: 1×, 2×, 4× (2.5kg → 5kg → 10kg)
-  - [x] BW bin multipliers: 1×, 2×, 5× (1kg → 2kg → 5kg)
-- [x] Implement client-side rebin functions (pure, fast):
-  - [x] `rebin_1d(counts: Vec<u32>, k: usize) -> Vec<u32>`
-  - [x] `rebin_2d(grid: Vec<u32>, w: usize, h: usize, kx: usize, ky: usize) -> (Vec<u32>, w2, h2)`
+## P2 - Lint and CI Quality Gates
 
-## 4) File formats (keep payloads tiny)
+- [x] Make clippy pass with `-D warnings` across crates
+  - [x] Root crate: remove useless conversion in test cleanup
+  - [x] Pipeline: switch `&PathBuf` arg to `&Path`
+  - [x] Pipeline: resolve redundant closure lint
+  - [x] Pipeline scoring constants: allow/document precision choice or adjust literals deliberately
+  - Files: `src/binary_counts.rs`, `pipeline/src/bin/02_build_aggregates.rs`, `pipeline/src/bin/03_publish_data.rs`
 
-- [x] Pick a compact binary format for counts (recommended):
-  - [x] Header (little-endian): version, base_bin_size, min, max, dims
-  - [x] Payload: `u32` counts (hist) or `u32` flattened grid (heatmap)
-- [x] Add a tiny JSON “index” per population slice so the client knows which file to fetch:
-  - [x] Example key: `sex=M|equip=Raw|tested=Yes|lift=D`
-  - [x] Points to: `hist.bin` + `heat.bin` + metadata ranges
+- [x] Add CI gates for quality
+  - [x] Add `cargo test --workspace`
+  - [x] Add `cargo test --manifest-path pipeline/Cargo.toml`
+  - [x] Add `cargo test --manifest-path app/Cargo.toml`
+  - [x] Add clippy steps (workspace + pipeline + app)
+  - Files: `.github/workflows/refresh-data-and-deploy.yml`
 
-## 5) Build outputs (what /data contains)
+## P3 - Code Organization (Maintainability)
 
-- [x] `/data/vYYYY-MM-DD/`
-  - [x] `/hist/{sex}/{equip}/{tested}/{lift}.bin`
-  - [x] `/heat/{sex}/{equip}/{tested}/{lift}.bin`
-  - [x] `/meta/{sex}/{equip}/{tested}/{lift}.json` (ranges, base bins, totals)
-- [x] `/data/latest.json` updated to point to newest version folder
-- [x] Optional: keep only last N versions to limit repo size
-  - [x] N=4 (last month) is a good default
+- [x] Split `app/src/webapp.rs` into focused modules
+  - [x] data loading/fetching
+  - [x] binary parsing
+  - [x] scoring + percentile math
+  - [x] chart rendering
+  - [x] UI component shell
+  - Files: `app/src/webapp/mod.rs`, `app/src/webapp/data.rs`, `app/src/webapp/charts.rs`, `app/src/webapp/ui.rs`, `app/src/core.rs`
 
-## 6) Leptos UI (MVP)
+- [x] Add rustdoc for public API in root crate
+  - [x] `rebin` helpers
+  - [x] binary read/write headers and functions
+  - Files: `src/rebin.rs`, `src/binary_counts.rs`
 
-- [x] Inputs panel:
-  - [x] Squat / Bench / Deadlift / Bodyweight (kg)
-  - [x] Sex, Equipment, Tested toggles
-  - [x] Bin size selectors (lift bin, BW bin) using multipliers
-- [x] Outputs:
-  - [x] Percentile + rank estimate (from histogram CDF)
-  - [x] Histogram chart with “your lift” vertical line
-  - [x] BW vs lift heatmap with “your point” overlay
-- [x] Rendering approach:
-  - [x] Histogram: SVG (simple) or Canvas (fast)
-  - [x] Heatmap: Canvas (recommended)
-- [x] Calculations client-side:
-  - [x] Percentile from counts:
-    - [x] `cdf = sum(counts[0..bin]) + 0.5*counts[bin]`
-    - [x] `pct = cdf / total`
-  - [x] “Top X%” formatting + guard rails when out of range
+## Validation Checklist (Run Before Closing This Backlog)
 
-## 7) CI/CD (weekly scheduled refresh + Pages deploy)
+- [x] `cargo test --workspace`
+- [x] `cargo test --manifest-path pipeline/Cargo.toml`
+- [x] `cargo test --manifest-path app/Cargo.toml`
+- [x] `cargo clippy --workspace --all-targets -- -D warnings`
+- [x] `cargo clippy --manifest-path pipeline/Cargo.toml --all-targets -- -D warnings`
+- [x] `cargo clippy --manifest-path app/Cargo.toml --all-targets -- -D warnings`
 
-- [x] Add GitHub Actions workflow:
-  - [x] `schedule:` weekly (e.g., Sunday 03:00 UTC)
-  - [x] Manual trigger `workflow_dispatch`
-- [x] Steps:
-  - [x] Checkout repo
-  - [x] Set up Rust toolchain (and cache deps)
-  - [x] Run download + aggregate scripts
-  - [x] Commit `/data` changes back to `main` **OR** push to separate `data` branch/repo
-  - [x] Build Leptos site
-  - [x] Deploy to GitHub Pages
-- [x] Add safeguards:
-  - [x] Fail build if download corrupt / row count drops unexpectedly
-  - [x] Print build metadata (dataset updated date, revision, row count proxy)
+## Notes
 
-## 8) QA + sanity checks
-
-- [x] Add QA scripts to validate `/data` integrity and report payload/load budget (`scripts/qa.ps1`, `scripts/qa.sh`)
-- [x] Spot-check percentiles against known expectations (e.g., your 320 @ 109kg, Raw, M)
-- [x] Confirm Event filtering works (D-only meets don’t appear in SBD total)
-- [x] Confirm distributions change reasonably when toggling Tested/Equipment/Sex
-- [x] Measure payload sizes and first-load time (target: <1–2s on normal connection)
-
-## 9) Nice-to-haves (after MVP)
-
-- [x] Add IPF weight-class filtering derived from `Sex + BodyweightKg` (pipeline + UI selector)
-- [x] Exclude `Mx` slices from published stats due insufficient sample size
-- [x] Add AgeClass / Division filters
-- [x] Add “compare totals using DOTS/Wilks/GL points” toggle (pipeline-published score distributions + client-side conversion)
-- [ ] Add “IPF-only dataset” option using `openipf-latest.zip`
+- Current known status from review:
+  - P0 correctness fixes are implemented in frontend fetch/parse paths.
+  - Pipeline now has scoring/binning tests in `03_publish_data.rs`.
+  - App now has parser/percentile/rebin/scoring tests in `app/src/core.rs`.
+  - Clippy `-D warnings` currently passes for workspace, pipeline, and app commands.
+- Intentional sequence:
+  - Do P0 first (user-visible correctness), then P1 (coverage), then P2 (gates), then P3 (refactor).

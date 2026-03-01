@@ -1,5 +1,5 @@
 use std::fs::{self, File};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::thread;
 
 use anyhow::{Context, Result};
@@ -89,7 +89,7 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn build_records(input_parquet: &PathBuf, spec: LiftSpec, tested_only: bool) -> Result<DataFrame> {
+fn build_records(input_parquet: &Path, spec: LiftSpec, tested_only: bool) -> Result<DataFrame> {
     let parquet_path = input_parquet.to_string_lossy();
     let source = LazyFrame::scan_parquet(parquet_path.as_ref().into(), ScanArgsParquet::default())
         .with_context(|| format!("failed scanning {}", input_parquet.display()))?;

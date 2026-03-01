@@ -1,3 +1,6 @@
+/// Rebuckets a 1D count vector by summing chunks of size `k`.
+///
+/// When the length is not divisible by `k`, the final partial chunk is kept.
 pub fn rebin_1d(counts: Vec<u32>, k: usize) -> Vec<u32> {
     assert!(k > 0, "k must be > 0");
 
@@ -11,6 +14,9 @@ pub fn rebin_1d(counts: Vec<u32>, k: usize) -> Vec<u32> {
         .collect()
 }
 
+/// Rebuckets a row-major 2D grid by summing `kx x ky` blocks.
+///
+/// Returns `(rebinned_grid, new_width, new_height)`. Partial edge blocks are kept.
 pub fn rebin_2d(
     grid: Vec<u32>,
     w: usize,

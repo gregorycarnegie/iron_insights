@@ -1,3 +1,6 @@
+#[cfg(any(target_arch = "wasm32", test))]
+mod core;
+
 #[cfg(target_arch = "wasm32")]
 mod webapp;
 
