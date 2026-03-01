@@ -1,0 +1,29 @@
+{
+  "version": "v2026-02-28",
+  "sex": "M",
+  "equipment": "Single-ply",
+  "ipf_weight_class": "All",
+  "age_class": "50-54",
+  "tested": "all",
+  "lift": "total",
+  "hist": {
+    "file": "hist/m/single-ply/all/50-54/all/total.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 147.5,
+    "max_kg": 982.5,
+    "bins": 334,
+    "total": 3979
+  },
+  "heat": {
+    "file": "heat/m/single-ply/all/50-54/all/total.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 147.5,
+    "max_x_kg": 982.5,
+    "min_y_kg": 48.0,
+    "max_y_kg": 203.0,
+    "width": 334,
+    "height": 155,
+    "total": 3979
+  }
+}

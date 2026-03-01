@@ -1,0 +1,29 @@
+{
+  "version": "v2026-02-28",
+  "sex": "M",
+  "equipment": "Unlimited",
+  "ipf_weight_class": "53",
+  "age_class": "24-34",
+  "tested": "all",
+  "lift": "bench",
+  "hist": {
+    "file": "hist/m/unlimited/53/24-34/all/bench.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 130.0,
+    "max_kg": 162.5,
+    "bins": 13,
+    "total": 2
+  },
+  "heat": {
+    "file": "heat/m/unlimited/53/24-34/all/bench.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 130.0,
+    "max_x_kg": 162.5,
+    "min_y_kg": 50.0,
+    "max_y_kg": 53.0,
+    "width": 13,
+    "height": 3,
+    "total": 2
+  }
+}

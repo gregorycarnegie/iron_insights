@@ -36,6 +36,7 @@ struct SliceKey {
     sex: String,
     equip: String,
     wc: String,
+    age: String,
     tested: String,
     lift: String,
 }
@@ -80,6 +81,7 @@ fn App() -> impl IntoView {
     let (sex, set_sex) = signal(String::new());
     let (equip, set_equip) = signal(String::new());
     let (wc, set_wc) = signal(String::new());
+    let (age, set_age) = signal(String::new());
     let (tested, set_tested) = signal(String::new());
     let (lift, set_lift) = signal(String::new());
 
@@ -102,6 +104,7 @@ fn App() -> impl IntoView {
         let set_sex = set_sex;
         let set_equip = set_equip;
         let set_wc = set_wc;
+        let set_age = set_age;
         let set_tested = set_tested;
         let set_lift = set_lift;
         let set_load_error = set_load_error;
@@ -173,6 +176,19 @@ fn App() -> impl IntoView {
                     ),
                     "All",
                 );
+                let age_default = pick_preferred(
+                    unique(
+                        rows.iter()
+                            .filter(|r| {
+                                r.key.sex == sex_default
+                                    && r.key.equip == equip_default
+                                    && r.key.wc == wc_default
+                                    && r.key.tested == tested_default
+                            })
+                            .map(|r| r.key.age.clone()),
+                    ),
+                    "All Ages",
+                );
                 let lift_default = pick_preferred(
                     unique(
                         rows.iter()
@@ -180,6 +196,7 @@ fn App() -> impl IntoView {
                                 r.key.sex == sex_default
                                     && r.key.equip == equip_default
                                     && r.key.wc == wc_default
+                                    && r.key.age == age_default
                                     && r.key.tested == tested_default
                             })
                             .map(|r| r.key.lift.clone()),
@@ -190,6 +207,7 @@ fn App() -> impl IntoView {
                 set_sex.set(sex_default);
                 set_equip.set(equip_default);
                 set_wc.set(wc_default);
+                set_age.set(age_default);
                 set_tested.set(tested_default);
                 set_lift.set(lift_default);
             }
@@ -200,6 +218,7 @@ fn App() -> impl IntoView {
         let s = sex.get();
         let e = equip.get();
         let w = wc.get();
+        let a = age.get();
         let t = tested.get();
         let l = lift.get();
 
@@ -207,6 +226,7 @@ fn App() -> impl IntoView {
             row.key.sex == s
                 && row.key.equip == e
                 && row.key.wc == w
+                && row.key.age == a
                 && row.key.tested == t
                 && row.key.lift == l
         })
@@ -258,11 +278,12 @@ fn App() -> impl IntoView {
         let s = sex.get();
         let e = equip.get();
         let w = wc.get();
+        let a = age.get();
         unique(
             slice_rows
                 .get()
                 .iter()
-                .filter(|r| r.key.sex == s && r.key.equip == e && r.key.wc == w)
+                .filter(|r| r.key.sex == s && r.key.equip == e && r.key.wc == w && r.key.age == a)
                 .map(|r| r.key.tested.clone()),
         )
     });
@@ -279,16 +300,37 @@ fn App() -> impl IntoView {
         classes.sort_by_key(|c| ipf_class_sort_key(c));
         classes
     });
+    let age_options = Memo::new(move |_| {
+        let s = sex.get();
+        let e = equip.get();
+        let w = wc.get();
+        let mut classes = unique(
+            slice_rows
+                .get()
+                .iter()
+                .filter(|r| r.key.sex == s && r.key.equip == e && r.key.wc == w)
+                .map(|r| r.key.age.clone()),
+        );
+        classes.sort_by_key(|c| age_class_sort_key(c));
+        classes
+    });
     let lift_options = Memo::new(move |_| {
         let s = sex.get();
         let e = equip.get();
         let w = wc.get();
+        let a = age.get();
         let t = tested.get();
         unique(
             slice_rows
                 .get()
                 .iter()
-                .filter(|r| r.key.sex == s && r.key.equip == e && r.key.wc == w && r.key.tested == t)
+                .filter(|r| {
+                    r.key.sex == s
+                        && r.key.equip == e
+                        && r.key.wc == w
+                        && r.key.age == a
+                        && r.key.tested == t
+                })
                 .map(|r| r.key.lift.clone()),
         )
     });
@@ -317,6 +359,20 @@ fn App() -> impl IntoView {
             }
             if !options.iter().any(|v| v == &current) {
                 set_wc.set(pick_preferred(options, "All"));
+            }
+        });
+    }
+
+    {
+        let set_age = set_age;
+        Effect::new(move |_| {
+            let options = age_options.get();
+            let current = age.get();
+            if options.is_empty() {
+                return;
+            }
+            if !options.iter().any(|v| v == &current) {
+                set_age.set(pick_preferred(options, "All Ages"));
             }
         });
     }
@@ -476,6 +532,22 @@ fn App() -> impl IntoView {
                         </select>
                     </label>
 
+                    <label>"Age class"
+                        <select on:change=move |ev| set_age.set(event_target_value(&ev))>
+                            <For each=move || age_options.get() key=|v| v.clone() let:value>
+                                <option
+                                    selected={
+                                        let selected_value = value.clone();
+                                        move || age.get() == selected_value
+                                    }
+                                    value={value.clone()}
+                                >
+                                    {age_label(&value).to_string()}
+                                </option>
+                            </For>
+                        </select>
+                    </label>
+
                     <label>"Tested"
                         <select on:change=move |ev| set_tested.set(event_target_value(&ev))>
                             <For each=move || tested_options.get() key=|v| v.clone() let:value>
@@ -590,6 +662,7 @@ fn parse_slice_key(raw: &str) -> Option<SliceKey> {
     let mut sex = None;
     let mut equip = None;
     let mut wc = None;
+    let mut age = None;
     let mut tested = None;
     let mut lift = None;
 
@@ -599,6 +672,7 @@ fn parse_slice_key(raw: &str) -> Option<SliceKey> {
             "sex" => sex = Some(v.to_string()),
             "equip" => equip = Some(v.to_string()),
             "wc" => wc = Some(v.to_string()),
+            "age" => age = Some(v.to_string()),
             "tested" => tested = Some(v.to_string()),
             "lift" => lift = Some(v.to_string()),
             _ => {}
@@ -609,6 +683,7 @@ fn parse_slice_key(raw: &str) -> Option<SliceKey> {
         sex: sex?,
         equip: equip?,
         wc: wc?,
+        age: age?,
         tested: tested?,
         lift: lift?,
     })
@@ -766,6 +841,40 @@ fn lift_label(code: &str) -> &'static str {
         "T" => "Total",
         _ => "Unknown",
     }
+}
+
+fn age_label(code: &str) -> String {
+    match code {
+        "All Ages" => "All Ages".to_string(),
+        "5-12" => "Youth 5-12".to_string(),
+        "13-15" => "Teen 13-15".to_string(),
+        "16-17" => "Teen 16-17".to_string(),
+        "18-19" => "Teen 18-19".to_string(),
+        "20-23" => "Juniors 20-23".to_string(),
+        "24-34" => "Seniors 24-34".to_string(),
+        "35-39" => "Submasters 35-39".to_string(),
+        _ => {
+            if let Some((a, b)) = code.split_once('-') {
+                format!("Masters {a}-{b}")
+            } else if let Some(a) = code.strip_suffix('+') {
+                format!("Masters {a}+")
+            } else {
+                code.to_string()
+            }
+        }
+    }
+}
+
+fn age_class_sort_key(class: &str) -> (u8, i32) {
+    if class == "All Ages" {
+        return (0, -1);
+    }
+    let start = class
+        .split(['-', '+'])
+        .next()
+        .and_then(|s| s.parse::<i32>().ok())
+        .unwrap_or(i32::MAX);
+    (1, start)
 }
 
 fn render_histogram_svg(hist: &HistogramBin, user_value: f32) -> AnyView {

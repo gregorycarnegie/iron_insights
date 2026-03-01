@@ -1,0 +1,29 @@
+{
+  "version": "v2026-02-28",
+  "sex": "M",
+  "equipment": "Multi-ply",
+  "ipf_weight_class": "59",
+  "age_class": "All Ages",
+  "tested": "all",
+  "lift": "deadlift",
+  "hist": {
+    "file": "hist/m/multi-ply/59/all_ages/all/deadlift.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 30.0,
+    "max_kg": 280.0,
+    "bins": 100,
+    "total": 331
+  },
+  "heat": {
+    "file": "heat/m/multi-ply/59/all_ages/all/deadlift.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 30.0,
+    "max_x_kg": 280.0,
+    "min_y_kg": 53.0,
+    "max_y_kg": 60.0,
+    "width": 100,
+    "height": 7,
+    "total": 331
+  }
+}

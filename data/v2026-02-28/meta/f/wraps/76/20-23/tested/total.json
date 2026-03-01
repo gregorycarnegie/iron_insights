@@ -1,0 +1,29 @@
+{
+  "version": "v2026-02-28",
+  "sex": "F",
+  "equipment": "Wraps",
+  "ipf_weight_class": "76",
+  "age_class": "20-23",
+  "tested": "tested",
+  "lift": "total",
+  "hist": {
+    "file": "hist/f/wraps/76/20-23/tested/total.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 165.0,
+    "max_kg": 467.5,
+    "bins": 121,
+    "total": 207
+  },
+  "heat": {
+    "file": "heat/f/wraps/76/20-23/tested/total.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 165.0,
+    "max_x_kg": 467.5,
+    "min_y_kg": 69.0,
+    "max_y_kg": 76.0,
+    "width": 121,
+    "height": 7,
+    "total": 207
+  }
+}

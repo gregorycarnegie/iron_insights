@@ -1,0 +1,29 @@
+{
+  "version": "v2026-02-28",
+  "sex": "F",
+  "equipment": "Single-ply",
+  "ipf_weight_class": "57",
+  "age_class": "All Ages",
+  "tested": "all",
+  "lift": "squat",
+  "hist": {
+    "file": "hist/f/single-ply/57/all_ages/all/squat.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 12.5,
+    "max_kg": 242.5,
+    "bins": 92,
+    "total": 6892
+  },
+  "heat": {
+    "file": "heat/f/single-ply/57/all_ages/all/squat.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 12.5,
+    "max_x_kg": 242.5,
+    "min_y_kg": 52.0,
+    "max_y_kg": 58.0,
+    "width": 92,
+    "height": 6,
+    "total": 6892
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "version": "v2026-02-28",
+  "sex": "F",
+  "equipment": "Unlimited",
+  "ipf_weight_class": "All",
+  "age_class": "5-12",
+  "tested": "all",
+  "lift": "bench",
+  "hist": {
+    "file": "hist/f/unlimited/all/5-12/all/bench.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 35.0,
+    "max_kg": 87.5,
+    "bins": 21,
+    "total": 3
+  },
+  "heat": {
+    "file": "heat/f/unlimited/all/5-12/all/bench.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 35.0,
+    "max_x_kg": 87.5,
+    "min_y_kg": 34.0,
+    "max_y_kg": 72.0,
+    "width": 21,
+    "height": 38,
+    "total": 3
+  }
+}

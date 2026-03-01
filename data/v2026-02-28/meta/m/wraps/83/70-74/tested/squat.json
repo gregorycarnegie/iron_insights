@@ -1,0 +1,29 @@
+{
+  "version": "v2026-02-28",
+  "sex": "M",
+  "equipment": "Wraps",
+  "ipf_weight_class": "83",
+  "age_class": "70-74",
+  "tested": "tested",
+  "lift": "squat",
+  "hist": {
+    "file": "hist/m/wraps/83/70-74/tested/squat.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 60.0,
+    "max_kg": 177.5,
+    "bins": 47,
+    "total": 26
+  },
+  "heat": {
+    "file": "heat/m/wraps/83/70-74/tested/squat.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 60.0,
+    "max_x_kg": 177.5,
+    "min_y_kg": 74.0,
+    "max_y_kg": 83.0,
+    "width": 47,
+    "height": 9,
+    "total": 26
+  }
+}

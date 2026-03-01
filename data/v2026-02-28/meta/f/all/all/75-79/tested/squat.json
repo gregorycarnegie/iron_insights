@@ -1,0 +1,29 @@
+{
+  "version": "v2026-02-28",
+  "sex": "F",
+  "equipment": "All",
+  "ipf_weight_class": "All",
+  "age_class": "75-79",
+  "tested": "tested",
+  "lift": "squat",
+  "hist": {
+    "file": "hist/f/all/all/75-79/tested/squat.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 20.0,
+    "max_kg": 152.5,
+    "bins": 53,
+    "total": 154
+  },
+  "heat": {
+    "file": "heat/f/all/all/75-79/tested/squat.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 20.0,
+    "max_x_kg": 152.5,
+    "min_y_kg": 38.0,
+    "max_y_kg": 113.0,
+    "width": 53,
+    "height": 75,
+    "total": 154
+  }
+}

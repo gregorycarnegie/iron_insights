@@ -45,6 +45,7 @@ struct SliceMeta {
     sex: String,
     equipment: String,
     ipf_weight_class: String,
+    age_class: String,
     tested: String,
     lift: String,
     hist: HistMeta,
@@ -208,6 +209,11 @@ fn publish_records_for_lift(
         .context("missing IpfWeightClass column")?
         .str()
         .context("IpfWeightClass column not string")?;
+    let age_col = df
+        .column("AgeClassBucket")
+        .context("missing AgeClassBucket column")?
+        .str()
+        .context("AgeClassBucket column not string")?;
     let lift_col = df
         .column("best_lift")
         .context("missing best_lift column")?
@@ -219,10 +225,16 @@ fn publish_records_for_lift(
         .f32()
         .context("bodyweight_at_best column not f32")?;
 
-    let mut slices = BTreeMap::<(String, String, String), SliceAccumulator>::new();
+    let mut slices = BTreeMap::<(String, String, String, String), SliceAccumulator>::new();
     for i in 0..df.height() {
-        let (Some(sex), Some(equipment), Some(weight_class), Some(lift_value)) =
-            (sex_col.get(i), equip_col.get(i), wc_col.get(i), lift_col.get(i))
+        let (Some(sex), Some(equipment), Some(weight_class), Some(age_class), Some(lift_value)) =
+            (
+                sex_col.get(i),
+                equip_col.get(i),
+                wc_col.get(i),
+                age_col.get(i),
+                lift_col.get(i),
+            )
         else {
             continue;
         };
@@ -233,16 +245,61 @@ fn publish_records_for_lift(
         let sex = sex.to_string();
         let equipment = equipment.to_string();
         let weight_class = weight_class.to_string();
+        let age_class = age_class.to_string();
         let valid_bw = bw_col
             .get(i)
             .and_then(|bw| if bw > 0.0 { Some(bw) } else { None });
 
-        // Publish specific and roll-up slices so UI can offer "All" for equipment/wc.
+        // Publish specific and roll-up slices so UI can offer "All" for equipment/wc/age.
         let keys = [
-            (sex.clone(), equipment.clone(), weight_class.clone()),
-            (sex.clone(), "All".to_string(), weight_class.clone()),
-            (sex.clone(), equipment.clone(), "All".to_string()),
-            (sex, "All".to_string(), "All".to_string()),
+            (
+                sex.clone(),
+                equipment.clone(),
+                weight_class.clone(),
+                age_class.clone(),
+            ),
+            (
+                sex.clone(),
+                "All".to_string(),
+                weight_class.clone(),
+                age_class.clone(),
+            ),
+            (
+                sex.clone(),
+                equipment.clone(),
+                "All".to_string(),
+                age_class.clone(),
+            ),
+            (
+                sex.clone(),
+                "All".to_string(),
+                "All".to_string(),
+                age_class.clone(),
+            ),
+            (
+                sex.clone(),
+                equipment.clone(),
+                weight_class.clone(),
+                "All Ages".to_string(),
+            ),
+            (
+                sex.clone(),
+                "All".to_string(),
+                weight_class.clone(),
+                "All Ages".to_string(),
+            ),
+            (
+                sex.clone(),
+                equipment.clone(),
+                "All".to_string(),
+                "All Ages".to_string(),
+            ),
+            (
+                sex,
+                "All".to_string(),
+                "All".to_string(),
+                "All Ages".to_string(),
+            ),
         ];
         for key in keys {
             let entry = slices.entry(key).or_default();
@@ -253,7 +310,7 @@ fn publish_records_for_lift(
         }
     }
 
-    for ((sex, equipment, weight_class), acc) in slices {
+    for ((sex, equipment, weight_class, age_class), acc) in slices {
         if acc.lift_values.is_empty() {
             continue;
         }
@@ -264,10 +321,11 @@ fn publish_records_for_lift(
         let sex_slug = slug(&sex);
         let equip_slug = slug(&equipment);
         let wc_slug = slug(&weight_class);
+        let age_slug = slug(&age_class);
 
-        let hist_rel = format!("hist/{sex_slug}/{equip_slug}/{wc_slug}/{tested}/{lift}.bin");
-        let heat_rel = format!("heat/{sex_slug}/{equip_slug}/{wc_slug}/{tested}/{lift}.bin");
-        let meta_rel = format!("meta/{sex_slug}/{equip_slug}/{wc_slug}/{tested}/{lift}.json");
+        let hist_rel = format!("hist/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{lift}.bin");
+        let heat_rel = format!("heat/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{lift}.bin");
+        let meta_rel = format!("meta/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{lift}.json");
 
         let hist_path = version_dir.join(&hist_rel);
         let heat_path = version_dir.join(&heat_rel);
@@ -281,6 +339,7 @@ fn publish_records_for_lift(
             sex: sex.clone(),
             equipment: equipment.clone(),
             ipf_weight_class: weight_class.clone(),
+            age_class: age_class.clone(),
             tested: tested.to_string(),
             lift: lift.to_string(),
             hist: HistMeta {
@@ -313,10 +372,11 @@ fn publish_records_for_lift(
             .with_context(|| format!("failed writing {}", meta_path.display()))?;
 
         let key = format!(
-            "sex={}|equip={}|wc={}|tested={}|lift={}",
+            "sex={}|equip={}|wc={}|age={}|tested={}|lift={}",
             sex,
             equipment,
             weight_class,
+            age_class,
             tested_bucket(tested),
             lift_code(lift)
         );

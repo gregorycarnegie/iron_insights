@@ -1,0 +1,29 @@
+{
+  "version": "v2026-02-28",
+  "sex": "F",
+  "equipment": "All",
+  "ipf_weight_class": "76",
+  "age_class": "50-54",
+  "tested": "all",
+  "lift": "deadlift",
+  "hist": {
+    "file": "hist/f/all/76/50-54/all/deadlift.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 35.0,
+    "max_kg": 232.5,
+    "bins": 79,
+    "total": 1308
+  },
+  "heat": {
+    "file": "heat/f/all/76/50-54/all/deadlift.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 35.0,
+    "max_x_kg": 232.5,
+    "min_y_kg": 69.0,
+    "max_y_kg": 77.0,
+    "width": 79,
+    "height": 8,
+    "total": 1308
+  }
+}

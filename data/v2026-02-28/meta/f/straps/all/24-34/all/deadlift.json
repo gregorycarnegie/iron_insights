@@ -1,0 +1,29 @@
+{
+  "version": "v2026-02-28",
+  "sex": "F",
+  "equipment": "Straps",
+  "ipf_weight_class": "All",
+  "age_class": "24-34",
+  "tested": "all",
+  "lift": "deadlift",
+  "hist": {
+    "file": "hist/f/straps/all/24-34/all/deadlift.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 75.0,
+    "max_kg": 190.0,
+    "bins": 46,
+    "total": 4
+  },
+  "heat": {
+    "file": "heat/f/straps/all/24-34/all/deadlift.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 75.0,
+    "max_x_kg": 190.0,
+    "min_y_kg": 51.0,
+    "max_y_kg": 96.0,
+    "width": 46,
+    "height": 45,
+    "total": 4
+  }
+}

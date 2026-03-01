@@ -83,6 +83,7 @@ fn build_records(input_parquet: &PathBuf, spec: LiftSpec, tested_only: bool) -> 
         .otherwise(lit("No"))
         .alias("TestedBucket");
     let ipf_wc_expr = derive_ipf_weight_class_expr();
+    let age_class_expr = derive_age_class_expr();
 
     let mut filtered = source
         .filter(col("Sanctioned").eq(lit("Yes")))
@@ -92,17 +93,21 @@ fn build_records(input_parquet: &PathBuf, spec: LiftSpec, tested_only: bool) -> 
         .filter(col(spec.column).gt(lit(0.0f32)))
         .filter(col("BodyweightKg").is_not_null())
         .filter(col("BodyweightKg").cast(DataType::Float32).gt(lit(0.0f32)))
+        .filter(col("Age").is_not_null())
+        .filter(col("Age").cast(DataType::Float32).gt(lit(0.0f32)))
         .filter(col("Place").neq(lit("DQ")))
         .filter(col("Place").neq(lit("DD")))
         .filter(col("Place").neq(lit("NS")))
         .with_column(tested_expr)
         .with_column(ipf_wc_expr)
+        .with_column(age_class_expr)
         .select([
             col("Name"),
             col("Sex"),
             col("Equipment"),
             col("TestedBucket"),
             col("IpfWeightClass"),
+            col("AgeClassBucket"),
             col(spec.column).cast(DataType::Float32).alias("lift_value"),
             col("BodyweightKg")
                 .cast(DataType::Float32)
@@ -125,6 +130,7 @@ fn build_records(input_parquet: &PathBuf, spec: LiftSpec, tested_only: bool) -> 
             col("Equipment"),
             col("TestedBucket"),
             col("IpfWeightClass"),
+            col("AgeClassBucket"),
         ])
         .agg([
             col("lift_value").max().alias("best_lift"),
@@ -189,4 +195,40 @@ fn derive_ipf_weight_class_expr() -> Expr {
         .then(women)
         .otherwise(lit("Unknown"))
         .alias("IpfWeightClass")
+}
+
+fn derive_age_class_expr() -> Expr {
+    let age = col("Age").cast(DataType::Float32);
+    when(age.clone().lt_eq(lit(12.0f32)))
+        .then(lit("5-12"))
+        .when(age.clone().lt_eq(lit(15.0f32)))
+        .then(lit("13-15"))
+        .when(age.clone().lt_eq(lit(17.0f32)))
+        .then(lit("16-17"))
+        .when(age.clone().lt_eq(lit(19.0f32)))
+        .then(lit("18-19"))
+        .when(age.clone().lt_eq(lit(23.0f32)))
+        .then(lit("20-23"))
+        .when(age.clone().lt_eq(lit(34.0f32)))
+        .then(lit("24-34"))
+        .when(age.clone().lt_eq(lit(39.0f32)))
+        .then(lit("35-39"))
+        .when(age.clone().lt_eq(lit(44.0f32)))
+        .then(lit("40-44"))
+        .when(age.clone().lt_eq(lit(49.0f32)))
+        .then(lit("45-49"))
+        .when(age.clone().lt_eq(lit(54.0f32)))
+        .then(lit("50-54"))
+        .when(age.clone().lt_eq(lit(59.0f32)))
+        .then(lit("55-59"))
+        .when(age.clone().lt_eq(lit(64.0f32)))
+        .then(lit("60-64"))
+        .when(age.clone().lt_eq(lit(69.0f32)))
+        .then(lit("65-69"))
+        .when(age.clone().lt_eq(lit(74.0f32)))
+        .then(lit("70-74"))
+        .when(age.clone().lt_eq(lit(79.0f32)))
+        .then(lit("75-79"))
+        .otherwise(lit("80+"))
+        .alias("AgeClassBucket")
 }

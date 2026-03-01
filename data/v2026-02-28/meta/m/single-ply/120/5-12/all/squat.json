@@ -1,0 +1,29 @@
+{
+  "version": "v2026-02-28",
+  "sex": "M",
+  "equipment": "Single-ply",
+  "ipf_weight_class": "120",
+  "age_class": "5-12",
+  "tested": "all",
+  "lift": "squat",
+  "hist": {
+    "file": "hist/m/single-ply/120/5-12/all/squat.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 100.0,
+    "max_kg": 312.5,
+    "bins": 85,
+    "total": 32
+  },
+  "heat": {
+    "file": "heat/m/single-ply/120/5-12/all/squat.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 100.0,
+    "max_x_kg": 312.5,
+    "min_y_kg": 105.0,
+    "max_y_kg": 114.0,
+    "width": 85,
+    "height": 9,
+    "total": 32
+  }
+}

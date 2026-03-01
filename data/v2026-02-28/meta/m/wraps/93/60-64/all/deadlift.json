@@ -1,0 +1,29 @@
+{
+  "version": "v2026-02-28",
+  "sex": "M",
+  "equipment": "Wraps",
+  "ipf_weight_class": "93",
+  "age_class": "60-64",
+  "tested": "all",
+  "lift": "deadlift",
+  "hist": {
+    "file": "hist/m/wraps/93/60-64/all/deadlift.bin",
+    "base_bin_size_kg": 2.5,
+    "min_kg": 75.0,
+    "max_kg": 292.5,
+    "bins": 87,
+    "total": 195
+  },
+  "heat": {
+    "file": "heat/m/wraps/93/60-64/all/deadlift.bin",
+    "x_base_bin_size_kg": 2.5,
+    "y_base_bin_size_kg": 1.0,
+    "min_x_kg": 75.0,
+    "max_x_kg": 292.5,
+    "min_y_kg": 83.0,
+    "max_y_kg": 93.0,
+    "width": 87,
+    "height": 10,
+    "total": 195
+  }
+}
