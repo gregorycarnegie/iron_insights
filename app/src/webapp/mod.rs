@@ -790,8 +790,8 @@ fn App() -> impl IntoView {
                                 min="0"
                                 max="600"
                                 step="0.5"
-                                prop:value=move || format!("{:.1}", kg_to_display(squat.get(), use_lbs.get()))
-                                on:input=move |ev| {
+                                prop:value=move || kg_to_display(squat.get(), use_lbs.get()).to_string()
+                                on:change=move |ev| {
                                     let raw = event_target_value(&ev);
                                     match raw.parse::<f32>() {
                                         Ok(value) => {
@@ -819,8 +819,8 @@ fn App() -> impl IntoView {
                                 min="0"
                                 max="600"
                                 step="0.5"
-                                prop:value=move || format!("{:.1}", kg_to_display(bench.get(), use_lbs.get()))
-                                on:input=move |ev| {
+                                prop:value=move || kg_to_display(bench.get(), use_lbs.get()).to_string()
+                                on:change=move |ev| {
                                     let raw = event_target_value(&ev);
                                     match raw.parse::<f32>() {
                                         Ok(value) => {
@@ -848,8 +848,8 @@ fn App() -> impl IntoView {
                                 min="0"
                                 max="600"
                                 step="0.5"
-                                prop:value=move || format!("{:.1}", kg_to_display(deadlift.get(), use_lbs.get()))
-                                on:input=move |ev| {
+                                prop:value=move || kg_to_display(deadlift.get(), use_lbs.get()).to_string()
+                                on:change=move |ev| {
                                     let raw = event_target_value(&ev);
                                     match raw.parse::<f32>() {
                                         Ok(value) => {
@@ -877,8 +877,8 @@ fn App() -> impl IntoView {
                                 min="35"
                                 max="300"
                                 step="0.5"
-                                prop:value=move || format!("{:.1}", kg_to_display(bodyweight.get(), use_lbs.get()))
-                                on:input=move |ev| {
+                                prop:value=move || kg_to_display(bodyweight.get(), use_lbs.get()).to_string()
+                                on:change=move |ev| {
                                     let raw = event_target_value(&ev);
                                     match raw.parse::<f32>() {
                                         Ok(value) => {
