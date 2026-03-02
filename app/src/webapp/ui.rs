@@ -91,3 +91,16 @@ pub(super) fn parse_f32_input(ev: &web_sys::Event) -> f32 {
         .parse::<f32>()
         .unwrap_or(0.0)
 }
+
+pub(super) fn parse_f32_input_clamped(
+    ev: &web_sys::Event,
+    default: f32,
+    min: f32,
+    max: f32,
+) -> f32 {
+    leptos::prelude::event_target::<HtmlInputElement>(ev)
+        .value()
+        .parse::<f32>()
+        .unwrap_or(default)
+        .clamp(min, max)
+}

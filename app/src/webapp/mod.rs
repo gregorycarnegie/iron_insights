@@ -15,7 +15,7 @@ use self::state::{
     init_dataset_load, setup_default_selection_effects, setup_distribution_effect,
     setup_slice_rows_effect,
 };
-use self::ui::{age_label, lift_label, metric_label, parse_f32_input};
+use self::ui::{age_label, lift_label, metric_label, parse_f32_input, parse_f32_input_clamped};
 use leptos::html::Canvas;
 use leptos::prelude::*;
 use serde::Deserialize;
@@ -66,6 +66,29 @@ pub fn run() {
     mount_to_body(|| view! { <App /> });
 }
 
+fn comparable_lift_value(
+    sex: &str,
+    equipment: &str,
+    lift: &str,
+    metric: &str,
+    bodyweight: f32,
+    squat: f32,
+    bench: f32,
+    deadlift: f32,
+) -> f32 {
+    let total = squat + bench + deadlift;
+    match (lift, metric) {
+        ("S", _) => squat,
+        ("B", _) => bench,
+        ("D", _) => deadlift,
+        ("T", "Dots") => dots_points(sex, bodyweight, total),
+        ("T", "Wilks") => wilks_points(sex, bodyweight, total),
+        ("T", "GL") => goodlift_points(sex, equipment, bodyweight, total),
+        ("T", _) => total,
+        _ => 0.0,
+    }
+}
+
 #[component]
 fn App() -> impl IntoView {
     let (latest, set_latest) = signal(None::<LatestJson>);
@@ -85,6 +108,9 @@ fn App() -> impl IntoView {
     let (bench, set_bench) = signal(120.0f32);
     let (deadlift, set_deadlift) = signal(220.0f32);
     let (bodyweight, set_bodyweight) = signal(90.0f32);
+    let (squat_delta, set_squat_delta) = signal(0.0f32);
+    let (bench_delta, set_bench_delta) = signal(0.0f32);
+    let (deadlift_delta, set_deadlift_delta) = signal(0.0f32);
 
     let (lift_mult, set_lift_mult) = signal(4usize);
     let (bw_mult, set_bw_mult) = signal(5usize);
@@ -166,20 +192,36 @@ fn App() -> impl IntoView {
         set_metric,
     );
 
+    let projected_squat = Memo::new(move |_| (squat.get() + squat_delta.get()).clamp(0.0, 600.0));
+    let projected_bench = Memo::new(move |_| (bench.get() + bench_delta.get()).clamp(0.0, 600.0));
+    let projected_deadlift =
+        Memo::new(move |_| (deadlift.get() + deadlift_delta.get()).clamp(0.0, 600.0));
+    let projected_total =
+        Memo::new(move |_| projected_squat.get() + projected_bench.get() + projected_deadlift.get());
+
     let user_lift = Memo::new(move |_| {
-        let total = squat.get() + bench.get() + deadlift.get();
-        match (lift.get(), metric.get()) {
-            (l, _) if l == "S" => squat.get(),
-            (l, _) if l == "B" => bench.get(),
-            (l, _) if l == "D" => deadlift.get(),
-            (l, m) if l == "T" && m == "Dots" => dots_points(&sex.get(), bodyweight.get(), total),
-            (l, m) if l == "T" && m == "Wilks" => wilks_points(&sex.get(), bodyweight.get(), total),
-            (l, m) if l == "T" && m == "GL" => {
-                goodlift_points(&sex.get(), &equip.get(), bodyweight.get(), total)
-            }
-            (l, _) if l == "T" => total,
-            _ => 0.0,
-        }
+        comparable_lift_value(
+            &sex.get(),
+            &equip.get(),
+            &lift.get(),
+            &metric.get(),
+            bodyweight.get(),
+            squat.get(),
+            bench.get(),
+            deadlift.get(),
+        )
+    });
+    let projected_user_lift = Memo::new(move |_| {
+        comparable_lift_value(
+            &sex.get(),
+            &equip.get(),
+            &lift.get(),
+            &metric.get(),
+            bodyweight.get(),
+            projected_squat.get(),
+            projected_bench.get(),
+            projected_deadlift.get(),
+        )
     });
 
     let hist_x_label = Memo::new(move |_| {
@@ -224,6 +266,13 @@ fn App() -> impl IntoView {
 
     let percentile =
         Memo::new(move |_| percentile_for_value(rebinned_hist.get().as_ref(), user_lift.get()));
+    let projected_percentile = Memo::new(move |_| {
+        percentile_for_value(rebinned_hist.get().as_ref(), projected_user_lift.get())
+    });
+    let percentile_delta = Memo::new(move |_| match (percentile.get(), projected_percentile.get()) {
+        (Some((current, _, _)), Some((projected, _, _))) => Some(projected - current),
+        _ => None,
+    });
 
     {
         let canvas_ref = canvas_ref;
@@ -382,16 +431,57 @@ fn App() -> impl IntoView {
 
                 <div class="grid numbers">
                     <label>"Squat (kg)"
-                        <input type="number" prop:value=move || squat.get().to_string() on:input=move |ev| set_squat.set(parse_f32_input(&ev)) />
+                        <input
+                            type="number"
+                            min="0"
+                            max="600"
+                            step="0.5"
+                            prop:value=move || squat.get().to_string()
+                            on:input=move |ev| {
+                                set_squat.set(parse_f32_input_clamped(&ev, squat.get_untracked(), 0.0, 600.0))
+                            }
+                        />
                     </label>
                     <label>"Bench (kg)"
-                        <input type="number" prop:value=move || bench.get().to_string() on:input=move |ev| set_bench.set(parse_f32_input(&ev)) />
+                        <input
+                            type="number"
+                            min="0"
+                            max="600"
+                            step="0.5"
+                            prop:value=move || bench.get().to_string()
+                            on:input=move |ev| {
+                                set_bench.set(parse_f32_input_clamped(&ev, bench.get_untracked(), 0.0, 600.0))
+                            }
+                        />
                     </label>
                     <label>"Deadlift (kg)"
-                        <input type="number" prop:value=move || deadlift.get().to_string() on:input=move |ev| set_deadlift.set(parse_f32_input(&ev)) />
+                        <input
+                            type="number"
+                            min="0"
+                            max="600"
+                            step="0.5"
+                            prop:value=move || deadlift.get().to_string()
+                            on:input=move |ev| {
+                                set_deadlift.set(parse_f32_input_clamped(&ev, deadlift.get_untracked(), 0.0, 600.0))
+                            }
+                        />
                     </label>
                     <label>"Bodyweight (kg)"
-                        <input type="number" prop:value=move || bodyweight.get().to_string() on:input=move |ev| set_bodyweight.set(parse_f32_input(&ev)) />
+                        <input
+                            type="number"
+                            min="35"
+                            max="300"
+                            step="0.5"
+                            prop:value=move || bodyweight.get().to_string()
+                            on:input=move |ev| {
+                                set_bodyweight.set(parse_f32_input_clamped(
+                                    &ev,
+                                    bodyweight.get_untracked(),
+                                    35.0,
+                                    300.0,
+                                ))
+                            }
+                        />
                     </label>
                 </div>
 
@@ -417,6 +507,63 @@ fn App() -> impl IntoView {
                         </select>
                     </label>
                 </div>
+
+                <div class="simulator">
+                    <h3>"Progression Simulator"</h3>
+                    <p class="muted">
+                        "Adjust projected lift changes to see percentile/rank shift using this slice's current distribution."
+                    </p>
+                    <div class="sim-grid">
+                        <label class="sim-control">
+                            <span>"Squat change"</span>
+                            <input
+                                type="range"
+                                min="-50"
+                                max="50"
+                                step="0.5"
+                                prop:value=move || squat_delta.get().to_string()
+                                on:input=move |ev| set_squat_delta.set(parse_f32_input(&ev).clamp(-50.0, 50.0))
+                            />
+                            <strong>{move || format!("{:+.1} kg", squat_delta.get())}</strong>
+                        </label>
+                        <label class="sim-control">
+                            <span>"Bench change"</span>
+                            <input
+                                type="range"
+                                min="-50"
+                                max="50"
+                                step="0.5"
+                                prop:value=move || bench_delta.get().to_string()
+                                on:input=move |ev| set_bench_delta.set(parse_f32_input(&ev).clamp(-50.0, 50.0))
+                            />
+                            <strong>{move || format!("{:+.1} kg", bench_delta.get())}</strong>
+                        </label>
+                        <label class="sim-control">
+                            <span>"Deadlift change"</span>
+                            <input
+                                type="range"
+                                min="-50"
+                                max="50"
+                                step="0.5"
+                                prop:value=move || deadlift_delta.get().to_string()
+                                on:input=move |ev| set_deadlift_delta.set(parse_f32_input(&ev).clamp(-50.0, 50.0))
+                            />
+                            <strong>{move || format!("{:+.1} kg", deadlift_delta.get())}</strong>
+                        </label>
+                    </div>
+                    <p class="sim-summary">
+                        {move || format!(
+                            "Projected total: {:.1} kg (S {:.1} / B {:.1} / D {:.1})",
+                            projected_total.get(),
+                            projected_squat.get(),
+                            projected_bench.get(),
+                            projected_deadlift.get()
+                        )}
+                    </p>
+                    <p class="muted">
+                        "Guardrails: lifts are clamped to 0-600kg, bodyweight to 35-300kg, and sliders to +/-50kg."
+                    </p>
+                </div>
             </section>
 
             <section class="panel stats">
@@ -425,6 +572,32 @@ fn App() -> impl IntoView {
                     {move || match percentile.get() {
                         Some((pct, rank, total)) => format!("{:.1}% percentile | rank ~{} / {}", pct * 100.0, rank, total),
                         None => "No distribution loaded for this slice.".to_string(),
+                    }}
+                </p>
+                <p>
+                    {move || match projected_percentile.get() {
+                        Some((pct, rank, total)) => {
+                            format!("Projected: {:.1}% percentile | rank ~{} / {}", pct * 100.0, rank, total)
+                        }
+                        None => "Projected: unavailable until distribution is loaded.".to_string(),
+                    }}
+                </p>
+                <p>
+                    {move || match percentile_delta.get() {
+                        Some(delta) => format!("Shift: {:+.2} percentile points", delta * 100.0),
+                        None => "Shift: n/a".to_string(),
+                    }}
+                </p>
+                <p class="muted">
+                    {move || {
+                        if lift.get() == "T" {
+                            "For Total views, all three slider changes affect projection.".to_string()
+                        } else {
+                            format!(
+                                "For {} views, only that lift directly affects projected percentile.",
+                                lift_label(&lift.get())
+                            )
+                        }
                     }}
                 </p>
             </section>
