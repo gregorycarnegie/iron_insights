@@ -28,3 +28,22 @@
 - DOTS/Wilks Leaderboard (OPL already provides this)
 - Records Dashboard (record rules/sources are tricky)
 - Lifter Profiles (too heavy for current scope)
+
+## Dev Speed Checklist (Trunk/WASM)
+
+- [ ] Ensure wasm target is installed once
+  - [ ] `rustup target add wasm32-unknown-unknown`
+- [ ] Avoid crates.io network stalls
+  - [ ] Verify DNS/proxy/firewall allows `index.crates.io` and `crates.io`
+  - [ ] If needed, set a stable mirror in cargo config
+- [ ] Keep dependency fetches warm
+  - [ ] Run `cargo fetch` in `app/` after dependency changes
+- [ ] Reuse incremental build cache
+  - [ ] Keep `app/target/` persistent (don’t clean unless necessary)
+  - [ ] Use the same toolchain/profile between runs
+- [ ] Use fast local dev commands
+  - [ ] First run: `trunk serve` (no `--open` needed each time)
+  - [ ] Iteration: keep one `trunk serve` process alive and edit files
+  - [ ] Optional warm-up: `cargo check` in `app/` before `trunk serve`
+- [ ] Keep warnings low to reduce noise while debugging perf
+  - [ ] Fix new warnings quickly so real regressions stand out

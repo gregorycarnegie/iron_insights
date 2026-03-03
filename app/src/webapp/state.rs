@@ -1,11 +1,22 @@
-use super::data::fetch_json_first;
+use super::data::{fetch_binary_first, fetch_json_first};
+use super::models::{LatestJson, RootIndex, SliceIndex, SliceIndexEntries, SliceRow};
 use super::slices::{entry_from_slice_key, parse_shard_key, parse_slice_key};
 use super::ui::{pick_preferred, unique};
-use super::{debug_log, LatestJson, RootIndex, SliceIndex, SliceIndexEntries, SliceRow};
+use super::debug_log;
 use crate::core::{parse_heat_bin, parse_hist_bin, HeatmapBin, HistogramBin};
-use gloo_net::http::Request;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+
+fn data_url_candidates(path_suffix: &str) -> Vec<String> {
+    let trimmed = path_suffix.trim_start_matches('/');
+    vec![
+        format!("./data/{trimmed}"),
+        format!("/data/{trimmed}"),
+        format!("data/{trimmed}"),
+        format!("./app/data/{trimmed}"),
+        format!("/app/data/{trimmed}"),
+    ]
+}
 
 pub(super) fn init_dataset_load(
     set_latest: WriteSignal<Option<LatestJson>>,
@@ -15,7 +26,10 @@ pub(super) fn init_dataset_load(
     set_load_error: WriteSignal<Option<String>>,
 ) {
     spawn_local(async move {
-        let latest_json = fetch_json_first::<LatestJson>(&["./data/latest.json", "/data/latest.json"]).await;
+        let mut latest_urls = data_url_candidates("latest.json");
+        latest_urls.extend(["./latest.json", "/latest.json"].into_iter().map(str::to_string));
+        let latest_refs: Vec<&str> = latest_urls.iter().map(String::as_str).collect();
+        let latest_json = fetch_json_first::<LatestJson>(&latest_refs).await;
         let Ok(latest_json) = latest_json else {
             set_load_error.set(Some(
                 "Failed to load latest dataset pointer (data/latest.json).".to_string(),
@@ -24,9 +38,9 @@ pub(super) fn init_dataset_load(
         };
         set_latest.set(Some(latest_json.clone()));
 
-        let index_url = format!("./data/{}/index.json", latest_json.version);
-        let index_url_abs = format!("/data/{}/index.json", latest_json.version);
-        let index = fetch_json_first::<RootIndex>(&[&index_url, &index_url_abs]).await;
+        let index_urls = data_url_candidates(&format!("{}/index.json", latest_json.version));
+        let index_refs: Vec<&str> = index_urls.iter().map(String::as_str).collect();
+        let index = fetch_json_first::<RootIndex>(&index_refs).await;
         let Ok(index) = index else {
             if let Err(err) = index {
                 set_load_error.set(Some(format!(
@@ -98,9 +112,9 @@ pub(super) fn setup_slice_rows_effect(
         let set_load_error = set_load_error;
         let slice_request_id = slice_request_id;
         spawn_local(async move {
-            let url_rel = format!("./data/{}/{}", latest_v.version, shard_rel);
-            let url_abs = format!("/data/{}/{}", latest_v.version, shard_rel);
-            let shard = fetch_json_first::<SliceIndex>(&[&url_rel, &url_abs]).await;
+            let shard_urls = data_url_candidates(&format!("{}/{}", latest_v.version, shard_rel));
+            let shard_refs: Vec<&str> = shard_urls.iter().map(String::as_str).collect();
+            let shard = fetch_json_first::<SliceIndex>(&shard_refs).await;
             if slice_request_id.get_untracked() != next_request_id {
                 debug_log(&format!("Ignored stale shard response for request {next_request_id}"));
                 return;
@@ -155,13 +169,15 @@ pub(super) fn setup_distribution_effect(
         let latest_v = latest.get();
 
         if let (Some(row), Some(latest_v)) = (row, latest_v) {
-            let hist_url = format!("./data/{}/{}", latest_v.version, row.entry.hist);
-            let heat_url = format!("./data/{}/{}", latest_v.version, row.entry.heat);
+            let hist_urls = data_url_candidates(&format!("{}/{}", latest_v.version, row.entry.hist));
+            let heat_urls = data_url_candidates(&format!("{}/{}", latest_v.version, row.entry.heat));
 
             let set_hist = set_hist;
             let set_heat = set_heat;
             let set_load_error = set_load_error;
             let dist_request_id = dist_request_id;
+            let hist_err = hist_urls[0].clone();
+            let heat_err = heat_urls[0].clone();
             set_hist.set(None);
             set_heat.set(None);
             spawn_local(async move {
@@ -172,9 +188,8 @@ pub(super) fn setup_distribution_effect(
                     return;
                 }
 
-                if let Ok(resp) = Request::get(&hist_url).send().await
-                    && let Ok(bytes) = resp.binary().await
-                {
+                let hist_refs: Vec<&str> = hist_urls.iter().map(String::as_str).collect();
+                if let Ok(bytes) = fetch_binary_first(&hist_refs).await {
                     if dist_request_id.get_untracked() != next_request_id {
                         debug_log(&format!(
                             "Ignored stale histogram payload for request {next_request_id}"
@@ -184,7 +199,7 @@ pub(super) fn setup_distribution_effect(
                     let parsed = parse_hist_bin(&bytes);
                     if parsed.is_none() {
                         set_load_error.set(Some(format!(
-                            "Invalid or unsupported histogram binary format: {hist_url}"
+                            "Invalid or unsupported histogram binary format: {hist_err}"
                         )));
                     }
                     set_hist.set(parsed);
@@ -196,12 +211,12 @@ pub(super) fn setup_distribution_effect(
                         return;
                     }
                     set_hist.set(None);
-                    set_load_error.set(Some(format!("Failed to fetch histogram data: {hist_url}")));
+                    set_load_error
+                        .set(Some(format!("Failed to fetch histogram data: {hist_err}")));
                 }
 
-                if let Ok(resp) = Request::get(&heat_url).send().await
-                    && let Ok(bytes) = resp.binary().await
-                {
+                let heat_refs: Vec<&str> = heat_urls.iter().map(String::as_str).collect();
+                if let Ok(bytes) = fetch_binary_first(&heat_refs).await {
                     if dist_request_id.get_untracked() != next_request_id {
                         debug_log(&format!(
                             "Ignored stale heatmap payload for request {next_request_id}"
@@ -211,7 +226,7 @@ pub(super) fn setup_distribution_effect(
                     let parsed = parse_heat_bin(&bytes);
                     if parsed.is_none() {
                         set_load_error.set(Some(format!(
-                            "Invalid or unsupported heatmap binary format: {heat_url}"
+                            "Invalid or unsupported heatmap binary format: {heat_err}"
                         )));
                     }
                     set_heat.set(parsed);
@@ -223,7 +238,7 @@ pub(super) fn setup_distribution_effect(
                         return;
                     }
                     set_heat.set(None);
-                    set_load_error.set(Some(format!("Failed to fetch heatmap data: {heat_url}")));
+                    set_load_error.set(Some(format!("Failed to fetch heatmap data: {heat_err}")));
                 }
             });
         } else {
