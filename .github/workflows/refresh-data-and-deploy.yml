@@ -95,8 +95,10 @@ jobs:
           test -s "data/${DATA_VERSION}/index.json"
 
           # Aggregate row-count proxy (sum of histogram totals across slices).
+          # Use per-file extraction + awk sum so argument chunking cannot produce multi-line totals.
           NEW_TOTAL=$(find "data/${DATA_VERSION}/meta" -type f -name '*.json' -print0 \
-            | xargs -0 jq -s '[.[].hist.total] | add // 0')
+            | xargs -0 -r jq -r '.hist.total // 0' \
+            | awk '{s += $1} END {print s + 0}')
 
           if [[ -z "${NEW_TOTAL}" || "${NEW_TOTAL}" == "0" ]]; then
             echo "Computed NEW_TOTAL is empty/zero; failing."
@@ -107,7 +109,8 @@ jobs:
           PREV_TOTAL=0
           if [[ -n "${PREV_VERSION}" && -d "data/${PREV_VERSION}/meta" ]]; then
             PREV_TOTAL=$(find "data/${PREV_VERSION}/meta" -type f -name '*.json' -print0 \
-              | xargs -0 jq -s '[.[].hist.total] | add // 0')
+              | xargs -0 -r jq -r '.hist.total // 0' \
+              | awk '{s += $1} END {print s + 0}')
           fi
 
           if [[ "${PREV_TOTAL}" != "0" ]]; then
