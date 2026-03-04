@@ -2,9 +2,14 @@
 /app/target
 /app/dist
 /app/data
+/dist
 
-/docs/*
-!/docs/.gitkeep
+# Keep only canonical dataset in /data tracked.
+# Generated copies should stay untracked.
+/docs/data
+/data_failed_*
+/app/data_failed_*
+/docs/data_failed_*
 
 /docs/*
 !/docs/.gitkeep

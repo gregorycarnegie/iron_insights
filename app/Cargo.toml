@@ -1,7 +1,7 @@
 [package]
 name = "iron_insights_app"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
 
@@ -9,8 +9,8 @@ edition = "2024"
 gloo-net = "0.6.0"
 gloo-timers = "0.3.0"
 leptos = { version = "0.8.17", features = ["csr"] }
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+serde = { workspace = true }
+serde_json = { workspace = true }
 wasm-bindgen = "0.2.114"
 wasm-bindgen-futures = "0.4.64"
 web-sys = { version = "0.3.91", features = [

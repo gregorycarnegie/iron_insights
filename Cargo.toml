@@ -1,5 +1,16 @@
+[workspace]
+members = ["app", "pipeline"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+
 [package]
-name = "iron_insights2"
+name = "iron_insights"
 version = "0.1.0"
 edition = "2024"
 
