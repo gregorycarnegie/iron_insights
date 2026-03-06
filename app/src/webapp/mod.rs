@@ -11,15 +11,13 @@ mod ui;
 
 use self::charts::draw_heatmap;
 use self::components::{
-    ChartsPanel, CompareModePanel, FaqPanel, OnboardingPanel, PercentilePanel, ResultCardPanel,
-    SimulatorPanel,
+    ChartsPanel, CompareModePanel, FaqPanel, LogoMark, OnboardingPanel, OneRepMaxPanel,
+    PercentilePanel, ResultCardPanel, SimulatorPanel,
 };
 use self::helpers::{
     build_share_url, comparable_lift_value, kg_to_display, parse_query_f32, tier_for_percentile,
 };
-use self::models::{
-    CompareMode, LatestJson, RootIndex, SavedUiState, SliceIndexEntry, SliceRow,
-};
+use self::models::{CompareMode, LatestJson, RootIndex, SavedUiState, SliceIndexEntry, SliceRow};
 use self::selectors::{
     age_options, equip_options, lift_options, metric_options, sex_options, tested_options,
     wc_options,
@@ -29,12 +27,18 @@ use self::state::{
     setup_slice_rows_effect,
 };
 use self::ui::{age_label, metric_label};
+use crate::core::{HeatmapBin, HistogramBin, percentile_for_value, rebin_1d, rebin_2d};
 use leptos::html::Canvas;
 use leptos::prelude::*;
-use crate::core::{percentile_for_value, rebin_1d, rebin_2d, HeatmapBin, HistogramBin};
 
 pub fn run() {
     mount_to_body(|| view! { <App /> });
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AppPage {
+    Rank,
+    OneRm,
 }
 
 #[component]
@@ -49,6 +53,8 @@ fn App() -> impl IntoView {
     let (use_lbs, set_use_lbs) = signal(false);
     let (calculating, set_calculating) = signal(false);
     let (compare_mode, set_compare_mode) = signal(CompareMode::AllLifters);
+    let (active_page, set_active_page) = signal(AppPage::Rank);
+    let (page_loaded, set_page_loaded) = signal(false);
 
     let (latest, set_latest) = signal(None::<LatestJson>);
     let (root_index, set_root_index) = signal(None::<RootIndex>);
@@ -85,7 +91,13 @@ fn App() -> impl IntoView {
 
     let canvas_ref: NodeRef<Canvas> = NodeRef::new();
 
-    init_dataset_load(set_latest, set_root_index, set_sex, set_equip, set_load_error);
+    init_dataset_load(
+        set_latest,
+        set_root_index,
+        set_sex,
+        set_equip,
+        set_load_error,
+    );
     setup_slice_rows_effect(
         latest,
         root_index,
@@ -159,8 +171,9 @@ fn App() -> impl IntoView {
     let projected_bench = Memo::new(move |_| (bench.get() + bench_delta.get()).clamp(0.0, 600.0));
     let projected_deadlift =
         Memo::new(move |_| (deadlift.get() + deadlift_delta.get()).clamp(0.0, 600.0));
-    let projected_total =
-        Memo::new(move |_| projected_squat.get() + projected_bench.get() + projected_deadlift.get());
+    let projected_total = Memo::new(move |_| {
+        projected_squat.get() + projected_bench.get() + projected_deadlift.get()
+    });
 
     let user_lift = Memo::new(move |_| {
         comparable_lift_value(
@@ -232,13 +245,20 @@ fn App() -> impl IntoView {
     let projected_percentile = Memo::new(move |_| {
         percentile_for_value(rebinned_hist.get().as_ref(), projected_user_lift.get())
     });
-    let percentile_delta = Memo::new(move |_| match (percentile.get(), projected_percentile.get()) {
-        (Some((current, _, _)), Some((projected, _, _))) => Some(projected - current),
-        _ => None,
+    let percentile_delta =
+        Memo::new(
+            move |_| match (percentile.get(), projected_percentile.get()) {
+                (Some((current, _, _)), Some((projected, _, _))) => Some(projected - current),
+                _ => None,
+            },
+        );
+    let rank_tier =
+        Memo::new(move |_| percentile.get().map(|(pct, _, _)| tier_for_percentile(pct)));
+    let projected_rank_tier = Memo::new(move |_| {
+        projected_percentile
+            .get()
+            .map(|(pct, _, _)| tier_for_percentile(pct))
     });
-    let rank_tier = Memo::new(move |_| percentile.get().map(|(pct, _, _)| tier_for_percentile(pct)));
-    let projected_rank_tier =
-        Memo::new(move |_| projected_percentile.get().map(|(pct, _, _)| tier_for_percentile(pct)));
     let has_input_error = Memo::new(move |_| {
         squat_error.get().is_some()
             || bench_error.get().is_some()
@@ -249,7 +269,10 @@ fn App() -> impl IntoView {
     let percentile_percent = Memo::new(move |_| percentile.get().map(|(pct, _, _)| pct * 100.0));
     let compare_summary = Memo::new(move |_| match (compare_mode.get(), percentile.get()) {
         (CompareMode::AllLifters, Some((pct, _, _))) => {
-            format!("Across all lifters, you're stronger than {:.1}%.", pct * 100.0)
+            format!(
+                "Across all lifters, you're stronger than {:.1}%.",
+                pct * 100.0
+            )
         }
         (CompareMode::SameBodyweightRange, Some((pct, _, _))) => {
             let low = kg_to_display((bodyweight.get() - 5.0).max(35.0), use_lbs.get());
@@ -416,8 +439,18 @@ fn App() -> impl IntoView {
             set_share_handle.set(value);
         }
 
-        set_squat.set(parse_query_f32(params.get("s"), squat.get_untracked(), 0.0, 600.0));
-        set_bench.set(parse_query_f32(params.get("b"), bench.get_untracked(), 0.0, 600.0));
+        set_squat.set(parse_query_f32(
+            params.get("s"),
+            squat.get_untracked(),
+            0.0,
+            600.0,
+        ));
+        set_bench.set(parse_query_f32(
+            params.get("b"),
+            bench.get_untracked(),
+            0.0,
+            600.0,
+        ));
         set_deadlift.set(parse_query_f32(
             params.get("d"),
             deadlift.get_untracked(),
@@ -465,6 +498,37 @@ fn App() -> impl IntoView {
     });
 
     Effect::new(move |_| {
+        if page_loaded.get() {
+            return;
+        }
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        if let Ok(hash) = window.location().hash() {
+            if hash.eq_ignore_ascii_case("#1rm") {
+                set_active_page.set(AppPage::OneRm);
+            } else {
+                set_active_page.set(AppPage::Rank);
+            }
+        }
+        set_page_loaded.set(true);
+    });
+
+    Effect::new(move |_| {
+        if !page_loaded.get() {
+            return;
+        }
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let hash = match active_page.get() {
+            AppPage::Rank => "#rank",
+            AppPage::OneRm => "#1rm",
+        };
+        let _ = window.location().set_hash(hash);
+    });
+
+    Effect::new(move |_| {
         if !query_loaded.get() {
             return;
         }
@@ -501,27 +565,57 @@ fn App() -> impl IntoView {
 
     view! {
         <div class="page">
-            <header class="hero">
-                <h1>"How Strong Are You?"</h1>
-                <p>
-                    {move || {
-                        if let Some(err) = load_error.get() {
-                            err
-                        } else if let Some(l) = latest.get() {
-                            if let Some(r) = l.revision {
-                                format!("Data version {} ({})", l.version, r)
-                            } else {
-                                format!("Data version {}", l.version)
-                            }
-                        } else {
-                            "Loading data...".to_string()
-                        }
-                    }}
-                </p>
-                <p class="intro">
-                    "Enter your lifts to see how you rank among lifters in this dataset. Higher percentile means stronger."
-                </p>
+            <header class="panel topbar">
+                <div class="brand">
+                    <LogoMark />
+                    <div class="brand-copy">
+                        <p class="brand-title">"Iron Insights"</p>
+                        <p class="brand-subtitle">"Powerlifting data explorer"</p>
+                    </div>
+                </div>
+                <nav class="page-nav" aria-label="Main pages">
+                    <button
+                        type="button"
+                        class:chip=true
+                        class:active=move || active_page.get() == AppPage::Rank
+                        on:click=move |_| set_active_page.set(AppPage::Rank)
+                    >
+                        "Ranking"
+                    </button>
+                    <button
+                        type="button"
+                        class:chip=true
+                        class:active=move || active_page.get() == AppPage::OneRm
+                        on:click=move |_| set_active_page.set(AppPage::OneRm)
+                    >
+                        "1RM Calculator"
+                    </button>
+                </nav>
             </header>
+
+            <Show when=move || active_page.get() == AppPage::Rank>
+                <header class="hero">
+                    <h1>"How Strong Are You?"</h1>
+                    <p>
+                        {move || {
+                            if let Some(err) = load_error.get() {
+                                err
+                            } else if let Some(l) = latest.get() {
+                                if let Some(r) = l.revision {
+                                    format!("Data version {} ({})", l.version, r)
+                                } else {
+                                    format!("Data version {}", l.version)
+                                }
+                            } else {
+                                "Loading data...".to_string()
+                            }
+                        }}
+                    </p>
+                    <p class="intro">
+                        "Enter your lifts to see how you rank among lifters in this dataset. Higher percentile means stronger."
+                    </p>
+                </header>
+
                 <OnboardingPanel
                     sex_options=sex_options
                     sex=sex
@@ -630,6 +724,25 @@ fn App() -> impl IntoView {
                     percentile_delta=percentile_delta
                 />
                 <FaqPanel />
+            </Show>
+
+            <Show when=move || active_page.get() == AppPage::OneRm>
+                <header class="hero">
+                    <h1>"Estimate Your 1-Rep Max"</h1>
+                    <p>"Use a training set to estimate your max with common formulas."</p>
+                </header>
+                <OneRepMaxPanel />
+            </Show>
+
+            <footer class="panel attribution">
+                <p>
+                    "Data powered by "
+                    <a href="https://www.openpowerlifting.org/" target="_blank" rel="noopener noreferrer">
+                        "OpenPowerlifting.org"
+                    </a>
+                    ". Huge appreciation to their team for keeping this public dataset free."
+                </p>
+            </footer>
         </div>
     }
 }

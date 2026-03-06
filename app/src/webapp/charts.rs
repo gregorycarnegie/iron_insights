@@ -15,7 +15,8 @@ pub(super) fn render_histogram_svg(hist: &HistogramBin, user_value: f32, x_label
     let plot_h = (h - top - bottom).max(1.0);
     let bar_w = (plot_w / hist.counts.len().max(1) as f32).max(1.0);
 
-    let marker_x = left + ((user_value - hist.min) / (hist.max - hist.min).max(0.0001)).clamp(0.0, 1.0) * plot_w;
+    let marker_x = left
+        + ((user_value - hist.min) / (hist.max - hist.min).max(0.0001)).clamp(0.0, 1.0) * plot_w;
     let bars: Vec<(usize, u32)> = hist.counts.iter().copied().enumerate().collect();
     let x_mid = (hist.min + hist.max) * 0.5;
     let y_tick_mid = (max_count * 0.5).round() as u32;
@@ -148,7 +149,11 @@ pub(super) fn draw_heatmap(
         left + plot_w * 0.5,
         top + plot_h + 8.0,
     );
-    let _ = ctx.fill_text(&format!("{:.0}", heat.max_x), left + plot_w, top + plot_h + 8.0);
+    let _ = ctx.fill_text(
+        &format!("{:.0}", heat.max_x),
+        left + plot_w,
+        top + plot_h + 8.0,
+    );
 
     ctx.set_text_align("right");
     ctx.set_text_baseline("middle");

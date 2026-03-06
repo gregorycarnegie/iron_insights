@@ -1,7 +1,9 @@
 use gloo_net::http::Request;
 use serde::Deserialize;
 
-pub(super) async fn fetch_json_first<T: for<'de> Deserialize<'de>>(urls: &[&str]) -> Result<T, String> {
+pub(super) async fn fetch_json_first<T: for<'de> Deserialize<'de>>(
+    urls: &[&str],
+) -> Result<T, String> {
     let mut errors = Vec::new();
     for url in urls {
         match Request::get(url).send().await {

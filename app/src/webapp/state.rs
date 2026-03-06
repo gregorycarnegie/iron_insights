@@ -1,9 +1,9 @@
 use super::data::{fetch_binary_first, fetch_json_first};
+use super::debug_log;
 use super::models::{LatestJson, RootIndex, SliceIndex, SliceIndexEntries, SliceRow};
 use super::slices::{entry_from_slice_key, parse_shard_key, parse_slice_key};
 use super::ui::{pick_preferred, unique};
-use super::debug_log;
-use crate::core::{parse_heat_bin, parse_hist_bin, HeatmapBin, HistogramBin};
+use crate::core::{HeatmapBin, HistogramBin, parse_heat_bin, parse_hist_bin};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
@@ -108,7 +108,9 @@ pub(super) fn setup_slice_rows_effect(
             let shard_url = data_url(&format!("{}/{}", latest_v.version, shard_rel));
             let shard = fetch_json_first::<SliceIndex>(&[&shard_url]).await;
             if slice_request_id.get_untracked() != next_request_id {
-                debug_log(&format!("Ignored stale shard response for request {next_request_id}"));
+                debug_log(&format!(
+                    "Ignored stale shard response for request {next_request_id}"
+                ));
                 return;
             }
             let Ok(shard) = shard else {
@@ -202,8 +204,7 @@ pub(super) fn setup_distribution_effect(
                         return;
                     }
                     set_hist.set(None);
-                    set_load_error
-                        .set(Some(format!("Failed to fetch histogram data: {hist_err}")));
+                    set_load_error.set(Some(format!("Failed to fetch histogram data: {hist_err}")));
                 }
 
                 if let Ok(bytes) = fetch_binary_first(&[&heat_url]).await {

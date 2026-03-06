@@ -70,7 +70,9 @@ pub(super) fn entry_from_slice_key(raw: &str) -> Option<(SliceKey, SliceIndexEnt
     let has_metric = raw.split('|').any(|part| part.starts_with("metric="));
     let base = if has_metric {
         let metric_dir = slug(&key.metric);
-        format!("{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested_dir}/{metric_dir}/{lift_name}")
+        format!(
+            "{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested_dir}/{metric_dir}/{lift_name}"
+        )
     } else {
         format!("{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested_dir}/{lift_name}")
     };

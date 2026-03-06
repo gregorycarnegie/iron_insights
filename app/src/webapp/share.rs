@@ -79,7 +79,12 @@ pub(super) fn download_share_png(
     context.set_fill_style_str("#d4c6a9");
     context.fill_rect(80.0, 370.0, 760.0, 14.0);
     context.set_fill_style_str("#f6f2e8");
-    context.fill_rect(80.0, 370.0, (percentile * 760.0).clamp(0.0, 760.0) as f64, 14.0);
+    context.fill_rect(
+        80.0,
+        370.0,
+        (percentile * 760.0).clamp(0.0, 760.0) as f64,
+        14.0,
+    );
 
     context.set_fill_style_str("#f6f2e8");
     context.set_font("400 24px 'IBM Plex Mono', monospace");

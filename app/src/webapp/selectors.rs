@@ -28,7 +28,8 @@ pub(super) fn equip_options(
             .get()
             .map(|root| {
                 unique(root.shards.keys().filter_map(|k| {
-                    parse_shard_key(k).and_then(|(sx, eq)| if sx == s { Some(eq.to_string()) } else { None })
+                    parse_shard_key(k)
+                        .and_then(|(sx, eq)| if sx == s { Some(eq.to_string()) } else { None })
                 }))
             })
             .unwrap_or_default()
