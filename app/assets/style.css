@@ -532,6 +532,21 @@ button {
   font-family: "IBM Plex Mono", monospace;
 }
 
+.trend-caveats {
+  margin-top: 10px;
+}
+
+.trend-caveats ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.trend-caveats li + li {
+  margin-top: 4px;
+}
+
 .hist {
   width: 100%;
   height: 240px;

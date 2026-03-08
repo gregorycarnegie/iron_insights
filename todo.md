@@ -7,6 +7,17 @@
   - [x] Reuse current percentile/distribution data so rank shifts update in real time
   - [x] Add clear guardrails for invalid or missing inputs
 
+- [x] Trends Over Time
+  - [x] Add time-series charts for average total/percentile shifts
+  - [x] Document cohort/filter caveats to avoid misleading comparisons
+
+## Out of Scope (for now)
+
+- Meet Finder / Results Explorer (not feasible right now)
+- DOTS/Wilks Leaderboard (OPL already provides this)
+- Records Dashboard (record rules/sources are tricky)
+- Lifter Profiles (too heavy for current scope)
+
 - [ ] Weight Class Analyzer
   - [ ] Show adjacent class distributions for a selected lifter profile/slice
   - [ ] Compare likely percentile in current class vs up/down class
@@ -16,18 +27,6 @@
   - [ ] Build side-by-side distribution views by federation
   - [ ] Ensure normalization/filters are consistent across compared groups
   - [ ] Add quick presets (e.g., USAPL vs USPA, tested vs untested)
-
-- [ ] Trends Over Time
-  - [ ] Publish yearly/period buckets in pipeline outputs
-  - [ ] Add time-series charts for average total/percentile shifts
-  - [ ] Document cohort/filter caveats to avoid misleading comparisons
-
-## Out of Scope (for now)
-
-- Meet Finder / Results Explorer (not feasible right now)
-- DOTS/Wilks Leaderboard (OPL already provides this)
-- Records Dashboard (record rules/sources are tricky)
-- Lifter Profiles (too heavy for current scope)
 
 ## Dev Speed Checklist (Trunk/WASM)
 

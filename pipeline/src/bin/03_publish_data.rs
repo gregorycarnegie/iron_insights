@@ -255,6 +255,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn publish_records_for_lift(
     records_path: &Path,
     version_dir: &Path,

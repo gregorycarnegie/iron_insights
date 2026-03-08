@@ -21,10 +21,10 @@
   - [x] Lazy-load heatmap only on expand/view intent
   - [x] Track perceived-load improvements on mobile
 
-- [ ] Product Positioning
-  - [ ] Add repo description and website URL
-  - [ ] Add relevant repository topics
-  - [ ] Create tagged releases for major milestones
+- [x] Product Positioning
+  - [x] Add repo description and website URL
+  - [x] Add relevant repository topics
+  - [x] Create tagged releases for major milestones
   - [x] Document roadmap themes in README
 
 ## Feature Backlog

@@ -114,6 +114,18 @@ pub fn TrendsPanel(
                     </svg>
                     <p class="muted">"Lines show p50 and p90 thresholds for each year bucket."</p>
                 </div>
+                <div class="trend-caveats">
+                    <p class="muted">"Interpretation caveats:"</p>
+                    <ul>
+                        <li>"Trend lines are cohort-specific to your exact filter set."</li>
+                        <li>
+                            "Changing equipment, tested status, age class, lift, or metric creates a different cohort and is not a like-for-like time comparison."
+                        </li>
+                        <li>
+                            "Missing years or sharp jumps usually indicate sparse samples in that cohort, not necessarily abrupt population shifts."
+                        </li>
+                    </ul>
+                </div>
             </Show>
         </section>
     }
