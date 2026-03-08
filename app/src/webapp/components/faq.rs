@@ -23,6 +23,11 @@ pub(in crate::webapp) fn FaqPanel() -> impl IntoView {
                     "Different equipment changes performance. Filtering by equipment gives fairer comparisons."
                 </p>
             </details>
+            <p class="muted">
+                <a href="./landing/faq.html">"Read full FAQ"</a>
+                " | "
+                <a href="./landing/methodology.html">"Methodology notes"</a>
+            </p>
         </section>
     }
 }

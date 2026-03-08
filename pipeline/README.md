@@ -33,10 +33,11 @@ cargo run --manifest-path pipeline/Cargo.toml --bin 03_publish_data -- \
 ```
 
 Outputs:
-- `data/vYYYY-MM-DD/hist/{sex}/{equip}/{tested}/{lift}.bin`
-- `data/vYYYY-MM-DD/heat/{sex}/{equip}/{tested}/{lift}.bin`
-- `data/vYYYY-MM-DD/meta/{sex}/{equip}/{tested}/{lift}.json`
-- `data/vYYYY-MM-DD/index.json` (slice lookup table)
+- `data/vYYYY-MM-DD/hist/.../*.bin`
+- `data/vYYYY-MM-DD/heat/.../*.bin`
+- `data/vYYYY-MM-DD/index.json` (root shard lookup)
+- `data/vYYYY-MM-DD/index_shards/.../index.json` (slice lookup + embedded summary)
+- `data/vYYYY-MM-DD/trends.json` (year-bucketed cohort size + p50/p90 thresholds)
 - `data/latest.json`
 
 Older `data/vYYYY-MM-DD` folders are pruned to the configured retention count.

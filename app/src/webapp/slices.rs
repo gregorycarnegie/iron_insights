@@ -1,4 +1,4 @@
-use super::SliceIndexEntry;
+use crate::webapp::models::SliceIndexEntry;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct SliceKey {
@@ -83,6 +83,7 @@ pub(super) fn entry_from_slice_key(raw: &str) -> Option<(SliceKey, SliceIndexEnt
             meta: format!("meta/{base}.json"),
             hist: format!("hist/{base}.bin"),
             heat: format!("heat/{base}.bin"),
+            summary: None,
         },
     ))
 }

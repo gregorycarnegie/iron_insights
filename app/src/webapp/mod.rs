@@ -11,23 +11,27 @@ mod ui;
 
 use self::charts::draw_heatmap;
 use self::components::{
-    ChartsPanel, CompareModePanel, FaqPanel, LogoMark, OnboardingPanel, OneRepMaxPanel,
-    PercentilePanel, ResultCardPanel, SimulatorPanel,
+    ChartsPanel, CompareModePanel, FaqPanel, LogoMark, MeetDayPanel, OnboardingPanel,
+    OneRepMaxPanel, PercentilePanel, ProgressPanel, ResultCardPanel, SimulatorPanel, TrendsPanel,
 };
 use self::helpers::{
     build_share_url, comparable_lift_value, kg_to_display, parse_query_f32, tier_for_percentile,
 };
-use self::models::{CompareMode, LatestJson, RootIndex, SavedUiState, SliceIndexEntry, SliceRow};
+use self::models::{
+    CompareMode, LatestJson, RootIndex, SavedUiState, SliceRow, SliceSummary, TrendSeries,
+};
 use self::selectors::{
     age_options, equip_options, lift_options, metric_options, sex_options, tested_options,
     wc_options,
 };
 use self::state::{
     init_dataset_load, setup_default_selection_effects, setup_distribution_effect,
-    setup_slice_rows_effect,
+    setup_slice_rows_effect, setup_slice_summary_effect, setup_trends_effect,
 };
 use self::ui::{age_label, metric_label};
-use crate::core::{HeatmapBin, HistogramBin, percentile_for_value, rebin_1d, rebin_2d};
+use crate::core::{
+    HeatmapBin, HistogramBin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
+};
 use leptos::html::Canvas;
 use leptos::prelude::*;
 
@@ -59,6 +63,7 @@ fn App() -> impl IntoView {
     let (latest, set_latest) = signal(None::<LatestJson>);
     let (root_index, set_root_index) = signal(None::<RootIndex>);
     let (slice_rows, set_slice_rows) = signal(Vec::<SliceRow>::new());
+    let (trend_series, set_trend_series) = signal(Vec::<TrendSeries>::new());
     let (load_error, set_load_error) = signal(None::<String>);
 
     let (sex, set_sex) = signal(String::new());
@@ -80,6 +85,7 @@ fn App() -> impl IntoView {
     let (squat_delta, set_squat_delta) = signal(0.0f32);
     let (bench_delta, set_bench_delta) = signal(0.0f32);
     let (deadlift_delta, set_deadlift_delta) = signal(0.0f32);
+    let (target_percentile, set_target_percentile) = signal(90.0f32);
 
     let (lift_mult, set_lift_mult) = signal(4usize);
     let (bw_mult, set_bw_mult) = signal(5usize);
@@ -87,7 +93,13 @@ fn App() -> impl IntoView {
     let (hist, set_hist) = signal(None::<HistogramBin>);
     let (heat, set_heat) = signal(None::<HeatmapBin>);
     let (slice_request_id, set_slice_request_id) = signal(0u64);
+    let (summary_request_id, set_summary_request_id) = signal(0u64);
     let (dist_request_id, set_dist_request_id) = signal(0u64);
+    let (trends_request_id, set_trends_request_id) = signal(0u64);
+    let (slice_summary, set_slice_summary) = signal(None::<SliceSummary>);
+    let (summary_load_ms, set_summary_load_ms) = signal(None::<u32>);
+    let (hist_load_ms, set_hist_load_ms) = signal(None::<u32>);
+    let (heat_load_ms, set_heat_load_ms) = signal(None::<u32>);
 
     let canvas_ref: NodeRef<Canvas> = NodeRef::new();
 
@@ -107,6 +119,12 @@ fn App() -> impl IntoView {
         set_load_error,
         slice_request_id,
         set_slice_request_id,
+    );
+    setup_trends_effect(
+        latest,
+        set_trend_series,
+        trends_request_id,
+        set_trends_request_id,
     );
 
     let current_row = Memo::new(move |_| {
@@ -129,14 +147,121 @@ fn App() -> impl IntoView {
         })
     });
 
+    {
+        let set_wc = set_wc;
+        let set_age = set_age;
+        let set_tested = set_tested;
+        let set_lift = set_lift;
+        let set_metric = set_metric;
+        Effect::new(move |_| {
+            if !calculated.get() || current_row.get().is_some() {
+                return;
+            }
+
+            let s = sex.get();
+            let e = equip.get();
+            let t = tested.get();
+            let l = lift.get();
+            let m = metric.get();
+            let w = wc.get();
+            let a = age.get();
+
+            let mut candidates: Vec<SliceRow> = slice_rows
+                .get()
+                .into_iter()
+                .filter(|row| row.key.sex == s && row.key.equip == e)
+                .collect();
+            if candidates.is_empty() {
+                return;
+            }
+
+            // Prefer current tested/lift/metric, then gracefully broaden.
+            let exact: Vec<SliceRow> = candidates
+                .iter()
+                .filter(|row| row.key.tested == t && row.key.lift == l && row.key.metric == m)
+                .cloned()
+                .collect();
+            if !exact.is_empty() {
+                candidates = exact;
+            } else {
+                let tested_lift: Vec<SliceRow> = candidates
+                    .iter()
+                    .filter(|row| row.key.tested == t && row.key.lift == l)
+                    .cloned()
+                    .collect();
+                if !tested_lift.is_empty() {
+                    candidates = tested_lift;
+                }
+            }
+
+            let best = candidates.into_iter().min_by_key(|row| {
+                (
+                    if row.key.wc == w {
+                        0
+                    } else if row.key.wc == "All" {
+                        1
+                    } else {
+                        2
+                    },
+                    if row.key.age == a {
+                        0
+                    } else if row.key.age == "All Ages" {
+                        1
+                    } else {
+                        2
+                    },
+                    if row.key.tested == t {
+                        0
+                    } else if row.key.tested == "All" {
+                        1
+                    } else {
+                        2
+                    },
+                    if row.key.metric == m { 0 } else { 1 },
+                )
+            });
+
+            if let Some(row) = best {
+                if row.key.wc != w {
+                    set_wc.set(row.key.wc.clone());
+                }
+                if row.key.age != a {
+                    set_age.set(row.key.age.clone());
+                }
+                if row.key.tested != t {
+                    set_tested.set(row.key.tested.clone());
+                }
+                if row.key.lift != l {
+                    set_lift.set(row.key.lift.clone());
+                }
+                if row.key.metric != m {
+                    set_metric.set(row.key.metric.clone());
+                }
+            }
+        });
+    }
+
     setup_distribution_effect(
         current_row,
         latest,
+        calculated,
+        show_main_charts,
         set_hist,
         set_heat,
+        set_hist_load_ms,
+        set_heat_load_ms,
         set_load_error,
         dist_request_id,
         set_dist_request_id,
+    );
+    setup_slice_summary_effect(
+        current_row,
+        latest,
+        set_slice_summary,
+        set_summary_load_ms,
+        set_load_error,
+        summary_request_id,
+        set_summary_request_id,
     );
 
     let sex_options = sex_options(root_index);
@@ -207,6 +332,7 @@ fn App() -> impl IntoView {
             format!("{} Points", metric_label(&metric.get()))
         }
     });
+    let metric_is_kg_comparable = Memo::new(move |_| lift.get() != "T" || metric.get() == "Kg");
 
     let rebinned_hist = Memo::new(move |_| {
         hist.get().map(|h| {
@@ -259,6 +385,41 @@ fn App() -> impl IntoView {
             .get()
             .map(|(pct, _, _)| tier_for_percentile(pct))
     });
+    let target_lift_value = Memo::new(move |_| {
+        value_for_percentile(
+            rebinned_hist.get().as_ref(),
+            target_percentile.get().clamp(50.0, 99.0) / 100.0,
+        )
+    });
+    let target_kg_needed = Memo::new(move |_| {
+        if !calculated.get() || !metric_is_kg_comparable.get() {
+            return None;
+        }
+        let target = target_lift_value.get()?;
+        Some((target - user_lift.get()).max(0.0))
+    });
+    let target_summary = Memo::new(move |_| {
+        if !calculated.get() {
+            return "Press Calculate to estimate a target lift.".to_string();
+        }
+        if !metric_is_kg_comparable.get() {
+            return "Target planner is available when metric is kg-based.".to_string();
+        }
+        match (target_lift_value.get(), target_kg_needed.get()) {
+            (Some(target), Some(needed)) if needed <= 0.0 => format!(
+                "You are already at or above the {:.0}% target (~{:.1} kg).",
+                target_percentile.get(),
+                target
+            ),
+            (Some(target), Some(needed)) => format!(
+                "To reach ~{:.0}% in this slice, aim for about {:.1} kg ({:.1} kg more).",
+                target_percentile.get(),
+                target,
+                needed
+            ),
+            _ => "Target estimate unavailable for this slice.".to_string(),
+        }
+    });
     let has_input_error = Memo::new(move |_| {
         squat_error.get().is_some()
             || bench_error.get().is_some()
@@ -267,6 +428,53 @@ fn App() -> impl IntoView {
     });
     let unit_label = Memo::new(move |_| if use_lbs.get() { "lb" } else { "kg" });
     let percentile_percent = Memo::new(move |_| percentile.get().map(|(pct, _, _)| pct * 100.0));
+    let result_unavailable_reason = Memo::new(move |_| {
+        if !calculated.get() || percentile.get().is_some() {
+            return None::<String>;
+        }
+        if current_row.get().is_none() {
+            return Some(format!(
+                "No slice found for sex={}, equip={}, wc={}, age={}, tested={}, lift={}, metric={}.",
+                sex.get(),
+                equip.get(),
+                wc.get(),
+                age.get(),
+                tested.get(),
+                lift.get(),
+                metric.get()
+            ));
+        }
+        if hist.get().is_none() {
+            return Some(load_error.get().unwrap_or_else(|| {
+                "Histogram payload was not loaded for this slice.".to_string()
+            }));
+        }
+        Some("Distribution exists but percentile could not be computed.".to_string())
+    });
+    let summary_blurb = Memo::new(move |_| match slice_summary.get() {
+        Some(summary) => format!(
+            "Cohort summary: {} lifters, {}-{:.1} kg range.",
+            summary.total, summary.min_kg, summary.max_kg
+        ),
+        None => "Cohort summary loading...".to_string(),
+    });
+    let load_timing_blurb = Memo::new(move |_| {
+        let mut parts = Vec::new();
+        if let Some(ms) = summary_load_ms.get() {
+            parts.push(format!("summary {ms}ms"));
+        }
+        if let Some(ms) = hist_load_ms.get() {
+            parts.push(format!("hist {ms}ms"));
+        }
+        if let Some(ms) = heat_load_ms.get() {
+            parts.push(format!("heat {ms}ms"));
+        }
+        if parts.is_empty() {
+            "Load timings: pending".to_string()
+        } else {
+            format!("Load timings: {}", parts.join(" | "))
+        }
+    });
     let compare_summary = Memo::new(move |_| match (compare_mode.get(), percentile.get()) {
         (CompareMode::AllLifters, Some((pct, _, _))) => {
             format!(
@@ -295,6 +503,11 @@ fn App() -> impl IntoView {
             age_label(&age.get()),
             pct * 100.0
         ),
+        (CompareMode::SameTestedStatus, Some((pct, _, _))) => format!(
+            "Within {} meets, you're stronger than {:.1}%.",
+            tested.get(),
+            pct * 100.0
+        ),
         (_, None) => "Comparison summary appears after a matching slice loads.".to_string(),
     });
     let share_url = Memo::new(move |_| {
@@ -318,6 +531,44 @@ fn App() -> impl IntoView {
             ("bm", bw_mult.get().to_string()),
             ("handle", share_handle.get()),
         ])
+    });
+    let trend_key = Memo::new(move |_| {
+        format!(
+            "sex={}|equip={}|tested={}|lift={}|metric={}",
+            sex.get(),
+            equip.get(),
+            tested.get(),
+            lift.get(),
+            metric.get()
+        )
+    });
+    let selected_trend_points = Memo::new(move |_| {
+        let key = trend_key.get();
+        trend_series
+            .get()
+            .into_iter()
+            .find(|series| series.key == key)
+            .map(|series| series.points)
+            .unwrap_or_default()
+    });
+    let trend_note = Memo::new(move |_| {
+        let points = selected_trend_points.get();
+        if let (Some(first), Some(last)) = (points.first(), points.last()) {
+            format!(
+                "Year buckets {}-{} for {} / {} / {} / {} / {}. Cohort size {} -> {}.",
+                first.year,
+                last.year,
+                sex.get(),
+                equip.get(),
+                tested.get(),
+                lift.get(),
+                metric.get(),
+                first.total,
+                last.total
+            )
+        } else {
+            "Time buckets use yearly snapshots from best-lift records; sparse cohorts may have missing years.".to_string()
+        }
     });
 
     {
@@ -614,6 +865,8 @@ fn App() -> impl IntoView {
                     <p class="intro">
                         "Enter your lifts to see how you rank among lifters in this dataset. Higher percentile means stronger."
                     </p>
+                    <p class="muted">{move || summary_blurb.get()}</p>
+                    <p class="muted">{move || load_timing_blurb.get()}</p>
                 </header>
 
                 <OnboardingPanel
@@ -675,6 +928,8 @@ fn App() -> impl IntoView {
                     calculated=calculated
                     percentile=percentile
                     rank_tier=rank_tier
+                    load_error=load_error
+                    unavailable_reason=result_unavailable_reason
                     show_share=show_share
                     set_show_share=set_show_share
                     share_url=share_url
@@ -688,10 +943,33 @@ fn App() -> impl IntoView {
                     deadlift=deadlift
                     lift=lift
                 />
+                <ProgressPanel
+                    calculated=calculated
+                    percentile=percentile
+                    sex=sex
+                    equip=equip
+                    wc=wc
+                    age=age
+                    tested=tested
+                    lift=lift
+                    metric=metric
+                    squat=squat
+                    bench=bench
+                    deadlift=deadlift
+                    bodyweight=bodyweight
+                    use_lbs=use_lbs
+                    unit_label=unit_label
+                />
 
                 <CompareModePanel
                     compare_mode=compare_mode
                     set_compare_mode=set_compare_mode
+                    tested=tested
+                    set_tested=set_tested
+                    equip=equip
+                    set_equip=set_equip
+                    age=age
+                    set_age=set_age
                     compare_summary=compare_summary
                 />
                 <PercentilePanel
@@ -722,6 +1000,22 @@ fn App() -> impl IntoView {
                     projected_percentile=projected_percentile
                     projected_rank_tier=projected_rank_tier
                     percentile_delta=percentile_delta
+                    target_percentile=target_percentile
+                    set_target_percentile=set_target_percentile
+                    target_kg_needed=target_kg_needed
+                    target_summary=target_summary
+                />
+                <MeetDayPanel
+                    squat=squat
+                    bench=bench
+                    deadlift=deadlift
+                    use_lbs=use_lbs
+                    unit_label=unit_label
+                />
+                <TrendsPanel
+                    calculated=calculated
+                    trend_points=selected_trend_points
+                    trend_note=trend_note
                 />
                 <FaqPanel />
             </Show>

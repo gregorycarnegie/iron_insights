@@ -118,6 +118,32 @@ pub fn percentile_for_value(hist: Option<&HistogramBin>, value: f32) -> Option<(
     Some((pct, rank, total))
 }
 
+pub fn value_for_percentile(hist: Option<&HistogramBin>, target_pct: f32) -> Option<f32> {
+    let hist = hist?;
+    if hist.counts.is_empty() || hist.base_bin <= 0.0 {
+        return None;
+    }
+
+    let total: u32 = hist.counts.iter().copied().sum();
+    if total == 0 {
+        return None;
+    }
+
+    let target_cdf = target_pct.clamp(0.0, 1.0) * total as f32;
+    let mut below = 0.0f32;
+
+    for (idx, count) in hist.counts.iter().copied().enumerate() {
+        let count_f = count as f32;
+        let cdf_mid = below + 0.5 * count_f;
+        if cdf_mid >= target_cdf {
+            return Some(hist.min + (idx as f32 + 0.5) * hist.base_bin);
+        }
+        below += count_f;
+    }
+
+    Some(hist.max)
+}
+
 #[allow(clippy::excessive_precision)]
 pub fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     let bw = match sex {
@@ -218,7 +244,8 @@ pub fn rebin_2d(
 mod tests {
     use super::{
         BINARY_FORMAT_VERSION, HistogramBin, dots_points, goodlift_points, parse_heat_bin,
-        parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, wilks_points,
+        parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
+        wilks_points,
     };
 
     fn push_f32(bytes: &mut Vec<u8>, v: f32) {
@@ -386,6 +413,18 @@ mod tests {
         assert!((pct - 0.3).abs() < 1e-6);
         assert_eq!(total, 10);
         assert_eq!(rank, 7);
+    }
+
+    #[test]
+    fn value_for_percentile_returns_expected_bin_midpoint() {
+        let hist = HistogramBin {
+            min: 100.0,
+            max: 107.5,
+            base_bin: 2.5,
+            counts: vec![2, 2, 6],
+        };
+        let value = value_for_percentile(Some(&hist), 0.30).expect("should compute");
+        assert!((value - 103.75).abs() < 1e-6);
     }
 
     #[test]

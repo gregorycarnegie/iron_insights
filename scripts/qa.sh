@@ -115,14 +115,14 @@ for i in "${!slice_source_files[@]}"; do
   rel="${slice_source_rels[$i]}"
   slice_type="$(jq -r '.slices | type' "$src")"
   if [[ "$slice_type" == "object" ]]; then
-    jq -r --arg rel "$rel" '.slices | to_entries[] | [.key, .value.meta, .value.hist, .value.heat, $rel] | @tsv' "$src" >> "$entries_tsv"
+    jq -r --arg rel "$rel" '.slices | to_entries[] | [.key, (.value.meta // ""), .value.hist, .value.heat, $rel, (.value.summary.total // "")] | @tsv' "$src" >> "$entries_tsv"
   elif [[ "$slice_type" == "array" ]]; then
     while IFS= read -r key; do
       [[ -n "$key" ]] || continue
       if ! paths="$(paths_from_key "$key")"; then
         fail "invalid compact slice key: $key"
       fi
-      printf '%s\t%s\t%s\n' "$key" "$paths" "$rel" >> "$entries_tsv"
+      printf '%s\t%s\t%s\t\n' "$key" "$paths" "$rel" >> "$entries_tsv"
     done < <(jq -r '.slices[]' "$src")
   else
     fail "unsupported .slices type in $src: $slice_type"
@@ -139,8 +139,9 @@ missing=0
 invalid=0
 meta_total_sum=0
 
-while IFS=$'\t' read -r key meta_rel hist_rel heat_rel shard_rel; do
+while IFS=$'\t' read -r key meta_rel hist_rel heat_rel shard_rel summary_total; do
   for rel in "$meta_rel" "$hist_rel" "$heat_rel"; do
+    [[ -n "$rel" ]] || continue
     [[ "$rel" != /* ]] || {
       echo "[qa] invalid absolute path in index ($key): $rel" >&2
       invalid=$((invalid + 1))
@@ -152,7 +153,7 @@ while IFS=$'\t' read -r key meta_rel hist_rel heat_rel shard_rel; do
     }
   done
 
-  if [[ -s "$VERSION_DIR/$meta_rel" ]]; then
+  if [[ -n "$meta_rel" && -s "$VERSION_DIR/$meta_rel" ]]; then
     total="$(jq -r '.hist.total // 0' "$VERSION_DIR/$meta_rel")"
     bins="$(jq -r '.hist.bins // 0' "$VERSION_DIR/$meta_rel")"
     h_width="$(jq -r '.heat.width // 0' "$VERSION_DIR/$meta_rel")"
@@ -173,6 +174,8 @@ while IFS=$'\t' read -r key meta_rel hist_rel heat_rel shard_rel; do
     if [[ "$h_width" -eq 0 || "$h_height" -eq 0 ]]; then
       echo "[qa] warning: zero-dimension heatmap for $key (${h_width}x${h_height})"
     fi
+  elif [[ "$summary_total" =~ ^[0-9]+$ ]]; then
+    meta_total_sum=$((meta_total_sum + summary_total))
   fi
 done < "$entries_tsv"
 
@@ -221,7 +224,7 @@ fi
 if [[ -z "$sample_line" ]]; then
   sample_line="$(head -n1 "$entries_tsv")"
 fi
-IFS=$'\t' read -r sample_name sample_meta_rel sample_hist_rel sample_heat_rel sample_shard_rel <<<"$sample_line"
+IFS=$'\t' read -r sample_name sample_meta_rel sample_hist_rel sample_heat_rel sample_shard_rel sample_summary_total <<<"$sample_line"
 
 if [[ "$mode" == "sharded" ]]; then
   [[ -n "$sample_shard_rel" ]] || fail "failed to resolve shard index for sample slice: $sample_name"
@@ -231,7 +234,11 @@ else
 fi
 
 latest_bytes="$(wc -c < "$LATEST_JSON")"
-sample_meta_bytes="$(wc -c < "$VERSION_DIR/$sample_meta_rel")"
+if [[ -n "$sample_meta_rel" && -s "$VERSION_DIR/$sample_meta_rel" ]]; then
+  sample_meta_bytes="$(wc -c < "$VERSION_DIR/$sample_meta_rel")"
+else
+  sample_meta_bytes=0
+fi
 sample_hist_bytes="$(wc -c < "$VERSION_DIR/$sample_hist_rel")"
 sample_heat_bytes="$(wc -c < "$VERSION_DIR/$sample_heat_rel")"
 sample_data_bytes=$((latest_bytes + index_budget_sample_bytes + sample_meta_bytes + sample_hist_bytes + sample_heat_bytes))
@@ -252,7 +259,7 @@ male_probe_hist_rel=""
 male_probe_heat_rel=""
 male_probe_shard_rel=""
 if [[ -n "$male_probe_line" ]]; then
-  IFS=$'\t' read -r male_probe_name male_probe_meta_rel male_probe_hist_rel male_probe_heat_rel male_probe_shard_rel <<<"$male_probe_line"
+  IFS=$'\t' read -r male_probe_name male_probe_meta_rel male_probe_hist_rel male_probe_heat_rel male_probe_shard_rel male_probe_summary_total <<<"$male_probe_line"
 fi
 
 site_budget_bytes=0
@@ -271,9 +278,9 @@ echo "[qa] Files checked: $file_count"
 echo "[qa] Data payload: total=$(fmt_bytes "$total_bytes") (bin=$(fmt_bytes "$bin_bytes"), json=$(fmt_bytes "$json_bytes"))"
 echo "[qa] Sample slice: $sample_name"
 if [[ "$mode" == "sharded" ]]; then
-  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index_root+index_shard+meta+hist+heat)"
+  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index_root+index_shard+summary/meta+hist+heat)"
 else
-  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index+meta+hist+heat)"
+  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index+summary/meta+hist+heat)"
 fi
 if [[ "$site_budget_bytes" -gt 0 ]]; then
   echo "[qa] Site static payload (.html/.css/.js/.wasm): $(fmt_bytes "$site_budget_bytes")"
@@ -296,8 +303,10 @@ if [[ -n "$BASE_URL" ]]; then
     urls+=("$base/data/$VERSION/$sample_shard_rel")
     labels+=("sample")
   fi
-  urls+=("$base/data/$VERSION/$sample_meta_rel")
-  labels+=("sample")
+  if [[ -n "$sample_meta_rel" ]]; then
+    urls+=("$base/data/$VERSION/$sample_meta_rel")
+    labels+=("sample")
+  fi
   urls+=("$base/data/$VERSION/$sample_hist_rel")
   labels+=("sample")
   urls+=("$base/data/$VERSION/$sample_heat_rel")
@@ -309,8 +318,10 @@ if [[ -n "$BASE_URL" ]]; then
       urls+=("$base/data/$VERSION/$male_probe_shard_rel")
       labels+=("m_all")
     fi
-    urls+=("$base/data/$VERSION/$male_probe_meta_rel")
-    labels+=("m_all")
+    if [[ -n "$male_probe_meta_rel" ]]; then
+      urls+=("$base/data/$VERSION/$male_probe_meta_rel")
+      labels+=("m_all")
+    fi
     urls+=("$base/data/$VERSION/$male_probe_hist_rel")
     labels+=("m_all")
     urls+=("$base/data/$VERSION/$male_probe_heat_rel")

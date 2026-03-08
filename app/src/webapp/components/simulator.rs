@@ -19,6 +19,10 @@ pub(in crate::webapp) fn SimulatorPanel(
     projected_percentile: Memo<Option<(f32, usize, u32)>>,
     projected_rank_tier: Memo<Option<&'static str>>,
     percentile_delta: Memo<Option<f32>>,
+    target_percentile: ReadSignal<f32>,
+    set_target_percentile: WriteSignal<f32>,
+    target_kg_needed: Memo<Option<f32>>,
+    target_summary: Memo<String>,
 ) -> impl IntoView {
     view! {
         <section class="panel">
@@ -110,6 +114,34 @@ pub(in crate::webapp) fn SimulatorPanel(
                     None => "Shift: n/a".to_string(),
                 }}
             </p>
+            <div class="target-planner">
+                <h3>"Target Planner"</h3>
+                <label class="sim-control">
+                    <span>{move || format!("Target percentile: {:.0}%", target_percentile.get())}</span>
+                    <input
+                        type="range"
+                        min="50"
+                        max="99"
+                        step="1"
+                        prop:value=move || target_percentile.get().to_string()
+                        on:input=move |ev| set_target_percentile.set(parse_f32_input(&ev).clamp(50.0, 99.0))
+                    />
+                </label>
+                <p class="sim-summary">
+                    {move || match target_kg_needed.get() {
+                        Some(kg_needed) => format!(
+                            "Estimated lift needed: +{:.1} {}",
+                            kg_to_display(kg_needed, use_lbs.get()),
+                            unit_label.get()
+                        ),
+                        None => "Estimated lift needed: n/a".to_string(),
+                    }}
+                </p>
+                <p class="muted">{move || target_summary.get()}</p>
+                <p class="muted">
+                    "Estimate only. Real meet outcomes vary by attempt selection, meet conditions, and cohort changes."
+                </p>
+            </div>
         </section>
     }
 }

@@ -111,6 +111,7 @@ $appendSlices = {
         Hist = [string]$paths.Hist
         Heat = [string]$paths.Heat
         ShardRel = $shardRel
+        SummaryTotal = 0
       })
     }
     return
@@ -123,6 +124,7 @@ $appendSlices = {
       Hist = [string]$p.Value.hist
       Heat = [string]$p.Value.heat
       ShardRel = $shardRel
+      SummaryTotal = [int64]$p.Value.summary.total
     })
   }
 }
@@ -158,8 +160,6 @@ foreach ($entry in $sliceEntries) {
 
   foreach ($rel in @($entry.Meta, $entry.Hist, $entry.Heat)) {
     if ([string]::IsNullOrWhiteSpace($rel)) {
-      Write-Host "[qa] invalid empty path in index ($key)" -ForegroundColor Yellow
-      $invalid++
       continue
     }
 
@@ -183,8 +183,8 @@ foreach ($entry in $sliceEntries) {
     }
   }
 
-  $metaPath = Join-Path $versionDir $entry.Meta
-  if (Test-Path $metaPath) {
+  $metaPath = if (-not [string]::IsNullOrWhiteSpace($entry.Meta)) { Join-Path $versionDir $entry.Meta } else { $null }
+  if ($metaPath -and (Test-Path $metaPath)) {
     $meta = Get-Content $metaPath -Raw | ConvertFrom-Json
     $bins = [int]($meta.hist.bins)
     $total = [int64]($meta.hist.total)
@@ -206,6 +206,8 @@ foreach ($entry in $sliceEntries) {
     if ($w -eq 0 -or $h -eq 0) {
       Write-Host "[qa] warning: zero-dimension heatmap for $key (${w}x${h})"
     }
+  } elseif ($entry.SummaryTotal -gt 0) {
+    $histTotalSum += [int64]$entry.SummaryTotal
   }
 }
 
@@ -253,10 +255,10 @@ if ($isSharded) {
   $sampleIndexBytes += [int64]($shardSizeByRel[$sampleShardRel])
 }
 
-$sampleMetaPath = Join-Path $versionDir $selectedEntry.Meta
+$sampleMetaPath = if (-not [string]::IsNullOrWhiteSpace($selectedEntry.Meta)) { Join-Path $versionDir $selectedEntry.Meta } else { $null }
 $sampleHistPath = Join-Path $versionDir $selectedEntry.Hist
 $sampleHeatPath = Join-Path $versionDir $selectedEntry.Heat
-$sampleMetaBytes = if (Test-Path $sampleMetaPath) { (Get-Item $sampleMetaPath).Length } else { 0 }
+$sampleMetaBytes = if ($sampleMetaPath -and (Test-Path $sampleMetaPath)) { (Get-Item $sampleMetaPath).Length } else { 0 }
 $sampleHistBytes = if (Test-Path $sampleHistPath) { (Get-Item $sampleHistPath).Length } else { 0 }
 $sampleHeatBytes = if (Test-Path $sampleHeatPath) { (Get-Item $sampleHeatPath).Length } else { 0 }
 $latestBytes = (Get-Item $latestPath).Length
@@ -275,9 +277,17 @@ if (-not $maleProbe) {
 
 Write-Host "[qa] Sample slice: $selectedName"
 if ($isSharded) {
-  Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index_root+index_shard+meta+hist+heat)"
+  if ($sampleMetaBytes -gt 0) {
+    Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index_root+index_shard+meta+hist+heat)"
+  } else {
+    Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index_root+index_shard+summary+hist+heat)"
+  }
 } else {
-  Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index+meta+hist+heat)"
+  if ($sampleMetaBytes -gt 0) {
+    Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index+meta+hist+heat)"
+  } else {
+    Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index+summary+hist+heat)"
+  }
 }
 
 $siteBudgetBytes = 0
@@ -305,7 +315,9 @@ if (-not [string]::IsNullOrWhiteSpace($BaseUrl)) {
   if ($isSharded -and -not [string]::IsNullOrWhiteSpace($sampleShardRel)) {
     $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $sampleShardRel.Replace('\', '/'))) })
   }
-  $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Meta.Replace('\', '/'))) })
+  if (-not [string]::IsNullOrWhiteSpace($selectedEntry.Meta)) {
+    $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Meta.Replace('\', '/'))) })
+  }
   $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Hist.Replace('\', '/'))) })
   $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Heat.Replace('\', '/'))) })
 
@@ -314,7 +326,9 @@ if (-not [string]::IsNullOrWhiteSpace($BaseUrl)) {
     if ($isSharded -and -not [string]::IsNullOrWhiteSpace([string]$maleProbe.ShardRel)) {
       $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.ShardRel.Replace('\', '/'))) })
     }
-    $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.Meta.Replace('\', '/'))) })
+    if (-not [string]::IsNullOrWhiteSpace([string]$maleProbe.Meta)) {
+      $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.Meta.Replace('\', '/'))) })
+    }
     $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.Hist.Replace('\', '/'))) })
     $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.Heat.Replace('\', '/'))) })
   }

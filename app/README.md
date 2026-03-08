@@ -11,7 +11,8 @@ trunk serve --open
 This app fetches:
 - `./data/latest.json`
 - `./data/<version>/index.json`
-- referenced `hist/*.bin` and `heat/*.bin` files
+- shard index entries plus referenced `hist/*.bin` and `heat/*.bin` files
+- `meta/*.json` only as a legacy fallback when summary is not embedded
 
 ## Build for Pages
 

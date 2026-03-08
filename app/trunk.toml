@@ -1,0 +1,3 @@
+[watch]
+watch = ["src", "assets", "index.html", "Cargo.toml"]
+ignore = ["data", "dist", "../target"]

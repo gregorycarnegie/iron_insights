@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -32,6 +32,9 @@ struct Args {
 
     #[arg(long, default_value_t = 4)]
     keep_versions: usize,
+
+    #[arg(long, default_value_t = false)]
+    write_meta_files: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -119,10 +122,46 @@ struct RootIndex {
 }
 
 #[derive(Debug, Serialize)]
+struct TrendsJson {
+    version: String,
+    bucket: String,
+    series: Vec<TrendSeries>,
+}
+
+#[derive(Debug, Serialize)]
+struct TrendSeries {
+    key: String,
+    points: Vec<TrendPoint>,
+}
+
+#[derive(Debug, Serialize)]
+struct TrendPoint {
+    year: i32,
+    total: u32,
+    p50: f32,
+    p90: f32,
+}
+
+#[derive(Debug, Serialize)]
 struct SliceIndex {
     version: String,
     shard_key: String,
-    slices: Vec<String>,
+    slices: BTreeMap<String, SliceIndexEntry>,
+}
+
+#[derive(Debug, Serialize)]
+struct SliceIndexEntry {
+    meta: String,
+    hist: String,
+    heat: String,
+    summary: SliceSummary,
+}
+
+#[derive(Debug, Serialize)]
+struct SliceSummary {
+    min_kg: f32,
+    max_kg: f32,
+    total: u32,
 }
 
 fn main() -> Result<()> {
@@ -137,7 +176,8 @@ fn main() -> Result<()> {
     fs::create_dir_all(&version_dir)
         .with_context(|| format!("failed to create {}", version_dir.display()))?;
 
-    let mut shard_indices = BTreeMap::<String, BTreeSet<String>>::new();
+    let mut shard_indices = BTreeMap::<String, BTreeMap<String, SliceIndexEntry>>::new();
+    let mut trends_acc = BTreeMap::<String, BTreeMap<i32, Vec<f32>>>::new();
 
     for tested in ["all", "tested"] {
         for lift in ["squat", "bench", "deadlift", "total"] {
@@ -157,7 +197,9 @@ fn main() -> Result<()> {
                     tested,
                     lift,
                     *metric,
+                    args.write_meta_files,
                     &mut shard_indices,
+                    &mut trends_acc,
                 )?;
             }
         }
@@ -192,6 +234,11 @@ fn main() -> Result<()> {
     fs::write(&index_path, serde_json::to_vec(&index)?)
         .with_context(|| format!("failed writing {}", index_path.display()))?;
 
+    let trends = build_trends_json(&version, trends_acc);
+    let trends_path = version_dir.join("trends.json");
+    fs::write(&trends_path, serde_json::to_vec(&trends)?)
+        .with_context(|| format!("failed writing {}", trends_path.display()))?;
+
     let latest = LatestJson {
         version: version.clone(),
         revision: build_meta.and_then(|m| m.dataset_revision),
@@ -215,7 +262,9 @@ fn publish_records_for_lift(
     tested: &str,
     lift: &str,
     metric: Metric,
-    shard_indices: &mut BTreeMap<String, BTreeSet<String>>,
+    write_meta_files: bool,
+    shard_indices: &mut BTreeMap<String, BTreeMap<String, SliceIndexEntry>>,
+    trends_acc: &mut BTreeMap<String, BTreeMap<i32, Vec<f32>>>,
 ) -> Result<()> {
     let parquet_path = records_path.to_string_lossy();
     let df = LazyFrame::scan_parquet(parquet_path.as_ref().into(), ScanArgsParquet::default())
@@ -253,6 +302,11 @@ fn publish_records_for_lift(
         .context("missing bodyweight_at_best column")?
         .f32()
         .context("bodyweight_at_best column not f32")?;
+    let date_col = df
+        .column("date_at_best")
+        .context("missing date_at_best column")?
+        .str()
+        .context("date_at_best column not string")?;
 
     let mut slices = BTreeMap::<(String, String, String, String), SliceAccumulator>::new();
     for i in 0..df.height() {
@@ -280,6 +334,24 @@ fn publish_records_for_lift(
         else {
             continue;
         };
+        if let Some(year) = parse_year_bucket(date_col.get(i)) {
+            for trend_equip in [equipment.as_str(), "All"] {
+                let trend_key = format!(
+                    "sex={}|equip={}|tested={}|lift={}|metric={}",
+                    sex,
+                    trend_equip,
+                    tested_bucket(tested),
+                    lift_code(lift),
+                    metric_code(metric),
+                );
+                trends_acc
+                    .entry(trend_key)
+                    .or_default()
+                    .entry(year)
+                    .or_default()
+                    .push(x_value);
+            }
+        }
 
         // Publish specific and roll-up slices so UI can offer "All" for equipment/wc/age.
         let keys = [
@@ -383,7 +455,7 @@ fn publish_records_for_lift(
             lift: lift.to_string(),
             metric: metric_code(metric).to_string(),
             hist: HistMeta {
-                file: hist_rel,
+                file: hist_rel.clone(),
                 base_bin_size_kg: x_base,
                 min_kg: hist_data.min,
                 max_kg: hist_data.max,
@@ -391,7 +463,7 @@ fn publish_records_for_lift(
                 total: hist_data.total,
             },
             heat: HeatMeta {
-                file: heat_rel,
+                file: heat_rel.clone(),
                 x_base_bin_size_kg: x_base,
                 y_base_bin_size_kg: BW_BIN_BASE_KG,
                 min_x_kg: heat_data.min_x,
@@ -404,12 +476,14 @@ fn publish_records_for_lift(
             },
         };
 
-        if let Some(parent) = meta_path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed creating {}", parent.display()))?;
+        if write_meta_files {
+            if let Some(parent) = meta_path.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("failed creating {}", parent.display()))?;
+            }
+            fs::write(&meta_path, serde_json::to_vec(&meta)?)
+                .with_context(|| format!("failed writing {}", meta_path.display()))?;
         }
-        fs::write(&meta_path, serde_json::to_vec(&meta)?)
-            .with_context(|| format!("failed writing {}", meta_path.display()))?;
 
         let key = format!(
             "sex={}|equip={}|wc={}|age={}|tested={}|lift={}|metric={}",
@@ -422,10 +496,79 @@ fn publish_records_for_lift(
             metric_code(metric),
         );
         let shard_key = format!("sex={}|equip={}", sex, equipment);
-        shard_indices.entry(shard_key).or_default().insert(key);
+        shard_indices.entry(shard_key).or_default().insert(
+            key,
+            SliceIndexEntry {
+                meta: if write_meta_files {
+                    meta_rel
+                } else {
+                    String::new()
+                },
+                hist: hist_rel,
+                heat: heat_rel,
+                summary: SliceSummary {
+                    min_kg: hist_data.min,
+                    max_kg: hist_data.max,
+                    total: hist_data.total.min(u32::MAX as u64) as u32,
+                },
+            },
+        );
     }
 
     Ok(())
+}
+
+fn build_trends_json(
+    version: &str,
+    trends_acc: BTreeMap<String, BTreeMap<i32, Vec<f32>>>,
+) -> TrendsJson {
+    let mut series = Vec::new();
+    for (key, by_year) in trends_acc {
+        let mut points = Vec::new();
+        for (year, mut values) in by_year {
+            if values.is_empty() {
+                continue;
+            }
+            values.sort_by(f32::total_cmp);
+            let p50 = quantile_sorted(&values, 0.50);
+            let p90 = quantile_sorted(&values, 0.90);
+            points.push(TrendPoint {
+                year,
+                total: values.len().min(u32::MAX as usize) as u32,
+                p50,
+                p90,
+            });
+        }
+        points.sort_by_key(|p| p.year);
+        if !points.is_empty() {
+            series.push(TrendSeries { key, points });
+        }
+    }
+    series.sort_by(|a, b| a.key.cmp(&b.key));
+    TrendsJson {
+        version: version.to_string(),
+        bucket: "year".to_string(),
+        series,
+    }
+}
+
+fn parse_year_bucket(value: Option<&str>) -> Option<i32> {
+    let raw = value?;
+    let year = raw.get(0..4)?.parse::<i32>().ok()?;
+    if (1900..=2100).contains(&year) {
+        Some(year)
+    } else {
+        None
+    }
+}
+
+fn quantile_sorted(values: &[f32], q: f32) -> f32 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    let q = q.clamp(0.0, 1.0);
+    let idx = ((values.len() - 1) as f32 * q).round() as usize;
+    values[idx]
 }
 
 fn build_histogram(values: &[f32], base: f32) -> Result<HistogramData> {
@@ -799,7 +942,7 @@ fn goodlift_points(sex: &str, equipment: &str, bodyweight_kg: f32, total_kg: f32
 mod tests {
     use super::{
         BW_BIN_BASE_KG, LIFT_BIN_BASE_KG, build_heatmap, build_histogram, dots_points,
-        goodlift_points, wilks_points,
+        goodlift_points, parse_year_bucket, quantile_sorted, wilks_points,
     };
 
     #[test]
@@ -875,5 +1018,26 @@ mod tests {
             heat.grid.iter().copied().map(u64::from).sum::<u64>(),
             heat.total
         );
+    }
+
+    #[test]
+    fn parse_year_bucket_accepts_valid_dates() {
+        assert_eq!(parse_year_bucket(Some("2026-03-07")), Some(2026));
+        assert_eq!(parse_year_bucket(Some("1999-12-31")), Some(1999));
+    }
+
+    #[test]
+    fn parse_year_bucket_rejects_invalid_dates() {
+        assert_eq!(parse_year_bucket(Some("bad")), None);
+        assert_eq!(parse_year_bucket(Some("1800-01-01")), None);
+        assert_eq!(parse_year_bucket(None), None);
+    }
+
+    #[test]
+    fn quantile_sorted_uses_nearest_rank_on_sorted_data() {
+        let values = vec![10.0, 20.0, 30.0, 40.0, 50.0];
+        assert_eq!(quantile_sorted(&values, 0.0), 10.0);
+        assert_eq!(quantile_sorted(&values, 0.5), 30.0);
+        assert_eq!(quantile_sorted(&values, 0.9), 50.0);
     }
 }

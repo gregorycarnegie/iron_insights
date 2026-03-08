@@ -8,6 +8,8 @@ pub(in crate::webapp) fn ResultCardPanel(
     calculated: ReadSignal<bool>,
     percentile: Memo<Option<(f32, usize, u32)>>,
     rank_tier: Memo<Option<&'static str>>,
+    load_error: ReadSignal<Option<String>>,
+    unavailable_reason: Memo<Option<String>>,
     show_share: ReadSignal<bool>,
     set_show_share: WriteSignal<bool>,
     share_url: Memo<Option<String>>,
@@ -31,7 +33,14 @@ pub(in crate::webapp) fn ResultCardPanel(
                 <p class="big">
                     {move || match percentile.get() {
                         Some((pct, _, _)) => format!("You are stronger than {:.1}% of lifters", pct * 100.0),
-                        None => "No matching distribution found for this slice.".to_string(),
+                        None => unavailable_reason
+                            .get()
+                            .unwrap_or_else(|| {
+                                load_error
+                                    .get()
+                                    .map(|err| format!("Distribution data unavailable: {err}"))
+                                    .unwrap_or_else(|| "No matching distribution found for this slice.".to_string())
+                            }),
                     }}
                 </p>
                 <p class="topline">
@@ -73,6 +82,30 @@ pub(in crate::webapp) fn ResultCardPanel(
                         }
                     >
                         "Copy link"
+                    </button>
+                    <button
+                        type="button"
+                        class="secondary"
+                        on:click=move |_| {
+                            let Some(url) = share_url.get() else {
+                                set_share_status.set(Some("Unable to generate challenge link.".to_string()));
+                                return;
+                            };
+                            let challenge_url = if url.contains('?') {
+                                format!("{url}&challenge=1")
+                            } else {
+                                format!("{url}?challenge=1")
+                            };
+                            let Some(window) = web_sys::window() else {
+                                set_share_status.set(Some("Clipboard unavailable.".to_string()));
+                                return;
+                            };
+                            let clipboard = window.navigator().clipboard();
+                            let _ = clipboard.write_text(&challenge_url);
+                            set_share_status.set(Some("Challenge link copied.".to_string()));
+                        }
+                    >
+                        "Challenge a friend"
                     </button>
                 </div>
                 <Show when=move || show_share.get()>

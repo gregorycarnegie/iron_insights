@@ -249,3 +249,62 @@ fn derive_age_class_expr() -> Expr {
         .otherwise(lit("80+"))
         .alias("AgeClassBucket")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{derive_age_class_expr, derive_ipf_weight_class_expr, event_filter};
+    use polars::prelude::*;
+
+    #[test]
+    fn event_filter_includes_expected_events() {
+        let df = df!("Event" => &["SBD", "B", "X"]).expect("df");
+        let out = df
+            .lazy()
+            .filter(event_filter(&["SBD", "B"]))
+            .collect()
+            .expect("collect");
+        assert_eq!(out.height(), 2);
+    }
+
+    #[test]
+    fn derive_age_class_expr_maps_boundaries() {
+        let df = df!("Age" => &[12.0f32, 13.0, 34.0, 80.0]).expect("df");
+        let out = df
+            .lazy()
+            .select([derive_age_class_expr()])
+            .collect()
+            .expect("collect");
+        let col = out
+            .column("AgeClassBucket")
+            .expect("AgeClassBucket")
+            .str()
+            .expect("string");
+        assert_eq!(col.get(0), Some("5-12"));
+        assert_eq!(col.get(1), Some("13-15"));
+        assert_eq!(col.get(2), Some("24-34"));
+        assert_eq!(col.get(3), Some("80+"));
+    }
+
+    #[test]
+    fn derive_ipf_weight_class_expr_maps_male_and_female() {
+        let df = df!(
+            "Sex" => &["M", "M", "F", "F"],
+            "BodyweightKg" => &[83.0f32, 130.0, 57.0, 90.0]
+        )
+        .expect("df");
+        let out = df
+            .lazy()
+            .select([derive_ipf_weight_class_expr()])
+            .collect()
+            .expect("collect");
+        let col = out
+            .column("IpfWeightClass")
+            .expect("IpfWeightClass")
+            .str()
+            .expect("string");
+        assert_eq!(col.get(0), Some("83"));
+        assert_eq!(col.get(1), Some("120+"));
+        assert_eq!(col.get(2), Some("57"));
+        assert_eq!(col.get(3), Some("84+"));
+    }
+}

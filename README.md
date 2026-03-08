@@ -92,8 +92,13 @@ Published version folders contain:
 
 - `hist/{sex}/{equip}/{wc}/{age}/{tested}/{lift}.bin`
 - `heat/{sex}/{equip}/{wc}/{age}/{tested}/{lift}.bin`
-- `meta/{sex}/{equip}/{wc}/{age}/{tested}/{lift}.json`
-- `index.json` plus shard indexes under `index_shards/`
+- optional `meta/{sex}/{equip}/{wc}/{age}/{tested}/{lift}.json` (legacy/verbose mode)
+- `index.json` plus shard indexes under `index_shards/` (includes compact per-slice summary metadata)
+
+`03_publish_data` now supports compact metadata mode:
+
+- default: skips per-slice meta files and embeds summary in shard indexes
+- verbose compatibility mode: `--write-meta-files true`
 
 ## QA / Validation
 
@@ -140,3 +145,10 @@ Workflow steps:
 
 - Root crate (`src/main.rs`) is currently a placeholder; project functionality lives in `app/` and `pipeline/`.
 - `todo.md` tracks completed work and remaining features (e.g., DOTS/Wilks/GL toggle, OpenIPF option).
+
+## Roadmap Themes
+
+- Faster web delivery via data packaging and tiered loading
+- Better discovery via static SEO landing pages
+- Deeper comparisons (cohorts, federations, and trends)
+- More actionable outputs (targets, progression, and shareable summaries)

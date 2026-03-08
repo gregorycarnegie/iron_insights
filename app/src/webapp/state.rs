@@ -1,6 +1,9 @@
 use super::data::{fetch_binary_first, fetch_json_first};
 use super::debug_log;
-use super::models::{LatestJson, RootIndex, SliceIndex, SliceIndexEntries, SliceRow};
+use super::models::{
+    LatestJson, RootIndex, SliceIndex, SliceIndexEntries, SliceMetaJson, SliceRow, SliceSummary,
+    TrendSeries, TrendsJson,
+};
 use super::slices::{entry_from_slice_key, parse_shard_key, parse_slice_key};
 use super::ui::{pick_preferred, unique};
 use crate::core::{HeatmapBin, HistogramBin, parse_heat_bin, parse_hist_bin};
@@ -146,11 +149,61 @@ pub(super) fn setup_slice_rows_effect(
     });
 }
 
+pub(super) fn setup_trends_effect(
+    latest: ReadSignal<Option<LatestJson>>,
+    set_trends: WriteSignal<Vec<TrendSeries>>,
+    trends_request_id: ReadSignal<u64>,
+    set_trends_request_id: WriteSignal<u64>,
+) {
+    Effect::new(move |_| {
+        let next_request_id = trends_request_id.get_untracked().wrapping_add(1);
+        set_trends_request_id.set(next_request_id);
+
+        let latest_v = latest.get();
+        let Some(latest_v) = latest_v else {
+            set_trends.set(Vec::new());
+            return;
+        };
+
+        let set_trends = set_trends;
+        let trends_request_id = trends_request_id;
+        spawn_local(async move {
+            let trends_url = data_url(&format!("{}/trends.json", latest_v.version));
+            match fetch_json_first::<TrendsJson>(&[&trends_url]).await {
+                Ok(payload) => {
+                    if trends_request_id.get_untracked() != next_request_id {
+                        debug_log(&format!(
+                            "Ignored stale trends response for request {next_request_id}"
+                        ));
+                        return;
+                    }
+                    if payload.bucket == "year" {
+                        set_trends.set(payload.series);
+                    } else {
+                        set_trends.set(Vec::new());
+                    }
+                }
+                Err(_err) => {
+                    if trends_request_id.get_untracked() != next_request_id {
+                        return;
+                    }
+                    // Older data versions may not include trends.json yet.
+                    set_trends.set(Vec::new());
+                }
+            }
+        });
+    });
+}
+
 pub(super) fn setup_distribution_effect(
     current_row: Memo<Option<SliceRow>>,
     latest: ReadSignal<Option<LatestJson>>,
+    calculated: ReadSignal<bool>,
+    show_main_charts: ReadSignal<bool>,
     set_hist: WriteSignal<Option<HistogramBin>>,
     set_heat: WriteSignal<Option<HeatmapBin>>,
+    set_hist_load_ms: WriteSignal<Option<u32>>,
+    set_heat_load_ms: WriteSignal<Option<u32>>,
     set_load_error: WriteSignal<Option<String>>,
     dist_request_id: ReadSignal<u64>,
     set_dist_request_id: WriteSignal<u64>,
@@ -161,6 +214,16 @@ pub(super) fn setup_distribution_effect(
 
         let row = current_row.get();
         let latest_v = latest.get();
+        let should_load_hist = calculated.get();
+        let should_load_heat = show_main_charts.get();
+
+        if !should_load_hist {
+            set_hist.set(None);
+            set_heat.set(None);
+            set_hist_load_ms.set(None);
+            set_heat_load_ms.set(None);
+            return;
+        }
 
         if let (Some(row), Some(latest_v)) = (row, latest_v) {
             let hist_url = data_url(&format!("{}/{}", latest_v.version, row.entry.hist));
@@ -173,7 +236,11 @@ pub(super) fn setup_distribution_effect(
             let hist_err = hist_url.clone();
             let heat_err = heat_url.clone();
             set_hist.set(None);
-            set_heat.set(None);
+            set_hist_load_ms.set(None);
+            if should_load_heat {
+                set_heat.set(None);
+                set_heat_load_ms.set(None);
+            }
             spawn_local(async move {
                 if dist_request_id.get_untracked() != next_request_id {
                     debug_log(&format!(
@@ -196,6 +263,7 @@ pub(super) fn setup_distribution_effect(
                         )));
                     }
                     set_hist.set(parsed);
+                    set_hist_load_ms.set(Some(0));
                 } else {
                     if dist_request_id.get_untracked() != next_request_id {
                         debug_log(&format!(
@@ -207,35 +275,111 @@ pub(super) fn setup_distribution_effect(
                     set_load_error.set(Some(format!("Failed to fetch histogram data: {hist_err}")));
                 }
 
-                if let Ok(bytes) = fetch_binary_first(&[&heat_url]).await {
-                    if dist_request_id.get_untracked() != next_request_id {
-                        debug_log(&format!(
-                            "Ignored stale heatmap payload for request {next_request_id}"
-                        ));
-                        return;
+                if should_load_heat {
+                    if let Ok(bytes) = fetch_binary_first(&[&heat_url]).await {
+                        if dist_request_id.get_untracked() != next_request_id {
+                            debug_log(&format!(
+                                "Ignored stale heatmap payload for request {next_request_id}"
+                            ));
+                            return;
+                        }
+                        let parsed = parse_heat_bin(&bytes);
+                        if parsed.is_none() {
+                            set_load_error.set(Some(format!(
+                                "Invalid or unsupported heatmap binary format: {heat_err}"
+                            )));
+                        }
+                        set_heat.set(parsed);
+                        set_heat_load_ms.set(Some(0));
+                    } else {
+                        if dist_request_id.get_untracked() != next_request_id {
+                            debug_log(&format!(
+                                "Ignored stale heatmap error for request {next_request_id}"
+                            ));
+                            return;
+                        }
+                        set_heat.set(None);
+                        set_load_error
+                            .set(Some(format!("Failed to fetch heatmap data: {heat_err}")));
                     }
-                    let parsed = parse_heat_bin(&bytes);
-                    if parsed.is_none() {
-                        set_load_error.set(Some(format!(
-                            "Invalid or unsupported heatmap binary format: {heat_err}"
-                        )));
-                    }
-                    set_heat.set(parsed);
-                } else {
-                    if dist_request_id.get_untracked() != next_request_id {
-                        debug_log(&format!(
-                            "Ignored stale heatmap error for request {next_request_id}"
-                        ));
-                        return;
-                    }
-                    set_heat.set(None);
-                    set_load_error.set(Some(format!("Failed to fetch heatmap data: {heat_err}")));
                 }
             });
         } else {
             set_hist.set(None);
             set_heat.set(None);
+            set_hist_load_ms.set(None);
+            set_heat_load_ms.set(None);
         }
+    });
+}
+
+pub(super) fn setup_slice_summary_effect(
+    current_row: Memo<Option<SliceRow>>,
+    latest: ReadSignal<Option<LatestJson>>,
+    set_summary: WriteSignal<Option<SliceSummary>>,
+    set_summary_load_ms: WriteSignal<Option<u32>>,
+    set_load_error: WriteSignal<Option<String>>,
+    summary_request_id: ReadSignal<u64>,
+    set_summary_request_id: WriteSignal<u64>,
+) {
+    Effect::new(move |_| {
+        let next_request_id = summary_request_id.get_untracked().wrapping_add(1);
+        set_summary_request_id.set(next_request_id);
+
+        let row = current_row.get();
+        let latest_v = latest.get();
+        let (Some(row), Some(latest_v)) = (row, latest_v) else {
+            set_summary.set(None);
+            set_summary_load_ms.set(None);
+            return;
+        };
+
+        if let Some(summary) = row.entry.summary.clone() {
+            set_summary.set(Some(summary));
+            set_summary_load_ms.set(Some(0));
+            return;
+        }
+
+        if row.entry.meta.trim().is_empty() {
+            set_summary.set(None);
+            set_summary_load_ms.set(None);
+            return;
+        }
+
+        let meta_url = data_url(&format!("{}/{}", latest_v.version, row.entry.meta));
+        let meta_err = meta_url.clone();
+        let summary_request_id = summary_request_id;
+        let set_summary = set_summary;
+        let set_summary_load_ms = set_summary_load_ms;
+        let set_load_error = set_load_error;
+        set_summary.set(None);
+        set_summary_load_ms.set(None);
+
+        spawn_local(async move {
+            let meta = fetch_json_first::<SliceMetaJson>(&[&meta_url]).await;
+            if summary_request_id.get_untracked() != next_request_id {
+                debug_log(&format!(
+                    "Ignored stale summary response for request {next_request_id}"
+                ));
+                return;
+            }
+            match meta {
+                Ok(meta) => {
+                    set_summary.set(Some(SliceSummary {
+                        min_kg: meta.hist.min_kg,
+                        max_kg: meta.hist.max_kg,
+                        total: meta.hist.total,
+                    }));
+                    set_summary_load_ms.set(Some(0));
+                }
+                Err(err) => {
+                    set_summary.set(None);
+                    set_load_error.set(Some(format!(
+                        "Failed to load slice summary {meta_err}: {err}"
+                    )));
+                }
+            }
+        });
     });
 }
 
