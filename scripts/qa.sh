@@ -114,15 +114,16 @@ for i in "${!slice_source_files[@]}"; do
   src="${slice_source_files[$i]}"
   rel="${slice_source_rels[$i]}"
   slice_type="$(jq -r '.slices | type' "$src")"
+  # Keep all TSV columns non-empty to avoid bash read collapsing empty tab fields.
   if [[ "$slice_type" == "object" ]]; then
-    jq -r --arg rel "$rel" '.slices | to_entries[] | [.key, (.value.meta // ""), .value.hist, .value.heat, $rel, (.value.summary.total // "")] | @tsv' "$src" >> "$entries_tsv"
+    jq -r --arg rel "$rel" '.slices | to_entries[] | [.key, (.value.meta // "-"), .value.hist, .value.heat, $rel, (.value.summary.total // "-")] | @tsv' "$src" >> "$entries_tsv"
   elif [[ "$slice_type" == "array" ]]; then
     while IFS= read -r key; do
       [[ -n "$key" ]] || continue
       if ! paths="$(paths_from_key "$key")"; then
         fail "invalid compact slice key: $key"
       fi
-      printf '%s\t%s\t%s\t\n' "$key" "$paths" "$rel" >> "$entries_tsv"
+      printf '%s\t%s\t%s\t-\n' "$key" "$paths" "$rel" >> "$entries_tsv"
     done < <(jq -r '.slices[]' "$src")
   else
     fail "unsupported .slices type in $src: $slice_type"
@@ -140,6 +141,9 @@ invalid=0
 meta_total_sum=0
 
 while IFS=$'\t' read -r key meta_rel hist_rel heat_rel shard_rel summary_total; do
+  [[ "$meta_rel" == "-" ]] && meta_rel=""
+  [[ "$summary_total" == "-" ]] && summary_total=""
+
   for rel in "$meta_rel" "$hist_rel" "$heat_rel"; do
     [[ -n "$rel" ]] || continue
     [[ "$rel" != /* ]] || {
@@ -225,6 +229,8 @@ if [[ -z "$sample_line" ]]; then
   sample_line="$(head -n1 "$entries_tsv")"
 fi
 IFS=$'\t' read -r sample_name sample_meta_rel sample_hist_rel sample_heat_rel sample_shard_rel sample_summary_total <<<"$sample_line"
+[[ "$sample_meta_rel" == "-" ]] && sample_meta_rel=""
+[[ "$sample_summary_total" == "-" ]] && sample_summary_total=""
 
 if [[ "$mode" == "sharded" ]]; then
   [[ -n "$sample_shard_rel" ]] || fail "failed to resolve shard index for sample slice: $sample_name"
@@ -260,6 +266,8 @@ male_probe_heat_rel=""
 male_probe_shard_rel=""
 if [[ -n "$male_probe_line" ]]; then
   IFS=$'\t' read -r male_probe_name male_probe_meta_rel male_probe_hist_rel male_probe_heat_rel male_probe_shard_rel male_probe_summary_total <<<"$male_probe_line"
+  [[ "$male_probe_meta_rel" == "-" ]] && male_probe_meta_rel=""
+  [[ "$male_probe_summary_total" == "-" ]] && male_probe_summary_total=""
 fi
 
 site_budget_bytes=0
