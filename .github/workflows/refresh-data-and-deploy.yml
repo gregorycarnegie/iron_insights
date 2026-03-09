@@ -94,11 +94,54 @@ jobs:
           test -s "data/latest.json"
           test -s "data/${DATA_VERSION}/index.json"
 
+          sum_totals() {
+            awk '{s += $1} END {print s + 0}'
+          }
+
+          aggregate_total_for_version() {
+            local version="$1"
+            local version_dir="data/${version}"
+            local index_json="${version_dir}/index.json"
+
+            [[ -s "${index_json}" ]] || {
+              echo "0"
+              return
+            }
+
+            if [[ -d "${version_dir}/meta" ]]; then
+              find "${version_dir}/meta" -type f -name '*.json' -print0 \
+                | xargs -0 -r jq -r '.hist.total // 0' \
+                | sum_totals
+              return
+            fi
+
+            local mode
+            mode="$(jq -r 'if has("slices") then "flat" elif has("shards") then "sharded" else "unknown" end' "${index_json}")"
+
+            if [[ "${mode}" == "flat" ]]; then
+              jq -r '.slices | if type=="object" then to_entries[].value.summary.total // 0 else empty end' "${index_json}" \
+                | sum_totals
+              return
+            fi
+
+            if [[ "${mode}" == "sharded" ]]; then
+              jq -r '.shards | to_entries[].value' "${index_json}" \
+                | while IFS= read -r shard_rel; do
+                    [[ -n "${shard_rel}" ]] || continue
+                    shard_path="${version_dir}/${shard_rel}"
+                    [[ -s "${shard_path}" ]] || continue
+                    jq -r '.slices | if type=="object" then to_entries[].value.summary.total // 0 else empty end' "${shard_path}"
+                  done \
+                | sum_totals
+              return
+            fi
+
+            echo "0"
+          }
+
           # Aggregate row-count proxy (sum of histogram totals across slices).
-          # Use per-file extraction + awk sum so argument chunking cannot produce multi-line totals.
-          NEW_TOTAL=$(find "data/${DATA_VERSION}/meta" -type f -name '*.json' -print0 \
-            | xargs -0 -r jq -r '.hist.total // 0' \
-            | awk '{s += $1} END {print s + 0}')
+          # Prefer meta files when present, otherwise read compact summary totals from index/shards.
+          NEW_TOTAL="$(aggregate_total_for_version "${DATA_VERSION}")"
 
           if [[ -z "${NEW_TOTAL}" || "${NEW_TOTAL}" == "0" ]]; then
             echo "Computed NEW_TOTAL is empty/zero; failing."
@@ -107,10 +150,8 @@ jobs:
 
           PREV_VERSION='${{ steps.previous.outputs.previous_version }}'
           PREV_TOTAL=0
-          if [[ -n "${PREV_VERSION}" && -d "data/${PREV_VERSION}/meta" ]]; then
-            PREV_TOTAL=$(find "data/${PREV_VERSION}/meta" -type f -name '*.json' -print0 \
-              | xargs -0 -r jq -r '.hist.total // 0' \
-              | awk '{s += $1} END {print s + 0}')
+          if [[ -n "${PREV_VERSION}" && -d "data/${PREV_VERSION}" ]]; then
+            PREV_TOTAL="$(aggregate_total_for_version "${PREV_VERSION}")"
           fi
 
           if [[ "${PREV_TOTAL}" != "0" ]]; then
