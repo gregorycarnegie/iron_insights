@@ -116,7 +116,19 @@ for i in "${!slice_source_files[@]}"; do
   slice_type="$(jq -r '.slices | type' "$src")"
   # Keep all TSV columns non-empty to avoid bash read collapsing empty tab fields.
   if [[ "$slice_type" == "object" ]]; then
-    jq -r --arg rel "$rel" '.slices | to_entries[] | [.key, (.value.meta // "-"), .value.hist, .value.heat, $rel, (.value.summary.total // "-")] | @tsv' "$src" >> "$entries_tsv"
+    jq -r --arg rel "$rel" '
+      .slices
+      | to_entries[]
+      | [
+          .key,
+          (if ((.value.meta // "") | length) > 0 then .value.meta else "-" end),
+          .value.hist,
+          .value.heat,
+          $rel,
+          (if .value.summary.total == null then "-" else (.value.summary.total | tostring) end)
+        ]
+      | @tsv
+    ' "$src" >> "$entries_tsv"
   elif [[ "$slice_type" == "array" ]]; then
     while IFS= read -r key; do
       [[ -n "$key" ]] || continue
@@ -158,10 +170,19 @@ while IFS=$'\t' read -r key meta_rel hist_rel heat_rel shard_rel summary_total; 
   done
 
   if [[ -n "$meta_rel" && -s "$VERSION_DIR/$meta_rel" ]]; then
-    total="$(jq -r '.hist.total // 0' "$VERSION_DIR/$meta_rel")"
-    bins="$(jq -r '.hist.bins // 0' "$VERSION_DIR/$meta_rel")"
-    h_width="$(jq -r '.heat.width // 0' "$VERSION_DIR/$meta_rel")"
-    h_height="$(jq -r '.heat.height // 0' "$VERSION_DIR/$meta_rel")"
+    if [[ "$meta_rel" != *.json ]]; then
+      echo "[qa] invalid meta path (not json) for $key: $meta_rel" >&2
+      invalid=$((invalid + 1))
+      continue
+    fi
+
+    if ! meta_fields="$(jq -r '[.hist.total // 0, .hist.bins // 0, .heat.width // 0, .heat.height // 0] | @tsv' "$VERSION_DIR/$meta_rel" 2>/dev/null)"; then
+      echo "[qa] failed to parse meta json for $key: $meta_rel" >&2
+      invalid=$((invalid + 1))
+      continue
+    fi
+
+    IFS=$'\t' read -r total bins h_width h_height <<<"$meta_fields"
 
     [[ "$bins" -ge 1 ]] || {
       echo "[qa] bad histogram bins for $key: $bins" >&2
