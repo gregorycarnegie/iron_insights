@@ -841,6 +841,9 @@ fn App() -> impl IntoView {
                     >
                         "1RM Calculator"
                     </button>
+                    <a class="chip" href="./landing/index.html">
+                        "Guides"
+                    </a>
                 </nav>
             </header>
 

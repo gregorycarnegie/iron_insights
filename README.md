@@ -13,6 +13,8 @@ It builds compact histogram/heatmap aggregates from OpenPowerlifting data, serve
 ## Repo Layout
 
 - `app/` - Leptos CSR frontend (WASM + Trunk)
+  - `landing/` - static SEO landing pages (percentile lookups, FAQ, methodology)
+  - `robots.txt`, `sitemap.xml` - search-engine discoverability
 - `pipeline/` - Rust data pipeline (download, aggregate, publish)
 - `data/` - versioned published aggregate data (`vYYYY-MM-DD` + `latest.json`)
 - `docs/` - static build output for GitHub Pages
@@ -134,21 +136,21 @@ It runs on:
 
 Workflow steps:
 
-1. Run pipeline (`01_download`, `02_build_aggregates`, `03_publish_data`)
-2. Apply safeguards (row-count proxy drop check)
-3. Commit refreshed `data/` back to `master` when changed
-4. Build app with Trunk to `docs/`
-5. Run QA script
-6. Deploy `docs/` to GitHub Pages
+1. Quality gates (tests + clippy across all crates)
+2. Run pipeline (`01_download`, `02_build_aggregates`, `03_publish_data`)
+3. Apply safeguards (row-count proxy drop check)
+4. Commit refreshed `data/` back to `master` when changed
+5. Build app with Trunk to `docs/`
+6. Run QA script
+7. Deploy `docs/` to GitHub Pages
 
 ## Notes
 
 - Root crate (`src/main.rs`) is currently a placeholder; project functionality lives in `app/` and `pipeline/`.
-- `todo.md` tracks completed work and remaining features (e.g., DOTS/Wilks/GL toggle, OpenIPF option).
+- `todo.md` tracks completed work and remaining features (e.g., Weight Class Analyzer, Federation Comparison).
 
 ## Roadmap Themes
 
 - Faster web delivery via data packaging and tiered loading
-- Better discovery via static SEO landing pages
 - Deeper comparisons (cohorts, federations, and trends)
 - More actionable outputs (targets, progression, and shareable summaries)

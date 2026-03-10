@@ -4,26 +4,73 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Methodology | Iron Insights</title>
-    <meta name="description" content="Methodology notes for Iron Insights percentile calculations, cohort slices, and dataset boundaries." />
+    <meta
+      name="description"
+      content="Methodology notes for Iron Insights percentile calculations, cohort slices, and dataset boundaries."
+    />
+    <meta name="theme-color" content="#0f2e24" />
     <link rel="canonical" href="https://gregorycarnegie.github.io/iron_insights/landing/methodology.html" />
     <meta property="og:image" content="https://gregorycarnegie.github.io/iron_insights/og-card.svg" />
     <meta name="twitter:image" content="https://gregorycarnegie.github.io/iron_insights/og-card.svg" />
     <meta name="robots" content="index,follow" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../assets/style.css" />
+    <link rel="stylesheet" href="./landing.css" />
+    <link rel="icon" type="image/svg+xml" href="../assets/logo.svg" />
   </head>
   <body>
-    <main>
-      <h1>Iron Insights Methodology</h1>
-      <p>Percentiles are computed from pre-aggregated distributions by selected slice dimensions (sex, equipment, weight class, age class, tested status, lift, and metric).</p>
-      <p>The calculator compares your selected lift value to the corresponding histogram and reports an estimated percentile and rank position.</p>
-      <h2>Method notes</h2>
-      <ul>
-        <li>Percentiles depend on the selected slice and dataset version.</li>
-        <li>Changing equipment/tested/age/weight class changes the comparison cohort.</li>
-        <li>Trend charts are bucketed by competition year and can be sparse for niche cohorts or older years.</li>
-        <li>Trend lines are only comparable within the same filter set; switching filters changes the underlying cohort.</li>
-        <li>Projection and target outputs are estimates, not guarantees.</li>
-      </ul>
-      <p><a href="../">Open calculator</a> | <a href="./faq.html">Read FAQ</a> | <a href="./index.html">Landing index</a></p>
+    <main class="page landing-page">
+      <header class="panel topbar">
+        <div class="brand">
+          <img class="landing-brand-logo" src="../assets/logo.svg" alt="Iron Insights logo" width="48" height="48" />
+          <div class="brand-copy">
+            <p class="brand-title">Iron Insights</p>
+            <p class="brand-subtitle">Powerlifting data explorer</p>
+          </div>
+        </div>
+        <nav class="page-nav" aria-label="Landing navigation">
+          <a class="chip" href="../#rank">Calculator</a>
+          <a class="chip" href="./index.html">Guides</a>
+          <a class="chip active-link" href="./methodology.html">Methodology</a>
+          <a class="chip" href="./faq.html">FAQ</a>
+        </nav>
+      </header>
+
+      <header class="panel landing-hero">
+        <p class="landing-kicker">Reference</p>
+        <h1>Iron Insights Methodology</h1>
+        <p class="intro">
+          Percentiles are computed from pre-aggregated distributions by selected slice dimensions (sex, equipment, weight class, age class, tested status, lift, and metric).
+        </p>
+        <p class="landing-note">
+          Interactive percentile output lives in the calculator; this page documents assumptions and caveats.
+        </p>
+      </header>
+
+      <section class="panel">
+        <h2>Method notes</h2>
+        <ul class="landing-list">
+          <li>Percentiles depend on the selected slice and dataset version.</li>
+          <li>Changing equipment, tested status, age class, or weight class changes the comparison cohort.</li>
+          <li>Trend charts are bucketed by competition year and can be sparse for niche cohorts or older years.</li>
+          <li>Trend lines are only comparable within the same filter set; switching filters changes the underlying cohort.</li>
+          <li>Projection and target outputs are estimates, not guarantees.</li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <h2>Next steps</h2>
+        <div class="landing-actions">
+          <a class="landing-cta primary" href="../#rank">Open calculator</a>
+          <a class="landing-cta secondary" href="./faq.html">Read FAQ</a>
+          <a class="landing-cta secondary" href="./index.html">All guides</a>
+        </div>
+      </section>
     </main>
   </body>
 </html>

@@ -9,6 +9,7 @@ trunk serve --open
 ```
 
 This app fetches:
+
 - `./data/latest.json`
 - `./data/<version>/index.json`
 - shard index entries plus referenced `hist/*.bin` and `heat/*.bin` files

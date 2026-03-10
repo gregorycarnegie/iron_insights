@@ -27,6 +27,8 @@ pub(in crate::webapp) fn FaqPanel() -> impl IntoView {
                 <a href="./landing/faq.html">"Read full FAQ"</a>
                 " | "
                 <a href="./landing/methodology.html">"Methodology notes"</a>
+                " | "
+                <a href="./landing/index.html">"Guides hub"</a>
             </p>
         </section>
     }
