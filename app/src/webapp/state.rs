@@ -151,6 +151,7 @@ pub(super) fn setup_slice_rows_effect(
 
 pub(super) fn setup_trends_effect(
     latest: ReadSignal<Option<LatestJson>>,
+    should_load_trends: Memo<bool>,
     set_trends: WriteSignal<Vec<TrendSeries>>,
     trends_request_id: ReadSignal<u64>,
     set_trends_request_id: WriteSignal<u64>,
@@ -160,6 +161,12 @@ pub(super) fn setup_trends_effect(
         set_trends_request_id.set(next_request_id);
 
         let latest_v = latest.get();
+        let load_trends = should_load_trends.get();
+        if !load_trends {
+            set_trends.set(Vec::new());
+            return;
+        }
+
         let Some(latest_v) = latest_v else {
             set_trends.set(Vec::new());
             return;
@@ -199,7 +206,7 @@ pub(super) fn setup_distribution_effect(
     current_row: Memo<Option<SliceRow>>,
     latest: ReadSignal<Option<LatestJson>>,
     calculated: ReadSignal<bool>,
-    show_main_charts: ReadSignal<bool>,
+    should_load_heat: Memo<bool>,
     set_hist: WriteSignal<Option<HistogramBin>>,
     set_heat: WriteSignal<Option<HeatmapBin>>,
     set_hist_load_ms: WriteSignal<Option<u32>>,
@@ -215,7 +222,7 @@ pub(super) fn setup_distribution_effect(
         let row = current_row.get();
         let latest_v = latest.get();
         let should_load_hist = calculated.get();
-        let should_load_heat = show_main_charts.get();
+        let should_load_heat = should_load_heat.get();
 
         if !should_load_hist {
             set_hist.set(None);
@@ -223,6 +230,11 @@ pub(super) fn setup_distribution_effect(
             set_hist_load_ms.set(None);
             set_heat_load_ms.set(None);
             return;
+        }
+
+        if !should_load_heat {
+            set_heat.set(None);
+            set_heat_load_ms.set(None);
         }
 
         if let (Some(row), Some(latest_v)) = (row, latest_v) {

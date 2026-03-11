@@ -21,6 +21,65 @@ pub struct HeatmapBin {
     pub grid: Vec<u32>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct HistogramDiagnostics {
+    pub p01: f32,
+    pub p05: f32,
+    pub p10: f32,
+    pub p25: f32,
+    pub p50: f32,
+    pub p75: f32,
+    pub p90: f32,
+    pub p95: f32,
+    pub p99: f32,
+    pub iqr: f32,
+    pub central_80_low: f32,
+    pub central_80_high: f32,
+    pub mode_bin_start: f32,
+    pub mode_bin_end: f32,
+    pub mode_bin_center: f32,
+    pub mode_bin_count: u32,
+    pub occupied_bins: usize,
+    pub total_bins: usize,
+    pub sparsity_score: f32,
+    pub total_lifters: u32,
+    pub tiny_sample_warning: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HistogramDensity {
+    pub label: &'static str,
+    pub bin_index: usize,
+    pub bin_start: f32,
+    pub bin_end: f32,
+    pub current_bin_count: u32,
+    pub left_bin_count: u32,
+    pub right_bin_count: u32,
+    pub neighborhood_count: u32,
+    pub local_density_ratio: f32,
+    pub neighborhood_share: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BodyweightConditionedStats {
+    pub percentile: f32,
+    pub rank: usize,
+    pub total_nearby: u32,
+    pub bw_bin_index: usize,
+    pub bw_bin_low: f32,
+    pub bw_bin_high: f32,
+    pub bw_window_low: f32,
+    pub bw_window_high: f32,
+    pub lift_bin_index: usize,
+    pub lift_bin_low: f32,
+    pub lift_bin_high: f32,
+    pub local_cell_count: u32,
+    pub neighborhood_count: u32,
+    pub neighborhood_share: f32,
+}
+
+pub const TINY_COHORT_WARNING_THRESHOLD: u32 = 250;
+
 pub fn parse_hist_bin(bytes: &[u8]) -> Option<HistogramBin> {
     if bytes.len() < 22 || &bytes[0..4] != b"IIH1" {
         return None;
@@ -144,6 +203,212 @@ pub fn value_for_percentile(hist: Option<&HistogramBin>, target_pct: f32) -> Opt
     Some(hist.max)
 }
 
+pub fn equivalent_value_for_same_percentile(
+    source_hist: Option<&HistogramBin>,
+    target_hist: Option<&HistogramBin>,
+    source_value: f32,
+) -> Option<(f32, f32)> {
+    let source_percentile = percentile_for_value(source_hist, source_value)?.0;
+    let target_value = value_for_percentile(target_hist, source_percentile)?;
+    Some((source_percentile, target_value))
+}
+
+pub fn histogram_diagnostics(hist: Option<&HistogramBin>) -> Option<HistogramDiagnostics> {
+    let hist = hist?;
+    if hist.counts.is_empty() || hist.base_bin <= 0.0 {
+        return None;
+    }
+
+    let total: u32 = hist.counts.iter().copied().sum();
+    if total == 0 {
+        return None;
+    }
+
+    let q = |pct: f32| value_for_percentile(Some(hist), pct);
+
+    let p01 = q(0.01)?;
+    let p05 = q(0.05)?;
+    let p10 = q(0.10)?;
+    let p25 = q(0.25)?;
+    let p50 = q(0.50)?;
+    let p75 = q(0.75)?;
+    let p90 = q(0.90)?;
+    let p95 = q(0.95)?;
+    let p99 = q(0.99)?;
+
+    let (mode_idx, mode_count) = hist
+        .counts
+        .iter()
+        .enumerate()
+        .max_by_key(|(_, count)| *count)
+        .map(|(idx, count)| (idx, *count))?;
+    let mode_bin_start = hist.min + mode_idx as f32 * hist.base_bin;
+    let mode_bin_end = mode_bin_start + hist.base_bin;
+
+    let occupied_bins = hist.counts.iter().filter(|&&count| count > 0).count();
+    let total_bins = hist.counts.len();
+    let sparsity_score = 1.0 - (occupied_bins as f32 / total_bins as f32);
+
+    Some(HistogramDiagnostics {
+        p01,
+        p05,
+        p10,
+        p25,
+        p50,
+        p75,
+        p90,
+        p95,
+        p99,
+        iqr: p75 - p25,
+        central_80_low: p10,
+        central_80_high: p90,
+        mode_bin_start,
+        mode_bin_end,
+        mode_bin_center: mode_bin_start + 0.5 * hist.base_bin,
+        mode_bin_count: mode_count,
+        occupied_bins,
+        total_bins,
+        sparsity_score,
+        total_lifters: total,
+        tiny_sample_warning: total < TINY_COHORT_WARNING_THRESHOLD,
+    })
+}
+
+pub fn histogram_density_for_value(
+    hist: Option<&HistogramBin>,
+    value: f32,
+) -> Option<HistogramDensity> {
+    let hist = hist?;
+    if hist.counts.is_empty() || hist.base_bin <= 0.0 {
+        return None;
+    }
+
+    let total: u32 = hist.counts.iter().copied().sum();
+    if total == 0 {
+        return None;
+    }
+
+    let bin_index = ((value - hist.min) / hist.base_bin)
+        .floor()
+        .clamp(0.0, (hist.counts.len() - 1) as f32) as usize;
+    let current_bin_count = hist.counts[bin_index];
+    let left_bin_count = if bin_index > 0 {
+        hist.counts[bin_index - 1]
+    } else {
+        0
+    };
+    let right_bin_count = if bin_index + 1 < hist.counts.len() {
+        hist.counts[bin_index + 1]
+    } else {
+        0
+    };
+    let neighborhood_count = left_bin_count + current_bin_count + right_bin_count;
+    let mode_count = hist.counts.iter().copied().max().unwrap_or(0).max(1);
+    let local_density_ratio = current_bin_count as f32 / mode_count as f32;
+    let neighborhood_share = neighborhood_count as f32 / total as f32;
+
+    let label = if local_density_ratio >= 0.65 {
+        "dense middle"
+    } else if local_density_ratio >= 0.30 {
+        "moderately common"
+    } else if local_density_ratio >= 0.10 {
+        "rare air"
+    } else {
+        "extreme tail"
+    };
+
+    let bin_start = hist.min + bin_index as f32 * hist.base_bin;
+    let bin_end = bin_start + hist.base_bin;
+
+    Some(HistogramDensity {
+        label,
+        bin_index,
+        bin_start,
+        bin_end,
+        current_bin_count,
+        left_bin_count,
+        right_bin_count,
+        neighborhood_count,
+        local_density_ratio,
+        neighborhood_share,
+    })
+}
+
+pub fn bodyweight_conditioned_percentile(
+    heat: Option<&HeatmapBin>,
+    user_lift: f32,
+    user_bw: f32,
+) -> Option<BodyweightConditionedStats> {
+    let heat = heat?;
+    if heat.width == 0 || heat.height == 0 || heat.grid.len() != heat.width * heat.height {
+        return None;
+    }
+    if heat.base_x <= 0.0 || heat.base_y <= 0.0 {
+        return None;
+    }
+
+    let total_heat: u32 = heat.grid.iter().copied().sum();
+    if total_heat == 0 {
+        return None;
+    }
+
+    let lift_bin_index = ((user_lift - heat.min_x) / heat.base_x)
+        .floor()
+        .clamp(0.0, (heat.width - 1) as f32) as usize;
+    let bw_bin_index = ((user_bw - heat.min_y) / heat.base_y)
+        .floor()
+        .clamp(0.0, (heat.height - 1) as f32) as usize;
+
+    let row_lo = bw_bin_index.saturating_sub(1);
+    let row_hi = (bw_bin_index + 1).min(heat.height - 1);
+
+    let mut nearby_counts = vec![0u32; heat.width];
+    for y in row_lo..=row_hi {
+        for (x, sum) in nearby_counts.iter_mut().enumerate() {
+            let idx = y * heat.width + x;
+            *sum = sum.saturating_add(heat.grid[idx]);
+        }
+    }
+
+    let total_nearby: u32 = nearby_counts.iter().copied().sum();
+    if total_nearby == 0 {
+        return None;
+    }
+
+    let below: u32 = nearby_counts.iter().take(lift_bin_index).copied().sum();
+    let current = nearby_counts[lift_bin_index] as f32;
+    let cdf = below as f32 + 0.5 * current;
+    let percentile = cdf / total_nearby as f32;
+    let rank = ((1.0 - percentile) * total_nearby as f32).round().max(1.0) as usize;
+
+    let mut neighborhood_count = 0u32;
+    let x_lo = lift_bin_index.saturating_sub(1);
+    let x_hi = (lift_bin_index + 1).min(heat.width - 1);
+    for y in row_lo..=row_hi {
+        for x in x_lo..=x_hi {
+            neighborhood_count = neighborhood_count.saturating_add(heat.grid[y * heat.width + x]);
+        }
+    }
+    let neighborhood_share = neighborhood_count as f32 / total_heat as f32;
+
+    Some(BodyweightConditionedStats {
+        percentile,
+        rank,
+        total_nearby,
+        bw_bin_index,
+        bw_bin_low: heat.min_y + bw_bin_index as f32 * heat.base_y,
+        bw_bin_high: heat.min_y + (bw_bin_index as f32 + 1.0) * heat.base_y,
+        bw_window_low: heat.min_y + row_lo as f32 * heat.base_y,
+        bw_window_high: heat.min_y + (row_hi as f32 + 1.0) * heat.base_y,
+        lift_bin_index,
+        lift_bin_low: heat.min_x + lift_bin_index as f32 * heat.base_x,
+        lift_bin_high: heat.min_x + (lift_bin_index as f32 + 1.0) * heat.base_x,
+        local_cell_count: heat.grid[bw_bin_index * heat.width + lift_bin_index],
+        neighborhood_count,
+        neighborhood_share,
+    })
+}
+
 #[allow(clippy::excessive_precision)]
 pub fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     let bw = match sex {
@@ -243,7 +508,9 @@ pub fn rebin_2d(
 #[cfg(test)]
 mod tests {
     use super::{
-        BINARY_FORMAT_VERSION, HistogramBin, dots_points, goodlift_points, parse_heat_bin,
+        BINARY_FORMAT_VERSION, HeatmapBin, HistogramBin, TINY_COHORT_WARNING_THRESHOLD,
+        bodyweight_conditioned_percentile, dots_points, equivalent_value_for_same_percentile,
+        goodlift_points, histogram_density_for_value, histogram_diagnostics, parse_heat_bin,
         parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
         wilks_points,
     };
@@ -459,5 +726,149 @@ mod tests {
         assert!(gl_raw.is_finite());
         assert!(gl_equipped.is_finite());
         assert_ne!(gl_raw, gl_equipped);
+    }
+
+    #[test]
+    fn histogram_diagnostics_reports_expected_ranges() {
+        let hist = HistogramBin {
+            min: 100.0,
+            max: 112.0,
+            base_bin: 2.0,
+            counts: vec![0, 4, 10, 6, 2, 0],
+        };
+
+        let diag = histogram_diagnostics(Some(&hist)).expect("diagnostics should compute");
+        assert!(diag.p01 <= diag.p05 && diag.p05 <= diag.p10);
+        assert!(diag.p25 <= diag.p50 && diag.p50 <= diag.p75);
+        assert!(diag.p90 <= diag.p95 && diag.p95 <= diag.p99);
+        assert!((diag.iqr - (diag.p75 - diag.p25)).abs() < 1e-6);
+        assert_eq!(diag.mode_bin_count, 10);
+        assert_eq!(diag.occupied_bins, 4);
+        assert_eq!(diag.total_bins, 6);
+        assert!((0.0..=1.0).contains(&diag.sparsity_score));
+    }
+
+    #[test]
+    fn histogram_diagnostics_flags_tiny_sample() {
+        let hist = HistogramBin {
+            min: 0.0,
+            max: 4.0,
+            base_bin: 1.0,
+            counts: vec![50, 40, 30, 20],
+        };
+        let diag = histogram_diagnostics(Some(&hist)).expect("diagnostics should compute");
+        assert_eq!(diag.total_lifters, 140);
+        assert_eq!(
+            diag.tiny_sample_warning,
+            140 < TINY_COHORT_WARNING_THRESHOLD
+        );
+    }
+
+    #[test]
+    fn histogram_density_reports_neighbors_and_label() {
+        let hist = HistogramBin {
+            min: 100.0,
+            max: 112.0,
+            base_bin: 2.0,
+            counts: vec![1, 4, 10, 6, 2, 1],
+        };
+
+        let density =
+            histogram_density_for_value(Some(&hist), 104.2).expect("density should compute");
+        assert_eq!(density.bin_index, 2);
+        assert_eq!(density.current_bin_count, 10);
+        assert_eq!(density.left_bin_count, 4);
+        assert_eq!(density.right_bin_count, 6);
+        assert_eq!(density.neighborhood_count, 20);
+        assert_eq!(density.label, "dense middle");
+        assert!((0.0..=1.0).contains(&density.local_density_ratio));
+        assert!((0.0..=1.0).contains(&density.neighborhood_share));
+    }
+
+    #[test]
+    fn bodyweight_conditioned_percentile_uses_nearby_rows() {
+        let heat = HeatmapBin {
+            min_x: 100.0,
+            max_x: 115.0,
+            min_y: 60.0,
+            max_y: 66.0,
+            base_x: 5.0,
+            base_y: 2.0,
+            width: 3,
+            height: 3,
+            grid: vec![
+                1, 2, 1, // y=0
+                2, 6, 2, // y=1
+                1, 2, 1, // y=2
+            ],
+        };
+
+        let stats =
+            bodyweight_conditioned_percentile(Some(&heat), 106.0, 62.5).expect("should compute");
+        assert!((stats.percentile - 0.5).abs() < 1e-6);
+        assert_eq!(stats.rank, 9);
+        assert_eq!(stats.total_nearby, 18);
+        assert_eq!(stats.local_cell_count, 6);
+        assert_eq!(stats.neighborhood_count, 18);
+        assert!((stats.neighborhood_share - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn bodyweight_conditioned_percentile_clamps_edges() {
+        let heat = HeatmapBin {
+            min_x: 100.0,
+            max_x: 110.0,
+            min_y: 50.0,
+            max_y: 54.0,
+            base_x: 5.0,
+            base_y: 2.0,
+            width: 2,
+            height: 2,
+            grid: vec![
+                10, 0, // low bw
+                0, 0, // high bw
+            ],
+        };
+        let stats =
+            bodyweight_conditioned_percentile(Some(&heat), 95.0, 40.0).expect("should compute");
+        assert_eq!(stats.bw_bin_index, 0);
+        assert_eq!(stats.lift_bin_index, 0);
+        assert_eq!(stats.total_nearby, 10);
+        assert_eq!(stats.rank, 5);
+    }
+
+    #[test]
+    fn equivalent_value_for_same_percentile_maps_across_histograms() {
+        let source = HistogramBin {
+            min: 100.0,
+            max: 130.0,
+            base_bin: 10.0,
+            counts: vec![10, 10, 10],
+        };
+        let target = HistogramBin {
+            min: 200.0,
+            max: 230.0,
+            base_bin: 10.0,
+            counts: vec![10, 10, 10],
+        };
+
+        let (pct, equivalent) =
+            equivalent_value_for_same_percentile(Some(&source), Some(&target), 115.0)
+                .expect("should compute equivalent value");
+        assert!((pct - 0.5).abs() < 1e-6);
+        assert!((equivalent - 215.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn equivalent_value_for_same_percentile_returns_none_without_data() {
+        let source = HistogramBin {
+            min: 100.0,
+            max: 120.0,
+            base_bin: 10.0,
+            counts: vec![5, 5],
+        };
+
+        assert!(equivalent_value_for_same_percentile(None, Some(&source), 105.0).is_none());
+        assert!(equivalent_value_for_same_percentile(Some(&source), None, 105.0).is_none());
     }
 }

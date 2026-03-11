@@ -38,21 +38,21 @@ pub(in crate::webapp) fn ResultCardPanel(
                             .unwrap_or_else(|| {
                                 load_error
                                     .get()
-                                    .map(|err| format!("Distribution data unavailable: {err}"))
-                                    .unwrap_or_else(|| "No matching distribution found for this slice.".to_string())
+                                    .map(|err| format!("Comparison data unavailable: {err}"))
+                                    .unwrap_or_else(|| "No matching group found for these filters.".to_string())
                             }),
                     }}
                 </p>
                 <p class="topline">
                     {move || match percentile.get() {
                         Some((pct, _, total)) => format!("Top {:.1}% | Compared against {} lifters", (1.0 - pct).max(0.0) * 100.0, total),
-                        None => "Top tier unavailable.".to_string(),
+                        None => "Top bracket unavailable.".to_string(),
                     }}
                 </p>
                 <p class="tier">
                     {move || match rank_tier.get() {
-                        Some(tier) => format!("Tier: {}", tier),
-                        None => "Tier: unavailable".to_string(),
+                        Some(tier) => format!("Strength level: {}", tier),
+                        None => "Strength level: unavailable".to_string(),
                     }}
                 </p>
                 <p class="muted">"Higher is stronger."</p>

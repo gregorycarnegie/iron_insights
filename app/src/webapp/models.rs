@@ -85,7 +85,6 @@ pub(super) struct TrendPoint {
 
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct SliceIndex {
-    pub(super) shard_key: String,
     pub(super) slices: SliceIndexEntries,
 }
 
@@ -129,4 +128,40 @@ pub(super) struct SliceSummary {
     pub(super) min_kg: f32,
     pub(super) max_kg: f32,
     pub(super) total: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct CohortComparisonRow {
+    pub(super) id: String,
+    pub(super) label: String,
+    pub(super) wc: String,
+    pub(super) age: String,
+    pub(super) tested: String,
+    pub(super) metric: String,
+    pub(super) total: Option<u32>,
+    pub(super) total_delta: Option<i64>,
+    pub(super) min_kg: Option<f32>,
+    pub(super) max_kg: Option<f32>,
+    pub(super) status: String,
+    pub(super) status_ok: bool,
+    pub(super) hist_path: Option<String>,
+    pub(super) is_current: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct CrossSexComparison {
+    pub(super) male_percentile: f32,
+    pub(super) female_percentile: f32,
+    pub(super) male_total: u32,
+    pub(super) female_total: u32,
+    pub(super) male_input_value: f32,
+    pub(super) female_input_value: f32,
+    pub(super) female_value_at_male_percentile: f32,
+    pub(super) male_value_at_female_percentile: f32,
+    pub(super) metric: String,
+    pub(super) male_weight_class: String,
+    pub(super) female_weight_class: String,
+    pub(super) male_wc_fallback: bool,
+    pub(super) female_wc_fallback: bool,
+    pub(super) caveat: Option<String>,
 }

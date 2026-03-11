@@ -13,6 +13,7 @@ pub fn TrendsPanel(
     calculated: ReadSignal<bool>,
     trend_points: Memo<Vec<TrendPoint>>,
     trend_note: Memo<String>,
+    current_value: Memo<f32>,
 ) -> impl IntoView {
     let total_path = Memo::new(move |_| line_path(&trend_points.get(), |p| p.total as f32));
     let total_min = Memo::new(move |_| value_range(&trend_points.get(), |p| p.total as f32).0);
@@ -40,6 +41,68 @@ pub fn TrendsPanel(
             _ => None,
         }
     });
+    let growth_summary = Memo::new(move |_| {
+        let points = trend_points.get();
+        match (points.first(), points.last()) {
+            (Some(first), Some(last)) => {
+                let delta = i64::from(last.total) - i64::from(first.total);
+                let pct = if first.total == 0 {
+                    0.0
+                } else {
+                    (delta as f32 / first.total as f32) * 100.0
+                };
+                format!(
+                    "{}-{}: {:+} lifters ({:+.1}%).",
+                    first.year, last.year, delta, pct
+                )
+            }
+            _ => "Not enough points for growth summary.".to_string(),
+        }
+    });
+    let p50_drift_summary = Memo::new(move |_| {
+        let points = trend_points.get();
+        match (points.first(), points.last()) {
+            (Some(first), Some(last)) => {
+                format!("{}-{}: {:+.1}", first.year, last.year, last.p50 - first.p50)
+            }
+            _ => "Not enough points for p50 drift.".to_string(),
+        }
+    });
+    let p90_drift_summary = Memo::new(move |_| {
+        let points = trend_points.get();
+        match (points.first(), points.last()) {
+            (Some(first), Some(last)) => {
+                format!("{}-{}: {:+.1}", first.year, last.year, last.p90 - first.p90)
+            }
+            _ => "Not enough points for p90 drift.".to_string(),
+        }
+    });
+    let historical_clear_summary = Memo::new(move |_| {
+        let points = trend_points.get();
+        if points.len() < 2 {
+            return "Need at least two yearly points for prior-year threshold checks.".to_string();
+        }
+        let current = current_value.get();
+        let prior = &points[..points.len() - 1];
+        let last = points.last();
+        let prior_p50_hits = prior.iter().filter(|point| current >= point.p50).count();
+        let prior_p90_hits = prior.iter().filter(|point| current >= point.p90).count();
+
+        match last {
+            Some(last) => format!(
+                "Current input {:.1} would clear prior-year p50 in {}/{} years and prior-year p90 in {}/{} years. Against latest year {}, p50={} and p90={}.",
+                current,
+                prior_p50_hits,
+                prior.len(),
+                prior_p90_hits,
+                prior.len(),
+                last.year,
+                if current >= last.p50 { "yes" } else { "no" },
+                if current >= last.p90 { "yes" } else { "no" }
+            ),
+            None => "No latest year available for threshold check.".to_string(),
+        }
+    });
 
     view! {
         <section class="panel trends">
@@ -55,6 +118,12 @@ pub fn TrendsPanel(
                     }
                 }
             >
+                <div class="nerd-metrics-grid">
+                    <p><strong>"Cohort size growth"</strong>{move || growth_summary.get()}</p>
+                    <p><strong>"p50 drift"</strong>{move || p50_drift_summary.get()}</p>
+                    <p><strong>"p90 drift"</strong>{move || p90_drift_summary.get()}</p>
+                    <p><strong>"Current input vs historical thresholds"</strong>{move || historical_clear_summary.get()}</p>
+                </div>
                 <div class="trend-card">
                     <div class="trend-head">
                         <h3>"Cohort Size by Year"</h3>

@@ -10,30 +10,34 @@ mod state;
 mod ui;
 
 use self::charts::draw_heatmap;
-use self::components::{
-    ChartsPanel, CompareModePanel, FaqPanel, LogoMark, MeetDayPanel, OnboardingPanel,
-    OneRepMaxPanel, PercentilePanel, ProgressPanel, ResultCardPanel, SimulatorPanel, TrendsPanel,
-};
+use self::components::{LogoMark, NerdsPage, OneRmPage, RankingPage};
+use self::data::{fetch_binary_first, fetch_json_first};
 use self::helpers::{
     build_share_url, comparable_lift_value, kg_to_display, parse_query_f32, tier_for_percentile,
 };
 use self::models::{
-    CompareMode, LatestJson, RootIndex, SavedUiState, SliceRow, SliceSummary, TrendSeries,
+    CohortComparisonRow, CompareMode, CrossSexComparison, LatestJson, RootIndex, SavedUiState,
+    SliceIndex, SliceIndexEntries, SliceRow, SliceSummary, TrendSeries,
 };
 use self::selectors::{
     age_options, equip_options, lift_options, metric_options, sex_options, tested_options,
     wc_options,
 };
+use self::slices::{entry_from_slice_key, parse_slice_key};
 use self::state::{
     init_dataset_load, setup_default_selection_effects, setup_distribution_effect,
     setup_slice_rows_effect, setup_slice_summary_effect, setup_trends_effect,
 };
 use self::ui::{age_label, metric_label};
 use crate::core::{
-    HeatmapBin, HistogramBin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
+    HeatmapBin, HistogramBin, bodyweight_conditioned_percentile,
+    equivalent_value_for_same_percentile, histogram_density_for_value, histogram_diagnostics,
+    parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
 };
 use leptos::html::Canvas;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
+use std::collections::BTreeMap;
 
 pub fn run() {
     mount_to_body(|| view! { <App /> });
@@ -42,14 +46,202 @@ pub fn run() {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AppPage {
     Rank,
+    StatsForNerds,
     OneRm,
+}
+
+const MIN_CROSS_SEX_COHORT_TOTAL: u32 = 50;
+
+#[derive(Clone, PartialEq)]
+struct CrossSexSliceChoice {
+    row: SliceRow,
+    weight_class_fallback: bool,
+}
+
+fn kg_needed_for_percentile_step(
+    hist: Option<&HistogramBin>,
+    current_value: f32,
+    current_pct: f32,
+    percentile_step: f32,
+) -> Option<f32> {
+    let hist = hist?;
+    let target_pct = (current_pct + percentile_step / 100.0).clamp(0.0, 0.999);
+    if target_pct <= current_pct {
+        return Some(0.0);
+    }
+    let target_value = value_for_percentile(Some(hist), target_pct)?;
+    Some((target_value - current_value).max(0.0))
+}
+
+fn percentile_points_for_kg_gain(
+    hist: Option<&HistogramBin>,
+    current_value: f32,
+    current_pct: f32,
+    kg_gain: f32,
+) -> Option<f32> {
+    let next_pct = percentile_for_value(hist, current_value + kg_gain)?.0;
+    Some(((next_pct - current_pct) * 100.0).max(0.0))
+}
+
+fn dataset_file_url(version: &str, path: &str) -> String {
+    let trimmed = path.trim_start_matches('/');
+    format!("data/{version}/{trimmed}")
+}
+
+fn find_comparison_slice<'a>(
+    rows: &'a [SliceRow],
+    sex: &str,
+    equip: &str,
+    wc: &str,
+    age: &str,
+    tested: &str,
+    lift: &str,
+    metric: &str,
+) -> Option<&'a SliceRow> {
+    rows.iter().find(|row| {
+        row.key.sex == sex
+            && row.key.equip == equip
+            && row.key.wc == wc
+            && row.key.age == age
+            && row.key.tested == tested
+            && row.key.lift == lift
+            && row.key.metric == metric
+    })
+}
+
+fn rows_from_slice_index(index: SliceIndex) -> Vec<SliceRow> {
+    let mut rows = Vec::new();
+    match index.slices {
+        SliceIndexEntries::Map(entries) => {
+            rows.reserve(entries.len());
+            for (raw_key, entry) in entries {
+                if let Some(key) = parse_slice_key(&raw_key) {
+                    rows.push(SliceRow { key, entry });
+                }
+            }
+        }
+        SliceIndexEntries::Keys(keys) => {
+            rows.reserve(keys.len());
+            for raw_key in keys {
+                if let Some((key, entry)) = entry_from_slice_key(&raw_key) {
+                    rows.push(SliceRow { key, entry });
+                }
+            }
+        }
+    }
+    rows.sort_by(|a, b| a.key.cmp(&b.key));
+    rows
+}
+
+fn choose_cross_sex_slice(
+    rows: &[SliceRow],
+    equip: &str,
+    wc: &str,
+    age: &str,
+    tested: &str,
+    lift: &str,
+    metric: &str,
+) -> Option<CrossSexSliceChoice> {
+    let exact = rows
+        .iter()
+        .find(|row| {
+            row.key.equip == equip
+                && row.key.wc == wc
+                && row.key.age == age
+                && row.key.tested == tested
+                && row.key.lift == lift
+                && row.key.metric == metric
+        })
+        .cloned();
+    if let Some(row) = exact {
+        return Some(CrossSexSliceChoice {
+            row,
+            weight_class_fallback: false,
+        });
+    }
+
+    rows.iter()
+        .find(|row| {
+            row.key.equip == equip
+                && row.key.wc == "All"
+                && row.key.age == age
+                && row.key.tested == tested
+                && row.key.lift == lift
+                && row.key.metric == metric
+        })
+        .cloned()
+        .map(|row| CrossSexSliceChoice {
+            row,
+            weight_class_fallback: true,
+        })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_cohort_comparison_row(
+    rows: &[SliceRow],
+    label: &str,
+    sex: &str,
+    equip: &str,
+    wc: String,
+    age: String,
+    tested: String,
+    lift: &str,
+    metric: String,
+    base_total: Option<u32>,
+    is_current: bool,
+) -> CohortComparisonRow {
+    let row = find_comparison_slice(rows, sex, equip, &wc, &age, &tested, lift, &metric);
+
+    let (total, min_kg, max_kg, hist_path, status, status_ok) = match row {
+        Some(found) => match found.entry.summary.as_ref() {
+            Some(summary) => (
+                Some(summary.total),
+                Some(summary.min_kg),
+                Some(summary.max_kg),
+                Some(found.entry.hist.clone()),
+                "embedded summary".to_string(),
+                true,
+            ),
+            None => (
+                None,
+                None,
+                None,
+                Some(found.entry.hist.clone()),
+                "slice found; summary missing".to_string(),
+                false,
+            ),
+        },
+        None => (None, None, None, None, "slice missing".to_string(), false),
+    };
+
+    let total_delta = match (total, base_total) {
+        (Some(_), Some(_)) if is_current => Some(0),
+        (Some(candidate), Some(base)) => Some(i64::from(candidate) - i64::from(base)),
+        _ => None,
+    };
+
+    CohortComparisonRow {
+        id: format!("wc={wc}|age={age}|tested={tested}|lift={lift}|metric={metric}"),
+        label: label.to_string(),
+        wc,
+        age,
+        tested,
+        metric,
+        total,
+        total_delta,
+        min_kg,
+        max_kg,
+        status,
+        status_ok,
+        hist_path,
+        is_current,
+    }
 }
 
 #[component]
 fn App() -> impl IntoView {
     let (calculated, set_calculated) = signal(false);
     let (show_share, set_show_share) = signal(false);
-    let (show_main_charts, set_show_main_charts) = signal(false);
     let (share_handle, set_share_handle) = signal(String::new());
     let (share_status, set_share_status) = signal(None::<String>);
     let (query_loaded, set_query_loaded) = signal(false);
@@ -100,8 +292,24 @@ fn App() -> impl IntoView {
     let (summary_load_ms, set_summary_load_ms) = signal(None::<u32>);
     let (hist_load_ms, set_hist_load_ms) = signal(None::<u32>);
     let (heat_load_ms, set_heat_load_ms) = signal(None::<u32>);
+    let (cohort_exact_deltas_enabled, set_cohort_exact_deltas_enabled) = signal(false);
+    let (cohort_exact_percentiles, set_cohort_exact_percentiles) =
+        signal(BTreeMap::<String, Option<f32>>::new());
+    let (cohort_exact_loading, set_cohort_exact_loading) = signal(false);
+    let (cohort_exact_error, set_cohort_exact_error) = signal(None::<String>);
+    let (cohort_exact_request_id, set_cohort_exact_request_id) = signal(0u64);
+    let (male_slice_rows, set_male_slice_rows) = signal(Vec::<SliceRow>::new());
+    let (female_slice_rows, set_female_slice_rows) = signal(Vec::<SliceRow>::new());
+    let (cross_sex_rows_error, set_cross_sex_rows_error) = signal(None::<String>);
+    let (cross_sex_rows_request_id, set_cross_sex_rows_request_id) = signal(0u64);
+    let (male_cross_hist, set_male_cross_hist) = signal(None::<HistogramBin>);
+    let (female_cross_hist, set_female_cross_hist) = signal(None::<HistogramBin>);
+    let (cross_sex_hist_loading, set_cross_sex_hist_loading) = signal(false);
+    let (cross_sex_hist_error, set_cross_sex_hist_error) = signal(None::<String>);
+    let (cross_sex_hist_request_id, set_cross_sex_hist_request_id) = signal(0u64);
 
     let canvas_ref: NodeRef<Canvas> = NodeRef::new();
+    let nerds_page_active = Memo::new(move |_| active_page.get() == AppPage::StatsForNerds);
 
     init_dataset_load(
         set_latest,
@@ -122,10 +330,103 @@ fn App() -> impl IntoView {
     );
     setup_trends_effect(
         latest,
+        nerds_page_active,
         set_trend_series,
         trends_request_id,
         set_trends_request_id,
     );
+    Effect::new(move |_| {
+        let next_request_id = cross_sex_rows_request_id.get_untracked().wrapping_add(1);
+        set_cross_sex_rows_request_id.set(next_request_id);
+
+        if !nerds_page_active.get() {
+            set_male_slice_rows.set(Vec::new());
+            set_female_slice_rows.set(Vec::new());
+            set_cross_sex_rows_error.set(None);
+            return;
+        }
+
+        let (Some(latest_v), Some(root)) = (latest.get(), root_index.get()) else {
+            set_male_slice_rows.set(Vec::new());
+            set_female_slice_rows.set(Vec::new());
+            set_cross_sex_rows_error.set(None);
+            return;
+        };
+        let equip_value = equip.get();
+        if equip_value.is_empty() {
+            set_male_slice_rows.set(Vec::new());
+            set_female_slice_rows.set(Vec::new());
+            set_cross_sex_rows_error.set(None);
+            return;
+        }
+
+        let male_shard_key = format!("sex=M|equip={equip_value}");
+        let female_shard_key = format!("sex=F|equip={equip_value}");
+        let male_shard_rel = root.shards.get(&male_shard_key).cloned();
+        let female_shard_rel = root.shards.get(&female_shard_key).cloned();
+
+        let cross_sex_rows_request_id = cross_sex_rows_request_id;
+        let set_male_slice_rows = set_male_slice_rows;
+        let set_female_slice_rows = set_female_slice_rows;
+        let set_cross_sex_rows_error = set_cross_sex_rows_error;
+        set_cross_sex_rows_error.set(None);
+
+        spawn_local(async move {
+            let mut male_rows = Vec::new();
+            let mut female_rows = Vec::new();
+            let mut issues = Vec::new();
+
+            if let Some(male_rel) = male_shard_rel {
+                let male_url = dataset_file_url(&latest_v.version, &male_rel);
+                match fetch_json_first::<SliceIndex>(&[&male_url]).await {
+                    Ok(index) => {
+                        if cross_sex_rows_request_id.get_untracked() != next_request_id {
+                            debug_log(&format!(
+                                "Ignored stale male cross-sex shard for request {next_request_id}"
+                            ));
+                            return;
+                        }
+                        male_rows = rows_from_slice_index(index);
+                    }
+                    Err(err) => issues.push(format!("Failed male shard load: {err}")),
+                }
+            } else {
+                issues.push("Missing male shard for selected equipment.".to_string());
+            }
+
+            if let Some(female_rel) = female_shard_rel {
+                let female_url = dataset_file_url(&latest_v.version, &female_rel);
+                match fetch_json_first::<SliceIndex>(&[&female_url]).await {
+                    Ok(index) => {
+                        if cross_sex_rows_request_id.get_untracked() != next_request_id {
+                            debug_log(&format!(
+                                "Ignored stale female cross-sex shard for request {next_request_id}"
+                            ));
+                            return;
+                        }
+                        female_rows = rows_from_slice_index(index);
+                    }
+                    Err(err) => issues.push(format!("Failed female shard load: {err}")),
+                }
+            } else {
+                issues.push("Missing female shard for selected equipment.".to_string());
+            }
+
+            if cross_sex_rows_request_id.get_untracked() != next_request_id {
+                debug_log(&format!(
+                    "Ignored stale cross-sex shard completion for request {next_request_id}"
+                ));
+                return;
+            }
+            set_male_slice_rows.set(male_rows);
+            set_female_slice_rows.set(female_rows);
+            if issues.is_empty() {
+                set_cross_sex_rows_error.set(None);
+            } else {
+                set_cross_sex_rows_error.set(Some(issues.join(" ")));
+            }
+        });
+    });
 
     let current_row = Memo::new(move |_| {
         let s = sex.get();
@@ -245,7 +546,7 @@ fn App() -> impl IntoView {
         current_row,
         latest,
         calculated,
-        show_main_charts,
+        nerds_page_active,
         set_hist,
         set_heat,
         set_hist_load_ms,
@@ -428,6 +729,60 @@ fn App() -> impl IntoView {
     });
     let unit_label = Memo::new(move |_| if use_lbs.get() { "lb" } else { "kg" });
     let percentile_percent = Memo::new(move |_| percentile.get().map(|(pct, _, _)| pct * 100.0));
+    let distribution_diagnostics =
+        Memo::new(move |_| histogram_diagnostics(rebinned_hist.get().as_ref()));
+    let rarity_snapshot = Memo::new(move |_| {
+        histogram_density_for_value(rebinned_hist.get().as_ref(), user_lift.get())
+    });
+    let bodyweight_conditioned = Memo::new(move |_| {
+        bodyweight_conditioned_percentile(
+            rebinned_heat.get().as_ref(),
+            user_lift.get(),
+            bodyweight.get(),
+        )
+    });
+    let kg_for_next_1pct = Memo::new(move |_| {
+        if !calculated.get() || !metric_is_kg_comparable.get() {
+            return None;
+        }
+        let (pct, _, _) = percentile.get()?;
+        kg_needed_for_percentile_step(rebinned_hist.get().as_ref(), user_lift.get(), pct, 1.0)
+    });
+    let kg_for_next_5pct = Memo::new(move |_| {
+        if !calculated.get() || !metric_is_kg_comparable.get() {
+            return None;
+        }
+        let (pct, _, _) = percentile.get()?;
+        kg_needed_for_percentile_step(rebinned_hist.get().as_ref(), user_lift.get(), pct, 5.0)
+    });
+    let kg_for_next_10pct = Memo::new(move |_| {
+        if !calculated.get() || !metric_is_kg_comparable.get() {
+            return None;
+        }
+        let (pct, _, _) = percentile.get()?;
+        kg_needed_for_percentile_step(rebinned_hist.get().as_ref(), user_lift.get(), pct, 10.0)
+    });
+    let pct_gain_plus_2_5kg = Memo::new(move |_| {
+        if !calculated.get() || !metric_is_kg_comparable.get() {
+            return None;
+        }
+        let (pct, _, _) = percentile.get()?;
+        percentile_points_for_kg_gain(rebinned_hist.get().as_ref(), user_lift.get(), pct, 2.5)
+    });
+    let pct_gain_plus_5kg = Memo::new(move |_| {
+        if !calculated.get() || !metric_is_kg_comparable.get() {
+            return None;
+        }
+        let (pct, _, _) = percentile.get()?;
+        percentile_points_for_kg_gain(rebinned_hist.get().as_ref(), user_lift.get(), pct, 5.0)
+    });
+    let pct_gain_plus_10kg = Memo::new(move |_| {
+        if !calculated.get() || !metric_is_kg_comparable.get() {
+            return None;
+        }
+        let (pct, _, _) = percentile.get()?;
+        percentile_points_for_kg_gain(rebinned_hist.get().as_ref(), user_lift.get(), pct, 10.0)
+    });
     let result_unavailable_reason = Memo::new(move |_| {
         if !calculated.get() || percentile.get().is_some() {
             return None::<String>;
@@ -451,12 +806,283 @@ fn App() -> impl IntoView {
         }
         Some("Distribution exists but percentile could not be computed.".to_string())
     });
-    let summary_blurb = Memo::new(move |_| match slice_summary.get() {
+    let dataset_blurb = Memo::new(move |_| {
+        if let Some(err) = load_error.get() {
+            err
+        } else if let Some(l) = latest.get() {
+            if let Some(r) = l.revision {
+                format!("Data version {} ({})", l.version, r)
+            } else {
+                format!("Data version {}", l.version)
+            }
+        } else {
+            "Loading data...".to_string()
+        }
+    });
+    let ranking_cohort_blurb = Memo::new(move |_| match slice_summary.get() {
+        Some(summary) => format!("Compared against {} lifters in this cohort.", summary.total),
+        None => "Loading cohort size...".to_string(),
+    });
+    let nerd_cohort_summary = Memo::new(move |_| match slice_summary.get() {
         Some(summary) => format!(
-            "Cohort summary: {} lifters, {}-{:.1} kg range.",
+            "Current cohort: {} lifters, {:.1}-{:.1} kg observed range.",
             summary.total, summary.min_kg, summary.max_kg
         ),
-        None => "Cohort summary loading...".to_string(),
+        None => "Current cohort summary is loading...".to_string(),
+    });
+    let cohort_comparison_rows = Memo::new(move |_| {
+        let rows = slice_rows.get();
+        let s = sex.get();
+        let e = equip.get();
+        let w = wc.get();
+        let a = age.get();
+        let t = tested.get();
+        let l = lift.get();
+        let m = metric.get();
+
+        let base_total = find_comparison_slice(&rows, &s, &e, &w, &a, &t, &l, &m)
+            .and_then(|row| row.entry.summary.as_ref().map(|summary| summary.total))
+            .or_else(|| slice_summary.get().map(|summary| summary.total));
+
+        vec![
+            build_cohort_comparison_row(
+                &rows,
+                "Current slice",
+                &s,
+                &e,
+                w.clone(),
+                a.clone(),
+                t.clone(),
+                &l,
+                m.clone(),
+                base_total,
+                true,
+            ),
+            build_cohort_comparison_row(
+                &rows,
+                "All Ages",
+                &s,
+                &e,
+                w.clone(),
+                "All Ages".to_string(),
+                t.clone(),
+                &l,
+                m.clone(),
+                base_total,
+                false,
+            ),
+            build_cohort_comparison_row(
+                &rows,
+                "All weight classes",
+                &s,
+                &e,
+                "All".to_string(),
+                a.clone(),
+                t.clone(),
+                &l,
+                m.clone(),
+                base_total,
+                false,
+            ),
+            build_cohort_comparison_row(
+                &rows,
+                "All tested statuses",
+                &s,
+                &e,
+                w.clone(),
+                a.clone(),
+                "All".to_string(),
+                &l,
+                m.clone(),
+                base_total,
+                false,
+            ),
+            build_cohort_comparison_row(
+                &rows,
+                "Metric: Kg",
+                &s,
+                &e,
+                w.clone(),
+                a.clone(),
+                t.clone(),
+                &l,
+                "Kg".to_string(),
+                base_total,
+                false,
+            ),
+            build_cohort_comparison_row(
+                &rows,
+                "Metric: Dots",
+                &s,
+                &e,
+                w.clone(),
+                a.clone(),
+                t.clone(),
+                &l,
+                "Dots".to_string(),
+                base_total,
+                false,
+            ),
+            build_cohort_comparison_row(
+                &rows,
+                "Metric: Wilks",
+                &s,
+                &e,
+                w.clone(),
+                a.clone(),
+                t.clone(),
+                &l,
+                "Wilks".to_string(),
+                base_total,
+                false,
+            ),
+            build_cohort_comparison_row(
+                &rows,
+                "Metric: Goodlift",
+                &s,
+                &e,
+                w,
+                a,
+                t,
+                &l,
+                "GL".to_string(),
+                base_total,
+                false,
+            ),
+        ]
+    });
+    let male_cross_choice = Memo::new(move |_| {
+        choose_cross_sex_slice(
+            &male_slice_rows.get(),
+            &equip.get(),
+            &wc.get(),
+            &age.get(),
+            &tested.get(),
+            &lift.get(),
+            &metric.get(),
+        )
+    });
+    let female_cross_choice = Memo::new(move |_| {
+        choose_cross_sex_slice(
+            &female_slice_rows.get(),
+            &equip.get(),
+            &wc.get(),
+            &age.get(),
+            &tested.get(),
+            &lift.get(),
+            &metric.get(),
+        )
+    });
+    let cross_sex_comparison = Memo::new(move |_| -> Result<CrossSexComparison, String> {
+        if !calculated.get() {
+            return Err("Calculate first to compare men and women side-by-side.".to_string());
+        }
+        if let Some(err) = cross_sex_rows_error.get() {
+            return Err(err);
+        }
+        let male_choice = male_cross_choice.get().ok_or_else(|| {
+            "No matching men's cohort for this equipment/tested/age/lift/metric combination."
+                .to_string()
+        })?;
+        let female_choice = female_cross_choice.get().ok_or_else(|| {
+            "No matching women's cohort for this equipment/tested/age/lift/metric combination."
+                .to_string()
+        })?;
+
+        let male_summary = male_choice
+            .row
+            .entry
+            .summary
+            .as_ref()
+            .ok_or_else(|| "Men's cohort summary is missing in the shard index.".to_string())?;
+        let female_summary =
+            female_choice.row.entry.summary.as_ref().ok_or_else(|| {
+                "Women's cohort summary is missing in the shard index.".to_string()
+            })?;
+        if male_summary.total < MIN_CROSS_SEX_COHORT_TOTAL
+            || female_summary.total < MIN_CROSS_SEX_COHORT_TOTAL
+        {
+            return Err(format!(
+                "Cross-sex comparison skipped because one cohort is too small (<{} lifters).",
+                MIN_CROSS_SEX_COHORT_TOTAL
+            ));
+        }
+
+        if let Some(err) = cross_sex_hist_error.get() {
+            return Err(err);
+        }
+        let male_hist = male_cross_hist
+            .get()
+            .ok_or_else(|| "Men's distribution is not loaded yet.".to_string())?;
+        let female_hist = female_cross_hist
+            .get()
+            .ok_or_else(|| "Women's distribution is not loaded yet.".to_string())?;
+
+        let equip_value = equip.get();
+        let lift_value = lift.get();
+        let metric_value = metric.get();
+        let male_input_value = comparable_lift_value(
+            "M",
+            &equip_value,
+            &lift_value,
+            &metric_value,
+            bodyweight.get(),
+            squat.get(),
+            bench.get(),
+            deadlift.get(),
+        );
+        let female_input_value = comparable_lift_value(
+            "F",
+            &equip_value,
+            &lift_value,
+            &metric_value,
+            bodyweight.get(),
+            squat.get(),
+            bench.get(),
+            deadlift.get(),
+        );
+
+        let (male_percentile, female_value_at_male_percentile) =
+            equivalent_value_for_same_percentile(
+                Some(&male_hist),
+                Some(&female_hist),
+                male_input_value,
+            )
+            .ok_or_else(|| {
+                "Could not compute women's equivalent value at men's percentile.".to_string()
+            })?;
+        let (female_percentile, male_value_at_female_percentile) =
+            equivalent_value_for_same_percentile(
+                Some(&female_hist),
+                Some(&male_hist),
+                female_input_value,
+            )
+            .ok_or_else(|| {
+                "Could not compute men's equivalent value at women's percentile.".to_string()
+            })?;
+
+        let caveat = if metric_value == "Kg" {
+            Some("Raw kg cross-sex comparisons are descriptive, not apples-to-apples. Prefer Dots, Wilks, or Goodlift when available.".to_string())
+        } else {
+            None
+        };
+
+        Ok(CrossSexComparison {
+            male_percentile,
+            female_percentile,
+            male_total: male_summary.total,
+            female_total: female_summary.total,
+            male_input_value,
+            female_input_value,
+            female_value_at_male_percentile,
+            male_value_at_female_percentile,
+            metric: metric_value,
+            male_weight_class: male_choice.row.key.wc,
+            female_weight_class: female_choice.row.key.wc,
+            male_wc_fallback: male_choice.weight_class_fallback,
+            female_wc_fallback: female_choice.weight_class_fallback,
+            caveat,
+        })
     });
     let load_timing_blurb = Memo::new(move |_| {
         let mut parts = Vec::new();
@@ -475,40 +1101,104 @@ fn App() -> impl IntoView {
             format!("Load timings: {}", parts.join(" | "))
         }
     });
-    let compare_summary = Memo::new(move |_| match (compare_mode.get(), percentile.get()) {
-        (CompareMode::AllLifters, Some((pct, _, _))) => {
+    let exact_slice_key = Memo::new(move |_| {
+        if let Some(row) = current_row.get() {
             format!(
+                "sex={}|equip={}|wc={}|age={}|tested={}|lift={}|metric={}",
+                row.key.sex,
+                row.key.equip,
+                row.key.wc,
+                row.key.age,
+                row.key.tested,
+                row.key.lift,
+                row.key.metric
+            )
+        } else {
+            format!(
+                "sex={}|equip={}|wc={}|age={}|tested={}|lift={}|metric={}",
+                sex.get(),
+                equip.get(),
+                wc.get(),
+                age.get(),
+                tested.get(),
+                lift.get(),
+                metric.get()
+            )
+        }
+    });
+    let shard_key = Memo::new(move |_| format!("sex={}|equip={}", sex.get(), equip.get()));
+    let dataset_version = Memo::new(move |_| {
+        latest
+            .get()
+            .map(|data| data.version)
+            .unwrap_or_else(|| "loading".to_string())
+    });
+    let dataset_revision = Memo::new(move |_| {
+        latest
+            .get()
+            .and_then(|data| data.revision)
+            .unwrap_or_else(|| "n/a".to_string())
+    });
+    let histogram_bin_width = Memo::new(move |_| rebinned_hist.get().map(|h| h.base_bin));
+    let heatmap_dims = Memo::new(move |_| {
+        rebinned_heat
+            .get()
+            .map(|h| (h.width, h.height, h.base_x, h.base_y))
+    });
+    let summary_stats = Memo::new(move |_| {
+        slice_summary
+            .get()
+            .map(|summary| (summary.total, summary.min_kg, summary.max_kg))
+    });
+    let compare_summary = Memo::new(move |_| match compare_mode.get() {
+        CompareMode::AllLifters => match percentile.get() {
+            Some((pct, _, _)) => format!(
                 "Across all lifters, you're stronger than {:.1}%.",
                 pct * 100.0
-            )
-        }
-        (CompareMode::SameBodyweightRange, Some((pct, _, _))) => {
-            let low = kg_to_display((bodyweight.get() - 5.0).max(35.0), use_lbs.get());
-            let high = kg_to_display((bodyweight.get() + 5.0).min(300.0), use_lbs.get());
-            format!(
-                "At {:.0}-{:.0}{} bodyweight, you're stronger than {:.1}%.",
-                low,
-                high,
-                unit_label.get(),
+            ),
+            None => "Comparison summary appears after a matching slice loads.".to_string(),
+        },
+        CompareMode::SameBodyweightRange => match bodyweight_conditioned.get() {
+            Some(stats) => {
+                let low = kg_to_display(stats.bw_window_low, use_lbs.get());
+                let high = kg_to_display(stats.bw_window_high, use_lbs.get());
+                format!(
+                    "Among nearby bodyweights ({:.1}-{:.1}{}), you're stronger than {:.1}% ({} nearby lifters; local neighborhood {:.2}% of heatmap mass).",
+                    low,
+                    high,
+                    unit_label.get(),
+                    stats.percentile * 100.0,
+                    stats.total_nearby,
+                    stats.neighborhood_share * 100.0
+                )
+            }
+            None => "Bodyweight-conditioned summary appears after calculation and heatmap load."
+                .to_string(),
+        },
+        CompareMode::SameWeightClass => match percentile.get() {
+            Some((pct, _, _)) => format!(
+                "In weight class {}, you're stronger than {:.1}%.",
+                wc.get(),
                 pct * 100.0
-            )
-        }
-        (CompareMode::SameWeightClass, Some((pct, _, _))) => format!(
-            "In weight class {}, you're stronger than {:.1}%.",
-            wc.get(),
-            pct * 100.0
-        ),
-        (CompareMode::SameAgeClass, Some((pct, _, _))) => format!(
-            "In age class {}, you're stronger than {:.1}%.",
-            age_label(&age.get()),
-            pct * 100.0
-        ),
-        (CompareMode::SameTestedStatus, Some((pct, _, _))) => format!(
-            "Within {} meets, you're stronger than {:.1}%.",
-            tested.get(),
-            pct * 100.0
-        ),
-        (_, None) => "Comparison summary appears after a matching slice loads.".to_string(),
+            ),
+            None => "Comparison summary appears after a matching slice loads.".to_string(),
+        },
+        CompareMode::SameAgeClass => match percentile.get() {
+            Some((pct, _, _)) => format!(
+                "In age class {}, you're stronger than {:.1}%.",
+                age_label(&age.get()),
+                pct * 100.0
+            ),
+            None => "Comparison summary appears after a matching slice loads.".to_string(),
+        },
+        CompareMode::SameTestedStatus => match percentile.get() {
+            Some((pct, _, _)) => format!(
+                "Within {} meets, you're stronger than {:.1}%.",
+                tested.get(),
+                pct * 100.0
+            ),
+            None => "Comparison summary appears after a matching slice loads.".to_string(),
+        },
     });
     let share_url = Memo::new(move |_| {
         build_share_url(&[
@@ -569,6 +1259,275 @@ fn App() -> impl IntoView {
         } else {
             "Time buckets use yearly snapshots from best-lift records; sparse cohorts may have missing years.".to_string()
         }
+    });
+
+    Effect::new(move |_| {
+        let next_request_id = cohort_exact_request_id.get_untracked().wrapping_add(1);
+        set_cohort_exact_request_id.set(next_request_id);
+
+        let should_load =
+            cohort_exact_deltas_enabled.get() && calculated.get() && nerds_page_active.get();
+        if !should_load {
+            set_cohort_exact_percentiles.set(BTreeMap::new());
+            set_cohort_exact_loading.set(false);
+            set_cohort_exact_error.set(None);
+            return;
+        }
+
+        let Some(latest_v) = latest.get() else {
+            set_cohort_exact_percentiles.set(BTreeMap::new());
+            set_cohort_exact_loading.set(false);
+            set_cohort_exact_error.set(Some(
+                "Dataset metadata is still loading; exact deltas will appear shortly.".to_string(),
+            ));
+            return;
+        };
+
+        let rows = cohort_comparison_rows.get();
+        let current_hist = hist.get();
+        let current_sex = sex.get();
+        let current_equip = equip.get();
+        let current_lift = lift.get();
+        let current_bodyweight = bodyweight.get();
+        let current_squat = squat.get();
+        let current_bench = bench.get();
+        let current_deadlift = deadlift.get();
+
+        let mut prefetched = BTreeMap::<String, Option<f32>>::new();
+        let mut hist_groups: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+        for row in rows {
+            if row.is_current
+                && let Some(histogram) = current_hist.as_ref()
+            {
+                let lift_value = comparable_lift_value(
+                    &current_sex,
+                    &current_equip,
+                    &current_lift,
+                    &row.metric,
+                    current_bodyweight,
+                    current_squat,
+                    current_bench,
+                    current_deadlift,
+                );
+                let percentile = percentile_for_value(Some(histogram), lift_value)
+                    .map(|(pct, _, _)| pct * 100.0);
+                prefetched.insert(row.id, percentile);
+                continue;
+            }
+
+            if let Some(hist_path) = row.hist_path {
+                hist_groups
+                    .entry(hist_path)
+                    .or_default()
+                    .push((row.id, row.metric));
+            } else {
+                prefetched.insert(row.id, None);
+            }
+        }
+
+        if hist_groups.is_empty() {
+            set_cohort_exact_percentiles.set(prefetched);
+            set_cohort_exact_loading.set(false);
+            set_cohort_exact_error.set(None);
+            return;
+        }
+
+        let cohort_exact_request_id = cohort_exact_request_id;
+        let set_cohort_exact_percentiles = set_cohort_exact_percentiles;
+        let set_cohort_exact_loading = set_cohort_exact_loading;
+        let set_cohort_exact_error = set_cohort_exact_error;
+        set_cohort_exact_loading.set(true);
+        set_cohort_exact_percentiles.set(BTreeMap::new());
+        set_cohort_exact_error.set(None);
+
+        spawn_local(async move {
+            let mut resolved = prefetched;
+            let mut errors = Vec::new();
+
+            for (hist_path, targets) in hist_groups {
+                if cohort_exact_request_id.get_untracked() != next_request_id {
+                    debug_log(&format!(
+                        "Ignored stale cohort comparison response for request {next_request_id}"
+                    ));
+                    return;
+                }
+
+                let hist_url = dataset_file_url(&latest_v.version, &hist_path);
+                match fetch_binary_first(&[&hist_url]).await {
+                    Ok(bytes) => match parse_hist_bin(&bytes) {
+                        Some(histogram) => {
+                            for (row_id, row_metric) in targets {
+                                let lift_value = comparable_lift_value(
+                                    &current_sex,
+                                    &current_equip,
+                                    &current_lift,
+                                    &row_metric,
+                                    current_bodyweight,
+                                    current_squat,
+                                    current_bench,
+                                    current_deadlift,
+                                );
+                                let percentile = percentile_for_value(Some(&histogram), lift_value)
+                                    .map(|(pct, _, _)| pct * 100.0);
+                                resolved.insert(row_id, percentile);
+                            }
+                        }
+                        None => {
+                            errors.push(format!("{hist_path}: invalid histogram payload"));
+                            for (row_id, _) in targets {
+                                resolved.insert(row_id, None);
+                            }
+                        }
+                    },
+                    Err(err) => {
+                        errors.push(format!("{hist_path}: {err}"));
+                        for (row_id, _) in targets {
+                            resolved.insert(row_id, None);
+                        }
+                    }
+                }
+            }
+
+            if cohort_exact_request_id.get_untracked() != next_request_id {
+                debug_log(&format!(
+                    "Ignored stale cohort comparison completion for request {next_request_id}"
+                ));
+                return;
+            }
+
+            set_cohort_exact_percentiles.set(resolved);
+            set_cohort_exact_loading.set(false);
+            if errors.is_empty() {
+                set_cohort_exact_error.set(None);
+            } else {
+                set_cohort_exact_error.set(Some(
+                    "Some exact percentile rows could not be loaded for this view.".to_string(),
+                ));
+                debug_log(&format!(
+                    "Cohort exact percentile row errors: {}",
+                    errors.join(" | ")
+                ));
+            }
+        });
+    });
+
+    Effect::new(move |_| {
+        let next_request_id = cross_sex_hist_request_id.get_untracked().wrapping_add(1);
+        set_cross_sex_hist_request_id.set(next_request_id);
+
+        let should_load = nerds_page_active.get() && calculated.get();
+        if !should_load {
+            set_male_cross_hist.set(None);
+            set_female_cross_hist.set(None);
+            set_cross_sex_hist_loading.set(false);
+            set_cross_sex_hist_error.set(None);
+            return;
+        }
+
+        let Some(latest_v) = latest.get() else {
+            set_male_cross_hist.set(None);
+            set_female_cross_hist.set(None);
+            set_cross_sex_hist_loading.set(false);
+            set_cross_sex_hist_error.set(Some(
+                "Dataset metadata is still loading for cross-sex comparison.".to_string(),
+            ));
+            return;
+        };
+        let Some(male_choice) = male_cross_choice.get() else {
+            set_male_cross_hist.set(None);
+            set_female_cross_hist.set(None);
+            set_cross_sex_hist_loading.set(false);
+            set_cross_sex_hist_error.set(None);
+            return;
+        };
+        let Some(female_choice) = female_cross_choice.get() else {
+            set_male_cross_hist.set(None);
+            set_female_cross_hist.set(None);
+            set_cross_sex_hist_loading.set(false);
+            set_cross_sex_hist_error.set(None);
+            return;
+        };
+
+        let selected_row_hist = current_row.get().map(|row| row.entry.hist);
+        let selected_hist = hist.get();
+
+        let mut prefetched_male = None;
+        let mut prefetched_female = None;
+        if let (Some(selected_row_hist), Some(selected_hist)) = (selected_row_hist, selected_hist) {
+            if selected_row_hist == male_choice.row.entry.hist {
+                prefetched_male = Some(selected_hist.clone());
+            }
+            if selected_row_hist == female_choice.row.entry.hist {
+                prefetched_female = Some(selected_hist);
+            }
+        }
+
+        if prefetched_male.is_some() && prefetched_female.is_some() {
+            set_male_cross_hist.set(prefetched_male);
+            set_female_cross_hist.set(prefetched_female);
+            set_cross_sex_hist_loading.set(false);
+            set_cross_sex_hist_error.set(None);
+            return;
+        }
+
+        let cross_sex_hist_request_id = cross_sex_hist_request_id;
+        let set_male_cross_hist = set_male_cross_hist;
+        let set_female_cross_hist = set_female_cross_hist;
+        let set_cross_sex_hist_loading = set_cross_sex_hist_loading;
+        let set_cross_sex_hist_error = set_cross_sex_hist_error;
+        set_cross_sex_hist_loading.set(true);
+        set_cross_sex_hist_error.set(None);
+
+        spawn_local(async move {
+            let mut resolved_male = prefetched_male;
+            let mut resolved_female = prefetched_female;
+            let mut issues = Vec::new();
+
+            if resolved_male.is_none() {
+                let male_url = dataset_file_url(&latest_v.version, &male_choice.row.entry.hist);
+                match fetch_binary_first(&[&male_url]).await {
+                    Ok(bytes) => match parse_hist_bin(&bytes) {
+                        Some(histogram) => resolved_male = Some(histogram),
+                        None => issues.push("Invalid men's histogram payload.".to_string()),
+                    },
+                    Err(err) => issues.push(format!("Failed men's histogram fetch: {err}")),
+                }
+            }
+
+            if cross_sex_hist_request_id.get_untracked() != next_request_id {
+                debug_log(&format!(
+                    "Ignored stale cross-sex male histogram for request {next_request_id}"
+                ));
+                return;
+            }
+
+            if resolved_female.is_none() {
+                let female_url = dataset_file_url(&latest_v.version, &female_choice.row.entry.hist);
+                match fetch_binary_first(&[&female_url]).await {
+                    Ok(bytes) => match parse_hist_bin(&bytes) {
+                        Some(histogram) => resolved_female = Some(histogram),
+                        None => issues.push("Invalid women's histogram payload.".to_string()),
+                    },
+                    Err(err) => issues.push(format!("Failed women's histogram fetch: {err}")),
+                }
+            }
+
+            if cross_sex_hist_request_id.get_untracked() != next_request_id {
+                debug_log(&format!(
+                    "Ignored stale cross-sex female histogram for request {next_request_id}"
+                ));
+                return;
+            }
+
+            set_male_cross_hist.set(resolved_male);
+            set_female_cross_hist.set(resolved_female);
+            set_cross_sex_hist_loading.set(false);
+            if issues.is_empty() {
+                set_cross_sex_hist_error.set(None);
+            } else {
+                set_cross_sex_hist_error.set(Some(issues.join(" ")));
+            }
+        });
     });
 
     {
@@ -758,6 +1717,8 @@ fn App() -> impl IntoView {
         if let Ok(hash) = window.location().hash() {
             if hash.eq_ignore_ascii_case("#1rm") {
                 set_active_page.set(AppPage::OneRm);
+            } else if hash.eq_ignore_ascii_case("#nerds") {
+                set_active_page.set(AppPage::StatsForNerds);
             } else {
                 set_active_page.set(AppPage::Rank);
             }
@@ -774,6 +1735,7 @@ fn App() -> impl IntoView {
         };
         let hash = match active_page.get() {
             AppPage::Rank => "#rank",
+            AppPage::StatsForNerds => "#nerds",
             AppPage::OneRm => "#1rm",
         };
         let _ = window.location().set_hash(hash);
@@ -836,6 +1798,14 @@ fn App() -> impl IntoView {
                     <button
                         type="button"
                         class:chip=true
+                        class:active=move || active_page.get() == AppPage::StatsForNerds
+                        on:click=move |_| set_active_page.set(AppPage::StatsForNerds)
+                    >
+                        "Stats for Nerds"
+                    </button>
+                    <button
+                        type="button"
+                        class:chip=true
                         class:active=move || active_page.get() == AppPage::OneRm
                         on:click=move |_| set_active_page.set(AppPage::OneRm)
                     >
@@ -848,31 +1818,9 @@ fn App() -> impl IntoView {
             </header>
 
             <Show when=move || active_page.get() == AppPage::Rank>
-                <header class="hero">
-                    <h1>"How Strong Are You?"</h1>
-                    <p>
-                        {move || {
-                            if let Some(err) = load_error.get() {
-                                err
-                            } else if let Some(l) = latest.get() {
-                                if let Some(r) = l.revision {
-                                    format!("Data version {} ({})", l.version, r)
-                                } else {
-                                    format!("Data version {}", l.version)
-                                }
-                            } else {
-                                "Loading data...".to_string()
-                            }
-                        }}
-                    </p>
-                    <p class="intro">
-                        "Enter your lifts to see how you rank among lifters in this dataset. Higher percentile means stronger."
-                    </p>
-                    <p class="muted">{move || summary_blurb.get()}</p>
-                    <p class="muted">{move || load_timing_blurb.get()}</p>
-                </header>
-
-                <OnboardingPanel
+                <RankingPage
+                    dataset_blurb=dataset_blurb
+                    ranking_cohort_blurb=ranking_cohort_blurb
                     sex_options=sex_options
                     sex=sex
                     set_sex=set_sex
@@ -922,49 +1870,26 @@ fn App() -> impl IntoView {
                     metric_options=metric_options
                     metric=metric
                     set_metric=set_metric
-                    lift_mult=lift_mult
                     set_lift_mult=set_lift_mult
-                    bw_mult=bw_mult
                     set_bw_mult=set_bw_mult
-                />
-                <ResultCardPanel
                     calculated=calculated
                     percentile=percentile
                     rank_tier=rank_tier
                     load_error=load_error
-                    unavailable_reason=result_unavailable_reason
+                    result_unavailable_reason=result_unavailable_reason
                     show_share=show_share
                     set_show_share=set_show_share
                     share_url=share_url
                     share_status=share_status
-                    set_share_status=set_share_status
                     share_handle=share_handle
-                    set_share_handle=set_share_handle
-                    bodyweight=bodyweight
-                    squat=squat
-                    bench=bench
-                    deadlift=deadlift
-                    lift=lift
+                    percentile_percent=percentile_percent
                 />
-                <ProgressPanel
-                    calculated=calculated
-                    percentile=percentile
-                    sex=sex
-                    equip=equip
-                    wc=wc
-                    age=age
-                    tested=tested
-                    lift=lift
-                    metric=metric
-                    squat=squat
-                    bench=bench
-                    deadlift=deadlift
-                    bodyweight=bodyweight
-                    use_lbs=use_lbs
-                    unit_label=unit_label
-                />
+            </Show>
 
-                <CompareModePanel
+            <Show when=move || active_page.get() == AppPage::StatsForNerds>
+                <NerdsPage
+                    dataset_blurb=dataset_blurb
+                    nerd_cohort_summary=nerd_cohort_summary
                     compare_mode=compare_mode
                     set_compare_mode=set_compare_mode
                     tested=tested
@@ -974,20 +1899,44 @@ fn App() -> impl IntoView {
                     age=age
                     set_age=set_age
                     compare_summary=compare_summary
-                />
-                <PercentilePanel
-                    percentile_percent=percentile_percent
-                    show_main_charts=show_main_charts
-                    set_show_main_charts=set_show_main_charts
-                />
-                <ChartsPanel
-                    show_main_charts=show_main_charts
+                    cohort_comparison_rows=cohort_comparison_rows
+                    cohort_exact_deltas_enabled=cohort_exact_deltas_enabled
+                    set_cohort_exact_deltas_enabled=set_cohort_exact_deltas_enabled
+                    cohort_exact_percentiles=cohort_exact_percentiles
+                    cohort_exact_loading=cohort_exact_loading
+                    cohort_exact_error=cohort_exact_error
+                    cross_sex_hist_loading=cross_sex_hist_loading
+                    cross_sex_comparison=cross_sex_comparison
+                    use_lbs=use_lbs
+                    unit_label=unit_label
+                    calculated=calculated
+                    percentile=percentile
+                    sex=sex
+                    wc=wc
+                    lift=lift
+                    metric=metric
+                    squat=squat
+                    bench=bench
+                    deadlift=deadlift
+                    bodyweight=bodyweight
+                    lift_mult=lift_mult
+                    set_lift_mult=set_lift_mult
+                    bw_mult=bw_mult
+                    set_bw_mult=set_bw_mult
+                    distribution_diagnostics=distribution_diagnostics
+                    hist_x_label=hist_x_label
+                    metric_is_kg_comparable=metric_is_kg_comparable
+                    kg_for_next_1pct=kg_for_next_1pct
+                    kg_for_next_5pct=kg_for_next_5pct
+                    kg_for_next_10pct=kg_for_next_10pct
+                    pct_gain_plus_2_5kg=pct_gain_plus_2_5kg
+                    pct_gain_plus_5kg=pct_gain_plus_5kg
+                    pct_gain_plus_10kg=pct_gain_plus_10kg
+                    rarity_snapshot=rarity_snapshot
+                    bodyweight_conditioned=bodyweight_conditioned
                     rebinned_hist=rebinned_hist
                     user_lift=user_lift
-                    hist_x_label=hist_x_label
                     canvas_ref=canvas_ref
-                />
-                <SimulatorPanel
                     squat_delta=squat_delta
                     set_squat_delta=set_squat_delta
                     bench_delta=bench_delta
@@ -998,8 +1947,6 @@ fn App() -> impl IntoView {
                     projected_squat=projected_squat
                     projected_bench=projected_bench
                     projected_deadlift=projected_deadlift
-                    use_lbs=use_lbs
-                    unit_label=unit_label
                     projected_percentile=projected_percentile
                     projected_rank_tier=projected_rank_tier
                     percentile_delta=percentile_delta
@@ -1007,28 +1954,21 @@ fn App() -> impl IntoView {
                     set_target_percentile=set_target_percentile
                     target_kg_needed=target_kg_needed
                     target_summary=target_summary
-                />
-                <MeetDayPanel
-                    squat=squat
-                    bench=bench
-                    deadlift=deadlift
-                    use_lbs=use_lbs
-                    unit_label=unit_label
-                />
-                <TrendsPanel
-                    calculated=calculated
-                    trend_points=selected_trend_points
+                    selected_trend_points=selected_trend_points
                     trend_note=trend_note
+                    exact_slice_key=exact_slice_key
+                    shard_key=shard_key
+                    dataset_version=dataset_version
+                    dataset_revision=dataset_revision
+                    histogram_bin_width=histogram_bin_width
+                    heatmap_dims=heatmap_dims
+                    summary_stats=summary_stats
+                    load_timing_blurb=load_timing_blurb
                 />
-                <FaqPanel />
             </Show>
 
             <Show when=move || active_page.get() == AppPage::OneRm>
-                <header class="hero">
-                    <h1>"Estimate Your 1-Rep Max"</h1>
-                    <p>"Use a training set to estimate your max with common formulas."</p>
-                </header>
-                <OneRepMaxPanel />
+                <OneRmPage />
             </Show>
 
             <footer class="panel attribution">

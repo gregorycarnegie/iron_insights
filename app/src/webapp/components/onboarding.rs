@@ -55,9 +55,7 @@ pub(in crate::webapp) fn OnboardingPanel(
     metric_options: Memo<Vec<String>>,
     metric: ReadSignal<String>,
     set_metric: WriteSignal<String>,
-    lift_mult: ReadSignal<usize>,
     set_lift_mult: WriteSignal<usize>,
-    bw_mult: ReadSignal<usize>,
     set_bw_mult: WriteSignal<usize>,
 ) -> impl IntoView {
     view! {
@@ -333,7 +331,7 @@ pub(in crate::webapp) fn OnboardingPanel(
                 {move || if calculating.get() { "Calculating..." } else { "Calculate my ranking" }}
             </button>
             <details class="advanced">
-                <summary>"Advanced Options"</summary>
+                <summary>"More Filters"</summary>
                 <div class="grid">
                     <label title="Filter by drug-tested or untested meets.">
                         "Drug tested"
@@ -368,7 +366,7 @@ pub(in crate::webapp) fn OnboardingPanel(
                         </select>
                     </label>
                     <label title="Compare only to this bodyweight class, or choose All.">
-                        "IPF class"
+                        "Weight class"
                         <select on:change=move |ev| set_wc.set(event_target_value(&ev))>
                             <For each=move || wc_options.get() key=|v| v.clone() let:value>
                                 <option
@@ -415,28 +413,6 @@ pub(in crate::webapp) fn OnboardingPanel(
                             </For>
                         </select>
                     </label>
-                    <label title="Grouping size used for lift distributions.">
-                        "Grouping size"
-                        <select
-                            prop:value=move || lift_mult.get().to_string()
-                            on:change=move |ev| set_lift_mult.set(event_target_value(&ev).parse::<usize>().unwrap_or(4))
-                        >
-                            <option value="1">"1x base"</option>
-                            <option value="2">"2x base"</option>
-                            <option value="4">"4x base"</option>
-                        </select>
-                    </label>
-                    <label title="Bodyweight bucket size used in the heatmap.">
-                        "Bodyweight grouping"
-                        <select
-                            prop:value=move || bw_mult.get().to_string()
-                            on:change=move |ev| set_bw_mult.set(event_target_value(&ev).parse::<usize>().unwrap_or(5))
-                        >
-                            <option value="1">"1kg"</option>
-                            <option value="2">"2kg"</option>
-                            <option value="5">"5kg"</option>
-                        </select>
-                    </label>
                 </div>
                 <button
                     type="button"
@@ -447,8 +423,6 @@ pub(in crate::webapp) fn OnboardingPanel(
                         set_wc.set("All".to_string());
                         set_lift.set("T".to_string());
                         set_metric.set("Kg".to_string());
-                        set_lift_mult.set(4);
-                        set_bw_mult.set(5);
                     }
                 >
                     "Reset to defaults"
