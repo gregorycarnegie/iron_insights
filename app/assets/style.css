@@ -344,6 +344,117 @@ button {
   border-color: var(--accent);
 }
 
+.nerd-section {
+  display: grid;
+  gap: 10px;
+}
+
+.nerd-section > h2 {
+  margin: 2px 2px 0;
+  font-size: 0.86rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.nerd-section .panel h3 {
+  margin: 0 0 8px;
+}
+
+.nerd-metrics-grid {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.nerd-metrics-grid p {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8f4ea;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.88rem;
+}
+
+.nerd-metrics-grid strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cohort-compare-toggle {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.cohort-compare-toggle input {
+  width: auto;
+  margin: 0;
+}
+
+.methodology-toggle {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.methodology-toggle input {
+  width: auto;
+  margin: 0;
+}
+
+.comparison-table-wrap {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+
+.comparison-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.83rem;
+}
+
+.comparison-table th,
+.comparison-table td {
+  border: 1px solid var(--line);
+  padding: 8px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.comparison-table th {
+  background: #f3ecdd;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.comparison-table .comparison-current td {
+  background: #f8f4ea;
+}
+
+.comparison-status-ok {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.comparison-status-muted {
+  color: var(--muted);
+}
+
 .compare-tabs {
   margin-top: 6px;
   display: flex;

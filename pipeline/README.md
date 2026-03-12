@@ -9,6 +9,7 @@ cargo run --manifest-path pipeline/Cargo.toml --bin 01_download -- \
 ```
 
 Outputs:
+
 - `pipeline/output/openpowerlifting-latest.parquet`
 - `pipeline/output/build_metadata.json`
 
@@ -21,6 +22,7 @@ cargo run --manifest-path pipeline/Cargo.toml --bin 02_build_aggregates
 ```
 
 Outputs:
+
 - `pipeline/output/records/all/*.parquet`
 - `pipeline/output/records/tested/*.parquet`
 
@@ -33,6 +35,7 @@ cargo run --manifest-path pipeline/Cargo.toml --bin 03_publish_data -- \
 ```
 
 Outputs:
+
 - `data/vYYYY-MM-DD/hist/.../*.bin`
 - `data/vYYYY-MM-DD/heat/.../*.bin`
 - `data/vYYYY-MM-DD/index.json` (root shard lookup)
