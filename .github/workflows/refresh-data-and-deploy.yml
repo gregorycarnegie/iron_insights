@@ -17,6 +17,10 @@ concurrency:
   group: pages-deploy
   cancel-in-progress: false
 
+env:
+  # Exercise all JS actions on Node 24 now to catch breakage before runner defaults switch.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   refresh-and-deploy:
     runs-on: ubuntu-latest
@@ -26,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -213,7 +217,7 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: docs
 
