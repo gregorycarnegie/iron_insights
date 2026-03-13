@@ -1,12 +1,36 @@
 use crate::webapp::models::TrendPoint;
 use leptos::prelude::*;
+use std::cmp::Ordering;
 
 const CHART_W: f32 = 680.0;
-const CHART_H: f32 = 190.0;
-const PAD_LEFT: f32 = 52.0;
+const CHART_H: f32 = 210.0;
+const PAD_LEFT: f32 = 68.0;
 const PAD_RIGHT: f32 = 14.0;
-const PAD_TOP: f32 = 10.0;
-const PAD_BOTTOM: f32 = 26.0;
+const PAD_TOP: f32 = 12.0;
+const PAD_BOTTOM: f32 = 44.0;
+const Y_AXIS_LABEL_X: f32 = 16.0;
+
+#[derive(Clone, PartialEq)]
+struct AxisTick {
+    key: String,
+    y: f32,
+    label: String,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Scale {
+    Linear,
+    Log,
+}
+
+impl Scale {
+    fn apply(self, value: f32) -> f32 {
+        match self {
+            Self::Linear => value,
+            Self::Log => value.max(1.0).log10(),
+        }
+    }
+}
 
 #[component]
 pub fn TrendsPanel(
@@ -14,24 +38,33 @@ pub fn TrendsPanel(
     trend_points: Memo<Vec<TrendPoint>>,
     trend_note: Memo<String>,
     current_value: Memo<f32>,
+    threshold_axis_label: Memo<String>,
 ) -> impl IntoView {
-    let total_path = Memo::new(move |_| line_path(&trend_points.get(), |p| p.total as f32));
-    let total_min = Memo::new(move |_| value_range(&trend_points.get(), |p| p.total as f32).0);
-    let total_max = Memo::new(move |_| value_range(&trend_points.get(), |p| p.total as f32).1);
-
-    let p50_path = Memo::new(move |_| line_path(&trend_points.get(), |p| p.p50));
-    let p90_path = Memo::new(move |_| line_path(&trend_points.get(), |p| p.p90));
-    let pct_min = Memo::new(move |_| {
+    let total_path = Memo::new(move |_| {
         let points = trend_points.get();
-        let (a_min, _) = value_range(&points, |p| p.p50);
-        let (b_min, _) = value_range(&points, |p| p.p90);
-        a_min.min(b_min)
+        let (min, max) = log_value_range(&points, |p| p.total as f32);
+        line_path_scaled(&points, |p| p.total as f32, min, max, Scale::Log)
     });
-    let pct_max = Memo::new(move |_| {
+    let total_ticks = Memo::new(move |_| {
         let points = trend_points.get();
-        let (_, a_max) = value_range(&points, |p| p.p50);
-        let (_, b_max) = value_range(&points, |p| p.p90);
-        a_max.max(b_max)
+        let (min, max) = log_value_range(&points, |p| p.total as f32);
+        log_axis_ticks(min, max)
+    });
+
+    let p50_path = Memo::new(move |_| {
+        let points = trend_points.get();
+        let (min, max) = percentile_range(&points);
+        line_path_scaled(&points, |p| p.p50, min, max, Scale::Linear)
+    });
+    let p90_path = Memo::new(move |_| {
+        let points = trend_points.get();
+        let (min, max) = percentile_range(&points);
+        line_path_scaled(&points, |p| p.p90, min, max, Scale::Linear)
+    });
+    let pct_ticks = Memo::new(move |_| {
+        let points = trend_points.get();
+        let (min, max) = percentile_range(&points);
+        linear_axis_ticks(min, max, 1)
     });
 
     let years = Memo::new(move |_| {
@@ -118,12 +151,12 @@ pub fn TrendsPanel(
                     }
                 }
             >
-                <div class="nerd-metrics-grid">
-                    <p><strong>"Cohort size growth"</strong>{move || growth_summary.get()}</p>
-                    <p><strong>"p50 drift"</strong>{move || p50_drift_summary.get()}</p>
-                    <p><strong>"p90 drift"</strong>{move || p90_drift_summary.get()}</p>
-                    <p><strong>"Current input vs historical thresholds"</strong>{move || historical_clear_summary.get()}</p>
-                </div>
+                {metric_grid! {
+                    "Cohort size growth" => move || growth_summary.get(),
+                    "p50 drift" => move || p50_drift_summary.get(),
+                    "p90 drift" => move || p90_drift_summary.get(),
+                    "Current input vs historical thresholds" => move || historical_clear_summary.get(),
+                }}
                 <div class="trend-card">
                     <div class="trend-head">
                         <h3>"Cohort Size by Year"</h3>
@@ -133,23 +166,66 @@ pub fn TrendsPanel(
                         </div>
                     </div>
                     <svg
-                        viewBox="0 0 680 190"
+                        viewBox={format!("0 0 {:.0} {:.0}", CHART_W, CHART_H)}
                         role="img"
-                        aria-label="Cohort size trend chart with year and lifter count axes"
+                        aria-label="Cohort size trend chart with year on the x-axis and total lifters on a logarithmic y-axis"
                     >
+                        <For
+                            each=move || total_ticks.get()
+                            key=|tick| tick.key.clone()
+                            let:tick
+                        >
+                            <g>
+                                <line
+                                    x1={PAD_LEFT}
+                                    y1={tick.y}
+                                    x2={CHART_W - PAD_RIGHT}
+                                    y2={tick.y}
+                                    class="trend-grid"
+                                ></line>
+                                <text
+                                    x={PAD_LEFT - 6.0}
+                                    y={tick.y + 3.0}
+                                    text-anchor="end"
+                                    class="trend-tick"
+                                >
+                                    {tick.label}
+                                </text>
+                            </g>
+                        </For>
                         <line x1={PAD_LEFT} y1={CHART_H - PAD_BOTTOM} x2={CHART_W - PAD_RIGHT} y2={CHART_H - PAD_BOTTOM} class="trend-axis"></line>
                         <line x1={PAD_LEFT} y1={PAD_TOP} x2={PAD_LEFT} y2={CHART_H - PAD_BOTTOM} class="trend-axis"></line>
                         <path d={move || total_path.get()} class="trend-line trend-line-total"></path>
-
-                        <text x="6" y={PAD_TOP + 4.0} class="trend-tick">{move || format!("{:.0}", total_max.get())}</text>
-                        <text x="6" y={(PAD_TOP + (CHART_H - PAD_BOTTOM)) / 2.0 + 4.0} class="trend-tick">{move || format!("{:.0}", (total_min.get() + total_max.get()) / 2.0)}</text>
-                        <text x="6" y={CHART_H - PAD_BOTTOM + 4.0} class="trend-tick">{move || format!("{:.0}", total_min.get())}</text>
+                        <text
+                            x={Y_AXIS_LABEL_X}
+                            y={(PAD_TOP + (CHART_H - PAD_BOTTOM)) / 2.0}
+                            text-anchor="middle"
+                            transform={format!(
+                                "rotate(-90 {:.1} {:.1})",
+                                Y_AXIS_LABEL_X,
+                                (PAD_TOP + (CHART_H - PAD_BOTTOM)) / 2.0
+                            )}
+                            class="trend-axis-label"
+                        >
+                            "Total Lifters (log scale)"
+                        </text>
 
                         <Show when=move || years.get().is_some()>
-                            <text x={PAD_LEFT} y={CHART_H - 4.0} class="trend-tick">{move || years.get().map(|(start, _)| start.to_string()).unwrap_or_default()}</text>
-                            <text x={CHART_W - PAD_RIGHT} y={CHART_H - 4.0} text-anchor="end" class="trend-tick">{move || years.get().map(|(_, end)| end.to_string()).unwrap_or_default()}</text>
+                            <text x={PAD_LEFT} y={CHART_H - PAD_BOTTOM + 18.0} class="trend-tick">{move || years.get().map(|(start, _)| start.to_string()).unwrap_or_default()}</text>
+                            <text x={CHART_W - PAD_RIGHT} y={CHART_H - PAD_BOTTOM + 18.0} text-anchor="end" class="trend-tick">{move || years.get().map(|(_, end)| end.to_string()).unwrap_or_default()}</text>
                         </Show>
+                        <text
+                            x={(PAD_LEFT + (CHART_W - PAD_RIGHT)) / 2.0}
+                            y={CHART_H - 8.0}
+                            text-anchor="middle"
+                            class="trend-axis-label"
+                        >
+                            "Year"
+                        </text>
                     </svg>
+                    <p class="muted">
+                        "Y-axis uses a log scale so early sparse years stay visible beside recent large cohorts."
+                    </p>
                 </div>
 
                 <div class="trend-card">
@@ -163,23 +239,63 @@ pub fn TrendsPanel(
                         </div>
                     </div>
                     <svg
-                        viewBox="0 0 680 190"
+                        viewBox={format!("0 0 {:.0} {:.0}", CHART_W, CHART_H)}
                         role="img"
-                        aria-label="Percentile threshold trend chart with year and threshold axes"
+                        aria-label="Percentile threshold trend chart with year on the x-axis and threshold value on the y-axis"
                     >
+                        <For
+                            each=move || pct_ticks.get()
+                            key=|tick| tick.key.clone()
+                            let:tick
+                        >
+                            <g>
+                                <line
+                                    x1={PAD_LEFT}
+                                    y1={tick.y}
+                                    x2={CHART_W - PAD_RIGHT}
+                                    y2={tick.y}
+                                    class="trend-grid"
+                                ></line>
+                                <text
+                                    x={PAD_LEFT - 6.0}
+                                    y={tick.y + 3.0}
+                                    text-anchor="end"
+                                    class="trend-tick"
+                                >
+                                    {tick.label}
+                                </text>
+                            </g>
+                        </For>
                         <line x1={PAD_LEFT} y1={CHART_H - PAD_BOTTOM} x2={CHART_W - PAD_RIGHT} y2={CHART_H - PAD_BOTTOM} class="trend-axis"></line>
                         <line x1={PAD_LEFT} y1={PAD_TOP} x2={PAD_LEFT} y2={CHART_H - PAD_BOTTOM} class="trend-axis"></line>
                         <path d={move || p50_path.get()} class="trend-line trend-line-p50"></path>
                         <path d={move || p90_path.get()} class="trend-line trend-line-p90"></path>
-
-                        <text x="6" y={PAD_TOP + 4.0} class="trend-tick">{move || format!("{:.1}", pct_max.get())}</text>
-                        <text x="6" y={(PAD_TOP + (CHART_H - PAD_BOTTOM)) / 2.0 + 4.0} class="trend-tick">{move || format!("{:.1}", (pct_min.get() + pct_max.get()) / 2.0)}</text>
-                        <text x="6" y={CHART_H - PAD_BOTTOM + 4.0} class="trend-tick">{move || format!("{:.1}", pct_min.get())}</text>
+                        <text
+                            x={Y_AXIS_LABEL_X}
+                            y={(PAD_TOP + (CHART_H - PAD_BOTTOM)) / 2.0}
+                            text-anchor="middle"
+                            transform={format!(
+                                "rotate(-90 {:.1} {:.1})",
+                                Y_AXIS_LABEL_X,
+                                (PAD_TOP + (CHART_H - PAD_BOTTOM)) / 2.0
+                            )}
+                            class="trend-axis-label"
+                        >
+                            {move || threshold_axis_label.get()}
+                        </text>
 
                         <Show when=move || years.get().is_some()>
-                            <text x={PAD_LEFT} y={CHART_H - 4.0} class="trend-tick">{move || years.get().map(|(start, _)| start.to_string()).unwrap_or_default()}</text>
-                            <text x={CHART_W - PAD_RIGHT} y={CHART_H - 4.0} text-anchor="end" class="trend-tick">{move || years.get().map(|(_, end)| end.to_string()).unwrap_or_default()}</text>
+                            <text x={PAD_LEFT} y={CHART_H - PAD_BOTTOM + 18.0} class="trend-tick">{move || years.get().map(|(start, _)| start.to_string()).unwrap_or_default()}</text>
+                            <text x={CHART_W - PAD_RIGHT} y={CHART_H - PAD_BOTTOM + 18.0} text-anchor="end" class="trend-tick">{move || years.get().map(|(_, end)| end.to_string()).unwrap_or_default()}</text>
                         </Show>
+                        <text
+                            x={(PAD_LEFT + (CHART_W - PAD_RIGHT)) / 2.0}
+                            y={CHART_H - 8.0}
+                            text-anchor="middle"
+                            class="trend-axis-label"
+                        >
+                            "Year"
+                        </text>
                     </svg>
                     <p class="muted">"Lines show p50 and p90 thresholds for each year bucket."</p>
                 </div>
@@ -213,15 +329,48 @@ fn value_range(points: &[TrendPoint], select: impl Fn(&TrendPoint) -> f32) -> (f
     }
 }
 
-fn line_path(points: &[TrendPoint], select: impl Fn(&TrendPoint) -> f32) -> String {
+fn log_value_range(points: &[TrendPoint], select: impl Fn(&TrendPoint) -> f32) -> (f32, f32) {
+    if points.is_empty() {
+        return (1.0, 10.0);
+    }
+
+    let min = points
+        .iter()
+        .map(&select)
+        .reduce(f32::min)
+        .unwrap_or(1.0)
+        .max(1.0);
+    let max = points
+        .iter()
+        .map(&select)
+        .reduce(f32::max)
+        .unwrap_or(10.0)
+        .max(min);
+    if (max - min).abs() < f32::EPSILON {
+        (min, (min * 10.0).max(min + 1.0))
+    } else {
+        (min, max)
+    }
+}
+
+fn percentile_range(points: &[TrendPoint]) -> (f32, f32) {
+    let (a_min, a_max) = value_range(points, |p| p.p50);
+    let (b_min, b_max) = value_range(points, |p| p.p90);
+    (a_min.min(b_min), a_max.max(b_max))
+}
+
+fn line_path_scaled(
+    points: &[TrendPoint],
+    select: impl Fn(&TrendPoint) -> f32,
+    min: f32,
+    max: f32,
+    scale: Scale,
+) -> String {
     if points.len() < 2 {
         return String::new();
     }
 
-    let (min, max) = value_range(points, &select);
     let plot_w = CHART_W - PAD_LEFT - PAD_RIGHT;
-    let plot_h = CHART_H - PAD_TOP - PAD_BOTTOM;
-    let span = (max - min).max(1.0);
 
     let mut d = String::new();
     let len = (points.len() - 1) as f32;
@@ -232,7 +381,7 @@ fn line_path(points: &[TrendPoint], select: impl Fn(&TrendPoint) -> f32) -> Stri
             } else {
                 (idx as f32 / len) * plot_w
             };
-        let y = PAD_TOP + (plot_h - ((select(point) - min) / span) * plot_h);
+        let y = scaled_y(select(point), min, max, scale);
         if idx == 0 {
             d.push_str(&format!("M{:.2},{:.2}", x, y));
         } else {
@@ -240,4 +389,74 @@ fn line_path(points: &[TrendPoint], select: impl Fn(&TrendPoint) -> f32) -> Stri
         }
     }
     d
+}
+
+fn scaled_y(value: f32, min: f32, max: f32, scale: Scale) -> f32 {
+    let plot_h = CHART_H - PAD_TOP - PAD_BOTTOM;
+    let scaled_min = scale.apply(min);
+    let scaled_max = scale.apply(max);
+    let span = (scaled_max - scaled_min).max(1.0);
+    PAD_TOP + (plot_h - ((scale.apply(value) - scaled_min) / span) * plot_h)
+}
+
+fn linear_axis_ticks(min: f32, max: f32, precision: usize) -> Vec<AxisTick> {
+    [max, (min + max) / 2.0, min]
+        .into_iter()
+        .enumerate()
+        .map(|(idx, value)| AxisTick {
+            key: format!("linear-{idx}-{value:.3}"),
+            y: scaled_y(value, min, max, Scale::Linear),
+            label: format!("{value:.precision$}", precision = precision),
+        })
+        .collect()
+}
+
+fn log_axis_ticks(min: f32, max: f32) -> Vec<AxisTick> {
+    let mut values = Vec::new();
+    push_unique_tick(&mut values, min);
+
+    let start_exp = min.log10().floor() as i32;
+    let end_exp = max.log10().floor() as i32;
+    for exp in start_exp..=end_exp {
+        let tick = 10f32.powi(exp);
+        if tick > min && tick < max {
+            values.push(tick);
+        }
+    }
+
+    push_unique_tick(&mut values, max);
+    values.sort_by(|a, b| b.partial_cmp(a).unwrap_or(Ordering::Equal));
+
+    values
+        .into_iter()
+        .map(|value| AxisTick {
+            key: format!("log-{value:.3}"),
+            y: scaled_y(value, min, max, Scale::Log),
+            label: format_count_label(value),
+        })
+        .collect()
+}
+
+fn push_unique_tick(values: &mut Vec<f32>, value: f32) {
+    if !values
+        .iter()
+        .any(|existing| (*existing - value).abs() < f32::EPSILON)
+    {
+        values.push(value);
+    }
+}
+
+fn format_count_label(value: f32) -> String {
+    let raw = value.round().max(0.0) as i64;
+    let digits = raw.to_string();
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
+
+    for (idx, ch) in digits.chars().enumerate() {
+        if idx > 0 && (digits.len() - idx) % 3 == 0 {
+            out.push(',');
+        }
+        out.push(ch);
+    }
+
+    out
 }

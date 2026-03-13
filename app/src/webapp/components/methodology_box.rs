@@ -19,40 +19,28 @@ pub(in crate::webapp) fn MethodologyBoxPanel(
             <p class="muted">
                 "Percentile is computed from histogram bins using a mid-bin CDF approximation."
             </p>
-            <div class="nerd-metrics-grid">
-                <p><strong>"Exact slice key"</strong>{move || format!(" {}", exact_slice_key.get())}</p>
-                <p><strong>"Shard key"</strong>{move || format!(" {}", shard_key.get())}</p>
-                <p><strong>"Dataset version"</strong>{move || format!(" {}", dataset_version.get())}</p>
-                <p><strong>"Dataset revision"</strong>{move || format!(" {}", dataset_revision.get())}</p>
-                <p>
-                    <strong>"Histogram bin width"</strong>
-                    {move || match histogram_bin_width.get() {
-                        Some(width) => format!(" {:.2}", width),
-                        None => " n/a".to_string(),
-                    }}
-                </p>
-                <p>
-                    <strong>"Heatmap dimensions"</strong>
-                    {move || match heatmap_dims.get() {
-                        Some((w, h, bx, by)) => format!(" {}x{} (bin x {:.2}, y {:.2})", w, h, bx, by),
-                        None => " n/a".to_string(),
-                    }}
-                </p>
-                <p>
-                    <strong>"Summary total"</strong>
-                    {move || match summary_stats.get() {
-                        Some((total, _, _)) => format!(" {}", total),
-                        None => " n/a".to_string(),
-                    }}
-                </p>
-                <p>
-                    <strong>"Summary min/max (kg)"</strong>
-                    {move || match summary_stats.get() {
-                        Some((_, min, max)) => format!(" {:.1} / {:.1}", min, max),
-                        None => " n/a".to_string(),
-                    }}
-                </p>
-            </div>
+            {metric_grid! {
+                "Exact slice key" => move || format!(" {}", exact_slice_key.get()),
+                "Shard key" => move || format!(" {}", shard_key.get()),
+                "Dataset version" => move || format!(" {}", dataset_version.get()),
+                "Dataset revision" => move || format!(" {}", dataset_revision.get()),
+                "Histogram bin width" => move || match histogram_bin_width.get() {
+                    Some(width) => format!(" {:.2}", width),
+                    None => " n/a".to_string(),
+                },
+                "Heatmap dimensions" => move || match heatmap_dims.get() {
+                    Some((w, h, bx, by)) => format!(" {}x{} (bin x {:.2}, y {:.2})", w, h, bx, by),
+                    None => " n/a".to_string(),
+                },
+                "Summary total" => move || match summary_stats.get() {
+                    Some((total, _, _)) => format!(" {}", total),
+                    None => " n/a".to_string(),
+                },
+                "Summary min/max (kg)" => move || match summary_stats.get() {
+                    Some((_, min, max)) => format!(" {:.1} / {:.1}", min, max),
+                    None => " n/a".to_string(),
+                },
+            }}
             <label class="methodology-toggle">
                 <input
                     type="checkbox"

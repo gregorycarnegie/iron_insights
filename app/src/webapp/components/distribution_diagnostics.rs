@@ -24,31 +24,31 @@ pub(in crate::webapp) fn DistributionDiagnosticsPanel(
                         <p class="muted">
                             {format!("Computed from current histogram bins for {}.", hist_x_label.get())}
                         </p>
-                        <div class="nerd-metrics-grid">
-                            <p><strong>"p1"</strong>{format!(" {:.1}", d.p01)}</p>
-                            <p><strong>"p5"</strong>{format!(" {:.1}", d.p05)}</p>
-                            <p><strong>"p10"</strong>{format!(" {:.1}", d.p10)}</p>
-                            <p><strong>"p25"</strong>{format!(" {:.1}", d.p25)}</p>
-                            <p><strong>"p50"</strong>{format!(" {:.1}", d.p50)}</p>
-                            <p><strong>"p75"</strong>{format!(" {:.1}", d.p75)}</p>
-                            <p><strong>"p90"</strong>{format!(" {:.1}", d.p90)}</p>
-                            <p><strong>"p95"</strong>{format!(" {:.1}", d.p95)}</p>
-                            <p><strong>"p99"</strong>{format!(" {:.1}", d.p99)}</p>
-                            <p><strong>"IQR"</strong>{format!(" {:.1}", d.iqr)}</p>
-                            <p>
-                                <strong>"Central 80%"</strong>
-                                {format!(" {:.1} to {:.1}", d.central_80_low, d.central_80_high)}
-                            </p>
-                            <p>
-                                <strong>"Mode bin"</strong>
-                                {format!(" {:.1} to {:.1} ({} lifters)", d.mode_bin_start, d.mode_bin_end, d.mode_bin_count)}
-                            </p>
-                            <p>
-                                <strong>"Occupied bins"</strong>
-                                {format!(" {} / {}", d.occupied_bins, d.total_bins)}
-                            </p>
-                            <p><strong>"Sparsity score"</strong>{format!(" {:.1}%", sparsity_pct)}</p>
-                        </div>
+                        {metric_grid! {
+                            "p1" => format!(" {:.1}", d.p01),
+                            "p5" => format!(" {:.1}", d.p05),
+                            "p10" => format!(" {:.1}", d.p10),
+                            "p25" => format!(" {:.1}", d.p25),
+                            "p50" => format!(" {:.1}", d.p50),
+                            "p75" => format!(" {:.1}", d.p75),
+                            "p90" => format!(" {:.1}", d.p90),
+                            "p95" => format!(" {:.1}", d.p95),
+                            "p99" => format!(" {:.1}", d.p99),
+                            "IQR" => format!(" {:.1}", d.iqr),
+                            "Central 80%" => {
+                                format!(" {:.1} to {:.1}", d.central_80_low, d.central_80_high)
+                            },
+                            "Mode bin" => {
+                                format!(
+                                    " {:.1} to {:.1} ({} lifters)",
+                                    d.mode_bin_start,
+                                    d.mode_bin_end,
+                                    d.mode_bin_count
+                                )
+                            },
+                            "Occupied bins" => format!(" {} / {}", d.occupied_bins, d.total_bins),
+                            "Sparsity score" => format!(" {:.1}%", sparsity_pct),
+                        }}
                         <Show when=move || tiny_sample_warning>
                             <p class="muted">
                                 {format!(

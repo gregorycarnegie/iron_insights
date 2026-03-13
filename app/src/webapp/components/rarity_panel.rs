@@ -32,14 +32,14 @@ pub(in crate::webapp) fn RarityPanel(
                                 bucket, d.current_bin_count, d.bin_start, d.bin_end, hist_x_label.get()
                             )}
                         </p>
-                        <div class="nerd-metrics-grid">
-                            <p><strong>"Current bin count"</strong>{format!(" {}", d.current_bin_count)}</p>
-                            <p><strong>"Left bin count"</strong>{format!(" {}", d.left_bin_count)}</p>
-                            <p><strong>"Right bin count"</strong>{format!(" {}", d.right_bin_count)}</p>
-                            <p><strong>"Neighbor share"</strong>{format!(" {:.1}%", neighborhood_pct)}</p>
-                            <p><strong>"Vs mode density"</strong>{format!(" {:.1}%", local_ratio_pct)}</p>
-                            <p><strong>"Label"</strong>{format!(" {}", d.label)}</p>
-                        </div>
+                        {metric_grid! {
+                            "Current bin count" => format!(" {}", d.current_bin_count),
+                            "Left bin count" => format!(" {}", d.left_bin_count),
+                            "Right bin count" => format!(" {}", d.right_bin_count),
+                            "Neighbor share" => format!(" {:.1}%", neighborhood_pct),
+                            "Vs mode density" => format!(" {:.1}%", local_ratio_pct),
+                            "Label" => format!(" {}", d.label),
+                        }}
                     }.into_any()
                 }}
             </Show>

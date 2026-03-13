@@ -1,3 +1,18 @@
+macro_rules! metric_grid {
+    ($( $label:literal => $value:expr ),+ $(,)?) => {
+        view! {
+            <div class="nerd-metrics-grid">
+                $(
+                    <p>
+                        <strong>$label</strong>
+                        {$value}
+                    </p>
+                )*
+            </div>
+        }
+    };
+}
+
 mod bodyweight_conditioned;
 mod charts_panel;
 mod cohort_comparison;

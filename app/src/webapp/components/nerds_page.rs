@@ -216,6 +216,7 @@ pub(in crate::webapp) fn NerdsPage(
                 trend_points=selected_trend_points
                 trend_note=trend_note
                 current_value=user_lift
+                threshold_axis_label=hist_x_label
             />
         </section>
 

@@ -52,18 +52,50 @@ pub(in crate::webapp) fn CrossSexPanel(
                                     data.female_percentile * 100.0
                                 )}
                             </p>
-                            <div class="nerd-metrics-grid">
-                                <p><strong>"Men percentile"</strong>{format!(" {:.1}%", data.male_percentile * 100.0)}</p>
-                                <p><strong>"Women percentile"</strong>{format!(" {:.1}%", data.female_percentile * 100.0)}</p>
-                                <p><strong>"Men cohort size"</strong>{format!(" {}", data.male_total)}</p>
-                                <p><strong>"Women cohort size"</strong>{format!(" {}", data.female_total)}</p>
-                                <p><strong>"Men weight class"</strong>{format!(" {}", male_wc_note)}</p>
-                                <p><strong>"Women weight class"</strong>{format!(" {}", female_wc_note)}</p>
-                                <p><strong>"Input score in men's cohort"</strong>{format!(" {}", format_metric_value(data.male_input_value, &data.metric, use_lbs.get(), unit_label.get()))}</p>
-                                <p><strong>"Input score in women's cohort"</strong>{format!(" {}", format_metric_value(data.female_input_value, &data.metric, use_lbs.get(), unit_label.get()))}</p>
-                                <p><strong>"Women equivalent at men's percentile"</strong>{format!(" {}", format_metric_value(data.female_value_at_male_percentile, &data.metric, use_lbs.get(), unit_label.get()))}</p>
-                                <p><strong>"Men equivalent at women's percentile"</strong>{format!(" {}", format_metric_value(data.male_value_at_female_percentile, &data.metric, use_lbs.get(), unit_label.get()))}</p>
-                            </div>
+                            {metric_grid! {
+                                "Men percentile" => format!(" {:.1}%", data.male_percentile * 100.0),
+                                "Women percentile" => format!(" {:.1}%", data.female_percentile * 100.0),
+                                "Men cohort size" => format!(" {}", data.male_total),
+                                "Women cohort size" => format!(" {}", data.female_total),
+                                "Men weight class" => format!(" {}", male_wc_note),
+                                "Women weight class" => format!(" {}", female_wc_note),
+                                "Input score in men's cohort" => format!(
+                                    " {}",
+                                    format_metric_value(
+                                        data.male_input_value,
+                                        &data.metric,
+                                        use_lbs.get(),
+                                        unit_label.get()
+                                    )
+                                ),
+                                "Input score in women's cohort" => format!(
+                                    " {}",
+                                    format_metric_value(
+                                        data.female_input_value,
+                                        &data.metric,
+                                        use_lbs.get(),
+                                        unit_label.get()
+                                    )
+                                ),
+                                "Women equivalent at men's percentile" => format!(
+                                    " {}",
+                                    format_metric_value(
+                                        data.female_value_at_male_percentile,
+                                        &data.metric,
+                                        use_lbs.get(),
+                                        unit_label.get()
+                                    )
+                                ),
+                                "Men equivalent at women's percentile" => format!(
+                                    " {}",
+                                    format_metric_value(
+                                        data.male_value_at_female_percentile,
+                                        &data.metric,
+                                        use_lbs.get(),
+                                        unit_label.get()
+                                    )
+                                ),
+                            }}
                             <Show when=move || metric_is_normalized>
                                 <p class="muted">
                                     "Normalized metric selected, which is usually the fairest cross-sex view."

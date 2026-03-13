@@ -29,50 +29,32 @@ pub(in crate::webapp) fn PercentileLadderPanel(
                         }
                     }
                 >
-                    <div class="nerd-metrics-grid">
-                        <p>
-                            <strong>"Next +1 percentile point"</strong>
-                            {move || match kg_for_next_1pct.get() {
-                                Some(kg) => format!(" +{:.1} kg", kg.max(0.0)),
-                                None => " n/a".to_string(),
-                            }}
-                        </p>
-                        <p>
-                            <strong>"Next +5 percentile points"</strong>
-                            {move || match kg_for_next_5pct.get() {
-                                Some(kg) => format!(" +{:.1} kg", kg.max(0.0)),
-                                None => " n/a".to_string(),
-                            }}
-                        </p>
-                        <p>
-                            <strong>"Next +10 percentile points"</strong>
-                            {move || match kg_for_next_10pct.get() {
-                                Some(kg) => format!(" +{:.1} kg", kg.max(0.0)),
-                                None => " n/a".to_string(),
-                            }}
-                        </p>
-                        <p>
-                            <strong>"+2.5 kg likely buys"</strong>
-                            {move || match pct_gain_plus_2_5kg.get() {
-                                Some(gain) => format!(" +{:.2} percentile points", gain.max(0.0)),
-                                None => " n/a".to_string(),
-                            }}
-                        </p>
-                        <p>
-                            <strong>"+5 kg likely buys"</strong>
-                            {move || match pct_gain_plus_5kg.get() {
-                                Some(gain) => format!(" +{:.2} percentile points", gain.max(0.0)),
-                                None => " n/a".to_string(),
-                            }}
-                        </p>
-                        <p>
-                            <strong>"+10 kg likely buys"</strong>
-                            {move || match pct_gain_plus_10kg.get() {
-                                Some(gain) => format!(" +{:.2} percentile points", gain.max(0.0)),
-                                None => " n/a".to_string(),
-                            }}
-                        </p>
-                    </div>
+                    {metric_grid! {
+                        "Next +1 percentile point" => move || match kg_for_next_1pct.get() {
+                            Some(kg) => format!(" +{:.1} kg", kg.max(0.0)),
+                            None => " n/a".to_string(),
+                        },
+                        "Next +5 percentile points" => move || match kg_for_next_5pct.get() {
+                            Some(kg) => format!(" +{:.1} kg", kg.max(0.0)),
+                            None => " n/a".to_string(),
+                        },
+                        "Next +10 percentile points" => move || match kg_for_next_10pct.get() {
+                            Some(kg) => format!(" +{:.1} kg", kg.max(0.0)),
+                            None => " n/a".to_string(),
+                        },
+                        "+2.5 kg likely buys" => move || match pct_gain_plus_2_5kg.get() {
+                            Some(gain) => format!(" +{:.2} percentile points", gain.max(0.0)),
+                            None => " n/a".to_string(),
+                        },
+                        "+5 kg likely buys" => move || match pct_gain_plus_5kg.get() {
+                            Some(gain) => format!(" +{:.2} percentile points", gain.max(0.0)),
+                            None => " n/a".to_string(),
+                        },
+                        "+10 kg likely buys" => move || match pct_gain_plus_10kg.get() {
+                            Some(gain) => format!(" +{:.2} percentile points", gain.max(0.0)),
+                            None => " n/a".to_string(),
+                        },
+                    }}
                 </Show>
             </Show>
         </section>

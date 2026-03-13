@@ -49,14 +49,23 @@ pub(in crate::webapp) fn BodyweightConditionedPanel(
                                     stats.total_nearby
                                 )}
                             </p>
-                            <div class="nerd-metrics-grid">
-                                <p><strong>"Nearby lifters"</strong>{format!(" {}", stats.total_nearby)}</p>
-                                <p><strong>"Current BW bin"</strong>{format!(" {:.1}-{:.1} {}", kg_to_display(stats.bw_bin_low, use_lbs.get()), kg_to_display(stats.bw_bin_high, use_lbs.get()), unit_label.get())}</p>
-                                <p><strong>"Current heat cell count"</strong>{format!(" {}", stats.local_cell_count)}</p>
-                                <p><strong>"3x3 neighborhood count"</strong>{format!(" {}", stats.neighborhood_count)}</p>
-                                <p><strong>"Neighborhood share"</strong>{format!(" {:.2}%", neighborhood_pct)}</p>
-                                <p><strong>"Lift bin (heatmap x)"</strong>{format!(" {:.1}-{:.1}", stats.lift_bin_low, stats.lift_bin_high)}</p>
-                            </div>
+                            {metric_grid! {
+                                "Nearby lifters" => format!(" {}", stats.total_nearby),
+                                "Current BW bin" => format!(
+                                    " {:.1}-{:.1} {}",
+                                    kg_to_display(stats.bw_bin_low, use_lbs.get()),
+                                    kg_to_display(stats.bw_bin_high, use_lbs.get()),
+                                    unit_label.get()
+                                ),
+                                "Current heat cell count" => format!(" {}", stats.local_cell_count),
+                                "3x3 neighborhood count" => format!(" {}", stats.neighborhood_count),
+                                "Neighborhood share" => format!(" {:.2}%", neighborhood_pct),
+                                "Lift bin (heatmap x)" => format!(
+                                    " {:.1}-{:.1}",
+                                    stats.lift_bin_low,
+                                    stats.lift_bin_high
+                                ),
+                            }}
                         }.into_any()
                     }}
                 </Show>

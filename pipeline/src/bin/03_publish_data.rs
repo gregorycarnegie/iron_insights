@@ -273,41 +273,29 @@ fn publish_records_for_lift(
         .collect()
         .with_context(|| format!("failed collecting {}", records_path.display()))?;
 
-    let sex_col = df
-        .column("Sex")
-        .context("missing Sex column")?
-        .str()
-        .context("Sex column not string")?;
-    let equip_col = df
-        .column("Equipment")
-        .context("missing Equipment column")?
-        .str()
-        .context("Equipment column not string")?;
-    let wc_col = df
-        .column("IpfWeightClass")
-        .context("missing IpfWeightClass column")?
-        .str()
-        .context("IpfWeightClass column not string")?;
-    let age_col = df
-        .column("AgeClassBucket")
-        .context("missing AgeClassBucket column")?
-        .str()
-        .context("AgeClassBucket column not string")?;
-    let lift_col = df
-        .column("best_lift")
-        .context("missing best_lift column")?
-        .f32()
-        .context("best_lift column not f32")?;
-    let bw_col = df
-        .column("bodyweight_at_best")
-        .context("missing bodyweight_at_best column")?
-        .f32()
-        .context("bodyweight_at_best column not f32")?;
-    let date_col = df
-        .column("date_at_best")
-        .context("missing date_at_best column")?
-        .str()
-        .context("date_at_best column not string")?;
+    let str_col = |name: &str| -> Result<&ChunkedArray<StringType>> {
+        df
+            .column(name)
+            .with_context(|| format!("missing {name} column"))?
+            .str()
+            .with_context(|| format!("{name} column not string"))
+    };
+
+    let f32_col = |name: &str| -> Result<&ChunkedArray<Float32Type>> {
+        df
+            .column(name)
+            .with_context(|| format!("missing {name} column"))?
+            .f32()
+            .with_context(|| format!("{name} column not f32"))
+    };
+
+    let sex_col = str_col("Sex")?;
+    let equip_col = str_col("Equipment")?;
+    let wc_col = str_col("IpfWeightClass")?;
+    let age_col = str_col("AgeClassBucket")?;
+    let lift_col = f32_col("best_lift")?;
+    let bw_col = f32_col("bodyweight_at_best")?;
+    let date_col = str_col("date_at_best")?;
 
     let mut slices = BTreeMap::<(String, String, String, String), SliceAccumulator>::new();
     for i in 0..df.height() {

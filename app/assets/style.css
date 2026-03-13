@@ -629,6 +629,12 @@ button {
   stroke-width: 1;
 }
 
+.trend-grid {
+  stroke: rgba(156, 168, 159, 0.45);
+  stroke-width: 0.8;
+  stroke-dasharray: 3 3;
+}
+
 .trend-line {
   fill: none;
   stroke-width: 2;
@@ -650,6 +656,14 @@ button {
   fill: #5d6c64;
   font-size: 8px;
   font-family: "IBM Plex Mono", monospace;
+}
+
+.trend-axis-label {
+  fill: #44534c;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-family: "IBM Plex Sans", sans-serif;
 }
 
 .trend-caveats {
