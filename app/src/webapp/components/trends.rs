@@ -32,6 +32,44 @@ impl Scale {
     }
 }
 
+#[derive(Clone, PartialEq)]
+struct TrendRenderState {
+    total_path: String,
+    total_ticks: Vec<AxisTick>,
+    p50_path: String,
+    p90_path: String,
+    pct_ticks: Vec<AxisTick>,
+    years: Option<(i32, i32)>,
+    growth_summary: String,
+    p50_drift_summary: String,
+    p90_drift_summary: String,
+}
+
+impl TrendRenderState {
+    fn from_points(points: &[TrendPoint]) -> Self {
+        let (total_min, total_max) = log_value_range(points, |p| p.total as f32);
+        let (pct_min, pct_max) = percentile_range(points);
+
+        Self {
+            total_path: line_path_scaled(
+                points,
+                |p| p.total as f32,
+                total_min,
+                total_max,
+                Scale::Log,
+            ),
+            total_ticks: log_axis_ticks(total_min, total_max),
+            p50_path: line_path_scaled(points, |p| p.p50, pct_min, pct_max, Scale::Linear),
+            p90_path: line_path_scaled(points, |p| p.p90, pct_min, pct_max, Scale::Linear),
+            pct_ticks: linear_axis_ticks(pct_min, pct_max, 1),
+            years: year_span(points),
+            growth_summary: growth_summary(points),
+            p50_drift_summary: drift_summary(points, |p| p.p50, "Not enough points for p50 drift."),
+            p90_drift_summary: drift_summary(points, |p| p.p90, "Not enough points for p90 drift."),
+        }
+    }
+}
+
 #[component]
 pub fn TrendsPanel(
     calculated: ReadSignal<bool>,
@@ -40,76 +78,7 @@ pub fn TrendsPanel(
     current_value: Memo<f32>,
     threshold_axis_label: Memo<String>,
 ) -> impl IntoView {
-    let total_path = Memo::new(move |_| {
-        let points = trend_points.get();
-        let (min, max) = log_value_range(&points, |p| p.total as f32);
-        line_path_scaled(&points, |p| p.total as f32, min, max, Scale::Log)
-    });
-    let total_ticks = Memo::new(move |_| {
-        let points = trend_points.get();
-        let (min, max) = log_value_range(&points, |p| p.total as f32);
-        log_axis_ticks(min, max)
-    });
-
-    let p50_path = Memo::new(move |_| {
-        let points = trend_points.get();
-        let (min, max) = percentile_range(&points);
-        line_path_scaled(&points, |p| p.p50, min, max, Scale::Linear)
-    });
-    let p90_path = Memo::new(move |_| {
-        let points = trend_points.get();
-        let (min, max) = percentile_range(&points);
-        line_path_scaled(&points, |p| p.p90, min, max, Scale::Linear)
-    });
-    let pct_ticks = Memo::new(move |_| {
-        let points = trend_points.get();
-        let (min, max) = percentile_range(&points);
-        linear_axis_ticks(min, max, 1)
-    });
-
-    let years = Memo::new(move |_| {
-        let points = trend_points.get();
-        match (points.first(), points.last()) {
-            (Some(first), Some(last)) => Some((first.year, last.year)),
-            _ => None,
-        }
-    });
-    let growth_summary = Memo::new(move |_| {
-        let points = trend_points.get();
-        match (points.first(), points.last()) {
-            (Some(first), Some(last)) => {
-                let delta = i64::from(last.total) - i64::from(first.total);
-                let pct = if first.total == 0 {
-                    0.0
-                } else {
-                    (delta as f32 / first.total as f32) * 100.0
-                };
-                format!(
-                    "{}-{}: {:+} lifters ({:+.1}%).",
-                    first.year, last.year, delta, pct
-                )
-            }
-            _ => "Not enough points for growth summary.".to_string(),
-        }
-    });
-    let p50_drift_summary = Memo::new(move |_| {
-        let points = trend_points.get();
-        match (points.first(), points.last()) {
-            (Some(first), Some(last)) => {
-                format!("{}-{}: {:+.1}", first.year, last.year, last.p50 - first.p50)
-            }
-            _ => "Not enough points for p50 drift.".to_string(),
-        }
-    });
-    let p90_drift_summary = Memo::new(move |_| {
-        let points = trend_points.get();
-        match (points.first(), points.last()) {
-            (Some(first), Some(last)) => {
-                format!("{}-{}: {:+.1}", first.year, last.year, last.p90 - first.p90)
-            }
-            _ => "Not enough points for p90 drift.".to_string(),
-        }
-    });
+    let trend_state = Memo::new(move |_| TrendRenderState::from_points(&trend_points.get()));
     let historical_clear_summary = Memo::new(move |_| {
         let points = trend_points.get();
         if points.len() < 2 {
@@ -152,9 +121,9 @@ pub fn TrendsPanel(
                 }
             >
                 {metric_grid! {
-                    "Cohort size growth" => move || growth_summary.get(),
-                    "p50 drift" => move || p50_drift_summary.get(),
-                    "p90 drift" => move || p90_drift_summary.get(),
+                    "Cohort size growth" => move || trend_state.get().growth_summary.clone(),
+                    "p50 drift" => move || trend_state.get().p50_drift_summary.clone(),
+                    "p90 drift" => move || trend_state.get().p90_drift_summary.clone(),
                     "Current input vs historical thresholds" => move || historical_clear_summary.get(),
                 }}
                 <div class="trend-card">
@@ -171,7 +140,7 @@ pub fn TrendsPanel(
                         aria-label="Cohort size trend chart with year on the x-axis and total lifters on a logarithmic y-axis"
                     >
                         <For
-                            each=move || total_ticks.get()
+                            each=move || trend_state.get().total_ticks.clone()
                             key=|tick| tick.key.clone()
                             let:tick
                         >
@@ -195,7 +164,7 @@ pub fn TrendsPanel(
                         </For>
                         <line x1={PAD_LEFT} y1={CHART_H - PAD_BOTTOM} x2={CHART_W - PAD_RIGHT} y2={CHART_H - PAD_BOTTOM} class="trend-axis"></line>
                         <line x1={PAD_LEFT} y1={PAD_TOP} x2={PAD_LEFT} y2={CHART_H - PAD_BOTTOM} class="trend-axis"></line>
-                        <path d={move || total_path.get()} class="trend-line trend-line-total"></path>
+                        <path d={move || trend_state.get().total_path.clone()} class="trend-line trend-line-total"></path>
                         <text
                             x={Y_AXIS_LABEL_X}
                             y={(PAD_TOP + (CHART_H - PAD_BOTTOM)) / 2.0}
@@ -210,9 +179,9 @@ pub fn TrendsPanel(
                             "Total Lifters (log scale)"
                         </text>
 
-                        <Show when=move || years.get().is_some()>
-                            <text x={PAD_LEFT} y={CHART_H - PAD_BOTTOM + 18.0} class="trend-tick">{move || years.get().map(|(start, _)| start.to_string()).unwrap_or_default()}</text>
-                            <text x={CHART_W - PAD_RIGHT} y={CHART_H - PAD_BOTTOM + 18.0} text-anchor="end" class="trend-tick">{move || years.get().map(|(_, end)| end.to_string()).unwrap_or_default()}</text>
+                        <Show when=move || trend_state.get().years.is_some()>
+                            <text x={PAD_LEFT} y={CHART_H - PAD_BOTTOM + 18.0} class="trend-tick">{move || trend_state.get().years.map(|(start, _)| start.to_string()).unwrap_or_default()}</text>
+                            <text x={CHART_W - PAD_RIGHT} y={CHART_H - PAD_BOTTOM + 18.0} text-anchor="end" class="trend-tick">{move || trend_state.get().years.map(|(_, end)| end.to_string()).unwrap_or_default()}</text>
                         </Show>
                         <text
                             x={(PAD_LEFT + (CHART_W - PAD_RIGHT)) / 2.0}
@@ -244,7 +213,7 @@ pub fn TrendsPanel(
                         aria-label="Percentile threshold trend chart with year on the x-axis and threshold value on the y-axis"
                     >
                         <For
-                            each=move || pct_ticks.get()
+                            each=move || trend_state.get().pct_ticks.clone()
                             key=|tick| tick.key.clone()
                             let:tick
                         >
@@ -268,8 +237,8 @@ pub fn TrendsPanel(
                         </For>
                         <line x1={PAD_LEFT} y1={CHART_H - PAD_BOTTOM} x2={CHART_W - PAD_RIGHT} y2={CHART_H - PAD_BOTTOM} class="trend-axis"></line>
                         <line x1={PAD_LEFT} y1={PAD_TOP} x2={PAD_LEFT} y2={CHART_H - PAD_BOTTOM} class="trend-axis"></line>
-                        <path d={move || p50_path.get()} class="trend-line trend-line-p50"></path>
-                        <path d={move || p90_path.get()} class="trend-line trend-line-p90"></path>
+                        <path d={move || trend_state.get().p50_path.clone()} class="trend-line trend-line-p50"></path>
+                        <path d={move || trend_state.get().p90_path.clone()} class="trend-line trend-line-p90"></path>
                         <text
                             x={Y_AXIS_LABEL_X}
                             y={(PAD_TOP + (CHART_H - PAD_BOTTOM)) / 2.0}
@@ -284,9 +253,9 @@ pub fn TrendsPanel(
                             {move || threshold_axis_label.get()}
                         </text>
 
-                        <Show when=move || years.get().is_some()>
-                            <text x={PAD_LEFT} y={CHART_H - PAD_BOTTOM + 18.0} class="trend-tick">{move || years.get().map(|(start, _)| start.to_string()).unwrap_or_default()}</text>
-                            <text x={CHART_W - PAD_RIGHT} y={CHART_H - PAD_BOTTOM + 18.0} text-anchor="end" class="trend-tick">{move || years.get().map(|(_, end)| end.to_string()).unwrap_or_default()}</text>
+                        <Show when=move || trend_state.get().years.is_some()>
+                            <text x={PAD_LEFT} y={CHART_H - PAD_BOTTOM + 18.0} class="trend-tick">{move || trend_state.get().years.map(|(start, _)| start.to_string()).unwrap_or_default()}</text>
+                            <text x={CHART_W - PAD_RIGHT} y={CHART_H - PAD_BOTTOM + 18.0} text-anchor="end" class="trend-tick">{move || trend_state.get().years.map(|(_, end)| end.to_string()).unwrap_or_default()}</text>
                         </Show>
                         <text
                             x={(PAD_LEFT + (CHART_W - PAD_RIGHT)) / 2.0}
@@ -313,6 +282,49 @@ pub fn TrendsPanel(
                 </div>
             </Show>
         </section>
+    }
+}
+
+fn year_span(points: &[TrendPoint]) -> Option<(i32, i32)> {
+    match (points.first(), points.last()) {
+        (Some(first), Some(last)) => Some((first.year, last.year)),
+        _ => None,
+    }
+}
+
+fn growth_summary(points: &[TrendPoint]) -> String {
+    match (points.first(), points.last()) {
+        (Some(first), Some(last)) => {
+            let delta = i64::from(last.total) - i64::from(first.total);
+            let pct = if first.total == 0 {
+                0.0
+            } else {
+                (delta as f32 / first.total as f32) * 100.0
+            };
+            format!(
+                "{}-{}: {:+} lifters ({:+.1}%).",
+                first.year, last.year, delta, pct
+            )
+        }
+        _ => "Not enough points for growth summary.".to_string(),
+    }
+}
+
+fn drift_summary(
+    points: &[TrendPoint],
+    select: impl Fn(&TrendPoint) -> f32,
+    empty_message: &str,
+) -> String {
+    match (points.first(), points.last()) {
+        (Some(first), Some(last)) => {
+            format!(
+                "{}-{}: {:+.1}",
+                first.year,
+                last.year,
+                select(last) - select(first)
+            )
+        }
+        _ => empty_message.to_string(),
     }
 }
 

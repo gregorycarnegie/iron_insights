@@ -6,6 +6,7 @@ pub struct HistogramBin {
     pub max: f32,
     pub base_bin: f32,
     pub counts: Vec<u32>,
+    total: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -79,6 +80,20 @@ pub struct BodyweightConditionedStats {
 }
 
 pub const TINY_COHORT_WARNING_THRESHOLD: u32 = 250;
+const DIAGNOSTIC_PERCENTILES: [f32; 9] = [0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99];
+
+impl HistogramBin {
+    pub fn new(min: f32, max: f32, base_bin: f32, counts: Vec<u32>) -> Self {
+        let total = counts.iter().copied().sum();
+        Self {
+            min,
+            max,
+            base_bin,
+            counts,
+            total,
+        }
+    }
+}
 
 pub fn parse_hist_bin(bytes: &[u8]) -> Option<HistogramBin> {
     if bytes.len() < 22 || &bytes[0..4] != b"IIH1" {
@@ -104,12 +119,7 @@ pub fn parse_hist_bin(bytes: &[u8]) -> Option<HistogramBin> {
         counts.push(u32::from_le_bytes(chunk.try_into().ok()?));
     }
 
-    Some(HistogramBin {
-        min,
-        max,
-        base_bin: base,
-        counts,
-    })
+    Some(HistogramBin::new(min, max, base, counts))
 }
 
 pub fn parse_heat_bin(bytes: &[u8]) -> Option<HeatmapBin> {
@@ -159,7 +169,7 @@ pub fn percentile_for_value(hist: Option<&HistogramBin>, value: f32) -> Option<(
         return None;
     }
 
-    let total: u32 = hist.counts.iter().copied().sum();
+    let total = hist.total;
     if total == 0 {
         return None;
     }
@@ -179,28 +189,7 @@ pub fn percentile_for_value(hist: Option<&HistogramBin>, value: f32) -> Option<(
 
 pub fn value_for_percentile(hist: Option<&HistogramBin>, target_pct: f32) -> Option<f32> {
     let hist = hist?;
-    if hist.counts.is_empty() || hist.base_bin <= 0.0 {
-        return None;
-    }
-
-    let total: u32 = hist.counts.iter().copied().sum();
-    if total == 0 {
-        return None;
-    }
-
-    let target_cdf = target_pct.clamp(0.0, 1.0) * total as f32;
-    let mut below = 0.0f32;
-
-    for (idx, count) in hist.counts.iter().copied().enumerate() {
-        let count_f = count as f32;
-        let cdf_mid = below + 0.5 * count_f;
-        if cdf_mid >= target_cdf {
-            return Some(hist.min + (idx as f32 + 0.5) * hist.base_bin);
-        }
-        below += count_f;
-    }
-
-    Some(hist.max)
+    values_for_percentiles(hist, &[target_pct]).map(|[value]| value)
 }
 
 pub fn equivalent_value_for_same_percentile(
@@ -219,22 +208,13 @@ pub fn histogram_diagnostics(hist: Option<&HistogramBin>) -> Option<HistogramDia
         return None;
     }
 
-    let total: u32 = hist.counts.iter().copied().sum();
+    let total = hist.total;
     if total == 0 {
         return None;
     }
 
-    let q = |pct: f32| value_for_percentile(Some(hist), pct);
-
-    let p01 = q(0.01)?;
-    let p05 = q(0.05)?;
-    let p10 = q(0.10)?;
-    let p25 = q(0.25)?;
-    let p50 = q(0.50)?;
-    let p75 = q(0.75)?;
-    let p90 = q(0.90)?;
-    let p95 = q(0.95)?;
-    let p99 = q(0.99)?;
+    let [p01, p05, p10, p25, p50, p75, p90, p95, p99] =
+        values_for_percentiles(hist, &DIAGNOSTIC_PERCENTILES)?;
 
     let (mode_idx, mode_count) = hist
         .counts
@@ -283,7 +263,7 @@ pub fn histogram_density_for_value(
         return None;
     }
 
-    let total: u32 = hist.counts.iter().copied().sum();
+    let total = hist.total;
     if total == 0 {
         return None;
     }
@@ -332,6 +312,35 @@ pub fn histogram_density_for_value(
         local_density_ratio,
         neighborhood_share,
     })
+}
+
+fn values_for_percentiles<const N: usize>(
+    hist: &HistogramBin,
+    target_pcts: &[f32; N],
+) -> Option<[f32; N]> {
+    if hist.counts.is_empty() || hist.base_bin <= 0.0 || hist.total == 0 {
+        return None;
+    }
+
+    let targets = target_pcts.map(|pct| pct.clamp(0.0, 1.0) * hist.total as f32);
+    let mut values = [hist.max; N];
+    let mut target_idx = 0usize;
+    let mut below = 0.0f32;
+
+    for (idx, count) in hist.counts.iter().copied().enumerate() {
+        let count_f = count as f32;
+        let cdf_mid = below + 0.5 * count_f;
+        while target_idx < N && cdf_mid >= targets[target_idx] {
+            values[target_idx] = hist.min + (idx as f32 + 0.5) * hist.base_bin;
+            target_idx += 1;
+        }
+        if target_idx == N {
+            break;
+        }
+        below += count_f;
+    }
+
+    Some(values)
 }
 
 pub fn bodyweight_conditioned_percentile(
@@ -541,6 +550,7 @@ mod tests {
         assert_eq!(hist.min, 100.0);
         assert_eq!(hist.max, 107.5);
         assert_eq!(hist.counts, vec![3, 1, 1]);
+        assert_eq!(hist.total, 5);
     }
 
     #[test]
@@ -633,12 +643,7 @@ mod tests {
 
     #[test]
     fn percentile_for_value_handles_boundaries() {
-        let hist = HistogramBin {
-            min: 100.0,
-            max: 110.0,
-            base_bin: 2.5,
-            counts: vec![10, 20, 30, 40],
-        };
+        let hist = HistogramBin::new(100.0, 110.0, 2.5, vec![10, 20, 30, 40]);
 
         let low = percentile_for_value(Some(&hist), 80.0).expect("should compute");
         let high = percentile_for_value(Some(&hist), 200.0).expect("should compute");
@@ -650,32 +655,17 @@ mod tests {
 
     #[test]
     fn percentile_for_value_returns_none_for_empty_distribution() {
-        let empty = HistogramBin {
-            min: 0.0,
-            max: 0.0,
-            base_bin: 1.0,
-            counts: vec![],
-        };
+        let empty = HistogramBin::new(0.0, 0.0, 1.0, vec![]);
         assert!(percentile_for_value(Some(&empty), 0.0).is_none());
 
-        let zeroed = HistogramBin {
-            min: 0.0,
-            max: 3.0,
-            base_bin: 1.0,
-            counts: vec![0, 0, 0],
-        };
+        let zeroed = HistogramBin::new(0.0, 3.0, 1.0, vec![0, 0, 0]);
         assert!(percentile_for_value(Some(&zeroed), 1.0).is_none());
         assert!(percentile_for_value(None, 1.0).is_none());
     }
 
     #[test]
     fn percentile_for_value_mid_bin_interpolation_matches_formula() {
-        let hist = HistogramBin {
-            min: 100.0,
-            max: 107.5,
-            base_bin: 2.5,
-            counts: vec![2, 2, 6],
-        };
+        let hist = HistogramBin::new(100.0, 107.5, 2.5, vec![2, 2, 6]);
         let (pct, rank, total) = percentile_for_value(Some(&hist), 104.0).expect("should compute");
         assert!((pct - 0.3).abs() < 1e-6);
         assert_eq!(total, 10);
@@ -684,12 +674,7 @@ mod tests {
 
     #[test]
     fn value_for_percentile_returns_expected_bin_midpoint() {
-        let hist = HistogramBin {
-            min: 100.0,
-            max: 107.5,
-            base_bin: 2.5,
-            counts: vec![2, 2, 6],
-        };
+        let hist = HistogramBin::new(100.0, 107.5, 2.5, vec![2, 2, 6]);
         let value = value_for_percentile(Some(&hist), 0.30).expect("should compute");
         assert!((value - 103.75).abs() < 1e-6);
     }
@@ -730,12 +715,7 @@ mod tests {
 
     #[test]
     fn histogram_diagnostics_reports_expected_ranges() {
-        let hist = HistogramBin {
-            min: 100.0,
-            max: 112.0,
-            base_bin: 2.0,
-            counts: vec![0, 4, 10, 6, 2, 0],
-        };
+        let hist = HistogramBin::new(100.0, 112.0, 2.0, vec![0, 4, 10, 6, 2, 0]);
 
         let diag = histogram_diagnostics(Some(&hist)).expect("diagnostics should compute");
         assert!(diag.p01 <= diag.p05 && diag.p05 <= diag.p10);
@@ -750,12 +730,7 @@ mod tests {
 
     #[test]
     fn histogram_diagnostics_flags_tiny_sample() {
-        let hist = HistogramBin {
-            min: 0.0,
-            max: 4.0,
-            base_bin: 1.0,
-            counts: vec![50, 40, 30, 20],
-        };
+        let hist = HistogramBin::new(0.0, 4.0, 1.0, vec![50, 40, 30, 20]);
         let diag = histogram_diagnostics(Some(&hist)).expect("diagnostics should compute");
         assert_eq!(diag.total_lifters, 140);
         assert_eq!(
@@ -766,12 +741,7 @@ mod tests {
 
     #[test]
     fn histogram_density_reports_neighbors_and_label() {
-        let hist = HistogramBin {
-            min: 100.0,
-            max: 112.0,
-            base_bin: 2.0,
-            counts: vec![1, 4, 10, 6, 2, 1],
-        };
+        let hist = HistogramBin::new(100.0, 112.0, 2.0, vec![1, 4, 10, 6, 2, 1]);
 
         let density =
             histogram_density_for_value(Some(&hist), 104.2).expect("density should compute");
@@ -839,18 +809,8 @@ mod tests {
 
     #[test]
     fn equivalent_value_for_same_percentile_maps_across_histograms() {
-        let source = HistogramBin {
-            min: 100.0,
-            max: 130.0,
-            base_bin: 10.0,
-            counts: vec![10, 10, 10],
-        };
-        let target = HistogramBin {
-            min: 200.0,
-            max: 230.0,
-            base_bin: 10.0,
-            counts: vec![10, 10, 10],
-        };
+        let source = HistogramBin::new(100.0, 130.0, 10.0, vec![10, 10, 10]);
+        let target = HistogramBin::new(200.0, 230.0, 10.0, vec![10, 10, 10]);
 
         let (pct, equivalent) =
             equivalent_value_for_same_percentile(Some(&source), Some(&target), 115.0)
@@ -861,12 +821,7 @@ mod tests {
 
     #[test]
     fn equivalent_value_for_same_percentile_returns_none_without_data() {
-        let source = HistogramBin {
-            min: 100.0,
-            max: 120.0,
-            base_bin: 10.0,
-            counts: vec![5, 5],
-        };
+        let source = HistogramBin::new(100.0, 120.0, 10.0, vec![5, 5]);
 
         assert!(equivalent_value_for_same_percentile(None, Some(&source), 105.0).is_none());
         assert!(equivalent_value_for_same_percentile(Some(&source), None, 105.0).is_none());

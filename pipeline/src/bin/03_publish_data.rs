@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -15,6 +15,8 @@ const FORMAT_VERSION: u16 = 1;
 const LIFT_BIN_BASE_KG: f32 = 2.5;
 const BW_BIN_BASE_KG: f32 = 1.0;
 const SCORE_BIN_BASE_POINTS: f32 = 2.5;
+const ALL: &str = "All";
+const ALL_AGES: &str = "All Ages";
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -164,6 +166,204 @@ struct SliceSummary {
     total: u32,
 }
 
+type SliceKey<'a> = (&'a str, &'a str, &'a str, &'a str);
+
+#[derive(Debug)]
+struct MetricPublisher<'a> {
+    metric: Metric,
+    trend_key_suffix: String,
+    slices: HashMap<SliceKey<'a>, SliceAccumulator>,
+}
+
+impl<'a> MetricPublisher<'a> {
+    fn new(metric: Metric, tested: &str, lift: &str) -> Self {
+        Self {
+            metric,
+            trend_key_suffix: format!(
+                "|tested={}|lift={}|metric={}",
+                tested_bucket(tested),
+                lift_code(lift),
+                metric_code(metric),
+            ),
+            slices: HashMap::new(),
+        }
+    }
+
+    fn trend_key(&self, sex: &str, equipment: &str) -> String {
+        let mut key = String::with_capacity(
+            "sex=".len()
+                + sex.len()
+                + "|equip=".len()
+                + equipment.len()
+                + self.trend_key_suffix.len(),
+        );
+        key.push_str("sex=");
+        key.push_str(sex);
+        key.push_str("|equip=");
+        key.push_str(equipment);
+        key.push_str(&self.trend_key_suffix);
+        key
+    }
+
+    fn accumulate_row(
+        &mut self,
+        sex: &'a str,
+        equipment: &'a str,
+        weight_class: &'a str,
+        age_class: &'a str,
+        year: Option<i32>,
+        x_value: f32,
+        valid_bw: Option<f32>,
+        trends_acc: &mut BTreeMap<String, BTreeMap<i32, Vec<f32>>>,
+    ) {
+        if let Some(year) = year {
+            for trend_equip in [equipment, ALL] {
+                let trend_key = self.trend_key(sex, trend_equip);
+                trends_acc
+                    .entry(trend_key)
+                    .or_default()
+                    .entry(year)
+                    .or_default()
+                    .push(x_value);
+            }
+        }
+
+        for key in [
+            (sex, equipment, weight_class, age_class),
+            (sex, ALL, weight_class, age_class),
+            (sex, equipment, ALL, age_class),
+            (sex, ALL, ALL, age_class),
+            (sex, equipment, weight_class, ALL_AGES),
+            (sex, ALL, weight_class, ALL_AGES),
+            (sex, equipment, ALL, ALL_AGES),
+            (sex, ALL, ALL, ALL_AGES),
+        ] {
+            let entry = self.slices.entry(key).or_default();
+            entry.lift_values.push(x_value);
+            if let Some(bw_value) = valid_bw {
+                entry.heat_points.push((x_value, bw_value));
+            }
+        }
+    }
+
+    fn write_outputs(
+        self,
+        version_dir: &Path,
+        version: &str,
+        tested: &str,
+        lift: &str,
+        write_meta_files: bool,
+        shard_indices: &mut BTreeMap<String, BTreeMap<String, SliceIndexEntry>>,
+    ) -> Result<()> {
+        let metric = self.metric;
+        let metric_slug = metric_slug(metric);
+        let metric_code = metric_code(metric);
+        let x_base = metric_base_bin(metric);
+
+        for ((sex, equipment, weight_class, age_class), acc) in self.slices {
+            if acc.lift_values.is_empty() {
+                continue;
+            }
+
+            let hist_data = build_histogram(&acc.lift_values, x_base)?;
+            let heat_data = build_heatmap(&acc.heat_points, x_base, BW_BIN_BASE_KG)?;
+
+            let sex_slug = slug(sex);
+            let equip_slug = slug(equipment);
+            let wc_slug = slug(weight_class);
+            let age_slug = slug(age_class);
+
+            let hist_rel = format!(
+                "hist/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.bin"
+            );
+            let heat_rel = format!(
+                "heat/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.bin"
+            );
+            let meta_rel = format!(
+                "meta/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.json"
+            );
+
+            let hist_path = version_dir.join(&hist_rel);
+            let heat_path = version_dir.join(&heat_rel);
+            let meta_path = version_dir.join(&meta_rel);
+
+            write_hist_bin(&hist_path, &hist_data, x_base)?;
+            write_heat_bin(&heat_path, &heat_data, x_base, BW_BIN_BASE_KG)?;
+
+            let meta = SliceMeta {
+                version: version.to_string(),
+                sex: sex.to_string(),
+                equipment: equipment.to_string(),
+                ipf_weight_class: weight_class.to_string(),
+                age_class: age_class.to_string(),
+                tested: tested.to_string(),
+                lift: lift.to_string(),
+                metric: metric_code.to_string(),
+                hist: HistMeta {
+                    file: hist_rel.clone(),
+                    base_bin_size_kg: x_base,
+                    min_kg: hist_data.min,
+                    max_kg: hist_data.max,
+                    bins: hist_data.counts.len(),
+                    total: hist_data.total,
+                },
+                heat: HeatMeta {
+                    file: heat_rel.clone(),
+                    x_base_bin_size_kg: x_base,
+                    y_base_bin_size_kg: BW_BIN_BASE_KG,
+                    min_x_kg: heat_data.min_x,
+                    max_x_kg: heat_data.max_x,
+                    min_y_kg: heat_data.min_y,
+                    max_y_kg: heat_data.max_y,
+                    width: heat_data.width,
+                    height: heat_data.height,
+                    total: heat_data.total,
+                },
+            };
+
+            if write_meta_files {
+                if let Some(parent) = meta_path.parent() {
+                    fs::create_dir_all(parent)
+                        .with_context(|| format!("failed creating {}", parent.display()))?;
+                }
+                fs::write(&meta_path, serde_json::to_vec(&meta)?)
+                    .with_context(|| format!("failed writing {}", meta_path.display()))?;
+            }
+
+            let key = format!(
+                "sex={}|equip={}|wc={}|age={}|tested={}|lift={}|metric={}",
+                sex,
+                equipment,
+                weight_class,
+                age_class,
+                tested_bucket(tested),
+                lift_code(lift),
+                metric_code,
+            );
+            let shard_key = format!("sex={}|equip={}", sex, equipment);
+            shard_indices.entry(shard_key).or_default().insert(
+                key,
+                SliceIndexEntry {
+                    meta: if write_meta_files {
+                        meta_rel
+                    } else {
+                        String::new()
+                    },
+                    hist: hist_rel,
+                    heat: heat_rel,
+                    summary: SliceSummary {
+                        min_kg: hist_data.min,
+                        max_kg: hist_data.max,
+                        total: hist_data.total.min(u32::MAX as u64) as u32,
+                    },
+                },
+            );
+        }
+
+        Ok(())
+    }
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     fs::create_dir_all(&args.data_dir)
@@ -189,19 +389,16 @@ fn main() -> Result<()> {
                 continue;
             }
 
-            for metric in metrics_for_lift(lift) {
-                publish_records_for_lift(
-                    &records_path,
-                    &version_dir,
-                    &version,
-                    tested,
-                    lift,
-                    *metric,
-                    args.write_meta_files,
-                    &mut shard_indices,
-                    &mut trends_acc,
-                )?;
-            }
+            publish_records_for_lift(
+                &records_path,
+                &version_dir,
+                &version,
+                tested,
+                lift,
+                args.write_meta_files,
+                &mut shard_indices,
+                &mut trends_acc,
+            )?;
         }
     }
 
@@ -262,28 +459,21 @@ fn publish_records_for_lift(
     version: &str,
     tested: &str,
     lift: &str,
-    metric: Metric,
     write_meta_files: bool,
     shard_indices: &mut BTreeMap<String, BTreeMap<String, SliceIndexEntry>>,
     trends_acc: &mut BTreeMap<String, BTreeMap<i32, Vec<f32>>>,
 ) -> Result<()> {
-    let parquet_path = records_path.to_string_lossy();
-    let df = LazyFrame::scan_parquet(parquet_path.as_ref().into(), ScanArgsParquet::default())
-        .with_context(|| format!("failed scanning {}", records_path.display()))?
-        .collect()
-        .with_context(|| format!("failed collecting {}", records_path.display()))?;
+    let df = collect_records_frame(records_path)?;
 
     let str_col = |name: &str| -> Result<&ChunkedArray<StringType>> {
-        df
-            .column(name)
+        df.column(name)
             .with_context(|| format!("missing {name} column"))?
             .str()
             .with_context(|| format!("{name} column not string"))
     };
 
     let f32_col = |name: &str| -> Result<&ChunkedArray<Float32Type>> {
-        df
-            .column(name)
+        df.column(name)
             .with_context(|| format!("missing {name} column"))?
             .f32()
             .with_context(|| format!("{name} column not f32"))
@@ -297,7 +487,12 @@ fn publish_records_for_lift(
     let bw_col = f32_col("bodyweight_at_best")?;
     let date_col = str_col("date_at_best")?;
 
-    let mut slices = BTreeMap::<(String, String, String, String), SliceAccumulator>::new();
+    let mut publishers: Vec<MetricPublisher<'_>> = metrics_for_lift(lift)
+        .iter()
+        .copied()
+        .map(|metric| MetricPublisher::new(metric, tested, lift))
+        .collect();
+
     for i in 0..df.height() {
         let (Some(sex), Some(equipment), Some(weight_class), Some(age_class), Some(lift_value)) = (
             sex_col.get(i),
@@ -312,199 +507,59 @@ fn publish_records_for_lift(
             continue;
         }
 
-        let sex = sex.to_string();
-        let equipment = equipment.to_string();
-        let weight_class = weight_class.to_string();
-        let age_class = age_class.to_string();
         let valid_bw = bw_col
             .get(i)
             .and_then(|bw| if bw > 0.0 { Some(bw) } else { None });
-        let Some(x_value) = metric_value(metric, lift, &sex, &equipment, lift_value, valid_bw)
-        else {
-            continue;
-        };
-        if let Some(year) = parse_year_bucket(date_col.get(i)) {
-            for trend_equip in [equipment.as_str(), "All"] {
-                let trend_key = format!(
-                    "sex={}|equip={}|tested={}|lift={}|metric={}",
-                    sex,
-                    trend_equip,
-                    tested_bucket(tested),
-                    lift_code(lift),
-                    metric_code(metric),
-                );
-                trends_acc
-                    .entry(trend_key)
-                    .or_default()
-                    .entry(year)
-                    .or_default()
-                    .push(x_value);
-            }
-        }
+        let year = parse_year_bucket(date_col.get(i));
 
-        // Publish specific and roll-up slices so UI can offer "All" for equipment/wc/age.
-        let keys = [
-            (
-                sex.clone(),
-                equipment.clone(),
-                weight_class.clone(),
-                age_class.clone(),
-            ),
-            (
-                sex.clone(),
-                "All".to_string(),
-                weight_class.clone(),
-                age_class.clone(),
-            ),
-            (
-                sex.clone(),
-                equipment.clone(),
-                "All".to_string(),
-                age_class.clone(),
-            ),
-            (
-                sex.clone(),
-                "All".to_string(),
-                "All".to_string(),
-                age_class.clone(),
-            ),
-            (
-                sex.clone(),
-                equipment.clone(),
-                weight_class.clone(),
-                "All Ages".to_string(),
-            ),
-            (
-                sex.clone(),
-                "All".to_string(),
-                weight_class.clone(),
-                "All Ages".to_string(),
-            ),
-            (
-                sex.clone(),
-                equipment.clone(),
-                "All".to_string(),
-                "All Ages".to_string(),
-            ),
-            (
+        for publisher in &mut publishers {
+            let Some(x_value) =
+                metric_value(publisher.metric, lift, sex, equipment, lift_value, valid_bw)
+            else {
+                continue;
+            };
+            publisher.accumulate_row(
                 sex,
-                "All".to_string(),
-                "All".to_string(),
-                "All Ages".to_string(),
-            ),
-        ];
-        for key in keys {
-            let entry = slices.entry(key).or_default();
-            entry.lift_values.push(x_value);
-            if let Some(bw_value) = valid_bw {
-                entry.heat_points.push((x_value, bw_value));
-            }
+                equipment,
+                weight_class,
+                age_class,
+                year,
+                x_value,
+                valid_bw,
+                trends_acc,
+            );
         }
     }
 
-    for ((sex, equipment, weight_class, age_class), acc) in slices {
-        if acc.lift_values.is_empty() {
-            continue;
-        }
-
-        let x_base = metric_base_bin(metric);
-        let hist_data = build_histogram(&acc.lift_values, x_base)?;
-        let heat_data = build_heatmap(&acc.heat_points, x_base, BW_BIN_BASE_KG)?;
-
-        let sex_slug = slug(&sex);
-        let equip_slug = slug(&equipment);
-        let wc_slug = slug(&weight_class);
-        let age_slug = slug(&age_class);
-
-        let metric_slug = metric_slug(metric);
-        let hist_rel = format!(
-            "hist/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.bin"
-        );
-        let heat_rel = format!(
-            "heat/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.bin"
-        );
-        let meta_rel = format!(
-            "meta/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.json"
-        );
-
-        let hist_path = version_dir.join(&hist_rel);
-        let heat_path = version_dir.join(&heat_rel);
-        let meta_path = version_dir.join(&meta_rel);
-
-        write_hist_bin(&hist_path, &hist_data, x_base)?;
-        write_heat_bin(&heat_path, &heat_data, x_base, BW_BIN_BASE_KG)?;
-
-        let meta = SliceMeta {
-            version: version.to_string(),
-            sex: sex.clone(),
-            equipment: equipment.clone(),
-            ipf_weight_class: weight_class.clone(),
-            age_class: age_class.clone(),
-            tested: tested.to_string(),
-            lift: lift.to_string(),
-            metric: metric_code(metric).to_string(),
-            hist: HistMeta {
-                file: hist_rel.clone(),
-                base_bin_size_kg: x_base,
-                min_kg: hist_data.min,
-                max_kg: hist_data.max,
-                bins: hist_data.counts.len(),
-                total: hist_data.total,
-            },
-            heat: HeatMeta {
-                file: heat_rel.clone(),
-                x_base_bin_size_kg: x_base,
-                y_base_bin_size_kg: BW_BIN_BASE_KG,
-                min_x_kg: heat_data.min_x,
-                max_x_kg: heat_data.max_x,
-                min_y_kg: heat_data.min_y,
-                max_y_kg: heat_data.max_y,
-                width: heat_data.width,
-                height: heat_data.height,
-                total: heat_data.total,
-            },
-        };
-
-        if write_meta_files {
-            if let Some(parent) = meta_path.parent() {
-                fs::create_dir_all(parent)
-                    .with_context(|| format!("failed creating {}", parent.display()))?;
-            }
-            fs::write(&meta_path, serde_json::to_vec(&meta)?)
-                .with_context(|| format!("failed writing {}", meta_path.display()))?;
-        }
-
-        let key = format!(
-            "sex={}|equip={}|wc={}|age={}|tested={}|lift={}|metric={}",
-            sex,
-            equipment,
-            weight_class,
-            age_class,
-            tested_bucket(tested),
-            lift_code(lift),
-            metric_code(metric),
-        );
-        let shard_key = format!("sex={}|equip={}", sex, equipment);
-        shard_indices.entry(shard_key).or_default().insert(
-            key,
-            SliceIndexEntry {
-                meta: if write_meta_files {
-                    meta_rel
-                } else {
-                    String::new()
-                },
-                hist: hist_rel,
-                heat: heat_rel,
-                summary: SliceSummary {
-                    min_kg: hist_data.min,
-                    max_kg: hist_data.max,
-                    total: hist_data.total.min(u32::MAX as u64) as u32,
-                },
-            },
-        );
+    for publisher in publishers {
+        publisher.write_outputs(
+            version_dir,
+            version,
+            tested,
+            lift,
+            write_meta_files,
+            shard_indices,
+        )?;
     }
 
     Ok(())
+}
+
+fn collect_records_frame(records_path: &Path) -> Result<DataFrame> {
+    let parquet_path = records_path.to_string_lossy();
+    LazyFrame::scan_parquet(parquet_path.as_ref().into(), ScanArgsParquet::default())
+        .with_context(|| format!("failed scanning {}", records_path.display()))?
+        .select([
+            col("Sex"),
+            col("Equipment"),
+            col("IpfWeightClass"),
+            col("AgeClassBucket"),
+            col("best_lift"),
+            col("bodyweight_at_best"),
+            col("date_at_best"),
+        ])
+        .collect()
+        .with_context(|| format!("failed collecting {}", records_path.display()))
 }
 
 fn build_trends_json(
@@ -696,11 +751,11 @@ fn read_optional_build_metadata(path: &Path) -> Result<Option<BuildMetadata>> {
 
 fn resolve_version(cli: Option<String>, metadata: Option<&BuildMetadata>) -> String {
     if let Some(version) = cli {
-        return normalize_version(version);
+        return normalize_version(&version);
     }
 
     if let Some(meta) = metadata {
-        let normalized = normalize_version(meta.dataset_version.clone());
+        let normalized = normalize_version(&meta.dataset_version);
         if is_valid_effective_version(&normalized) {
             return normalized;
         }
@@ -710,9 +765,9 @@ fn resolve_version(cli: Option<String>, metadata: Option<&BuildMetadata>) -> Str
     format!("v{today}")
 }
 
-fn normalize_version(version: String) -> String {
+fn normalize_version(version: &str) -> String {
     if version.starts_with('v') {
-        version
+        version.to_string()
     } else {
         format!("v{version}")
     }

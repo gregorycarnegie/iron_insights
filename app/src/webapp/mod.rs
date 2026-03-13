@@ -20,8 +20,8 @@ use self::models::{
     SliceIndex, SliceIndexEntries, SliceRow, SliceSummary, TrendSeries,
 };
 use self::selectors::{
-    age_options, equip_options, lift_options, metric_options, sex_options, tested_options,
-    wc_options,
+    age_options, equip_options, lift_options, metric_options, sex_options, slice_selector_index,
+    tested_options, wc_options,
 };
 use self::slices::{entry_from_slice_key, parse_slice_key};
 use self::state::{
@@ -428,27 +428,20 @@ fn App() -> impl IntoView {
         });
     });
 
+    let selector_index = slice_selector_index(slice_rows);
+    let current_row_index = selector_index.clone();
     let current_row = Memo::new(move |_| {
-        let s = sex.get();
-        let e = equip.get();
         let w = wc.get();
         let a = age.get();
         let t = tested.get();
         let l = lift.get();
         let m = metric.get();
 
-        slice_rows.get().into_iter().find(|row| {
-            row.key.sex == s
-                && row.key.equip == e
-                && row.key.wc == w
-                && row.key.age == a
-                && row.key.tested == t
-                && row.key.lift == l
-                && row.key.metric == m
-        })
+        current_row_index.with(|index| index.current_row(&w, &a, &t, &l, &m))
     });
 
     {
+        let fallback_index = selector_index.clone();
         let set_wc = set_wc;
         let set_age = set_age;
         let set_tested = set_tested;
@@ -459,40 +452,15 @@ fn App() -> impl IntoView {
                 return;
             }
 
-            let s = sex.get();
-            let e = equip.get();
             let t = tested.get();
             let l = lift.get();
             let m = metric.get();
             let w = wc.get();
             let a = age.get();
 
-            let mut candidates: Vec<SliceRow> = slice_rows
-                .get()
-                .into_iter()
-                .filter(|row| row.key.sex == s && row.key.equip == e)
-                .collect();
+            let candidates = fallback_index.with(|index| index.candidate_rows(&t, &l, &m));
             if candidates.is_empty() {
                 return;
-            }
-
-            // Prefer current tested/lift/metric, then gracefully broaden.
-            let exact: Vec<SliceRow> = candidates
-                .iter()
-                .filter(|row| row.key.tested == t && row.key.lift == l && row.key.metric == m)
-                .cloned()
-                .collect();
-            if !exact.is_empty() {
-                candidates = exact;
-            } else {
-                let tested_lift: Vec<SliceRow> = candidates
-                    .iter()
-                    .filter(|row| row.key.tested == t && row.key.lift == l)
-                    .cloned()
-                    .collect();
-                if !tested_lift.is_empty() {
-                    candidates = tested_lift;
-                }
             }
 
             let best = candidates.into_iter().min_by_key(|row| {
@@ -567,11 +535,11 @@ fn App() -> impl IntoView {
 
     let sex_options = sex_options(root_index);
     let equip_options = equip_options(root_index, sex);
-    let tested_options = tested_options(slice_rows, sex, equip, wc, age);
-    let wc_options = wc_options(slice_rows, sex, equip);
-    let age_options = age_options(slice_rows, sex, equip, wc);
-    let lift_options = lift_options(slice_rows, sex, equip, wc, age, tested);
-    let metric_options = metric_options(slice_rows, sex, equip, wc, age, tested, lift);
+    let tested_options = tested_options(selector_index.clone(), wc, age);
+    let wc_options = wc_options(selector_index.clone());
+    let age_options = age_options(selector_index.clone(), wc);
+    let lift_options = lift_options(selector_index.clone(), wc, age, tested);
+    let metric_options = metric_options(selector_index, wc, age, tested, lift);
     setup_default_selection_effects(
         equip_options,
         wc_options,
@@ -640,12 +608,7 @@ fn App() -> impl IntoView {
             let k = lift_mult.get();
             let counts = rebin_1d(h.counts, k);
             let bin = h.base_bin * k as f32;
-            HistogramBin {
-                min: h.min,
-                max: h.max,
-                base_bin: bin,
-                counts,
-            }
+            HistogramBin::new(h.min, h.max, bin, counts)
         })
     });
 

@@ -18,7 +18,7 @@ Tracking:
 
 #### 1. Excessive String Allocations in Slice Key Generation
 
-- [ ] Done
+- [x] Done
 - [ ] Unnecessary
 
 **File:** `pipeline/src/bin/03_publish_data.rs` — Lines 300–401
@@ -44,7 +44,7 @@ let keys = [
 
 #### 2. Repeated Parquet Scans for the Same `(tested, lift)` Input
 
-- [ ] Done
+- [x] Done
 - [ ] Unnecessary
 
 **File:** `pipeline/src/bin/03_publish_data.rs` — Lines 182–206, 270–274, 806–812
@@ -65,7 +65,7 @@ This is the real issue in that area. The combinations are not currently "indepen
 
 #### 3. `BTreeMap` for Slice Accumulation
 
-- [ ] Done
+- [x] Done
 - [ ] Unnecessary
 
 **File:** `pipeline/src/bin/03_publish_data.rs` — Line 300
@@ -84,7 +84,7 @@ Accumulation does not need sorted order, so `BTreeMap` is paying ordered-key com
 
 #### 4. Projection Push-Down Opportunity Before `.collect()`
 
-- [ ] Done
+- [x] Done
 - [ ] Unnecessary
 
 **File:** `pipeline/src/bin/03_publish_data.rs` — Lines 270–298
@@ -112,7 +112,7 @@ This function only reads:
 
 #### 5. Trend-Key `format!()` Allocations Inside the Row Loop
 
-- [ ] Done
+- [x] Done
 - [ ] Unnecessary
 
 **File:** `pipeline/src/bin/03_publish_data.rs` — Lines 326–341, 442–486
@@ -160,7 +160,7 @@ That makes this much more of a planning-time/readability cleanup than a top runt
 
 #### 8. `normalize_version` Takes Owned `String`
 
-- [ ] Done
+- [x] Done
 - [ ] Unnecessary
 
 **File:** `pipeline/src/bin/03_publish_data.rs` — Lines 703–718
@@ -194,7 +194,7 @@ This is a small avoidable allocation.
 
 #### 10. Repeated Full Scans in Selector Memos
 
-- [ ] Done
+- [x] Done
 - [ ] Unnecessary
 
 **File:** `app/src/webapp/selectors.rs` — Lines 6–164
@@ -209,7 +209,7 @@ The original note was slightly too absolute: this is not literally "N full scans
 
 #### 11. Histogram Totals Are Recomputed in Percentile Helpers
 
-- [ ] Done
+- [x] Done
 - [ ] Unnecessary
 
 **File:** `app/src/core.rs` — Lines 156–205
@@ -226,7 +226,7 @@ let total: u32 = hist.counts.iter().copied().sum();
 
 #### 12. `histogram_diagnostics` Does 9 Separate Percentile Scans
 
-- [ ] Done
+- [x] Done
 - [ ] Unnecessary
 
 **File:** `app/src/core.rs` — Lines 216–275
@@ -239,7 +239,7 @@ let total: u32 = hist.counts.iter().copied().sum();
 
 #### 13. Duplicate Trend Memos
 
-- [ ] Done
+- [x] Done
 - [ ] Unnecessary
 
 **File:** `app/src/webapp/components/trends.rs` — Lines 43–138
