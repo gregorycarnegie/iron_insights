@@ -171,13 +171,13 @@ pub(super) fn draw_heatmap(
     ctx.set_text_baseline("top");
     let _ = ctx.fill_text(x_label, left + plot_w * 0.5, ch - 18.0);
 
-    let _ = ctx.save();
+    ctx.save();
     let _ = ctx.translate(16.0, top + plot_h * 0.5);
     let _ = ctx.rotate(-std::f64::consts::FRAC_PI_2);
     ctx.set_text_align("center");
     ctx.set_text_baseline("top");
     let _ = ctx.fill_text("Bodyweight (kg)", 0.0, 0.0);
-    let _ = ctx.restore();
+    ctx.restore();
 
     let legend_x = left + plot_w + 22.0;
     let legend_y = top + 30.0;

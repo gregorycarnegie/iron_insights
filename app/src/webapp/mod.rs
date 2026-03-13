@@ -13,7 +13,8 @@ use self::charts::draw_heatmap;
 use self::components::{LogoMark, NerdsPage, OneRmPage, RankingPage};
 use self::data::{fetch_binary_first, fetch_json_first};
 use self::helpers::{
-    build_share_url, comparable_lift_value, kg_to_display, parse_query_f32, tier_for_percentile,
+    ComparableLifter, build_share_url, comparable_lift_value, kg_to_display, parse_query_f32,
+    tier_for_percentile,
 };
 use self::models::{
     CohortComparisonRow, CompareMode, CrossSexComparison, LatestJson, RootIndex, SavedUiState,
@@ -58,6 +59,33 @@ struct CrossSexSliceChoice {
     weight_class_fallback: bool,
 }
 
+#[derive(Clone, Copy)]
+struct ComparisonSliceFilter<'a> {
+    sex: &'a str,
+    equip: &'a str,
+    wc: &'a str,
+    age: &'a str,
+    tested: &'a str,
+    lift: &'a str,
+    metric: &'a str,
+}
+
+struct CohortComparisonContext<'a> {
+    sex: &'a str,
+    equip: &'a str,
+    lift: &'a str,
+    base_total: Option<u32>,
+}
+
+struct CohortComparisonVariant<'a> {
+    label: &'a str,
+    wc: String,
+    age: String,
+    tested: String,
+    metric: String,
+    is_current: bool,
+}
+
 fn kg_needed_for_percentile_step(
     hist: Option<&HistogramBin>,
     current_value: f32,
@@ -90,22 +118,16 @@ fn dataset_file_url(version: &str, path: &str) -> String {
 
 fn find_comparison_slice<'a>(
     rows: &'a [SliceRow],
-    sex: &str,
-    equip: &str,
-    wc: &str,
-    age: &str,
-    tested: &str,
-    lift: &str,
-    metric: &str,
+    filter: ComparisonSliceFilter<'_>,
 ) -> Option<&'a SliceRow> {
     rows.iter().find(|row| {
-        row.key.sex == sex
-            && row.key.equip == equip
-            && row.key.wc == wc
-            && row.key.age == age
-            && row.key.tested == tested
-            && row.key.lift == lift
-            && row.key.metric == metric
+        row.key.sex == filter.sex
+            && row.key.equip == filter.equip
+            && row.key.wc == filter.wc
+            && row.key.age == filter.age
+            && row.key.tested == filter.tested
+            && row.key.lift == filter.lift
+            && row.key.metric == filter.metric
     })
 }
 
@@ -176,21 +198,31 @@ fn choose_cross_sex_slice(
         })
 }
 
-#[allow(clippy::too_many_arguments)]
 fn build_cohort_comparison_row(
     rows: &[SliceRow],
-    label: &str,
-    sex: &str,
-    equip: &str,
-    wc: String,
-    age: String,
-    tested: String,
-    lift: &str,
-    metric: String,
-    base_total: Option<u32>,
-    is_current: bool,
+    context: &CohortComparisonContext<'_>,
+    variant: CohortComparisonVariant<'_>,
 ) -> CohortComparisonRow {
-    let row = find_comparison_slice(rows, sex, equip, &wc, &age, &tested, lift, &metric);
+    let CohortComparisonVariant {
+        label,
+        wc,
+        age,
+        tested,
+        metric,
+        is_current,
+    } = variant;
+    let row = find_comparison_slice(
+        rows,
+        ComparisonSliceFilter {
+            sex: context.sex,
+            equip: context.equip,
+            wc: &wc,
+            age: &age,
+            tested: &tested,
+            lift: context.lift,
+            metric: &metric,
+        },
+    );
 
     let (total, min_kg, max_kg, hist_path, status, status_ok) = match row {
         Some(found) => match found.entry.summary.as_ref() {
@@ -214,14 +246,17 @@ fn build_cohort_comparison_row(
         None => (None, None, None, None, "slice missing".to_string(), false),
     };
 
-    let total_delta = match (total, base_total) {
+    let total_delta = match (total, context.base_total) {
         (Some(_), Some(_)) if is_current => Some(0),
         (Some(candidate), Some(base)) => Some(i64::from(candidate) - i64::from(base)),
         _ => None,
     };
 
     CohortComparisonRow {
-        id: format!("wc={wc}|age={age}|tested={tested}|lift={lift}|metric={metric}"),
+        id: format!(
+            "wc={wc}|age={age}|tested={tested}|lift={}|metric={metric}",
+            context.lift
+        ),
         label: label.to_string(),
         wc,
         age,
@@ -318,16 +353,19 @@ fn App() -> impl IntoView {
         set_equip,
         set_load_error,
     );
-    setup_slice_rows_effect(
+    setup_slice_rows_effect(state::SliceRowsEffectContext {
         latest,
         root_index,
-        sex,
-        equip,
-        set_slice_rows,
-        set_load_error,
-        slice_request_id,
-        set_slice_request_id,
-    );
+        selection: state::SliceRowsSelection { sex, equip },
+        outputs: state::SliceRowsOutputs {
+            set_slice_rows,
+            set_load_error,
+        },
+        request: state::RequestTracker {
+            current: slice_request_id,
+            set: set_slice_request_id,
+        },
+    });
     setup_trends_effect(
         latest,
         nerds_page_active,
@@ -429,7 +467,7 @@ fn App() -> impl IntoView {
     });
 
     let selector_index = slice_selector_index(slice_rows);
-    let current_row_index = selector_index.clone();
+    let current_row_index = selector_index;
     let current_row = Memo::new(move |_| {
         let w = wc.get();
         let a = age.get();
@@ -441,12 +479,7 @@ fn App() -> impl IntoView {
     });
 
     {
-        let fallback_index = selector_index.clone();
-        let set_wc = set_wc;
-        let set_age = set_age;
-        let set_tested = set_tested;
-        let set_lift = set_lift;
-        let set_metric = set_metric;
+        let fallback_index = selector_index;
         Effect::new(move |_| {
             if !calculated.get() || current_row.get().is_some() {
                 return;
@@ -510,19 +543,23 @@ fn App() -> impl IntoView {
         });
     }
 
-    setup_distribution_effect(
+    setup_distribution_effect(state::DistributionEffectContext {
         current_row,
         latest,
-        calculated,
-        nerds_page_active,
-        set_hist,
-        set_heat,
-        set_hist_load_ms,
-        set_heat_load_ms,
-        set_load_error,
-        dist_request_id,
-        set_dist_request_id,
-    );
+        should_load_hist: calculated,
+        should_load_heat: nerds_page_active,
+        outputs: state::DistributionOutputs {
+            set_hist,
+            set_heat,
+            set_hist_load_ms,
+            set_heat_load_ms,
+            set_load_error,
+        },
+        request: state::RequestTracker {
+            current: dist_request_id,
+            set: set_dist_request_id,
+        },
+    });
     setup_slice_summary_effect(
         current_row,
         latest,
@@ -535,30 +572,36 @@ fn App() -> impl IntoView {
 
     let sex_options = sex_options(root_index);
     let equip_options = equip_options(root_index, sex);
-    let tested_options = tested_options(selector_index.clone(), wc, age);
-    let wc_options = wc_options(selector_index.clone());
-    let age_options = age_options(selector_index.clone(), wc);
-    let lift_options = lift_options(selector_index.clone(), wc, age, tested);
+    let tested_options = tested_options(selector_index, wc, age);
+    let wc_options = wc_options(selector_index);
+    let age_options = age_options(selector_index, wc);
+    let lift_options = lift_options(selector_index, wc, age, tested);
     let metric_options = metric_options(selector_index, wc, age, tested, lift);
     setup_default_selection_effects(
-        equip_options,
-        wc_options,
-        age_options,
-        tested_options,
-        lift_options,
-        metric_options,
-        equip,
-        wc,
-        age,
-        tested,
-        lift,
-        metric,
-        set_equip,
-        set_wc,
-        set_age,
-        set_tested,
-        set_lift,
-        set_metric,
+        state::DefaultSelectionOptions {
+            equip: equip_options,
+            wc: wc_options,
+            age: age_options,
+            tested: tested_options,
+            lift: lift_options,
+            metric: metric_options,
+        },
+        state::DefaultSelectionSignals {
+            equip,
+            wc,
+            age,
+            tested,
+            lift,
+            metric,
+        },
+        state::DefaultSelectionSetters {
+            equip: set_equip,
+            wc: set_wc,
+            age: set_age,
+            tested: set_tested,
+            lift: set_lift,
+            metric: set_metric,
+        },
     );
 
     let projected_squat = Memo::new(move |_| (squat.get() + squat_delta.get()).clamp(0.0, 600.0));
@@ -570,27 +613,39 @@ fn App() -> impl IntoView {
     });
 
     let user_lift = Memo::new(move |_| {
+        let current_sex = sex.get();
+        let current_equip = equip.get();
+        let current_lift = lift.get();
+        let current_metric = metric.get();
         comparable_lift_value(
-            &sex.get(),
-            &equip.get(),
-            &lift.get(),
-            &metric.get(),
-            bodyweight.get(),
-            squat.get(),
-            bench.get(),
-            deadlift.get(),
+            ComparableLifter {
+                sex: &current_sex,
+                equipment: &current_equip,
+                bodyweight: bodyweight.get(),
+                squat: squat.get(),
+                bench: bench.get(),
+                deadlift: deadlift.get(),
+            },
+            &current_lift,
+            &current_metric,
         )
     });
     let projected_user_lift = Memo::new(move |_| {
+        let current_sex = sex.get();
+        let current_equip = equip.get();
+        let current_lift = lift.get();
+        let current_metric = metric.get();
         comparable_lift_value(
-            &sex.get(),
-            &equip.get(),
-            &lift.get(),
-            &metric.get(),
-            bodyweight.get(),
-            projected_squat.get(),
-            projected_bench.get(),
-            projected_deadlift.get(),
+            ComparableLifter {
+                sex: &current_sex,
+                equipment: &current_equip,
+                bodyweight: bodyweight.get(),
+                squat: projected_squat.get(),
+                bench: projected_bench.get(),
+                deadlift: projected_deadlift.get(),
+            },
+            &current_lift,
+            &current_metric,
         )
     });
 
@@ -803,114 +858,123 @@ fn App() -> impl IntoView {
         let l = lift.get();
         let m = metric.get();
 
-        let base_total = find_comparison_slice(&rows, &s, &e, &w, &a, &t, &l, &m)
-            .and_then(|row| row.entry.summary.as_ref().map(|summary| summary.total))
-            .or_else(|| slice_summary.get().map(|summary| summary.total));
+        let base_total = find_comparison_slice(
+            &rows,
+            ComparisonSliceFilter {
+                sex: &s,
+                equip: &e,
+                wc: &w,
+                age: &a,
+                tested: &t,
+                lift: &l,
+                metric: &m,
+            },
+        )
+        .and_then(|row| row.entry.summary.as_ref().map(|summary| summary.total))
+        .or_else(|| slice_summary.get().map(|summary| summary.total));
+        let context = CohortComparisonContext {
+            sex: &s,
+            equip: &e,
+            lift: &l,
+            base_total,
+        };
 
         vec![
             build_cohort_comparison_row(
                 &rows,
-                "Current slice",
-                &s,
-                &e,
-                w.clone(),
-                a.clone(),
-                t.clone(),
-                &l,
-                m.clone(),
-                base_total,
-                true,
+                &context,
+                CohortComparisonVariant {
+                    label: "Current slice",
+                    wc: w.clone(),
+                    age: a.clone(),
+                    tested: t.clone(),
+                    metric: m.clone(),
+                    is_current: true,
+                },
             ),
             build_cohort_comparison_row(
                 &rows,
-                "All Ages",
-                &s,
-                &e,
-                w.clone(),
-                "All Ages".to_string(),
-                t.clone(),
-                &l,
-                m.clone(),
-                base_total,
-                false,
+                &context,
+                CohortComparisonVariant {
+                    label: "All Ages",
+                    wc: w.clone(),
+                    age: "All Ages".to_string(),
+                    tested: t.clone(),
+                    metric: m.clone(),
+                    is_current: false,
+                },
             ),
             build_cohort_comparison_row(
                 &rows,
-                "All weight classes",
-                &s,
-                &e,
-                "All".to_string(),
-                a.clone(),
-                t.clone(),
-                &l,
-                m.clone(),
-                base_total,
-                false,
+                &context,
+                CohortComparisonVariant {
+                    label: "All weight classes",
+                    wc: "All".to_string(),
+                    age: a.clone(),
+                    tested: t.clone(),
+                    metric: m.clone(),
+                    is_current: false,
+                },
             ),
             build_cohort_comparison_row(
                 &rows,
-                "All tested statuses",
-                &s,
-                &e,
-                w.clone(),
-                a.clone(),
-                "All".to_string(),
-                &l,
-                m.clone(),
-                base_total,
-                false,
+                &context,
+                CohortComparisonVariant {
+                    label: "All tested statuses",
+                    wc: w.clone(),
+                    age: a.clone(),
+                    tested: "All".to_string(),
+                    metric: m.clone(),
+                    is_current: false,
+                },
             ),
             build_cohort_comparison_row(
                 &rows,
-                "Metric: Kg",
-                &s,
-                &e,
-                w.clone(),
-                a.clone(),
-                t.clone(),
-                &l,
-                "Kg".to_string(),
-                base_total,
-                false,
+                &context,
+                CohortComparisonVariant {
+                    label: "Metric: Kg",
+                    wc: w.clone(),
+                    age: a.clone(),
+                    tested: t.clone(),
+                    metric: "Kg".to_string(),
+                    is_current: false,
+                },
             ),
             build_cohort_comparison_row(
                 &rows,
-                "Metric: Dots",
-                &s,
-                &e,
-                w.clone(),
-                a.clone(),
-                t.clone(),
-                &l,
-                "Dots".to_string(),
-                base_total,
-                false,
+                &context,
+                CohortComparisonVariant {
+                    label: "Metric: Dots",
+                    wc: w.clone(),
+                    age: a.clone(),
+                    tested: t.clone(),
+                    metric: "Dots".to_string(),
+                    is_current: false,
+                },
             ),
             build_cohort_comparison_row(
                 &rows,
-                "Metric: Wilks",
-                &s,
-                &e,
-                w.clone(),
-                a.clone(),
-                t.clone(),
-                &l,
-                "Wilks".to_string(),
-                base_total,
-                false,
+                &context,
+                CohortComparisonVariant {
+                    label: "Metric: Wilks",
+                    wc: w.clone(),
+                    age: a.clone(),
+                    tested: t.clone(),
+                    metric: "Wilks".to_string(),
+                    is_current: false,
+                },
             ),
             build_cohort_comparison_row(
                 &rows,
-                "Metric: Goodlift",
-                &s,
-                &e,
-                w,
-                a,
-                t,
-                &l,
-                "GL".to_string(),
-                base_total,
-                false,
+                &context,
+                CohortComparisonVariant {
+                    label: "Metric: Goodlift",
+                    wc: w,
+                    age: a,
+                    tested: t,
+                    metric: "GL".to_string(),
+                    is_current: false,
+                },
             ),
         ]
     });
@@ -985,24 +1049,28 @@ fn App() -> impl IntoView {
         let lift_value = lift.get();
         let metric_value = metric.get();
         let male_input_value = comparable_lift_value(
-            "M",
-            &equip_value,
+            ComparableLifter {
+                sex: "M",
+                equipment: &equip_value,
+                bodyweight: bodyweight.get(),
+                squat: squat.get(),
+                bench: bench.get(),
+                deadlift: deadlift.get(),
+            },
             &lift_value,
             &metric_value,
-            bodyweight.get(),
-            squat.get(),
-            bench.get(),
-            deadlift.get(),
         );
         let female_input_value = comparable_lift_value(
-            "F",
-            &equip_value,
+            ComparableLifter {
+                sex: "F",
+                equipment: &equip_value,
+                bodyweight: bodyweight.get(),
+                squat: squat.get(),
+                bench: bench.get(),
+                deadlift: deadlift.get(),
+            },
             &lift_value,
             &metric_value,
-            bodyweight.get(),
-            squat.get(),
-            bench.get(),
-            deadlift.get(),
         );
 
         let (male_percentile, female_value_at_male_percentile) =
@@ -1255,6 +1323,14 @@ fn App() -> impl IntoView {
         let current_squat = squat.get();
         let current_bench = bench.get();
         let current_deadlift = deadlift.get();
+        let current_lifter = ComparableLifter {
+            sex: &current_sex,
+            equipment: &current_equip,
+            bodyweight: current_bodyweight,
+            squat: current_squat,
+            bench: current_bench,
+            deadlift: current_deadlift,
+        };
 
         let mut prefetched = BTreeMap::<String, Option<f32>>::new();
         let mut hist_groups: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
@@ -1262,16 +1338,7 @@ fn App() -> impl IntoView {
             if row.is_current
                 && let Some(histogram) = current_hist.as_ref()
             {
-                let lift_value = comparable_lift_value(
-                    &current_sex,
-                    &current_equip,
-                    &current_lift,
-                    &row.metric,
-                    current_bodyweight,
-                    current_squat,
-                    current_bench,
-                    current_deadlift,
-                );
+                let lift_value = comparable_lift_value(current_lifter, &current_lift, &row.metric);
                 let percentile = percentile_for_value(Some(histogram), lift_value)
                     .map(|(pct, _, _)| pct * 100.0);
                 prefetched.insert(row.id, percentile);
@@ -1319,16 +1386,19 @@ fn App() -> impl IntoView {
                 match fetch_binary_first(&[&hist_url]).await {
                     Ok(bytes) => match parse_hist_bin(&bytes) {
                         Some(histogram) => {
+                            let current_lifter = ComparableLifter {
+                                sex: &current_sex,
+                                equipment: &current_equip,
+                                bodyweight: current_bodyweight,
+                                squat: current_squat,
+                                bench: current_bench,
+                                deadlift: current_deadlift,
+                            };
                             for (row_id, row_metric) in targets {
                                 let lift_value = comparable_lift_value(
-                                    &current_sex,
-                                    &current_equip,
+                                    current_lifter,
                                     &current_lift,
                                     &row_metric,
-                                    current_bodyweight,
-                                    current_squat,
-                                    current_bench,
-                                    current_deadlift,
                                 );
                                 let percentile = percentile_for_value(Some(&histogram), lift_value)
                                     .map(|(pct, _, _)| pct * 100.0);
@@ -1493,24 +1563,21 @@ fn App() -> impl IntoView {
         });
     });
 
-    {
-        let canvas_ref = canvas_ref;
-        Effect::new(move |_| {
-            let Some(canvas) = canvas_ref.get() else {
-                return;
-            };
-            let Some(heat) = rebinned_heat.get() else {
-                return;
-            };
-            draw_heatmap(
-                &canvas,
-                &heat,
-                user_lift.get(),
-                bodyweight.get(),
-                &hist_x_label.get(),
-            );
-        });
-    }
+    Effect::new(move |_| {
+        let Some(canvas) = canvas_ref.get() else {
+            return;
+        };
+        let Some(heat) = rebinned_heat.get() else {
+            return;
+        };
+        draw_heatmap(
+            &canvas,
+            &heat,
+            user_lift.get(),
+            bodyweight.get(),
+            &hist_x_label.get(),
+        );
+    });
 
     Effect::new(move |_| {
         if unit_pref_loaded.get() {
@@ -1739,6 +1806,228 @@ fn App() -> impl IntoView {
         }
     });
 
+    let ranking_page = components::RankingPageSections {
+        header: components::RankingHeroSection {
+            dataset_blurb,
+            ranking_cohort_blurb,
+        },
+        onboarding: components::OnboardingSections {
+            identity: components::OnboardingIdentitySection {
+                sex_options,
+                sex,
+                set_sex,
+                equip_options,
+                equip,
+                set_equip,
+                unit_label,
+                use_lbs,
+                set_use_lbs,
+            },
+            lifts: components::OnboardingLiftSection {
+                squat,
+                set_squat,
+                squat_error,
+                set_squat_error,
+                bench,
+                set_bench,
+                bench_error,
+                set_bench_error,
+                deadlift,
+                set_deadlift,
+                deadlift_error,
+                set_deadlift_error,
+                bodyweight,
+                set_bodyweight,
+                bodyweight_error,
+                set_bodyweight_error,
+            },
+            filters: components::OnboardingFilterSection {
+                tested_options,
+                tested,
+                set_tested,
+                age_options,
+                age,
+                set_age,
+                wc_options,
+                wc,
+                set_wc,
+                lift_options,
+                lift,
+                set_lift,
+                metric_options,
+                metric,
+                set_metric,
+            },
+            actions: components::OnboardingActionSection {
+                set_squat_delta,
+                set_bench_delta,
+                set_deadlift_delta,
+                set_share_handle,
+                set_calculated,
+                has_input_error,
+                calculating,
+                set_calculating,
+                set_share_status,
+                set_lift_mult,
+                set_bw_mult,
+            },
+        },
+        result: components::ResultCardSections {
+            status: components::ResultCardStatusSection {
+                calculated,
+                percentile,
+                rank_tier,
+                load_error,
+                unavailable_reason: result_unavailable_reason,
+            },
+            share: components::ResultCardShareSection {
+                show_share,
+                set_show_share,
+                share_url,
+                share_status,
+                set_share_status,
+                share_handle,
+                set_share_handle,
+            },
+            lifts: components::ResultCardLiftSection {
+                bodyweight,
+                squat,
+                bench,
+                deadlift,
+                lift,
+            },
+        },
+        meet_day: components::MeetDaySection {
+            squat,
+            bench,
+            deadlift,
+            use_lbs,
+            unit_label,
+        },
+        percentile_percent,
+    };
+
+    let nerds_page = components::NerdsPageSections {
+        header: components::NerdsHeaderSection {
+            dataset_blurb,
+            nerd_cohort_summary,
+        },
+        cohort: components::NerdsCohortSection {
+            compare_mode,
+            set_compare_mode,
+            tested,
+            set_tested,
+            equip,
+            set_equip,
+            age,
+            set_age,
+            compare_summary,
+            cohort_comparison_rows,
+            cohort_exact_deltas_enabled,
+            set_cohort_exact_deltas_enabled,
+            cohort_exact_percentiles,
+            cohort_exact_loading,
+            cohort_exact_error,
+            cross_sex_hist_loading,
+            cross_sex_comparison,
+            progress: components::ProgressSections {
+                result: components::ProgressResultSection {
+                    calculated,
+                    percentile,
+                },
+                selection: components::ProgressSelectionSection {
+                    sex,
+                    equip,
+                    wc,
+                    age,
+                    tested,
+                    lift,
+                    metric,
+                },
+                lifts: components::ProgressLiftSection {
+                    squat,
+                    bench,
+                    deadlift,
+                    bodyweight,
+                },
+                display: components::ProgressDisplaySection {
+                    use_lbs,
+                    unit_label,
+                },
+            },
+        },
+        distributions: components::NerdsDistributionSection {
+            controls: components::DistributionControlsSection {
+                lift_mult,
+                set_lift_mult,
+                bw_mult,
+                set_bw_mult,
+            },
+            diagnostics: components::DistributionDiagnosticsSection {
+                distribution_diagnostics,
+                hist_x_label,
+            },
+            ladder: components::PercentileLadderData {
+                calculated,
+                metric_is_kg_comparable,
+                estimates: components::PercentileLadderEstimates {
+                    kg_for_next_1pct,
+                    kg_for_next_5pct,
+                    kg_for_next_10pct,
+                    pct_gain_plus_2_5kg,
+                    pct_gain_plus_5kg,
+                    pct_gain_plus_10kg,
+                },
+            },
+            rarity_snapshot,
+            bodyweight_conditioned,
+            rebinned_hist,
+            user_lift,
+            canvas_ref,
+            calculated,
+            use_lbs,
+            unit_label,
+        },
+        targets: components::NerdsTargetsSection {
+            squat_delta,
+            set_squat_delta,
+            bench_delta,
+            set_bench_delta,
+            deadlift_delta,
+            set_deadlift_delta,
+            projected_total,
+            projected_squat,
+            projected_bench,
+            projected_deadlift,
+            use_lbs,
+            unit_label,
+            projected_percentile,
+            projected_rank_tier,
+            percentile_delta,
+            target_percentile,
+            set_target_percentile,
+            target_kg_needed,
+            target_summary,
+        },
+        trends: components::NerdsTrendsSection {
+            calculated,
+            selected_trend_points,
+            trend_note,
+            user_lift,
+            hist_x_label,
+        },
+        methodology: components::NerdsMethodologySection {
+            exact_slice_key,
+            shard_key,
+            dataset_version,
+            dataset_revision,
+            histogram_bin_width,
+            heatmap_dims,
+            summary_stats,
+            load_timing_blurb,
+        },
+    };
+
     view! {
         <div class="page">
             <header class="panel topbar">
@@ -1781,153 +2070,11 @@ fn App() -> impl IntoView {
             </header>
 
             <Show when=move || active_page.get() == AppPage::Rank>
-                <RankingPage
-                    dataset_blurb=dataset_blurb
-                    ranking_cohort_blurb=ranking_cohort_blurb
-                    sex_options=sex_options
-                    sex=sex
-                    set_sex=set_sex
-                    equip_options=equip_options
-                    equip=equip
-                    set_equip=set_equip
-                    unit_label=unit_label
-                    use_lbs=use_lbs
-                    set_use_lbs=set_use_lbs
-                    squat=squat
-                    set_squat=set_squat
-                    squat_error=squat_error
-                    set_squat_error=set_squat_error
-                    bench=bench
-                    set_bench=set_bench
-                    bench_error=bench_error
-                    set_bench_error=set_bench_error
-                    deadlift=deadlift
-                    set_deadlift=set_deadlift
-                    deadlift_error=deadlift_error
-                    set_deadlift_error=set_deadlift_error
-                    bodyweight=bodyweight
-                    set_bodyweight=set_bodyweight
-                    bodyweight_error=bodyweight_error
-                    set_bodyweight_error=set_bodyweight_error
-                    set_squat_delta=set_squat_delta
-                    set_bench_delta=set_bench_delta
-                    set_deadlift_delta=set_deadlift_delta
-                    set_share_handle=set_share_handle
-                    set_calculated=set_calculated
-                    has_input_error=has_input_error
-                    calculating=calculating
-                    set_calculating=set_calculating
-                    set_share_status=set_share_status
-                    tested_options=tested_options
-                    tested=tested
-                    set_tested=set_tested
-                    age_options=age_options
-                    age=age
-                    set_age=set_age
-                    wc_options=wc_options
-                    wc=wc
-                    set_wc=set_wc
-                    lift_options=lift_options
-                    lift=lift
-                    set_lift=set_lift
-                    metric_options=metric_options
-                    metric=metric
-                    set_metric=set_metric
-                    set_lift_mult=set_lift_mult
-                    set_bw_mult=set_bw_mult
-                    calculated=calculated
-                    percentile=percentile
-                    rank_tier=rank_tier
-                    load_error=load_error
-                    result_unavailable_reason=result_unavailable_reason
-                    show_share=show_share
-                    set_show_share=set_show_share
-                    share_url=share_url
-                    share_status=share_status
-                    share_handle=share_handle
-                    percentile_percent=percentile_percent
-                />
+                <RankingPage page=ranking_page.clone() />
             </Show>
 
             <Show when=move || active_page.get() == AppPage::StatsForNerds>
-                <NerdsPage
-                    dataset_blurb=dataset_blurb
-                    nerd_cohort_summary=nerd_cohort_summary
-                    compare_mode=compare_mode
-                    set_compare_mode=set_compare_mode
-                    tested=tested
-                    set_tested=set_tested
-                    equip=equip
-                    set_equip=set_equip
-                    age=age
-                    set_age=set_age
-                    compare_summary=compare_summary
-                    cohort_comparison_rows=cohort_comparison_rows
-                    cohort_exact_deltas_enabled=cohort_exact_deltas_enabled
-                    set_cohort_exact_deltas_enabled=set_cohort_exact_deltas_enabled
-                    cohort_exact_percentiles=cohort_exact_percentiles
-                    cohort_exact_loading=cohort_exact_loading
-                    cohort_exact_error=cohort_exact_error
-                    cross_sex_hist_loading=cross_sex_hist_loading
-                    cross_sex_comparison=cross_sex_comparison
-                    use_lbs=use_lbs
-                    unit_label=unit_label
-                    calculated=calculated
-                    percentile=percentile
-                    sex=sex
-                    wc=wc
-                    lift=lift
-                    metric=metric
-                    squat=squat
-                    bench=bench
-                    deadlift=deadlift
-                    bodyweight=bodyweight
-                    lift_mult=lift_mult
-                    set_lift_mult=set_lift_mult
-                    bw_mult=bw_mult
-                    set_bw_mult=set_bw_mult
-                    distribution_diagnostics=distribution_diagnostics
-                    hist_x_label=hist_x_label
-                    metric_is_kg_comparable=metric_is_kg_comparable
-                    kg_for_next_1pct=kg_for_next_1pct
-                    kg_for_next_5pct=kg_for_next_5pct
-                    kg_for_next_10pct=kg_for_next_10pct
-                    pct_gain_plus_2_5kg=pct_gain_plus_2_5kg
-                    pct_gain_plus_5kg=pct_gain_plus_5kg
-                    pct_gain_plus_10kg=pct_gain_plus_10kg
-                    rarity_snapshot=rarity_snapshot
-                    bodyweight_conditioned=bodyweight_conditioned
-                    rebinned_hist=rebinned_hist
-                    user_lift=user_lift
-                    canvas_ref=canvas_ref
-                    squat_delta=squat_delta
-                    set_squat_delta=set_squat_delta
-                    bench_delta=bench_delta
-                    set_bench_delta=set_bench_delta
-                    deadlift_delta=deadlift_delta
-                    set_deadlift_delta=set_deadlift_delta
-                    projected_total=projected_total
-                    projected_squat=projected_squat
-                    projected_bench=projected_bench
-                    projected_deadlift=projected_deadlift
-                    projected_percentile=projected_percentile
-                    projected_rank_tier=projected_rank_tier
-                    percentile_delta=percentile_delta
-                    target_percentile=target_percentile
-                    set_target_percentile=set_target_percentile
-                    target_kg_needed=target_kg_needed
-                    target_summary=target_summary
-                    selected_trend_points=selected_trend_points
-                    trend_note=trend_note
-                    exact_slice_key=exact_slice_key
-                    shard_key=shard_key
-                    dataset_version=dataset_version
-                    dataset_revision=dataset_revision
-                    histogram_bin_width=histogram_bin_width
-                    heatmap_dims=heatmap_dims
-                    summary_stats=summary_stats
-                    load_timing_blurb=load_timing_blurb
-                />
+                <NerdsPage page=nerds_page.clone() />
             </Show>
 
             <Show when=move || active_page.get() == AppPage::OneRm>

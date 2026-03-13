@@ -1,3 +1,4 @@
+use super::ProgressSections;
 use crate::webapp::helpers::kg_to_display;
 use crate::webapp::models::SavedSnapshot;
 use crate::webapp::ui::lift_label;
@@ -15,25 +16,14 @@ fn now_unix_secs() -> u64 {
         .unwrap_or(0)
 }
 
-#[allow(clippy::too_many_arguments)]
 #[component]
-pub(in crate::webapp) fn ProgressPanel(
-    calculated: ReadSignal<bool>,
-    percentile: Memo<Option<(f32, usize, u32)>>,
-    sex: ReadSignal<String>,
-    equip: ReadSignal<String>,
-    wc: ReadSignal<String>,
-    age: ReadSignal<String>,
-    tested: ReadSignal<String>,
-    lift: ReadSignal<String>,
-    metric: ReadSignal<String>,
-    squat: ReadSignal<f32>,
-    bench: ReadSignal<f32>,
-    deadlift: ReadSignal<f32>,
-    bodyweight: ReadSignal<f32>,
-    use_lbs: ReadSignal<bool>,
-    unit_label: Memo<&'static str>,
-) -> impl IntoView {
+pub(in crate::webapp) fn ProgressPanel(tracking: ProgressSections) -> impl IntoView {
+    let ProgressSections {
+        result,
+        selection,
+        lifts,
+        display,
+    } = tracking;
     let (snapshots, set_snapshots) = signal(Vec::<SavedSnapshot>::new());
     let (import_text, set_import_text) = signal(String::new());
     let (status, set_status) = signal(None::<String>);
@@ -89,11 +79,11 @@ pub(in crate::webapp) fn ProgressPanel(
                     type="button"
                     class="secondary"
                     on:click=move |_| {
-                        let Some((pct, rank, total)) = percentile.get() else {
+                        let Some((pct, rank, total)) = result.percentile.get() else {
                             set_status.set(Some("Calculate first to save a snapshot.".to_string()));
                             return;
                         };
-                        if !calculated.get() {
+                        if !result.calculated.get() {
                             set_status.set(Some("Calculate first to save a snapshot.".to_string()));
                             return;
                         }
@@ -102,17 +92,17 @@ pub(in crate::webapp) fn ProgressPanel(
                             percentile: pct,
                             rank,
                             total_lifters: total,
-                            sex: sex.get(),
-                            equip: equip.get(),
-                            wc: wc.get(),
-                            age: age.get(),
-                            tested: tested.get(),
-                            lift: lift.get(),
-                            metric: metric.get(),
-                            squat: squat.get(),
-                            bench: bench.get(),
-                            deadlift: deadlift.get(),
-                            bodyweight: bodyweight.get(),
+                            sex: selection.sex.get(),
+                            equip: selection.equip.get(),
+                            wc: selection.wc.get(),
+                            age: selection.age.get(),
+                            tested: selection.tested.get(),
+                            lift: selection.lift.get(),
+                            metric: selection.metric.get(),
+                            squat: lifts.squat.get(),
+                            bench: lifts.bench.get(),
+                            deadlift: lifts.deadlift.get(),
+                            bodyweight: lifts.bodyweight.get(),
                         };
 
                         set_snapshots.update(|rows| {
@@ -234,11 +224,11 @@ pub(in crate::webapp) fn ProgressPanel(
                                     <p class="muted">
                                         {move || format!(
                                             "S {:.1} / B {:.1} / D {:.1} · BW {:.1} {} · saved {}",
-                                            kg_to_display(snap.squat, use_lbs.get()),
-                                            kg_to_display(snap.bench, use_lbs.get()),
-                                            kg_to_display(snap.deadlift, use_lbs.get()),
-                                            kg_to_display(snap.bodyweight, use_lbs.get()),
-                                            unit_label.get(),
+                                            kg_to_display(snap.squat, display.use_lbs.get()),
+                                            kg_to_display(snap.bench, display.use_lbs.get()),
+                                            kg_to_display(snap.deadlift, display.use_lbs.get()),
+                                            kg_to_display(snap.bodyweight, display.use_lbs.get()),
+                                            display.unit_label.get(),
                                             snap.saved_at_secs
                                         )}
                                     </p>

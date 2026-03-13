@@ -166,7 +166,29 @@ struct SliceSummary {
     total: u32,
 }
 
+struct PublishRecordsJob<'a> {
+    records_path: &'a Path,
+    version_dir: &'a Path,
+    version: &'a str,
+    tested: &'a str,
+    lift: &'a str,
+    write_meta_files: bool,
+    shard_indices: &'a mut BTreeMap<String, BTreeMap<String, SliceIndexEntry>>,
+    trends_acc: &'a mut BTreeMap<String, BTreeMap<i32, Vec<f32>>>,
+}
+
 type SliceKey<'a> = (&'a str, &'a str, &'a str, &'a str);
+
+#[derive(Debug, Clone, Copy)]
+struct AccumulationRow<'a> {
+    sex: &'a str,
+    equipment: &'a str,
+    weight_class: &'a str,
+    age_class: &'a str,
+    year: Option<i32>,
+    x_value: f32,
+    valid_bw: Option<f32>,
+}
 
 #[derive(Debug)]
 struct MetricPublisher<'a> {
@@ -207,41 +229,35 @@ impl<'a> MetricPublisher<'a> {
 
     fn accumulate_row(
         &mut self,
-        sex: &'a str,
-        equipment: &'a str,
-        weight_class: &'a str,
-        age_class: &'a str,
-        year: Option<i32>,
-        x_value: f32,
-        valid_bw: Option<f32>,
+        row: AccumulationRow<'a>,
         trends_acc: &mut BTreeMap<String, BTreeMap<i32, Vec<f32>>>,
     ) {
-        if let Some(year) = year {
-            for trend_equip in [equipment, ALL] {
-                let trend_key = self.trend_key(sex, trend_equip);
+        if let Some(year) = row.year {
+            for trend_equip in [row.equipment, ALL] {
+                let trend_key = self.trend_key(row.sex, trend_equip);
                 trends_acc
                     .entry(trend_key)
                     .or_default()
                     .entry(year)
                     .or_default()
-                    .push(x_value);
+                    .push(row.x_value);
             }
         }
 
         for key in [
-            (sex, equipment, weight_class, age_class),
-            (sex, ALL, weight_class, age_class),
-            (sex, equipment, ALL, age_class),
-            (sex, ALL, ALL, age_class),
-            (sex, equipment, weight_class, ALL_AGES),
-            (sex, ALL, weight_class, ALL_AGES),
-            (sex, equipment, ALL, ALL_AGES),
-            (sex, ALL, ALL, ALL_AGES),
+            (row.sex, row.equipment, row.weight_class, row.age_class),
+            (row.sex, ALL, row.weight_class, row.age_class),
+            (row.sex, row.equipment, ALL, row.age_class),
+            (row.sex, ALL, ALL, row.age_class),
+            (row.sex, row.equipment, row.weight_class, ALL_AGES),
+            (row.sex, ALL, row.weight_class, ALL_AGES),
+            (row.sex, row.equipment, ALL, ALL_AGES),
+            (row.sex, ALL, ALL, ALL_AGES),
         ] {
             let entry = self.slices.entry(key).or_default();
-            entry.lift_values.push(x_value);
-            if let Some(bw_value) = valid_bw {
-                entry.heat_points.push((x_value, bw_value));
+            entry.lift_values.push(row.x_value);
+            if let Some(bw_value) = row.valid_bw {
+                entry.heat_points.push((row.x_value, bw_value));
             }
         }
     }
@@ -389,16 +405,16 @@ fn main() -> Result<()> {
                 continue;
             }
 
-            publish_records_for_lift(
-                &records_path,
-                &version_dir,
-                &version,
+            publish_records_for_lift(PublishRecordsJob {
+                records_path: &records_path,
+                version_dir: &version_dir,
+                version: &version,
                 tested,
                 lift,
-                args.write_meta_files,
-                &mut shard_indices,
-                &mut trends_acc,
-            )?;
+                write_meta_files: args.write_meta_files,
+                shard_indices: &mut shard_indices,
+                trends_acc: &mut trends_acc,
+            })?;
         }
     }
 
@@ -452,17 +468,17 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn publish_records_for_lift(
-    records_path: &Path,
-    version_dir: &Path,
-    version: &str,
-    tested: &str,
-    lift: &str,
-    write_meta_files: bool,
-    shard_indices: &mut BTreeMap<String, BTreeMap<String, SliceIndexEntry>>,
-    trends_acc: &mut BTreeMap<String, BTreeMap<i32, Vec<f32>>>,
-) -> Result<()> {
+fn publish_records_for_lift(job: PublishRecordsJob<'_>) -> Result<()> {
+    let PublishRecordsJob {
+        records_path,
+        version_dir,
+        version,
+        tested,
+        lift,
+        write_meta_files,
+        shard_indices,
+        trends_acc,
+    } = job;
     let df = collect_records_frame(records_path)?;
 
     let str_col = |name: &str| -> Result<&ChunkedArray<StringType>> {
@@ -519,13 +535,15 @@ fn publish_records_for_lift(
                 continue;
             };
             publisher.accumulate_row(
-                sex,
-                equipment,
-                weight_class,
-                age_class,
-                year,
-                x_value,
-                valid_bw,
+                AccumulationRow {
+                    sex,
+                    equipment,
+                    weight_class,
+                    age_class,
+                    year,
+                    x_value,
+                    valid_bw,
+                },
                 trends_acc,
             );
         }

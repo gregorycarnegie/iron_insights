@@ -75,10 +75,10 @@ pub(in crate::webapp) fn OneRepMaxPanel() -> impl IntoView {
                         step="0.5"
                         prop:value=move || load.get().to_string()
                         on:change=move |ev| {
-                            if let Ok(value) = event_target_value(&ev).parse::<f32>() {
-                                if value.is_finite() && value > 0.0 {
-                                    set_load.set(value);
-                                }
+                            if let Ok(value) = event_target_value(&ev).parse::<f32>()
+                                && value.is_finite() && value > 0.0
+                            {
+                                set_load.set(value);
                             }
                         }
                     />
@@ -91,10 +91,10 @@ pub(in crate::webapp) fn OneRepMaxPanel() -> impl IntoView {
                         step="1"
                         prop:value=move || reps.get().to_string()
                         on:change=move |ev| {
-                            if let Ok(value) = event_target_value(&ev).parse::<u32>() {
-                                if (1..=20).contains(&value) {
-                                    set_reps.set(value);
-                                }
+                            if let Ok(value) = event_target_value(&ev).parse::<u32>()
+                                && (1..=20).contains(&value)
+                            {
+                                set_reps.set(value);
                             }
                         }
                     />

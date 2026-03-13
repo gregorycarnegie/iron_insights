@@ -10,6 +10,74 @@ use crate::core::{HeatmapBin, HistogramBin, parse_heat_bin, parse_hist_bin};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
+pub(super) struct DefaultSelectionOptions {
+    pub(super) equip: Memo<Vec<String>>,
+    pub(super) wc: Memo<Vec<String>>,
+    pub(super) age: Memo<Vec<String>>,
+    pub(super) tested: Memo<Vec<String>>,
+    pub(super) lift: Memo<Vec<String>>,
+    pub(super) metric: Memo<Vec<String>>,
+}
+
+pub(super) struct DefaultSelectionSignals {
+    pub(super) equip: ReadSignal<String>,
+    pub(super) wc: ReadSignal<String>,
+    pub(super) age: ReadSignal<String>,
+    pub(super) tested: ReadSignal<String>,
+    pub(super) lift: ReadSignal<String>,
+    pub(super) metric: ReadSignal<String>,
+}
+
+pub(super) struct DefaultSelectionSetters {
+    pub(super) equip: WriteSignal<String>,
+    pub(super) wc: WriteSignal<String>,
+    pub(super) age: WriteSignal<String>,
+    pub(super) tested: WriteSignal<String>,
+    pub(super) lift: WriteSignal<String>,
+    pub(super) metric: WriteSignal<String>,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct RequestTracker {
+    pub(super) current: ReadSignal<u64>,
+    pub(super) set: WriteSignal<u64>,
+}
+
+pub(super) struct SliceRowsSelection {
+    pub(super) sex: ReadSignal<String>,
+    pub(super) equip: ReadSignal<String>,
+}
+
+pub(super) struct SliceRowsOutputs {
+    pub(super) set_slice_rows: WriteSignal<Vec<SliceRow>>,
+    pub(super) set_load_error: WriteSignal<Option<String>>,
+}
+
+pub(super) struct SliceRowsEffectContext {
+    pub(super) latest: ReadSignal<Option<LatestJson>>,
+    pub(super) root_index: ReadSignal<Option<RootIndex>>,
+    pub(super) selection: SliceRowsSelection,
+    pub(super) outputs: SliceRowsOutputs,
+    pub(super) request: RequestTracker,
+}
+
+pub(super) struct DistributionOutputs {
+    pub(super) set_hist: WriteSignal<Option<HistogramBin>>,
+    pub(super) set_heat: WriteSignal<Option<HeatmapBin>>,
+    pub(super) set_hist_load_ms: WriteSignal<Option<u32>>,
+    pub(super) set_heat_load_ms: WriteSignal<Option<u32>>,
+    pub(super) set_load_error: WriteSignal<Option<String>>,
+}
+
+pub(super) struct DistributionEffectContext {
+    pub(super) current_row: Memo<Option<SliceRow>>,
+    pub(super) latest: ReadSignal<Option<LatestJson>>,
+    pub(super) should_load_hist: ReadSignal<bool>,
+    pub(super) should_load_heat: Memo<bool>,
+    pub(super) outputs: DistributionOutputs,
+    pub(super) request: RequestTracker,
+}
+
 fn data_url(path_suffix: &str) -> String {
     let trimmed = path_suffix.trim_start_matches('/');
     // Use a relative path so GitHub Pages project sites resolve to
@@ -74,39 +142,37 @@ pub(super) fn init_dataset_load(
     });
 }
 
-pub(super) fn setup_slice_rows_effect(
-    latest: ReadSignal<Option<LatestJson>>,
-    root_index: ReadSignal<Option<RootIndex>>,
-    sex: ReadSignal<String>,
-    equip: ReadSignal<String>,
-    set_slice_rows: WriteSignal<Vec<SliceRow>>,
-    set_load_error: WriteSignal<Option<String>>,
-    slice_request_id: ReadSignal<u64>,
-    set_slice_request_id: WriteSignal<u64>,
-) {
+pub(super) fn setup_slice_rows_effect(context: SliceRowsEffectContext) {
+    let SliceRowsEffectContext {
+        latest,
+        root_index,
+        selection,
+        outputs,
+        request,
+    } = context;
     Effect::new(move |_| {
-        let next_request_id = slice_request_id.get_untracked().wrapping_add(1);
-        set_slice_request_id.set(next_request_id);
+        let next_request_id = request.current.get_untracked().wrapping_add(1);
+        request.set.set(next_request_id);
 
         let latest_v = latest.get();
         let root = root_index.get();
-        let s = sex.get();
-        let e = equip.get();
+        let s = selection.sex.get();
+        let e = selection.equip.get();
 
         let (Some(latest_v), Some(root)) = (latest_v, root) else {
-            set_slice_rows.set(Vec::new());
+            outputs.set_slice_rows.set(Vec::new());
             return;
         };
 
         let shard_key = format!("sex={s}|equip={e}");
         let Some(shard_rel) = root.shards.get(&shard_key).cloned() else {
-            set_slice_rows.set(Vec::new());
+            outputs.set_slice_rows.set(Vec::new());
             return;
         };
 
-        let set_slice_rows = set_slice_rows;
-        let set_load_error = set_load_error;
-        let slice_request_id = slice_request_id;
+        let set_slice_rows = outputs.set_slice_rows;
+        let set_load_error = outputs.set_load_error;
+        let slice_request_id = request.current;
         spawn_local(async move {
             let shard_url = data_url(&format!("{}/{}", latest_v.version, shard_rel));
             let shard = fetch_json_first::<SliceIndex>(&[&shard_url]).await;
@@ -202,49 +268,47 @@ pub(super) fn setup_trends_effect(
     });
 }
 
-pub(super) fn setup_distribution_effect(
-    current_row: Memo<Option<SliceRow>>,
-    latest: ReadSignal<Option<LatestJson>>,
-    calculated: ReadSignal<bool>,
-    should_load_heat: Memo<bool>,
-    set_hist: WriteSignal<Option<HistogramBin>>,
-    set_heat: WriteSignal<Option<HeatmapBin>>,
-    set_hist_load_ms: WriteSignal<Option<u32>>,
-    set_heat_load_ms: WriteSignal<Option<u32>>,
-    set_load_error: WriteSignal<Option<String>>,
-    dist_request_id: ReadSignal<u64>,
-    set_dist_request_id: WriteSignal<u64>,
-) {
+pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
+    let DistributionEffectContext {
+        current_row,
+        latest,
+        should_load_hist,
+        should_load_heat,
+        outputs,
+        request,
+    } = context;
     Effect::new(move |_| {
-        let next_request_id = dist_request_id.get_untracked().wrapping_add(1);
-        set_dist_request_id.set(next_request_id);
+        let next_request_id = request.current.get_untracked().wrapping_add(1);
+        request.set.set(next_request_id);
 
         let row = current_row.get();
         let latest_v = latest.get();
-        let should_load_hist = calculated.get();
+        let should_load_hist = should_load_hist.get();
         let should_load_heat = should_load_heat.get();
 
         if !should_load_hist {
-            set_hist.set(None);
-            set_heat.set(None);
-            set_hist_load_ms.set(None);
-            set_heat_load_ms.set(None);
+            outputs.set_hist.set(None);
+            outputs.set_heat.set(None);
+            outputs.set_hist_load_ms.set(None);
+            outputs.set_heat_load_ms.set(None);
             return;
         }
 
         if !should_load_heat {
-            set_heat.set(None);
-            set_heat_load_ms.set(None);
+            outputs.set_heat.set(None);
+            outputs.set_heat_load_ms.set(None);
         }
 
         if let (Some(row), Some(latest_v)) = (row, latest_v) {
             let hist_url = data_url(&format!("{}/{}", latest_v.version, row.entry.hist));
             let heat_url = data_url(&format!("{}/{}", latest_v.version, row.entry.heat));
 
-            let set_hist = set_hist;
-            let set_heat = set_heat;
-            let set_load_error = set_load_error;
-            let dist_request_id = dist_request_id;
+            let set_hist = outputs.set_hist;
+            let set_heat = outputs.set_heat;
+            let set_hist_load_ms = outputs.set_hist_load_ms;
+            let set_heat_load_ms = outputs.set_heat_load_ms;
+            let set_load_error = outputs.set_load_error;
+            let dist_request_id = request.current;
             let hist_err = hist_url.clone();
             let heat_err = heat_url.clone();
             set_hist.set(None);
@@ -317,10 +381,10 @@ pub(super) fn setup_distribution_effect(
                 }
             });
         } else {
-            set_hist.set(None);
-            set_heat.set(None);
-            set_hist_load_ms.set(None);
-            set_heat_load_ms.set(None);
+            outputs.set_hist.set(None);
+            outputs.set_heat.set(None);
+            outputs.set_hist_load_ms.set(None);
+            outputs.set_heat_load_ms.set(None);
         }
     });
 }
@@ -395,109 +459,34 @@ pub(super) fn setup_slice_summary_effect(
     });
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn setup_default_selection_effects(
-    equip_options: Memo<Vec<String>>,
-    wc_options: Memo<Vec<String>>,
-    age_options: Memo<Vec<String>>,
-    tested_options: Memo<Vec<String>>,
-    lift_options: Memo<Vec<String>>,
-    metric_options: Memo<Vec<String>>,
-    equip: ReadSignal<String>,
-    wc: ReadSignal<String>,
-    age: ReadSignal<String>,
-    tested: ReadSignal<String>,
-    lift: ReadSignal<String>,
-    metric: ReadSignal<String>,
-    set_equip: WriteSignal<String>,
-    set_wc: WriteSignal<String>,
-    set_age: WriteSignal<String>,
-    set_tested: WriteSignal<String>,
-    set_lift: WriteSignal<String>,
-    set_metric: WriteSignal<String>,
+fn setup_preferred_selection_effect(
+    options: Memo<Vec<String>>,
+    current: ReadSignal<String>,
+    set_current: WriteSignal<String>,
+    preferred: &'static str,
 ) {
-    {
-        let set_equip = set_equip;
-        Effect::new(move |_| {
-            let options = equip_options.get();
-            let current = equip.get();
-            if options.is_empty() {
-                return;
-            }
-            if !options.iter().any(|v| v == &current) {
-                set_equip.set(pick_preferred(options, "Raw"));
-            }
-        });
-    }
+    Effect::new(move |_| {
+        let values = options.get();
+        if values.is_empty() {
+            return;
+        }
 
-    {
-        let set_wc = set_wc;
-        Effect::new(move |_| {
-            let options = wc_options.get();
-            let current = wc.get();
-            if options.is_empty() {
-                return;
-            }
-            if !options.iter().any(|v| v == &current) {
-                set_wc.set(pick_preferred(options, "All"));
-            }
-        });
-    }
+        let selected = current.get();
+        if !values.iter().any(|value| value == &selected) {
+            set_current.set(pick_preferred(values, preferred));
+        }
+    });
+}
 
-    {
-        let set_age = set_age;
-        Effect::new(move |_| {
-            let options = age_options.get();
-            let current = age.get();
-            if options.is_empty() {
-                return;
-            }
-            if !options.iter().any(|v| v == &current) {
-                set_age.set(pick_preferred(options, "All Ages"));
-            }
-        });
-    }
-
-    {
-        let set_tested = set_tested;
-        Effect::new(move |_| {
-            let options = tested_options.get();
-            let current = tested.get();
-            if options.is_empty() {
-                return;
-            }
-            if !options.iter().any(|v| v == &current) {
-                set_tested.set(pick_preferred(options, "All"));
-            }
-        });
-    }
-
-    {
-        let set_lift = set_lift;
-        Effect::new(move |_| {
-            let options = lift_options.get();
-            let current = lift.get();
-            if options.is_empty() {
-                return;
-            }
-            if !options.iter().any(|v| v == &current) {
-                set_lift.set(pick_preferred(options, "T"));
-            }
-        });
-    }
-
-    {
-        let set_metric = set_metric;
-        Effect::new(move |_| {
-            let options = metric_options.get();
-            let current = metric.get();
-            if options.is_empty() {
-                return;
-            }
-            if !options.iter().any(|v| v == &current) {
-                let preferred = if lift.get() == "T" { "Kg" } else { "Kg" };
-                set_metric.set(pick_preferred(options, preferred));
-            }
-        });
-    }
+pub(super) fn setup_default_selection_effects(
+    options: DefaultSelectionOptions,
+    current: DefaultSelectionSignals,
+    setters: DefaultSelectionSetters,
+) {
+    setup_preferred_selection_effect(options.equip, current.equip, setters.equip, "Raw");
+    setup_preferred_selection_effect(options.wc, current.wc, setters.wc, "All");
+    setup_preferred_selection_effect(options.age, current.age, setters.age, "All Ages");
+    setup_preferred_selection_effect(options.tested, current.tested, setters.tested, "All");
+    setup_preferred_selection_effect(options.lift, current.lift, setters.lift, "T");
+    setup_preferred_selection_effect(options.metric, current.metric, setters.metric, "Kg");
 }

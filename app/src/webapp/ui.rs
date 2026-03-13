@@ -20,10 +20,10 @@ pub(super) fn pick_preferred(options: Vec<String>, preferred: &str) -> String {
 }
 
 pub(super) fn ipf_class_sort_key(class: &str) -> (u8, i32) {
-    if let Some(prefix) = class.strip_suffix('+') {
-        if let Ok(v) = prefix.parse::<i32>() {
-            return (1, v);
-        }
+    if let Some(prefix) = class.strip_suffix('+')
+        && let Ok(v) = prefix.parse::<i32>()
+    {
+        return (1, v);
     }
     if let Ok(v) = class.parse::<i32>() {
         return (0, v);

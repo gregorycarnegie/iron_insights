@@ -17,9 +17,7 @@ pub(in crate::webapp) fn CohortComparisonPanel(
             .into_iter()
             .find(|row| row.is_current)
             .map(|row| row.id);
-        let Some(current_id) = current_id else {
-            return None;
-        };
+        let current_id = current_id?;
         exact_percentiles
             .get()
             .get(&current_id)

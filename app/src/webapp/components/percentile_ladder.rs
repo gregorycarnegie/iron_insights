@@ -1,17 +1,13 @@
+use super::PercentileLadderData;
 use leptos::prelude::*;
 
-#[allow(clippy::too_many_arguments)]
 #[component]
-pub(in crate::webapp) fn PercentileLadderPanel(
-    calculated: ReadSignal<bool>,
-    metric_is_kg_comparable: Memo<bool>,
-    kg_for_next_1pct: Memo<Option<f32>>,
-    kg_for_next_5pct: Memo<Option<f32>>,
-    kg_for_next_10pct: Memo<Option<f32>>,
-    pct_gain_plus_2_5kg: Memo<Option<f32>>,
-    pct_gain_plus_5kg: Memo<Option<f32>>,
-    pct_gain_plus_10kg: Memo<Option<f32>>,
-) -> impl IntoView {
+pub(in crate::webapp) fn PercentileLadderPanel(ladder: PercentileLadderData) -> impl IntoView {
+    let PercentileLadderData {
+        calculated,
+        metric_is_kg_comparable,
+        estimates,
+    } = ladder;
     view! {
         <section class="panel">
             <h3>"Kg Per Percentile"</h3>
@@ -30,27 +26,27 @@ pub(in crate::webapp) fn PercentileLadderPanel(
                     }
                 >
                     {metric_grid! {
-                        "Next +1 percentile point" => move || match kg_for_next_1pct.get() {
+                        "Next +1 percentile point" => move || match estimates.kg_for_next_1pct.get() {
                             Some(kg) => format!(" +{:.1} kg", kg.max(0.0)),
                             None => " n/a".to_string(),
                         },
-                        "Next +5 percentile points" => move || match kg_for_next_5pct.get() {
+                        "Next +5 percentile points" => move || match estimates.kg_for_next_5pct.get() {
                             Some(kg) => format!(" +{:.1} kg", kg.max(0.0)),
                             None => " n/a".to_string(),
                         },
-                        "Next +10 percentile points" => move || match kg_for_next_10pct.get() {
+                        "Next +10 percentile points" => move || match estimates.kg_for_next_10pct.get() {
                             Some(kg) => format!(" +{:.1} kg", kg.max(0.0)),
                             None => " n/a".to_string(),
                         },
-                        "+2.5 kg likely buys" => move || match pct_gain_plus_2_5kg.get() {
+                        "+2.5 kg likely buys" => move || match estimates.pct_gain_plus_2_5kg.get() {
                             Some(gain) => format!(" +{:.2} percentile points", gain.max(0.0)),
                             None => " n/a".to_string(),
                         },
-                        "+5 kg likely buys" => move || match pct_gain_plus_5kg.get() {
+                        "+5 kg likely buys" => move || match estimates.pct_gain_plus_5kg.get() {
                             Some(gain) => format!(" +{:.2} percentile points", gain.max(0.0)),
                             None => " n/a".to_string(),
                         },
-                        "+10 kg likely buys" => move || match pct_gain_plus_10kg.get() {
+                        "+10 kg likely buys" => move || match estimates.pct_gain_plus_10kg.get() {
                             Some(gain) => format!(" +{:.2} percentile points", gain.max(0.0)),
                             None => " n/a".to_string(),
                         },

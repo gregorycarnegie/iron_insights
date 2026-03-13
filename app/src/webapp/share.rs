@@ -1,16 +1,17 @@
 use wasm_bindgen::JsCast;
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn download_share_png(
-    handle: &str,
-    bodyweight: f32,
-    squat: f32,
-    bench: f32,
-    deadlift: f32,
-    lift_focus: &str,
-    percentile: f32,
-    tier: &str,
-) -> Result<(), String> {
+pub(super) struct ShareImagePayload<'a> {
+    pub(super) handle: &'a str,
+    pub(super) bodyweight: f32,
+    pub(super) squat: f32,
+    pub(super) bench: f32,
+    pub(super) deadlift: f32,
+    pub(super) lift_focus: &'a str,
+    pub(super) percentile: f32,
+    pub(super) tier: &'a str,
+}
+
+pub(super) fn download_share_png(payload: ShareImagePayload<'_>) -> Result<(), String> {
     let Some(window) = web_sys::window() else {
         return Err("No browser window.".to_string());
     };
@@ -44,10 +45,10 @@ pub(super) fn download_share_png(
         .map_err(|_| "Failed to render heading text.")?;
 
     context.set_font("500 36px 'Space Grotesk', sans-serif");
-    let who = if handle.trim().is_empty() {
+    let who = if payload.handle.trim().is_empty() {
         "Anonymous Lifter".to_string()
     } else {
-        handle.trim().to_string()
+        payload.handle.trim().to_string()
     };
     context
         .fill_text(&who, 80.0, 200.0)
@@ -58,7 +59,11 @@ pub(super) fn download_share_png(
         .fill_text(
             &format!(
                 "BW {:.1}kg | S {:.1} | B {:.1} | D {:.1} | Focus {}",
-                bodyweight, squat, bench, deadlift, lift_focus
+                payload.bodyweight,
+                payload.squat,
+                payload.bench,
+                payload.deadlift,
+                payload.lift_focus
             ),
             80.0,
             265.0,
@@ -68,8 +73,8 @@ pub(super) fn download_share_png(
         .fill_text(
             &format!(
                 "Stronger than {:.1}% of lifters | Tier {}",
-                percentile * 100.0,
-                tier
+                payload.percentile * 100.0,
+                payload.tier
             ),
             80.0,
             320.0,
@@ -82,7 +87,7 @@ pub(super) fn download_share_png(
     context.fill_rect(
         80.0,
         370.0,
-        (percentile * 760.0).clamp(0.0, 760.0) as f64,
+        (payload.percentile * 760.0).clamp(0.0, 760.0) as f64,
         14.0,
     );
 

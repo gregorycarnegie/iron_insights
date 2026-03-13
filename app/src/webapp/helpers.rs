@@ -1,23 +1,24 @@
 use crate::core::{dots_points, goodlift_points, wilks_points};
 
-pub(super) fn comparable_lift_value(
-    sex: &str,
-    equipment: &str,
-    lift: &str,
-    metric: &str,
-    bodyweight: f32,
-    squat: f32,
-    bench: f32,
-    deadlift: f32,
-) -> f32 {
-    let total = squat + bench + deadlift;
+#[derive(Clone, Copy)]
+pub(super) struct ComparableLifter<'a> {
+    pub(super) sex: &'a str,
+    pub(super) equipment: &'a str,
+    pub(super) bodyweight: f32,
+    pub(super) squat: f32,
+    pub(super) bench: f32,
+    pub(super) deadlift: f32,
+}
+
+pub(super) fn comparable_lift_value(lifter: ComparableLifter<'_>, lift: &str, metric: &str) -> f32 {
+    let total = lifter.squat + lifter.bench + lifter.deadlift;
     match (lift, metric) {
-        ("S", _) => squat,
-        ("B", _) => bench,
-        ("D", _) => deadlift,
-        ("T", "Dots") => dots_points(sex, bodyweight, total),
-        ("T", "Wilks") => wilks_points(sex, bodyweight, total),
-        ("T", "GL") => goodlift_points(sex, equipment, bodyweight, total),
+        ("S", _) => lifter.squat,
+        ("B", _) => lifter.bench,
+        ("D", _) => lifter.deadlift,
+        ("T", "Dots") => dots_points(lifter.sex, lifter.bodyweight, total),
+        ("T", "Wilks") => wilks_points(lifter.sex, lifter.bodyweight, total),
+        ("T", "GL") => goodlift_points(lifter.sex, lifter.equipment, lifter.bodyweight, total),
         ("T", _) => total,
         _ => 0.0,
     }
