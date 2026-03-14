@@ -35,7 +35,9 @@ use crate::core::{
     equivalent_value_for_same_percentile, histogram_density_for_value, histogram_diagnostics,
     parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
 };
+use leptos::ev;
 use leptos::html::Canvas;
+use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::collections::BTreeMap;
@@ -342,9 +344,14 @@ fn App() -> impl IntoView {
     let (cross_sex_hist_loading, set_cross_sex_hist_loading) = signal(false);
     let (cross_sex_hist_error, set_cross_sex_hist_error) = signal(None::<String>);
     let (cross_sex_hist_request_id, set_cross_sex_hist_request_id) = signal(0u64);
+    let (heatmap_resize_tick, set_heatmap_resize_tick) = signal(0u32);
 
     let canvas_ref: NodeRef<Canvas> = NodeRef::new();
     let nerds_page_active = Memo::new(move |_| active_page.get() == AppPage::StatsForNerds);
+    let heatmap_resize_handle = window_event_listener(ev::resize, move |_| {
+        set_heatmap_resize_tick.update(|tick| *tick = tick.wrapping_add(1));
+    });
+    on_cleanup(move || heatmap_resize_handle.remove());
 
     init_dataset_load(
         set_latest,
@@ -1564,6 +1571,7 @@ fn App() -> impl IntoView {
     });
 
     Effect::new(move |_| {
+        let _ = heatmap_resize_tick.get();
         let Some(canvas) = canvas_ref.get() else {
             return;
         };

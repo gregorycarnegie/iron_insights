@@ -21,7 +21,7 @@ pub(in crate::webapp) fn ChartsPanel(
 
         <section class="panel">
             <h2>{move || format!("Bodyweight vs {}", hist_x_label.get())}</h2>
-            <canvas node_ref=canvas_ref width="800" height="420"></canvas>
+            <canvas class="heatmap-canvas" node_ref=canvas_ref width="800" height="420"></canvas>
         </section>
     }
 }

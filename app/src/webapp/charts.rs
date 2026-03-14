@@ -3,6 +3,9 @@ use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
+const DEFAULT_HEATMAP_WIDTH: f64 = 800.0;
+const DEFAULT_HEATMAP_HEIGHT: f64 = 420.0;
+
 pub(super) fn render_histogram_svg(hist: &HistogramBin, user_value: f32, x_label: &str) -> AnyView {
     let max_count = hist.counts.iter().copied().max().unwrap_or(1) as f32;
     let w = 760.0f32;
@@ -80,8 +83,33 @@ pub(super) fn draw_heatmap(
         return;
     };
 
-    let cw = canvas.width() as f64;
-    let ch = canvas.height() as f64;
+    let css_w = canvas.client_width().max(1) as f64;
+    let css_h = match canvas.client_height() {
+        0 => (css_w * (DEFAULT_HEATMAP_HEIGHT / DEFAULT_HEATMAP_WIDTH))
+            .round()
+            .max(1.0),
+        value => value as f64,
+    };
+    let dpr = web_sys::window()
+        .map(|window| window.device_pixel_ratio())
+        .unwrap_or(1.0)
+        .max(1.0);
+    let backing_w = (css_w * dpr).round().max(1.0) as u32;
+    let backing_h = (css_h * dpr).round().max(1.0) as u32;
+
+    if canvas.width() != backing_w {
+        canvas.set_width(backing_w);
+    }
+    if canvas.height() != backing_h {
+        canvas.set_height(backing_h);
+    }
+
+    let _ = ctx.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+    ctx.clear_rect(0.0, 0.0, backing_w as f64, backing_h as f64);
+    let _ = ctx.scale(dpr, dpr);
+
+    let cw = css_w;
+    let ch = css_h;
     let left = 58.0f64;
     let right = 96.0f64;
     let top = 18.0f64;
