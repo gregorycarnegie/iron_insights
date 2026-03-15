@@ -10,7 +10,7 @@ mod state;
 mod ui;
 
 use self::charts::draw_heatmap;
-use self::components::{LogoMark, NerdsPage, OneRmPage, RankingPage};
+use self::components::{LogoMark, MenVsWomenPage, NerdsPage, OneRmPage, RankingPage};
 use self::data::{fetch_binary_first, fetch_json_first};
 use self::helpers::{
     ComparableLifter, build_share_url, comparable_lift_value, kg_to_display, parse_query_f32,
@@ -29,11 +29,12 @@ use self::state::{
     init_dataset_load, setup_default_selection_effects, setup_distribution_effect,
     setup_slice_rows_effect, setup_slice_summary_effect, setup_trends_effect,
 };
+use self::ui::lift_label;
 use self::ui::{age_label, metric_label};
 use crate::core::{
     HeatmapBin, HistogramBin, bodyweight_conditioned_percentile,
     equivalent_value_for_same_percentile, histogram_density_for_value, histogram_diagnostics,
-    parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
+    parse_heat_bin, parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
 };
 use leptos::ev;
 use leptos::html::Canvas;
@@ -50,6 +51,7 @@ pub fn run() {
 enum AppPage {
     Rank,
     StatsForNerds,
+    MenVsWomen,
     OneRm,
 }
 
@@ -341,13 +343,19 @@ fn App() -> impl IntoView {
     let (cross_sex_rows_request_id, set_cross_sex_rows_request_id) = signal(0u64);
     let (male_cross_hist, set_male_cross_hist) = signal(None::<HistogramBin>);
     let (female_cross_hist, set_female_cross_hist) = signal(None::<HistogramBin>);
+    let (male_cross_heat, set_male_cross_heat) = signal(None::<HeatmapBin>);
+    let (female_cross_heat, set_female_cross_heat) = signal(None::<HeatmapBin>);
     let (cross_sex_hist_loading, set_cross_sex_hist_loading) = signal(false);
     let (cross_sex_hist_error, set_cross_sex_hist_error) = signal(None::<String>);
     let (cross_sex_hist_request_id, set_cross_sex_hist_request_id) = signal(0u64);
+    let (cross_sex_heat_loading, set_cross_sex_heat_loading) = signal(false);
+    let (cross_sex_heat_error, set_cross_sex_heat_error) = signal(None::<String>);
+    let (cross_sex_heat_request_id, set_cross_sex_heat_request_id) = signal(0u64);
     let (heatmap_resize_tick, set_heatmap_resize_tick) = signal(0u32);
 
     let canvas_ref: NodeRef<Canvas> = NodeRef::new();
     let nerds_page_active = Memo::new(move |_| active_page.get() == AppPage::StatsForNerds);
+    let cross_sex_page_active = Memo::new(move |_| active_page.get() == AppPage::MenVsWomen);
     let heatmap_resize_handle = window_event_listener(ev::resize, move |_| {
         set_heatmap_resize_tick.update(|tick| *tick = tick.wrapping_add(1));
     });
@@ -384,7 +392,7 @@ fn App() -> impl IntoView {
         let next_request_id = cross_sex_rows_request_id.get_untracked().wrapping_add(1);
         set_cross_sex_rows_request_id.set(next_request_id);
 
-        if !nerds_page_active.get() {
+        if !cross_sex_page_active.get() {
             set_male_slice_rows.set(Vec::new());
             set_female_slice_rows.set(Vec::new());
             set_cross_sex_rows_error.set(None);
@@ -1238,6 +1246,17 @@ fn App() -> impl IntoView {
             None => "Comparison summary appears after a matching slice loads.".to_string(),
         },
     });
+    let cross_sex_selection_summary = Memo::new(move |_| {
+        format!(
+            "Current alignment: {} equipment, {}, {} tested status, {}, {}, requested {} weight class.",
+            equip.get(),
+            age_label(&age.get()),
+            tested.get(),
+            lift_label(&lift.get()),
+            metric_label(&metric.get()),
+            wc.get()
+        )
+    });
     let share_url = Memo::new(move |_| {
         build_share_url(&[
             ("calc", "1".to_string()),
@@ -1455,7 +1474,7 @@ fn App() -> impl IntoView {
         let next_request_id = cross_sex_hist_request_id.get_untracked().wrapping_add(1);
         set_cross_sex_hist_request_id.set(next_request_id);
 
-        let should_load = nerds_page_active.get() && calculated.get();
+        let should_load = cross_sex_page_active.get() && calculated.get();
         if !should_load {
             set_male_cross_hist.set(None);
             set_female_cross_hist.set(None);
@@ -1566,6 +1585,99 @@ fn App() -> impl IntoView {
                 set_cross_sex_hist_error.set(None);
             } else {
                 set_cross_sex_hist_error.set(Some(issues.join(" ")));
+            }
+        });
+    });
+
+    Effect::new(move |_| {
+        let next_request_id = cross_sex_heat_request_id.get_untracked().wrapping_add(1);
+        set_cross_sex_heat_request_id.set(next_request_id);
+
+        let should_load = cross_sex_page_active.get() && calculated.get();
+        if !should_load {
+            set_male_cross_heat.set(None);
+            set_female_cross_heat.set(None);
+            set_cross_sex_heat_loading.set(false);
+            set_cross_sex_heat_error.set(None);
+            return;
+        }
+
+        let Some(latest_v) = latest.get() else {
+            set_male_cross_heat.set(None);
+            set_female_cross_heat.set(None);
+            set_cross_sex_heat_loading.set(false);
+            set_cross_sex_heat_error.set(Some(
+                "Dataset metadata is still loading for cross-sex heatmaps.".to_string(),
+            ));
+            return;
+        };
+        let Some(male_choice) = male_cross_choice.get() else {
+            set_male_cross_heat.set(None);
+            set_female_cross_heat.set(None);
+            set_cross_sex_heat_loading.set(false);
+            set_cross_sex_heat_error.set(None);
+            return;
+        };
+        let Some(female_choice) = female_cross_choice.get() else {
+            set_male_cross_heat.set(None);
+            set_female_cross_heat.set(None);
+            set_cross_sex_heat_loading.set(false);
+            set_cross_sex_heat_error.set(None);
+            return;
+        };
+
+        let cross_sex_heat_request_id = cross_sex_heat_request_id;
+        let set_male_cross_heat = set_male_cross_heat;
+        let set_female_cross_heat = set_female_cross_heat;
+        let set_cross_sex_heat_loading = set_cross_sex_heat_loading;
+        let set_cross_sex_heat_error = set_cross_sex_heat_error;
+        set_cross_sex_heat_loading.set(true);
+        set_cross_sex_heat_error.set(None);
+
+        spawn_local(async move {
+            let mut resolved_male = None;
+            let mut resolved_female = None;
+            let mut issues = Vec::new();
+
+            let male_url = dataset_file_url(&latest_v.version, &male_choice.row.entry.heat);
+            match fetch_binary_first(&[&male_url]).await {
+                Ok(bytes) => match parse_heat_bin(&bytes) {
+                    Some(heatmap) => resolved_male = Some(heatmap),
+                    None => issues.push("Invalid men's heatmap payload.".to_string()),
+                },
+                Err(err) => issues.push(format!("Failed men's heatmap fetch: {err}")),
+            }
+
+            if cross_sex_heat_request_id.get_untracked() != next_request_id {
+                debug_log(&format!(
+                    "Ignored stale cross-sex male heatmap for request {next_request_id}"
+                ));
+                return;
+            }
+
+            let female_url = dataset_file_url(&latest_v.version, &female_choice.row.entry.heat);
+            match fetch_binary_first(&[&female_url]).await {
+                Ok(bytes) => match parse_heat_bin(&bytes) {
+                    Some(heatmap) => resolved_female = Some(heatmap),
+                    None => issues.push("Invalid women's heatmap payload.".to_string()),
+                },
+                Err(err) => issues.push(format!("Failed women's heatmap fetch: {err}")),
+            }
+
+            if cross_sex_heat_request_id.get_untracked() != next_request_id {
+                debug_log(&format!(
+                    "Ignored stale cross-sex female heatmap for request {next_request_id}"
+                ));
+                return;
+            }
+
+            set_male_cross_heat.set(resolved_male);
+            set_female_cross_heat.set(resolved_female);
+            set_cross_sex_heat_loading.set(false);
+            if issues.is_empty() {
+                set_cross_sex_heat_error.set(None);
+            } else {
+                set_cross_sex_heat_error.set(Some(issues.join(" ")));
             }
         });
     });
@@ -1755,6 +1867,8 @@ fn App() -> impl IntoView {
         if let Ok(hash) = window.location().hash() {
             if hash.eq_ignore_ascii_case("#1rm") {
                 set_active_page.set(AppPage::OneRm);
+            } else if hash.eq_ignore_ascii_case("#men-vs-women") {
+                set_active_page.set(AppPage::MenVsWomen);
             } else if hash.eq_ignore_ascii_case("#nerds") {
                 set_active_page.set(AppPage::StatsForNerds);
             } else {
@@ -1774,6 +1888,7 @@ fn App() -> impl IntoView {
         let hash = match active_page.get() {
             AppPage::Rank => "#rank",
             AppPage::StatsForNerds => "#nerds",
+            AppPage::MenVsWomen => "#men-vs-women",
             AppPage::OneRm => "#1rm",
         };
         let _ = window.location().set_hash(hash);
@@ -1814,72 +1929,74 @@ fn App() -> impl IntoView {
         }
     });
 
+    let onboarding_sections = components::OnboardingSections {
+        identity: components::OnboardingIdentitySection {
+            sex_options,
+            sex,
+            set_sex,
+            equip_options,
+            equip,
+            set_equip,
+            unit_label,
+            use_lbs,
+            set_use_lbs,
+        },
+        lifts: components::OnboardingLiftSection {
+            squat,
+            set_squat,
+            squat_error,
+            set_squat_error,
+            bench,
+            set_bench,
+            bench_error,
+            set_bench_error,
+            deadlift,
+            set_deadlift,
+            deadlift_error,
+            set_deadlift_error,
+            bodyweight,
+            set_bodyweight,
+            bodyweight_error,
+            set_bodyweight_error,
+        },
+        filters: components::OnboardingFilterSection {
+            tested_options,
+            tested,
+            set_tested,
+            age_options,
+            age,
+            set_age,
+            wc_options,
+            wc,
+            set_wc,
+            lift_options,
+            lift,
+            set_lift,
+            metric_options,
+            metric,
+            set_metric,
+        },
+        actions: components::OnboardingActionSection {
+            set_squat_delta,
+            set_bench_delta,
+            set_deadlift_delta,
+            set_share_handle,
+            set_calculated,
+            has_input_error,
+            calculating,
+            set_calculating,
+            set_share_status,
+            set_lift_mult,
+            set_bw_mult,
+        },
+    };
+
     let ranking_page = components::RankingPageSections {
         header: components::RankingHeroSection {
             dataset_blurb,
             ranking_cohort_blurb,
         },
-        onboarding: components::OnboardingSections {
-            identity: components::OnboardingIdentitySection {
-                sex_options,
-                sex,
-                set_sex,
-                equip_options,
-                equip,
-                set_equip,
-                unit_label,
-                use_lbs,
-                set_use_lbs,
-            },
-            lifts: components::OnboardingLiftSection {
-                squat,
-                set_squat,
-                squat_error,
-                set_squat_error,
-                bench,
-                set_bench,
-                bench_error,
-                set_bench_error,
-                deadlift,
-                set_deadlift,
-                deadlift_error,
-                set_deadlift_error,
-                bodyweight,
-                set_bodyweight,
-                bodyweight_error,
-                set_bodyweight_error,
-            },
-            filters: components::OnboardingFilterSection {
-                tested_options,
-                tested,
-                set_tested,
-                age_options,
-                age,
-                set_age,
-                wc_options,
-                wc,
-                set_wc,
-                lift_options,
-                lift,
-                set_lift,
-                metric_options,
-                metric,
-                set_metric,
-            },
-            actions: components::OnboardingActionSection {
-                set_squat_delta,
-                set_bench_delta,
-                set_deadlift_delta,
-                set_share_handle,
-                set_calculated,
-                has_input_error,
-                calculating,
-                set_calculating,
-                set_share_status,
-                set_lift_mult,
-                set_bw_mult,
-            },
-        },
+        onboarding: onboarding_sections.clone(),
         result: components::ResultCardSections {
             status: components::ResultCardStatusSection {
                 calculated,
@@ -1915,11 +2032,44 @@ fn App() -> impl IntoView {
         percentile_percent,
     };
 
+    let progress_sections = components::ProgressSections {
+        result: components::ProgressResultSection {
+            calculated,
+            percentile,
+        },
+        selection: components::ProgressSelectionSection {
+            sex,
+            equip,
+            wc,
+            age,
+            tested,
+            lift,
+            metric,
+        },
+        lifts: components::ProgressLiftSection {
+            squat,
+            bench,
+            deadlift,
+            bodyweight,
+        },
+        display: components::ProgressDisplaySection {
+            use_lbs,
+            unit_label,
+        },
+    };
+    let distribution_controls = components::DistributionControlsSection {
+        lift_mult,
+        set_lift_mult,
+        bw_mult,
+        set_bw_mult,
+    };
+
     let nerds_page = components::NerdsPageSections {
         header: components::NerdsHeaderSection {
             dataset_blurb,
             nerd_cohort_summary,
         },
+        onboarding: onboarding_sections.clone(),
         cohort: components::NerdsCohortSection {
             compare_mode,
             set_compare_mode,
@@ -1936,41 +2086,10 @@ fn App() -> impl IntoView {
             cohort_exact_percentiles,
             cohort_exact_loading,
             cohort_exact_error,
-            cross_sex_hist_loading,
-            cross_sex_comparison,
-            progress: components::ProgressSections {
-                result: components::ProgressResultSection {
-                    calculated,
-                    percentile,
-                },
-                selection: components::ProgressSelectionSection {
-                    sex,
-                    equip,
-                    wc,
-                    age,
-                    tested,
-                    lift,
-                    metric,
-                },
-                lifts: components::ProgressLiftSection {
-                    squat,
-                    bench,
-                    deadlift,
-                    bodyweight,
-                },
-                display: components::ProgressDisplaySection {
-                    use_lbs,
-                    unit_label,
-                },
-            },
+            progress: progress_sections.clone(),
         },
         distributions: components::NerdsDistributionSection {
-            controls: components::DistributionControlsSection {
-                lift_mult,
-                set_lift_mult,
-                bw_mult,
-                set_bw_mult,
-            },
+            controls: distribution_controls.clone(),
             diagnostics: components::DistributionDiagnosticsSection {
                 distribution_diagnostics,
                 hist_x_label,
@@ -2036,6 +2155,26 @@ fn App() -> impl IntoView {
         },
     };
 
+    let men_vs_women_page = components::MenVsWomenPageSections {
+        dataset_blurb,
+        selection_summary: cross_sex_selection_summary,
+        onboarding: onboarding_sections,
+        controls: distribution_controls,
+        comparison_loading: cross_sex_hist_loading,
+        comparison: cross_sex_comparison,
+        heat_loading: cross_sex_heat_loading,
+        heat_error: cross_sex_heat_error,
+        male_hist: male_cross_hist,
+        female_hist: female_cross_hist,
+        male_heat: male_cross_heat,
+        female_heat: female_cross_heat,
+        hist_x_label,
+        bodyweight,
+        use_lbs,
+        unit_label,
+        progress: progress_sections,
+    };
+
     view! {
         <div class="page">
             <header class="panel topbar">
@@ -2066,6 +2205,14 @@ fn App() -> impl IntoView {
                     <button
                         type="button"
                         class:chip=true
+                        class:active=move || active_page.get() == AppPage::MenVsWomen
+                        on:click=move |_| set_active_page.set(AppPage::MenVsWomen)
+                    >
+                        "Men vs Women"
+                    </button>
+                    <button
+                        type="button"
+                        class:chip=true
                         class:active=move || active_page.get() == AppPage::OneRm
                         on:click=move |_| set_active_page.set(AppPage::OneRm)
                     >
@@ -2083,6 +2230,10 @@ fn App() -> impl IntoView {
 
             <Show when=move || active_page.get() == AppPage::StatsForNerds>
                 <NerdsPage page=nerds_page.clone() />
+            </Show>
+
+            <Show when=move || active_page.get() == AppPage::MenVsWomen>
+                <MenVsWomenPage page=men_vs_women_page.clone() />
             </Show>
 
             <Show when=move || active_page.get() == AppPage::OneRm>

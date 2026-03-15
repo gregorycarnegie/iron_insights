@@ -14,7 +14,7 @@ macro_rules! metric_grid {
 }
 
 use crate::core::{
-    BodyweightConditionedStats, HistogramBin, HistogramDensity, HistogramDiagnostics,
+    BodyweightConditionedStats, HeatmapBin, HistogramBin, HistogramDensity, HistogramDiagnostics,
 };
 use crate::webapp::models::{CohortComparisonRow, CompareMode, CrossSexComparison, TrendPoint};
 use leptos::html::Canvas;
@@ -213,8 +213,30 @@ pub(super) struct PercentileLadderEstimates {
 }
 
 #[derive(Clone)]
+pub(super) struct MenVsWomenPageSections {
+    pub(super) dataset_blurb: Memo<String>,
+    pub(super) selection_summary: Memo<String>,
+    pub(super) onboarding: OnboardingSections,
+    pub(super) controls: DistributionControlsSection,
+    pub(super) comparison_loading: ReadSignal<bool>,
+    pub(super) comparison: Memo<Result<CrossSexComparison, String>>,
+    pub(super) heat_loading: ReadSignal<bool>,
+    pub(super) heat_error: ReadSignal<Option<String>>,
+    pub(super) male_hist: ReadSignal<Option<HistogramBin>>,
+    pub(super) female_hist: ReadSignal<Option<HistogramBin>>,
+    pub(super) male_heat: ReadSignal<Option<HeatmapBin>>,
+    pub(super) female_heat: ReadSignal<Option<HeatmapBin>>,
+    pub(super) hist_x_label: Memo<String>,
+    pub(super) bodyweight: ReadSignal<f32>,
+    pub(super) use_lbs: ReadSignal<bool>,
+    pub(super) unit_label: Memo<&'static str>,
+    pub(super) progress: ProgressSections,
+}
+
+#[derive(Clone)]
 pub(super) struct NerdsPageSections {
     pub(super) header: NerdsHeaderSection,
+    pub(super) onboarding: OnboardingSections,
     pub(super) cohort: NerdsCohortSection,
     pub(super) distributions: NerdsDistributionSection,
     pub(super) targets: NerdsTargetsSection,
@@ -245,8 +267,6 @@ pub(super) struct NerdsCohortSection {
     pub(super) cohort_exact_percentiles: ReadSignal<BTreeMap<String, Option<f32>>>,
     pub(super) cohort_exact_loading: ReadSignal<bool>,
     pub(super) cohort_exact_error: ReadSignal<Option<String>>,
-    pub(super) cross_sex_hist_loading: ReadSignal<bool>,
-    pub(super) cross_sex_comparison: Memo<Result<CrossSexComparison, String>>,
     pub(super) progress: ProgressSections,
 }
 
@@ -327,12 +347,14 @@ mod bodyweight_conditioned;
 mod charts_panel;
 mod cohort_comparison;
 mod compare_mode;
+mod cross_sex_charts;
 mod cross_sex_panel;
 mod distribution_controls;
 mod distribution_diagnostics;
 mod faq;
 mod logo;
 mod meet_day;
+mod men_vs_women_page;
 mod methodology_box;
 mod nerds_page;
 mod onboarding;
@@ -351,12 +373,14 @@ pub(super) use bodyweight_conditioned::BodyweightConditionedPanel;
 pub(super) use charts_panel::ChartsPanel;
 pub(super) use cohort_comparison::CohortComparisonPanel;
 pub(super) use compare_mode::CompareModePanel;
+pub(super) use cross_sex_charts::CrossSexChartsPanel;
 pub(super) use cross_sex_panel::CrossSexPanel;
 pub(super) use distribution_controls::DistributionControlsPanel;
 pub(super) use distribution_diagnostics::DistributionDiagnosticsPanel;
 pub(super) use faq::FaqPanel;
 pub(super) use logo::LogoMark;
 pub(super) use meet_day::MeetDayPanel;
+pub(super) use men_vs_women_page::MenVsWomenPage;
 pub(super) use methodology_box::MethodologyBoxPanel;
 pub(super) use nerds_page::NerdsPage;
 pub(super) use onboarding::OnboardingPanel;

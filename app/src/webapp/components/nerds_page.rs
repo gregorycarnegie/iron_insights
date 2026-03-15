@@ -1,8 +1,8 @@
 use super::{
     BodyweightConditionedPanel, ChartsPanel, CohortComparisonPanel, CompareModePanel,
-    CrossSexPanel, DistributionControlsPanel, DistributionDiagnosticsPanel, MethodologyBoxPanel,
-    NerdsPageSections, PercentileLadderPanel, ProgressPanel, RarityPanel, SimulatorPanel,
-    TrendsPanel,
+    DistributionControlsPanel, DistributionDiagnosticsPanel, MethodologyBoxPanel,
+    NerdsPageSections, OnboardingPanel, PercentileLadderPanel, ProgressPanel, RarityPanel,
+    SimulatorPanel, TrendsPanel,
 };
 use leptos::prelude::*;
 
@@ -10,6 +10,7 @@ use leptos::prelude::*;
 pub(in crate::webapp) fn NerdsPage(page: NerdsPageSections) -> impl IntoView {
     let NerdsPageSections {
         header,
+        onboarding,
         cohort,
         distributions,
         targets,
@@ -25,6 +26,8 @@ pub(in crate::webapp) fn NerdsPage(page: NerdsPageSections) -> impl IntoView {
             </p>
             <p class="muted">{move || header.nerd_cohort_summary.get()}</p>
         </header>
+
+        <OnboardingPanel form=onboarding />
 
         <section class="nerd-section">
             <h2>"Cohort"</h2>
@@ -46,12 +49,6 @@ pub(in crate::webapp) fn NerdsPage(page: NerdsPageSections) -> impl IntoView {
                 exact_percentiles=cohort.cohort_exact_percentiles
                 exact_loading=cohort.cohort_exact_loading
                 exact_error=cohort.cohort_exact_error
-            />
-            <CrossSexPanel
-                loading=cohort.cross_sex_hist_loading
-                comparison=cohort.cross_sex_comparison
-                use_lbs=cohort.progress.display.use_lbs
-                unit_label=cohort.progress.display.unit_label
             />
             <ProgressPanel tracking=cohort.progress />
         </section>

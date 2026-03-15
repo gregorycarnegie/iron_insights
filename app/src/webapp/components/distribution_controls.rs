@@ -11,7 +11,7 @@ pub(in crate::webapp) fn DistributionControlsPanel(
         <section class="panel">
             <h2>"Distribution Controls"</h2>
             <p class="muted">
-                "Adjust histogram and heatmap grouping for analysis in the nerd view."
+                "Adjust histogram and heatmap grouping for the detailed comparison views."
             </p>
             <div class="grid simple">
                 <label title="Grouping size used for lift distributions.">
