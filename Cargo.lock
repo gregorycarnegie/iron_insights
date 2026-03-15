@@ -1537,6 +1537,7 @@ version = "0.1.0"
 dependencies = [
  "gloo-net",
  "gloo-timers",
+ "js-sys",
  "leptos",
  "serde",
  "serde_json",

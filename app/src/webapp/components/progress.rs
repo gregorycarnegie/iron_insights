@@ -2,18 +2,15 @@ use super::ProgressSections;
 use crate::webapp::helpers::kg_to_display;
 use crate::webapp::models::SavedSnapshot;
 use crate::webapp::ui::lift_label;
+use js_sys::Date;
 use leptos::prelude::*;
 use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 const SNAPSHOT_STORAGE_KEY: &str = "iron_insights_snapshots_v1";
 const MAX_SNAPSHOTS: usize = 120;
 
 fn now_unix_secs() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+    (Date::now() / 1_000.0).floor() as u64
 }
 
 #[component]

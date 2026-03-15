@@ -534,15 +534,21 @@ button {
 
 .nerd-metrics-grid p {
   margin: 0;
+  min-width: 0;
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #f8f4ea;
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.88rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .nerd-metrics-grid strong {
+  display: block;
+  margin-bottom: 4px;
   font-family: "Space Grotesk", sans-serif;
   font-size: 0.78rem;
   letter-spacing: 0.04em;
