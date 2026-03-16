@@ -81,6 +81,8 @@ pub(in crate::webapp) fn NerdsPage(page: NerdsPageSections) -> impl IntoView {
                 user_lift=distributions.user_lift
                 hist_x_label=distributions.diagnostics.hist_x_label
                 canvas_ref=distributions.canvas_ref
+                show_heat_indicator=distributions.show_heat_indicator
+                set_show_heat_indicator=distributions.set_show_heat_indicator
             />
         </section>
 

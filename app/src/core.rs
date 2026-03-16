@@ -254,6 +254,38 @@ pub fn histogram_diagnostics(hist: Option<&HistogramBin>) -> Option<HistogramDia
     })
 }
 
+pub fn histogram_mean_stddev(hist: Option<&HistogramBin>) -> Option<(f32, f32)> {
+    let hist = hist?;
+
+    if hist.counts.is_empty() || hist.base_bin <= 0.0 {
+        return None;
+    }
+
+    let center = |idx: usize| -> f64 {
+        hist.min as f64 + (idx as f64 + 0.5) * hist.base_bin as f64
+    };
+
+    let (total, sum_x, sum_x2) = hist
+        .counts
+        .iter()
+        .copied()
+        .enumerate()
+        .fold((0.0_f64, 0.0_f64, 0.0_f64), |(t, sx, sx2), (idx, count)| {
+            let x = center(idx);
+            let w = count as f64;
+            (t + w, sx + w * x, sx2 + w * x * x)
+        });
+
+    if total == 0.0 {
+        return None;
+    }
+
+    let mean = sum_x / total;
+    let variance = (sum_x2 / total - mean * mean).max(0.0);
+
+    Some((mean as f32, variance.sqrt() as f32))
+}
+
 pub fn histogram_density_for_value(
     hist: Option<&HistogramBin>,
     value: f32,

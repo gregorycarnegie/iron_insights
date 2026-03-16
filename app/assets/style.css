@@ -88,6 +88,24 @@ body {
   box-shadow: 0 8px 24px rgba(26, 30, 20, 0.06);
 }
 
+.panel-titlebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel-titlebar h2,
+.panel-titlebar h3 {
+  margin: 0;
+}
+
+.panel-titlebar .secondary {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .grid {
   display: grid;
   gap: 10px;

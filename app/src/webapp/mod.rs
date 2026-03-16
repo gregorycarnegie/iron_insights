@@ -320,6 +320,7 @@ fn App() -> impl IntoView {
 
     let (lift_mult, set_lift_mult) = signal(4usize);
     let (bw_mult, set_bw_mult) = signal(5usize);
+    let (show_nerd_heat_indicator, set_show_nerd_heat_indicator) = signal(true);
 
     let (hist, set_hist) = signal(None::<HistogramBin>);
     let (heat, set_heat) = signal(None::<HeatmapBin>);
@@ -1693,7 +1694,7 @@ fn App() -> impl IntoView {
         draw_heatmap(
             &canvas,
             &heat,
-            user_lift.get(),
+            show_nerd_heat_indicator.get().then(|| user_lift.get()),
             bodyweight.get(),
             &hist_x_label.get(),
         );
@@ -2111,6 +2112,8 @@ fn App() -> impl IntoView {
             rebinned_hist,
             user_lift,
             canvas_ref,
+            show_heat_indicator: show_nerd_heat_indicator,
+            set_show_heat_indicator: set_show_nerd_heat_indicator,
             calculated,
             use_lbs,
             unit_label,
@@ -2169,6 +2172,7 @@ fn App() -> impl IntoView {
         male_heat: male_cross_heat,
         female_heat: female_cross_heat,
         hist_x_label,
+        user_lift,
         bodyweight,
         use_lbs,
         unit_label,

@@ -9,6 +9,7 @@ const MEN_COLOR: &str = "#154734";
 const MEN_COLOR_RGB: &str = "21, 71, 52";
 const WOMEN_COLOR: &str = "#c26a2e";
 const WOMEN_COLOR_RGB: &str = "194, 106, 46";
+const USER_MARKER_COLOR: &str = "#d6452b";
 
 fn format_axis_tick(value: f32) -> String {
     if (value - value.round()).abs() < 0.05 {
@@ -48,7 +49,11 @@ fn histogram_overlay_rects(
         .collect()
 }
 
-pub(super) fn render_histogram_svg(hist: &HistogramBin, user_value: f32, x_label: &str) -> AnyView {
+pub(super) fn render_histogram_svg(
+    hist: &HistogramBin,
+    user_value: Option<f32>,
+    x_label: &str,
+) -> AnyView {
     let max_count = hist.counts.iter().copied().max().unwrap_or(1) as f32;
     let w = 760.0f32;
     let h = 240.0f32;
@@ -60,8 +65,42 @@ pub(super) fn render_histogram_svg(hist: &HistogramBin, user_value: f32, x_label
     let plot_h = (h - top - bottom).max(1.0);
     let bar_w = (plot_w / hist.counts.len().max(1) as f32).max(1.0);
 
-    let marker_x = left
-        + ((user_value - hist.min) / (hist.max - hist.min).max(0.0001)).clamp(0.0, 1.0) * plot_w;
+    let marker_x = user_value.map(|value| {
+        left + ((value - hist.min) / (hist.max - hist.min).max(0.0001)).clamp(0.0, 1.0) * plot_w
+    });
+    let marker_view = if let Some(marker_x) = marker_x {
+        view! {
+            <line
+                x1={marker_x.to_string()}
+                y1={top.to_string()}
+                x2={marker_x.to_string()}
+                y2={(top + plot_h).to_string()}
+                stroke={USER_MARKER_COLOR}
+                stroke-width="3"
+            />
+        }
+        .into_any()
+    } else {
+        ().into_any()
+    };
+    let marker_legend_view = if user_value.is_some() {
+        view! {
+            <>
+                <line
+                    x1={(w - 132.0).to_string()}
+                    y1="34"
+                    x2={(w - 118.0).to_string()}
+                    y2="34"
+                    stroke={USER_MARKER_COLOR}
+                    stroke-width="3"
+                />
+                <text x={(w - 112.0).to_string()} y="37" font-size="11" fill="#20342c">"Your value"</text>
+            </>
+        }
+        .into_any()
+    } else {
+        ().into_any()
+    };
     let bars: Vec<(usize, u32)> = hist.counts.iter().copied().enumerate().collect();
     let x_mid = (hist.min + hist.max) * 0.5;
     let y_tick_mid = (max_count * 0.5).round() as u32;
@@ -88,7 +127,7 @@ pub(super) fn render_histogram_svg(hist: &HistogramBin, user_value: f32, x_label
                     }
                 })
                 .collect_view()}
-            <line x1={marker_x.to_string()} y1={top.to_string()} x2={marker_x.to_string()} y2={(top + plot_h).to_string()} stroke="#d6452b" stroke-width="3" />
+            {marker_view}
 
             <text x={left.to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="middle">{format!("{:.0}", hist.min)}</text>
             <text x={(left + plot_w * 0.5).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="middle">{format!("{:.0}", x_mid)}</text>
@@ -101,11 +140,18 @@ pub(super) fn render_histogram_svg(hist: &HistogramBin, user_value: f32, x_label
             <text x={(left + plot_w * 0.5).to_string()} y={(h - 4.0).to_string()} font-size="12" fill="#20342c" text-anchor="middle">{x_label.to_string()}</text>
             <text x="14" y={(top + plot_h * 0.5).to_string()} font-size="12" fill="#20342c" text-anchor="middle" transform={format!("rotate(-90,14,{})", top + plot_h * 0.5)}>"Lifter count"</text>
 
-            <rect x={(w - 142.0).to_string()} y="10" width="132" height="34" rx="6" fill="#ffffff" stroke="#d5d2c7" />
+            <rect
+                x={(w - 142.0).to_string()}
+                y="10"
+                width="132"
+                height={if user_value.is_some() { "34" } else { "20" }}
+                rx="6"
+                fill="#ffffff"
+                stroke="#d5d2c7"
+            />
             <rect x={(w - 132.0).to_string()} y="19" width="14" height="6" fill="#154734" />
             <text x={(w - 112.0).to_string()} y="25" font-size="11" fill="#20342c">"Distribution"</text>
-            <line x1={(w - 132.0).to_string()} y1="34" x2={(w - 118.0).to_string()} y2="34" stroke="#d6452b" stroke-width="3" />
-            <text x={(w - 112.0).to_string()} y="37" font-size="11" fill="#20342c">"Your value"</text>
+            {marker_legend_view}
         </svg>
     }
     .into_any()
@@ -114,8 +160,7 @@ pub(super) fn render_histogram_svg(hist: &HistogramBin, user_value: f32, x_label
 pub(super) fn render_dual_histogram_svg(
     male_hist: &HistogramBin,
     female_hist: &HistogramBin,
-    male_value: f32,
-    female_value: f32,
+    user_value: Option<f32>,
     x_label: &str,
 ) -> AnyView {
     let max_count = male_hist
@@ -136,8 +181,41 @@ pub(super) fn render_dual_histogram_svg(
     let min_x = male_hist.min.min(female_hist.min);
     let max_x = male_hist.max.max(female_hist.max);
     let x_span = (max_x - min_x).max(0.0001);
-    let male_marker_x = left + ((male_value - min_x) / x_span).clamp(0.0, 1.0) * plot_w;
-    let female_marker_x = left + ((female_value - min_x) / x_span).clamp(0.0, 1.0) * plot_w;
+    let user_marker_x =
+        user_value.map(|value| left + ((value - min_x) / x_span).clamp(0.0, 1.0) * plot_w);
+    let user_marker_view = if let Some(marker_x) = user_marker_x {
+        view! {
+            <line
+                x1={marker_x.to_string()}
+                y1={top.to_string()}
+                x2={marker_x.to_string()}
+                y2={(top + plot_h).to_string()}
+                stroke={USER_MARKER_COLOR}
+                stroke-width="3"
+            />
+        }
+        .into_any()
+    } else {
+        ().into_any()
+    };
+    let user_marker_legend_view = if user_value.is_some() {
+        view! {
+            <>
+                <line
+                    x1={(w - 166.0).to_string()}
+                    y1="50"
+                    x2={(w - 152.0).to_string()}
+                    y2="50"
+                    stroke={USER_MARKER_COLOR}
+                    stroke-width="3"
+                />
+                <text x={(w - 146.0).to_string()} y="53" font-size="11" fill="#20342c">"Your input"</text>
+            </>
+        }
+        .into_any()
+    } else {
+        ().into_any()
+    };
     let y_tick_mid = (max_count * 0.5).round() as u32;
     let male_bars = histogram_overlay_rects(
         male_hist, min_x, max_x, max_count, left, top, plot_w, plot_h,
@@ -190,8 +268,7 @@ pub(super) fn render_dual_histogram_svg(
                 })
                 .collect_view()}
 
-            <line x1={male_marker_x.to_string()} y1={top.to_string()} x2={male_marker_x.to_string()} y2={(top + plot_h).to_string()} stroke={MEN_COLOR} stroke-width="3" />
-            <line x1={female_marker_x.to_string()} y1={top.to_string()} x2={female_marker_x.to_string()} y2={(top + plot_h).to_string()} stroke={WOMEN_COLOR} stroke-width="3" stroke-dasharray="6 4" />
+            {user_marker_view}
 
             <text x={left.to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="middle">{format_axis_tick(min_x)}</text>
             <text x={(left + plot_w * 0.5).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="middle">{format_axis_tick((min_x + max_x) * 0.5)}</text>
@@ -204,15 +281,20 @@ pub(super) fn render_dual_histogram_svg(
             <text x={(left + plot_w * 0.5).to_string()} y={(h - 4.0).to_string()} font-size="12" fill="#20342c" text-anchor="middle">{x_label.to_string()}</text>
             <text x="14" y={(top + plot_h * 0.5).to_string()} font-size="12" fill="#20342c" text-anchor="middle" transform={format!("rotate(-90,14,{})", top + plot_h * 0.5)}>"Lifter count"</text>
 
-            <rect x={(w - 176.0).to_string()} y="10" width="166" height="58" rx="6" fill="#ffffff" stroke="#d5d2c7" />
+            <rect
+                x={(w - 176.0).to_string()}
+                y="10"
+                width="166"
+                height={if user_value.is_some() { "58" } else { "44" }}
+                rx="6"
+                fill="#ffffff"
+                stroke="#d5d2c7"
+            />
             <rect x={(w - 166.0).to_string()} y="19" width="14" height="6" fill={MEN_COLOR} fill-opacity="0.48" />
             <text x={(w - 146.0).to_string()} y="25" font-size="11" fill="#20342c">"Men distribution"</text>
             <rect x={(w - 166.0).to_string()} y="33" width="14" height="6" fill={WOMEN_COLOR} fill-opacity="0.42" />
             <text x={(w - 146.0).to_string()} y="39" font-size="11" fill="#20342c">"Women distribution"</text>
-            <line x1={(w - 166.0).to_string()} y1="50" x2={(w - 152.0).to_string()} y2="50" stroke={MEN_COLOR} stroke-width="3" />
-            <text x={(w - 146.0).to_string()} y="53" font-size="11" fill="#20342c">"Men input"</text>
-            <line x1={(w - 166.0).to_string()} y1="63" x2={(w - 152.0).to_string()} y2="63" stroke={WOMEN_COLOR} stroke-width="3" stroke-dasharray="6 4" />
-            <text x={(w - 146.0).to_string()} y="66" font-size="11" fill="#20342c">"Women input"</text>
+            {user_marker_legend_view}
         </svg>
     }
     .into_any()
@@ -221,7 +303,7 @@ pub(super) fn render_dual_histogram_svg(
 pub(super) fn draw_heatmap(
     canvas: &HtmlCanvasElement,
     heat: &HeatmapBin,
-    user_lift: f32,
+    user_lift: Option<f32>,
     user_bw: f32,
     x_label: &str,
 ) {
@@ -296,17 +378,21 @@ pub(super) fn draw_heatmap(
         }
     }
 
-    let x = left
-        + ((user_lift - heat.min_x) / (heat.max_x - heat.min_x).max(0.0001)).clamp(0.0, 1.0) as f64
-            * plot_w;
-    let y = top + plot_h
-        - (((user_bw - heat.min_y) / (heat.max_y - heat.min_y).max(0.0001)).clamp(0.0, 1.0) as f64
-            * plot_h);
+    if let Some(user_lift) = user_lift {
+        let x = left
+            + ((user_lift - heat.min_x) / (heat.max_x - heat.min_x).max(0.0001)).clamp(0.0, 1.0)
+                as f64
+                * plot_w;
+        let y = top + plot_h
+            - (((user_bw - heat.min_y) / (heat.max_y - heat.min_y).max(0.0001)).clamp(0.0, 1.0)
+                as f64
+                * plot_h);
 
-    ctx.begin_path();
-    ctx.set_fill_style_str("#d6452b");
-    let _ = ctx.arc(x, y, 5.0, 0.0, std::f64::consts::PI * 2.0);
-    ctx.fill();
+        ctx.begin_path();
+        ctx.set_fill_style_str(USER_MARKER_COLOR);
+        let _ = ctx.arc(x, y, 5.0, 0.0, std::f64::consts::PI * 2.0);
+        ctx.fill();
+    }
 
     ctx.set_stroke_style_str("#8a8a84");
     ctx.begin_path();
@@ -380,19 +466,21 @@ pub(super) fn draw_heatmap(
     let _ = ctx.fill_text("High", legend_x + 20.0, legend_y + 2.0);
     let _ = ctx.fill_text("Low", legend_x + 20.0, legend_y + legend_h - 2.0);
 
-    ctx.begin_path();
-    ctx.set_fill_style_str("#d6452b");
-    let _ = ctx.arc(
-        legend_x + 7.0,
-        legend_y + legend_h + 16.0,
-        4.0,
-        0.0,
-        std::f64::consts::PI * 2.0,
-    );
-    ctx.fill();
-    ctx.set_fill_style_str("#20342c");
-    ctx.set_text_baseline("middle");
-    let _ = ctx.fill_text("You", legend_x + 20.0, legend_y + legend_h + 16.0);
+    if user_lift.is_some() {
+        ctx.begin_path();
+        ctx.set_fill_style_str(USER_MARKER_COLOR);
+        let _ = ctx.arc(
+            legend_x + 7.0,
+            legend_y + legend_h + 16.0,
+            4.0,
+            0.0,
+            std::f64::consts::PI * 2.0,
+        );
+        ctx.fill();
+        ctx.set_fill_style_str("#20342c");
+        ctx.set_text_baseline("middle");
+        let _ = ctx.fill_text("You", legend_x + 20.0, legend_y + legend_h + 16.0);
+    }
 }
 
 fn draw_overlay_heat_layer(
@@ -450,25 +538,11 @@ fn draw_circle_marker(ctx: &CanvasRenderingContext2d, x: f64, y: f64, color: &st
     ctx.stroke();
 }
 
-fn draw_diamond_marker(ctx: &CanvasRenderingContext2d, x: f64, y: f64, color: &str) {
-    ctx.begin_path();
-    ctx.move_to(x, y - 6.0);
-    ctx.line_to(x + 6.0, y);
-    ctx.line_to(x, y + 6.0);
-    ctx.line_to(x - 6.0, y);
-    ctx.close_path();
-    ctx.set_fill_style_str(color);
-    ctx.fill();
-    ctx.set_stroke_style_str("#ffffff");
-    ctx.stroke();
-}
-
 pub(super) fn draw_cross_sex_heatmap_overlay(
     canvas: &HtmlCanvasElement,
     male_heat: &HeatmapBin,
     female_heat: &HeatmapBin,
-    male_value: f32,
-    female_value: f32,
+    user_value: Option<f32>,
     user_bw: f32,
     x_label: &str,
 ) {
@@ -553,12 +627,12 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
 
     let x_span = (max_x - min_x).max(0.0001);
     let y_span = (max_y - min_y).max(0.0001);
-    let marker_y = top + plot_h - (((user_bw as f64 - min_y) / y_span).clamp(0.0, 1.0) * plot_h);
-    let male_x = left + (((male_value as f64 - min_x) / x_span).clamp(0.0, 1.0) * plot_w);
-    let female_x = left + (((female_value as f64 - min_x) / x_span).clamp(0.0, 1.0) * plot_w);
-
-    draw_circle_marker(&ctx, male_x, marker_y, MEN_COLOR);
-    draw_diamond_marker(&ctx, female_x, marker_y, WOMEN_COLOR);
+    if let Some(value) = user_value {
+        let marker_y =
+            top + plot_h - (((user_bw as f64 - min_y) / y_span).clamp(0.0, 1.0) * plot_h);
+        let marker_x = left + (((value as f64 - min_x) / x_span).clamp(0.0, 1.0) * plot_w);
+        draw_circle_marker(&ctx, marker_x, marker_y, USER_MARKER_COLOR);
+    }
 
     ctx.set_stroke_style_str("#8a8a84");
     ctx.begin_path();
@@ -624,9 +698,8 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
     ctx.fill_rect(legend_x, legend_y + 18.0, 14.0, 10.0);
     let _ = ctx.fill_text("Women density", legend_x + 20.0, legend_y + 23.0);
 
-    draw_circle_marker(&ctx, legend_x + 7.0, legend_y + 46.0, MEN_COLOR);
-    let _ = ctx.fill_text("Men input", legend_x + 20.0, legend_y + 46.0);
-
-    draw_diamond_marker(&ctx, legend_x + 7.0, legend_y + 64.0, WOMEN_COLOR);
-    let _ = ctx.fill_text("Women input", legend_x + 20.0, legend_y + 64.0);
+    if user_value.is_some() {
+        draw_circle_marker(&ctx, legend_x + 7.0, legend_y + 46.0, USER_MARKER_COLOR);
+        let _ = ctx.fill_text("Your input", legend_x + 20.0, legend_y + 46.0);
+    }
 }

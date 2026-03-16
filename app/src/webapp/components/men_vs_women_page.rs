@@ -20,6 +20,7 @@ pub(in crate::webapp) fn MenVsWomenPage(page: MenVsWomenPageSections) -> impl In
         male_heat,
         female_heat,
         hist_x_label,
+        user_lift,
         bodyweight,
         use_lbs,
         unit_label,
@@ -61,6 +62,7 @@ pub(in crate::webapp) fn MenVsWomenPage(page: MenVsWomenPageSections) -> impl In
                 male_heat=male_heat
                 female_heat=female_heat
                 hist_x_label=hist_x_label
+                user_lift=user_lift
                 bodyweight=bodyweight
                 lift_mult=controls.lift_mult
                 bw_mult=controls.bw_mult

@@ -1,10 +1,19 @@
-use crate::core::{HeatmapBin, HistogramBin, rebin_1d, rebin_2d};
+use crate::core::{HeatmapBin, HistogramBin, histogram_mean_stddev, rebin_1d, rebin_2d};
 use crate::webapp::charts::{draw_cross_sex_heatmap_overlay, render_dual_histogram_svg};
 use crate::webapp::models::CrossSexComparison;
+use crate::webapp::ui::metric_label;
 use leptos::ev;
 use leptos::html::Canvas;
 use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::prelude::*;
+
+fn format_overlay_stat(value: f32, metric: &str) -> String {
+    if metric == "Kg" {
+        format!("{value:.1} kg")
+    } else {
+        format!("{value:.2} {}", metric_label(metric))
+    }
+}
 
 #[component]
 pub(in crate::webapp) fn CrossSexChartsPanel(
@@ -17,23 +26,19 @@ pub(in crate::webapp) fn CrossSexChartsPanel(
     male_heat: ReadSignal<Option<HeatmapBin>>,
     female_heat: ReadSignal<Option<HeatmapBin>>,
     hist_x_label: Memo<String>,
+    user_lift: Memo<f32>,
     bodyweight: ReadSignal<f32>,
     lift_mult: ReadSignal<usize>,
     bw_mult: ReadSignal<usize>,
 ) -> impl IntoView {
     let canvas_ref: NodeRef<Canvas> = NodeRef::new();
+    let (show_hist_indicator, set_show_hist_indicator) = signal(true);
+    let (show_heat_indicator, set_show_heat_indicator) = signal(true);
     let (resize_tick, set_resize_tick) = signal(0u32);
     let resize_handle = window_event_listener(ev::resize, move |_| {
         set_resize_tick.update(|tick| *tick = tick.wrapping_add(1));
     });
     on_cleanup(move || resize_handle.remove());
-
-    let marker_values = Memo::new(move |_| {
-        comparison
-            .get()
-            .ok()
-            .map(|data| (data.male_input_value, data.female_input_value))
-    });
     let rebinned_male_hist = Memo::new(move |_| {
         male_hist.get().map(|hist| {
             let lift_grouping = lift_mult.get();
@@ -116,15 +121,11 @@ pub(in crate::webapp) fn CrossSexChartsPanel(
         let Some(female_heat) = rebinned_female_heat.get() else {
             return;
         };
-        let Some((male_value, female_value)) = marker_values.get() else {
-            return;
-        };
         draw_cross_sex_heatmap_overlay(
             &canvas,
             &male_heat,
             &female_heat,
-            male_value,
-            female_value,
+            show_heat_indicator.get().then(|| user_lift.get()),
             bodyweight.get(),
             &hist_x_label.get(),
         );
@@ -132,7 +133,22 @@ pub(in crate::webapp) fn CrossSexChartsPanel(
 
     view! {
         <section class="panel">
-            <h3>"Overlayed Histograms"</h3>
+            <div class="panel-titlebar">
+                <h3>"Overlayed Histograms"</h3>
+                <button
+                    type="button"
+                    class="secondary"
+                    on:click=move |_| set_show_hist_indicator.update(|value| *value = !*value)
+                >
+                    {move || {
+                        if show_hist_indicator.get() {
+                            "Hide input indicator"
+                        } else {
+                            "Show input indicator"
+                        }
+                    }}
+                </button>
+            </div>
             <p class="muted">
                 "Men and women share one x-axis here, with translucent fills showing where each cohort clusters."
             </p>
@@ -145,11 +161,10 @@ pub(in crate::webapp) fn CrossSexChartsPanel(
                     rebinned_male_hist.get(),
                     rebinned_female_hist.get(),
                 ) {
-                    (Ok(data), Some(male_hist), Some(female_hist)) => render_dual_histogram_svg(
+                    (Ok(_), Some(male_hist), Some(female_hist)) => render_dual_histogram_svg(
                         &male_hist,
                         &female_hist,
-                        data.male_input_value,
-                        data.female_input_value,
+                        show_hist_indicator.get().then(|| user_lift.get()),
                         &hist_x_label.get(),
                     ),
                     (Err(message), _, _) => view! { <p class="muted">{message}</p> }.into_any(),
@@ -159,10 +174,58 @@ pub(in crate::webapp) fn CrossSexChartsPanel(
                     }
                 }}
             </Show>
+            <Show when=move || {
+                comparison.get().is_ok()
+                    && rebinned_male_hist.get().is_some()
+                    && rebinned_female_hist.get().is_some()
+            }>
+                {move || {
+                    let metric = comparison
+                        .get()
+                        .ok()
+                        .map(|data| data.metric)
+                        .unwrap_or_else(|| "Kg".to_string());
+                    let male_stats = histogram_mean_stddev(rebinned_male_hist.get().as_ref());
+                    let female_stats = histogram_mean_stddev(rebinned_female_hist.get().as_ref());
+
+                    match (male_stats, female_stats) {
+                        (Some((male_mean, male_sd)), Some((female_mean, female_sd))) => view! {
+                            <>
+                                {metric_grid! {
+                                    "Men mean" => format!(" {}", format_overlay_stat(male_mean, &metric)),
+                                    "Men SD" => format!(" {}", format_overlay_stat(male_sd, &metric)),
+                                    "Women mean" => format!(" {}", format_overlay_stat(female_mean, &metric)),
+                                    "Women SD" => format!(" {}", format_overlay_stat(female_sd, &metric)),
+                                }}
+                                <p class="muted">
+                                    "Mean and standard deviation are estimated from the rebinned histogram bin centers."
+                                </p>
+                            </>
+                        }
+                        .into_any(),
+                        _ => view! { <></> }.into_any(),
+                    }
+                }}
+            </Show>
         </section>
 
         <section class="panel">
-            <h3>{move || format!("Overlayed Bodyweight vs {}", hist_x_label.get())}</h3>
+            <div class="panel-titlebar">
+                <h3>{move || format!("Overlayed Bodyweight vs {}", hist_x_label.get())}</h3>
+                <button
+                    type="button"
+                    class="secondary"
+                    on:click=move |_| set_show_heat_indicator.update(|value| *value = !*value)
+                >
+                    {move || {
+                        if show_heat_indicator.get() {
+                            "Hide input indicator"
+                        } else {
+                            "Show input indicator"
+                        }
+                    }}
+                </button>
+            </div>
             <p class="muted">
                 "Each density map is drawn in its own color so shared hotspots and cohort-specific pockets stand out."
             </p>
