@@ -14,7 +14,14 @@ pub(in crate::webapp) fn OnboardingPanel(form: OnboardingSections) -> impl IntoV
     } = form;
     view! {
         <section class="panel onboarding">
-            <h2>"Your Numbers"</h2>
+            <div class="panel-titlebar">
+                <div>
+                    <h2>"Your Numbers"</h2>
+                    <p class="muted">
+                        "Set the cohort and the lifts you want scored against the dataset."
+                    </p>
+                </div>
+            </div>
             <div class="grid simple">
                 <label>"Sex"
                     <select on:change=move |ev| identity.set_sex.set(event_target_value(&ev))>

@@ -29,12 +29,21 @@ pub(in crate::webapp) fn MenVsWomenPage(page: MenVsWomenPageSections) -> impl In
 
     view! {
         <header class="hero">
-            <h1>"Men vs Women"</h1>
-            <p>{move || dataset_blurb.get()}</p>
+            <p class="hero-tag">"// cross-sex comparison"</p>
+            <h1>
+                "Men vs"
+                <br />
+                <span>"Women"</span>
+            </h1>
             <p class="intro">
                 "Compare the same input against aligned male and female cohorts, then inspect how both distributions overlap."
             </p>
-            <p class="muted">{move || selection_summary.get()}</p>
+            <div class="hero-badges">
+                <p class="data-badge">
+                    <strong>{move || dataset_blurb.get()}</strong>
+                </p>
+                <p class="data-badge">{move || selection_summary.get()}</p>
+            </div>
         </header>
 
         <OnboardingPanel form=onboarding />

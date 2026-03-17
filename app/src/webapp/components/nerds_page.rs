@@ -19,12 +19,21 @@ pub(in crate::webapp) fn NerdsPage(page: NerdsPageSections) -> impl IntoView {
     } = page;
     view! {
         <header class="hero">
-            <h1>"Stats for Nerds"</h1>
-            <p>{move || header.dataset_blurb.get()}</p>
+            <p class="hero-tag">"// advanced analytics"</p>
+            <h1>
+                "Stats for"
+                <br />
+                <span>"Nerds"</span>
+            </h1>
             <p class="intro">
                 "Advanced distributions, cohort comparisons, and methodology details for people who want the full story."
             </p>
-            <p class="muted">{move || header.nerd_cohort_summary.get()}</p>
+            <div class="hero-badges">
+                <p class="data-badge">
+                    <strong>{move || header.dataset_blurb.get()}</strong>
+                </p>
+                <p class="data-badge">{move || header.nerd_cohort_summary.get()}</p>
+            </div>
         </header>
 
         <OnboardingPanel form=onboarding />

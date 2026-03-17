@@ -12,7 +12,12 @@ pub(in crate::webapp) fn ResultCardPanel(card: ResultCardSections) -> impl IntoV
     } = card;
     view! {
         <section class="panel result-card">
-            <h2>"Result"</h2>
+            <div class="panel-titlebar">
+                <div>
+                    <h2>"Result"</h2>
+                    <p class="muted">"Your headline percentile, tier, and sharing tools live here."</p>
+                </div>
+            </div>
             <Show
                 when=move || status.calculated.get()
                 fallback=move || view! { <p class="muted">"Press Calculate my ranking to load your headline result."</p> }

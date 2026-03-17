@@ -14,12 +14,22 @@ pub(in crate::webapp) fn RankingPage(page: RankingPageSections) -> impl IntoView
     } = page;
     view! {
         <header class="hero">
-            <h1>"How Strong Are You?"</h1>
-            <p>{move || header.dataset_blurb.get()}</p>
+            <p class="hero-tag">"// percentile ranking"</p>
+            <h1>
+                "How "
+                <span>"Strong"</span>
+                <br />
+                "Are You?"
+            </h1>
             <p class="intro">
                 "Enter your lifts and get a clear percentile result. No charts, just your ranking."
             </p>
-            <p class="muted">{move || header.ranking_cohort_blurb.get()}</p>
+            <div class="hero-badges">
+                <p class="data-badge">
+                    <strong>{move || header.dataset_blurb.get()}</strong>
+                </p>
+                <p class="data-badge">{move || header.ranking_cohort_blurb.get()}</p>
+            </div>
         </header>
 
         <OnboardingPanel form=onboarding />

@@ -5,11 +5,18 @@ use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
 const DEFAULT_HEATMAP_WIDTH: f64 = 800.0;
 const DEFAULT_HEATMAP_HEIGHT: f64 = 420.0;
-const MEN_COLOR: &str = "#154734";
-const MEN_COLOR_RGB: &str = "21, 71, 52";
-const WOMEN_COLOR: &str = "#c26a2e";
-const WOMEN_COLOR_RGB: &str = "194, 106, 46";
-const USER_MARKER_COLOR: &str = "#d6452b";
+const MEN_COLOR: &str = "#c8f135";
+const MEN_COLOR_RGB: &str = "200, 241, 53";
+const WOMEN_COLOR: &str = "#4ecdc4";
+const WOMEN_COLOR_RGB: &str = "78, 205, 196";
+const USER_MARKER_COLOR: &str = "#ff8a3d";
+const SURFACE_COLOR: &str = "#111116";
+const AXIS_COLOR: &str = "#3a3a44";
+const TICK_COLOR: &str = "#9a9a9a";
+const LABEL_COLOR: &str = "#f0efe8";
+const LEGEND_BG: &str = "#14141a";
+const LEGEND_BORDER: &str = "#2a2a34";
+const HEAT_COLOR_RGB: &str = "78, 205, 196";
 
 fn format_axis_tick(value: f32) -> String {
     if (value - value.round()).abs() < 0.05 {
@@ -94,7 +101,7 @@ pub(super) fn render_histogram_svg(
                     stroke={USER_MARKER_COLOR}
                     stroke-width="3"
                 />
-                <text x={(w - 112.0).to_string()} y="37" font-size="11" fill="#20342c">"Your value"</text>
+                <text x={(w - 112.0).to_string()} y="37" font-size="11" fill={LABEL_COLOR}>"Your value"</text>
             </>
         }
         .into_any()
@@ -107,9 +114,9 @@ pub(super) fn render_histogram_svg(
 
     view! {
         <svg class="hist" viewBox="0 0 760 240" preserveAspectRatio="none">
-            <rect x="0" y="0" width={w.to_string()} height={h.to_string()} fill="#f7f5ef" />
-            <line x1={left.to_string()} y1={(top + plot_h).to_string()} x2={(left + plot_w).to_string()} y2={(top + plot_h).to_string()} stroke="#8a8a84" stroke-width="1" />
-            <line x1={left.to_string()} y1={top.to_string()} x2={left.to_string()} y2={(top + plot_h).to_string()} stroke="#8a8a84" stroke-width="1" />
+            <rect x="0" y="0" width={w.to_string()} height={h.to_string()} fill={SURFACE_COLOR} />
+            <line x1={left.to_string()} y1={(top + plot_h).to_string()} x2={(left + plot_w).to_string()} y2={(top + plot_h).to_string()} stroke={AXIS_COLOR} stroke-width="1" />
+            <line x1={left.to_string()} y1={top.to_string()} x2={left.to_string()} y2={(top + plot_h).to_string()} stroke={AXIS_COLOR} stroke-width="1" />
             {bars
                 .into_iter()
                 .map(|(i, c)| {
@@ -122,23 +129,23 @@ pub(super) fn render_histogram_svg(
                             y={y.to_string()}
                             width={(bar_w - 1.0).max(0.5).to_string()}
                             height={bh.to_string()}
-                            fill="#154734"
+                            fill={MEN_COLOR}
                         />
                     }
                 })
                 .collect_view()}
             {marker_view}
 
-            <text x={left.to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="middle">{format!("{:.0}", hist.min)}</text>
-            <text x={(left + plot_w * 0.5).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="middle">{format!("{:.0}", x_mid)}</text>
-            <text x={(left + plot_w).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="middle">{format!("{:.0}", hist.max)}</text>
+            <text x={left.to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="middle">{format!("{:.0}", hist.min)}</text>
+            <text x={(left + plot_w * 0.5).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="middle">{format!("{:.0}", x_mid)}</text>
+            <text x={(left + plot_w).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="middle">{format!("{:.0}", hist.max)}</text>
 
-            <text x={(left - 8.0).to_string()} y={(top + plot_h).to_string()} font-size="11" fill="#4b4b44" text-anchor="end">{ "0" }</text>
-            <text x={(left - 8.0).to_string()} y={(top + plot_h * 0.5 + 4.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="end">{y_tick_mid.to_string()}</text>
-            <text x={(left - 8.0).to_string()} y={(top + 4.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="end">{(max_count.round() as u32).to_string()}</text>
+            <text x={(left - 8.0).to_string()} y={(top + plot_h).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="end">{ "0" }</text>
+            <text x={(left - 8.0).to_string()} y={(top + plot_h * 0.5 + 4.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="end">{y_tick_mid.to_string()}</text>
+            <text x={(left - 8.0).to_string()} y={(top + 4.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="end">{(max_count.round() as u32).to_string()}</text>
 
-            <text x={(left + plot_w * 0.5).to_string()} y={(h - 4.0).to_string()} font-size="12" fill="#20342c" text-anchor="middle">{x_label.to_string()}</text>
-            <text x="14" y={(top + plot_h * 0.5).to_string()} font-size="12" fill="#20342c" text-anchor="middle" transform={format!("rotate(-90,14,{})", top + plot_h * 0.5)}>"Lifter count"</text>
+            <text x={(left + plot_w * 0.5).to_string()} y={(h - 4.0).to_string()} font-size="12" fill={LABEL_COLOR} text-anchor="middle">{x_label.to_string()}</text>
+            <text x="14" y={(top + plot_h * 0.5).to_string()} font-size="12" fill={LABEL_COLOR} text-anchor="middle" transform={format!("rotate(-90,14,{})", top + plot_h * 0.5)}>"Lifter count"</text>
 
             <rect
                 x={(w - 142.0).to_string()}
@@ -146,11 +153,11 @@ pub(super) fn render_histogram_svg(
                 width="132"
                 height={if user_value.is_some() { "34" } else { "20" }}
                 rx="6"
-                fill="#ffffff"
-                stroke="#d5d2c7"
+                fill={LEGEND_BG}
+                stroke={LEGEND_BORDER}
             />
-            <rect x={(w - 132.0).to_string()} y="19" width="14" height="6" fill="#154734" />
-            <text x={(w - 112.0).to_string()} y="25" font-size="11" fill="#20342c">"Distribution"</text>
+            <rect x={(w - 132.0).to_string()} y="19" width="14" height="6" fill={MEN_COLOR} />
+            <text x={(w - 112.0).to_string()} y="25" font-size="11" fill={LABEL_COLOR}>"Distribution"</text>
             {marker_legend_view}
         </svg>
     }
@@ -209,7 +216,7 @@ pub(super) fn render_dual_histogram_svg(
                     stroke={USER_MARKER_COLOR}
                     stroke-width="3"
                 />
-                <text x={(w - 146.0).to_string()} y="53" font-size="11" fill="#20342c">"Your input"</text>
+                <text x={(w - 146.0).to_string()} y="53" font-size="11" fill={LABEL_COLOR}>"Your input"</text>
             </>
         }
         .into_any()
@@ -233,9 +240,9 @@ pub(super) fn render_dual_histogram_svg(
 
     view! {
         <svg class="hist" viewBox="0 0 760 240" preserveAspectRatio="none">
-            <rect x="0" y="0" width={w.to_string()} height={h.to_string()} fill="#f7f5ef" />
-            <line x1={left.to_string()} y1={(top + plot_h).to_string()} x2={(left + plot_w).to_string()} y2={(top + plot_h).to_string()} stroke="#8a8a84" stroke-width="1" />
-            <line x1={left.to_string()} y1={top.to_string()} x2={left.to_string()} y2={(top + plot_h).to_string()} stroke="#8a8a84" stroke-width="1" />
+            <rect x="0" y="0" width={w.to_string()} height={h.to_string()} fill={SURFACE_COLOR} />
+            <line x1={left.to_string()} y1={(top + plot_h).to_string()} x2={(left + plot_w).to_string()} y2={(top + plot_h).to_string()} stroke={AXIS_COLOR} stroke-width="1" />
+            <line x1={left.to_string()} y1={top.to_string()} x2={left.to_string()} y2={(top + plot_h).to_string()} stroke={AXIS_COLOR} stroke-width="1" />
 
             {female_bars
                 .into_iter()
@@ -270,16 +277,16 @@ pub(super) fn render_dual_histogram_svg(
 
             {user_marker_view}
 
-            <text x={left.to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="middle">{format_axis_tick(min_x)}</text>
-            <text x={(left + plot_w * 0.5).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="middle">{format_axis_tick((min_x + max_x) * 0.5)}</text>
-            <text x={(left + plot_w).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="middle">{format_axis_tick(max_x)}</text>
+            <text x={left.to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="middle">{format_axis_tick(min_x)}</text>
+            <text x={(left + plot_w * 0.5).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="middle">{format_axis_tick((min_x + max_x) * 0.5)}</text>
+            <text x={(left + plot_w).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="middle">{format_axis_tick(max_x)}</text>
 
-            <text x={(left - 8.0).to_string()} y={(top + plot_h).to_string()} font-size="11" fill="#4b4b44" text-anchor="end">{ "0" }</text>
-            <text x={(left - 8.0).to_string()} y={(top + plot_h * 0.5 + 4.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="end">{y_tick_mid.to_string()}</text>
-            <text x={(left - 8.0).to_string()} y={(top + 4.0).to_string()} font-size="11" fill="#4b4b44" text-anchor="end">{(max_count.round() as u32).to_string()}</text>
+            <text x={(left - 8.0).to_string()} y={(top + plot_h).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="end">{ "0" }</text>
+            <text x={(left - 8.0).to_string()} y={(top + plot_h * 0.5 + 4.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="end">{y_tick_mid.to_string()}</text>
+            <text x={(left - 8.0).to_string()} y={(top + 4.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="end">{(max_count.round() as u32).to_string()}</text>
 
-            <text x={(left + plot_w * 0.5).to_string()} y={(h - 4.0).to_string()} font-size="12" fill="#20342c" text-anchor="middle">{x_label.to_string()}</text>
-            <text x="14" y={(top + plot_h * 0.5).to_string()} font-size="12" fill="#20342c" text-anchor="middle" transform={format!("rotate(-90,14,{})", top + plot_h * 0.5)}>"Lifter count"</text>
+            <text x={(left + plot_w * 0.5).to_string()} y={(h - 4.0).to_string()} font-size="12" fill={LABEL_COLOR} text-anchor="middle">{x_label.to_string()}</text>
+            <text x="14" y={(top + plot_h * 0.5).to_string()} font-size="12" fill={LABEL_COLOR} text-anchor="middle" transform={format!("rotate(-90,14,{})", top + plot_h * 0.5)}>"Lifter count"</text>
 
             <rect
                 x={(w - 176.0).to_string()}
@@ -287,13 +294,13 @@ pub(super) fn render_dual_histogram_svg(
                 width="166"
                 height={if user_value.is_some() { "58" } else { "44" }}
                 rx="6"
-                fill="#ffffff"
-                stroke="#d5d2c7"
+                fill={LEGEND_BG}
+                stroke={LEGEND_BORDER}
             />
             <rect x={(w - 166.0).to_string()} y="19" width="14" height="6" fill={MEN_COLOR} fill-opacity="0.48" />
-            <text x={(w - 146.0).to_string()} y="25" font-size="11" fill="#20342c">"Men distribution"</text>
+            <text x={(w - 146.0).to_string()} y="25" font-size="11" fill={LABEL_COLOR}>"Men distribution"</text>
             <rect x={(w - 166.0).to_string()} y="33" width="14" height="6" fill={WOMEN_COLOR} fill-opacity="0.42" />
-            <text x={(w - 146.0).to_string()} y="39" font-size="11" fill="#20342c">"Women distribution"</text>
+            <text x={(w - 146.0).to_string()} y="39" font-size="11" fill={LABEL_COLOR}>"Women distribution"</text>
             {user_marker_legend_view}
         </svg>
     }
@@ -348,7 +355,7 @@ pub(super) fn draw_heatmap(
     let plot_w = (cw - left - right).max(1.0);
     let plot_h = (ch - top - bottom).max(1.0);
 
-    ctx.set_fill_style_str("#fcfaf4");
+    ctx.set_fill_style_str(SURFACE_COLOR);
     ctx.fill_rect(0.0, 0.0, cw, ch);
 
     if heat.width == 0 || heat.height == 0 || heat.grid.is_empty() {
@@ -367,7 +374,7 @@ pub(super) fn draw_heatmap(
                 continue;
             }
             let a = (v / max_cell).clamp(0.05, 1.0);
-            let color = format!("rgba(11, 89, 160, {a})");
+            let color = format!("rgba({HEAT_COLOR_RGB}, {a})");
             ctx.set_fill_style_str(&color);
             ctx.fill_rect(
                 left + x as f64 * cell_w,
@@ -394,7 +401,7 @@ pub(super) fn draw_heatmap(
         ctx.fill();
     }
 
-    ctx.set_stroke_style_str("#8a8a84");
+    ctx.set_stroke_style_str(AXIS_COLOR);
     ctx.begin_path();
     ctx.move_to(left, top + plot_h);
     ctx.line_to(left + plot_w, top + plot_h);
@@ -402,8 +409,8 @@ pub(super) fn draw_heatmap(
     ctx.line_to(left, top + plot_h);
     ctx.stroke();
 
-    ctx.set_fill_style_str("#4b4b44");
-    ctx.set_font("11px Space Grotesk, sans-serif");
+    ctx.set_fill_style_str(TICK_COLOR);
+    ctx.set_font("11px 'JetBrains Mono', monospace");
     ctx.set_text_align("center");
     ctx.set_text_baseline("top");
     let _ = ctx.fill_text(&format!("{:.0}", heat.min_x), left, top + plot_h + 8.0);
@@ -428,8 +435,8 @@ pub(super) fn draw_heatmap(
     );
     let _ = ctx.fill_text(&format!("{:.0}", heat.max_y), left - 8.0, top);
 
-    ctx.set_fill_style_str("#20342c");
-    ctx.set_font("12px Space Grotesk, sans-serif");
+    ctx.set_fill_style_str(LABEL_COLOR);
+    ctx.set_font("12px Barlow, sans-serif");
     ctx.set_text_align("center");
     ctx.set_text_baseline("top");
     let _ = ctx.fill_text(x_label, left + plot_w * 0.5, ch - 18.0);
@@ -450,16 +457,16 @@ pub(super) fn draw_heatmap(
         let t0 = i as f64 / steps as f64;
         let t1 = (i + 1) as f64 / steps as f64;
         let alpha = 0.08 + (1.0 - t0) * (1.0 - 0.08);
-        ctx.set_fill_style_str(&format!("rgba(11, 89, 160, {alpha})"));
+        ctx.set_fill_style_str(&format!("rgba({HEAT_COLOR_RGB}, {alpha})"));
         let y0 = legend_y + t0 * legend_h;
         let h0 = (t1 - t0) * legend_h;
         ctx.fill_rect(legend_x, y0, 14.0, h0 + 0.5);
     }
-    ctx.set_stroke_style_str("#bdb8a7");
+    ctx.set_stroke_style_str(LEGEND_BORDER);
     ctx.stroke_rect(legend_x, legend_y, 14.0, legend_h);
 
-    ctx.set_fill_style_str("#20342c");
-    ctx.set_font("11px Space Grotesk, sans-serif");
+    ctx.set_fill_style_str(LABEL_COLOR);
+    ctx.set_font("11px Barlow, sans-serif");
     ctx.set_text_align("left");
     ctx.set_text_baseline("middle");
     let _ = ctx.fill_text("Density", legend_x - 2.0, legend_y - 10.0);
@@ -477,7 +484,7 @@ pub(super) fn draw_heatmap(
             std::f64::consts::PI * 2.0,
         );
         ctx.fill();
-        ctx.set_fill_style_str("#20342c");
+        ctx.set_fill_style_str(LABEL_COLOR);
         ctx.set_text_baseline("middle");
         let _ = ctx.fill_text("You", legend_x + 20.0, legend_y + legend_h + 16.0);
     }
@@ -534,7 +541,7 @@ fn draw_circle_marker(ctx: &CanvasRenderingContext2d, x: f64, y: f64, color: &st
     ctx.set_fill_style_str(color);
     let _ = ctx.arc(x, y, 5.0, 0.0, std::f64::consts::PI * 2.0);
     ctx.fill();
-    ctx.set_stroke_style_str("#ffffff");
+    ctx.set_stroke_style_str(LABEL_COLOR);
     ctx.stroke();
 }
 
@@ -587,7 +594,7 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
     let plot_w = (cw - left - right).max(1.0);
     let plot_h = (ch - top - bottom).max(1.0);
 
-    ctx.set_fill_style_str("#fcfaf4");
+    ctx.set_fill_style_str(SURFACE_COLOR);
     ctx.fill_rect(0.0, 0.0, cw, ch);
 
     let min_x = male_heat.min_x.min(female_heat.min_x) as f64;
@@ -634,7 +641,7 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
         draw_circle_marker(&ctx, marker_x, marker_y, USER_MARKER_COLOR);
     }
 
-    ctx.set_stroke_style_str("#8a8a84");
+    ctx.set_stroke_style_str(AXIS_COLOR);
     ctx.begin_path();
     ctx.move_to(left, top + plot_h);
     ctx.line_to(left + plot_w, top + plot_h);
@@ -642,8 +649,8 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
     ctx.line_to(left, top + plot_h);
     ctx.stroke();
 
-    ctx.set_fill_style_str("#4b4b44");
-    ctx.set_font("11px Space Grotesk, sans-serif");
+    ctx.set_fill_style_str(TICK_COLOR);
+    ctx.set_font("11px 'JetBrains Mono', monospace");
     ctx.set_text_align("center");
     ctx.set_text_baseline("top");
     let _ = ctx.fill_text(&format_axis_tick(min_x as f32), left, top + plot_h + 8.0);
@@ -668,8 +675,8 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
     );
     let _ = ctx.fill_text(&format_axis_tick(max_y as f32), left - 8.0, top);
 
-    ctx.set_fill_style_str("#20342c");
-    ctx.set_font("12px Space Grotesk, sans-serif");
+    ctx.set_fill_style_str(LABEL_COLOR);
+    ctx.set_font("12px Barlow, sans-serif");
     ctx.set_text_align("center");
     ctx.set_text_baseline("top");
     let _ = ctx.fill_text(x_label, left + plot_w * 0.5, ch - 18.0);
@@ -684,17 +691,17 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
 
     let legend_x = left + plot_w + 20.0;
     let legend_y = top + 26.0;
-    ctx.set_fill_style_str("#20342c");
-    ctx.set_font("11px Space Grotesk, sans-serif");
+    ctx.set_fill_style_str(LABEL_COLOR);
+    ctx.set_font("11px Barlow, sans-serif");
     ctx.set_text_align("left");
     ctx.set_text_baseline("middle");
     let _ = ctx.fill_text("Overlay", legend_x, legend_y - 12.0);
 
-    ctx.set_fill_style_str("rgba(21, 71, 52, 0.55)");
+    ctx.set_fill_style_str("rgba(200, 241, 53, 0.55)");
     ctx.fill_rect(legend_x, legend_y, 14.0, 10.0);
     let _ = ctx.fill_text("Men density", legend_x + 20.0, legend_y + 5.0);
 
-    ctx.set_fill_style_str("rgba(194, 106, 46, 0.50)");
+    ctx.set_fill_style_str("rgba(78, 205, 196, 0.50)");
     ctx.fill_rect(legend_x, legend_y + 18.0, 14.0, 10.0);
     let _ = ctx.fill_text("Women density", legend_x + 20.0, legend_y + 23.0);
 

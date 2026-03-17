@@ -261,20 +261,17 @@ pub fn histogram_mean_stddev(hist: Option<&HistogramBin>) -> Option<(f32, f32)> 
         return None;
     }
 
-    let center = |idx: usize| -> f64 {
-        hist.min as f64 + (idx as f64 + 0.5) * hist.base_bin as f64
-    };
+    let center =
+        |idx: usize| -> f64 { hist.min as f64 + (idx as f64 + 0.5) * hist.base_bin as f64 };
 
-    let (total, sum_x, sum_x2) = hist
-        .counts
-        .iter()
-        .copied()
-        .enumerate()
-        .fold((0.0_f64, 0.0_f64, 0.0_f64), |(t, sx, sx2), (idx, count)| {
+    let (total, sum_x, sum_x2) = hist.counts.iter().copied().enumerate().fold(
+        (0.0_f64, 0.0_f64, 0.0_f64),
+        |(t, sx, sx2), (idx, count)| {
             let x = center(idx);
             let w = count as f64;
             (t + w, sx + w * x, sx2 + w * x * x)
-        });
+        },
+    );
 
     if total == 0.0 {
         return None;

@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iron Insights — Powerlifting Data Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Barlow:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #08080A;
+  --bg-base: #0C0C0F;
+  --bg-raised: #111116;
+  --bg-card: #14141A;
+  --bg-input: #0A0A0D;
+  --border-subtle: #1C1C24;
+  --border-mid: #2A2A34;
+  --text-primary: #F0EFE8;
+  --text-secondary: #9A9A9A;
+  --text-tertiary: #5A5A64;
+  --text-muted: #3A3A44;
+  --accent: #C8F135;
+  --accent-dim: #3A5500;
+  --accent-glow: rgba(200, 241, 53, 0.12);
+  --accent-cool: #4ECDC4;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body: 'Barlow', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
+::selection { background: var(--accent); color: var(--bg-deep); }
+
+@keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); } 50% { box-shadow: 0 0 24px 4px var(--accent-glow); } }
+@keyframes gridReveal { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+/* NAV */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; height: 56px;
+  background: rgba(8, 8, 10, 0.85);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.logo { display: flex; align-items: center; gap: 12px; cursor: default; }
+.logo-mark {
+  width: 36px; height: 36px; background: var(--accent);
+  border-radius: 6px; display: grid; place-items: center;
+  position: relative; overflow: hidden;
+}
+.logo-mark::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%); }
+.logo-mark svg { width: 20px; height: 20px; position: relative; z-index: 1; }
+.logo-title { font-family: var(--font-display); font-weight: 800; font-size: 18px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-primary); line-height: 1.1; }
+.logo-sub { font-size: 10px; color: var(--text-tertiary); letter-spacing: 0.14em; text-transform: uppercase; font-weight: 500; margin-top: 1px; }
+.nav-tabs { display: flex; gap: 2px; background: var(--bg-raised); border-radius: 8px; padding: 3px; border: 1px solid var(--border-subtle); }
+.tab {
+  padding: 6px 16px; font-size: 12.5px; font-weight: 600; letter-spacing: 0.04em;
+  border-radius: 6px; cursor: pointer; border: none; background: transparent;
+  color: var(--text-tertiary); font-family: var(--font-body);
+  transition: all 0.2s var(--ease-out); white-space: nowrap;
+}
+.tab:hover { color: var(--text-primary); background: rgba(255,255,255,0.04); }
+.tab.active { background: var(--accent); color: var(--bg-deep); font-weight: 700; box-shadow: 0 2px 8px rgba(200, 241, 53, 0.25); }
+
+/* PAGE */
+.page-wrap { max-width: 960px; margin: 0 auto; padding: 32px 28px 80px; }
+.page { display: none; }
+.page.active { display: block; animation: fadeIn 0.3s var(--ease-out); }
+
+/* TYPOGRAPHY */
+.hero-tag {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent);
+  margin-bottom: 10px; animation: slideIn 0.5s var(--ease-out) both;
+}
+.hero-title {
+  font-family: var(--font-display); font-size: clamp(38px, 6vw, 56px);
+  font-weight: 900; line-height: 0.92; color: var(--text-primary);
+  letter-spacing: -0.02em; margin-bottom: 12px;
+  animation: fadeUp 0.6s var(--ease-out) 0.1s both;
+}
+.hero-title span {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-cool) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.hero-desc { font-size: 14px; color: var(--text-secondary); max-width: 420px; animation: fadeUp 0.6s var(--ease-out) 0.2s both; }
+.data-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: 6px; padding: 6px 14px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary);
+  letter-spacing: 0.04em; margin-top: 14px;
+  animation: fadeUp 0.6s var(--ease-out) 0.3s both;
+}
+.data-badge strong { color: var(--accent); font-weight: 600; }
+.data-badge .sep { color: var(--border-mid); }
+
+/* CARDS */
+.card {
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg); padding: 24px; margin-top: 20px;
+  position: relative; overflow: hidden;
+  animation: gridReveal 0.5s var(--ease-out) both;
+}
+.card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200,241,53,0.15), transparent);
+}
+.card-title {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-muted);
+  margin-bottom: 18px; display: flex; align-items: center; gap: 8px;
+}
+.card-title::before { content: ''; width: 3px; height: 12px; background: var(--accent); border-radius: 2px; }
+
+/* FORMS */
+.form-grid { display: grid; gap: 12px; margin-bottom: 16px; }
+.form-grid-2 { grid-template-columns: 1fr 1fr; }
+.form-grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+.field label {
+  display: block; font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+}
+.input {
+  width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md); color: var(--text-primary);
+  font-family: var(--font-display); font-size: 24px; font-weight: 700;
+  padding: 12px 16px; outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s; letter-spacing: 0.02em;
+}
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow), inset 0 0 0 1px var(--accent); }
+.select {
+  width: 100%; background: var(--bg-input); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md); color: var(--text-primary);
+  font-family: var(--font-body); font-size: 14px; font-weight: 500;
+  padding: 12px 16px; outline: none; appearance: none; cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%235A5A64' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center;
+}
+.select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+/* BUTTONS */
+.btn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.unit-btn {
+  padding: 6px 14px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em;
+  border-radius: var(--radius-sm); cursor: pointer; border: 1px solid var(--border-mid);
+  font-family: var(--font-mono); background: transparent; color: var(--text-tertiary);
+  transition: all 0.2s var(--ease-out);
+}
+.unit-btn:hover { border-color: var(--text-tertiary); color: var(--text-primary); }
+.unit-btn.active { background: var(--accent); border-color: var(--accent); color: var(--bg-deep); }
+.ghost-btn {
+  padding: 8px 16px; font-size: 12px; font-weight: 500; letter-spacing: 0.04em;
+  border-radius: var(--radius-md); cursor: pointer; border: 1px solid var(--border-subtle);
+  background: transparent; color: var(--text-tertiary); font-family: var(--font-body);
+  transition: all 0.2s var(--ease-out);
+}
+.ghost-btn:hover { border-color: var(--text-tertiary); color: var(--text-primary); background: rgba(255,255,255,0.03); }
+.cta {
+  display: block; width: 100%; padding: 16px; background: var(--accent);
+  color: var(--bg-deep); font-family: var(--font-display); font-size: 16px;
+  font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+  border: none; border-radius: var(--radius-md); cursor: pointer;
+  transition: all 0.2s var(--ease-out); position: relative; overflow: hidden;
+}
+.cta::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  transform: translateX(-100%); transition: transform 0.5s;
+}
+.cta:hover { background: #D4FF40; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(200, 241, 53, 0.3); }
+.cta:hover::before { transform: translateX(100%); }
+.cta:active { transform: translateY(0) scale(0.995); }
+
+.action-btn {
+  padding: 8px 16px; font-size: 12px; font-weight: 500;
+  border-radius: var(--radius-md); cursor: pointer; border: 1px solid var(--border-subtle);
+  background: var(--bg-raised); color: var(--text-secondary); font-family: var(--font-body);
+  letter-spacing: 0.03em; transition: all 0.2s var(--ease-out);
+  display: flex; align-items: center; gap: 6px;
+}
+.action-btn:hover { border-color: var(--accent-dim); color: var(--text-primary); background: var(--bg-card); }
+
+.toggle-row { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+.toggle {
+  padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: var(--radius-sm);
+  cursor: pointer; border: 1px solid var(--border-subtle); background: transparent;
+  color: var(--text-tertiary); font-family: var(--font-body); transition: all 0.2s var(--ease-out); white-space: nowrap;
+}
+.toggle:hover:not(.active) { border-color: var(--text-tertiary); color: var(--text-primary); }
+.toggle.active { background: var(--accent); border-color: var(--accent); color: var(--bg-deep); font-weight: 700; }
+
+.quick-rep-row { display: flex; gap: 6px; margin: 12px 0; flex-wrap: wrap; }
+.quick-rep {
+  padding: 6px 16px; border-radius: 20px; border: 1px solid var(--border-mid);
+  font-size: 12px; font-weight: 600; cursor: pointer; background: transparent;
+  color: var(--text-tertiary); font-family: var(--font-mono); transition: all 0.2s var(--ease-out);
+}
+.quick-rep.active { background: var(--accent); border-color: var(--accent); color: var(--bg-deep); }
+.quick-rep:hover:not(.active) { border-color: var(--text-tertiary); color: var(--text-primary); }
+
+/* RESULT */
+.result-block {
+  background: var(--bg-raised); border: 1px solid var(--border-mid);
+  border-radius: var(--radius-xl); padding: 32px; margin-top: 20px;
+  position: relative; overflow: hidden;
+}
+.result-block::before {
+  content: ''; position: absolute; top: -80px; right: -80px; width: 260px; height: 260px;
+  background: radial-gradient(circle, var(--accent-glow), transparent 70%); pointer-events: none;
+}
+.result-top { display: grid; grid-template-columns: auto 1fr; gap: 32px; align-items: center; }
+
+.gauge-wrap { position: relative; width: 160px; height: 160px; }
+.gauge-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.gauge-bg { fill: none; stroke: var(--border-subtle); stroke-width: 8; }
+.gauge-fill {
+  fill: none; stroke: url(#gaugeGrad); stroke-width: 8; stroke-linecap: round;
+  transition: stroke-dashoffset 1.2s var(--ease-out);
+  filter: drop-shadow(0 0 6px rgba(200,241,53,0.4));
+}
+.gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.gauge-value { font-family: var(--font-display); font-size: 44px; font-weight: 900; color: var(--accent); line-height: 1; letter-spacing: -0.02em; }
+.gauge-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 4px; }
+
+.result-info { position: relative; z-index: 1; }
+.level-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(200,241,53,0.08); border: 1px solid var(--accent-dim);
+  color: var(--accent); font-family: var(--font-display); font-size: 13px;
+  font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  padding: 4px 14px; border-radius: 4px; margin-bottom: 12px;
+}
+.level-badge::before { content: ''; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: pulseGlow 2s infinite; }
+.result-desc { font-size: 18px; font-weight: 500; color: var(--text-primary); margin-bottom: 16px; line-height: 1.4; }
+.result-desc strong { color: var(--accent); font-weight: 700; }
+.result-chips { display: flex; gap: 12px; flex-wrap: wrap; }
+.result-chip {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-tertiary);
+  font-family: var(--font-mono); letter-spacing: 0.03em; background: var(--bg-card);
+  padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);
+}
+.result-chip strong { color: var(--text-primary); font-weight: 600; }
+
+.bar-wrap { margin-top: 20px; }
+.bar-track { height: 4px; background: var(--bg-card); border-radius: 2px; overflow: hidden; position: relative; }
+.bar-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  border-radius: 2px; transition: width 1s var(--ease-out); position: relative;
+}
+.bar-fill::after {
+  content: ''; position: absolute; right: 0; top: -3px; width: 10px; height: 10px;
+  background: var(--accent); border-radius: 50%; box-shadow: 0 0 8px var(--accent);
+}
+.bar-labels { display: flex; justify-content: space-between; margin-top: 8px; font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.06em; }
+.bar-labels .current { color: var(--accent); font-weight: 600; }
+.action-row { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+
+/* SCORECARD */
+.scorecard { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+.sc-item {
+  background: var(--bg-input); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md); padding: 16px;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.sc-item:hover { border-color: var(--border-mid); transform: translateY(-2px); }
+.sc-lift { font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+.sc-attempt { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.sc-num { font-family: var(--font-display); font-weight: 700; line-height: 1; }
+.sc-num.opener { font-size: 28px; color: var(--text-primary); }
+.sc-num.second { font-size: 22px; color: var(--text-secondary); }
+.sc-num.third { font-size: 18px; color: var(--text-tertiary); }
+.sc-tag { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; color: var(--text-muted); text-transform: uppercase; border: 1px solid var(--border-subtle); padding: 2px 6px; border-radius: 3px; }
+.sc-tag.green { border-color: var(--accent-dim); color: var(--accent); }
+
+/* STATS */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
+.stat-box { background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px 16px; transition: border-color 0.2s; }
+.stat-box:hover { border-color: var(--border-mid); }
+.stat-lbl { font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+.stat-val { font-family: var(--font-display); font-size: 26px; font-weight: 800; color: var(--text-primary); line-height: 1; }
+.stat-unit { font-size: 14px; color: var(--text-tertiary); font-weight: 500; }
+
+/* HISTOGRAM */
+.hist-wrap { margin-top: 16px; position: relative; }
+.hist-bars { display: flex; align-items: flex-end; gap: 2px; height: 120px; }
+.hist-bar { flex: 1; border-radius: 2px 2px 0 0; min-width: 0; transition: background 0.3s; cursor: crosshair; position: relative; }
+.hist-bar.normal { background: var(--accent-dim); }
+.hist-bar.normal:hover { background: rgba(200, 241, 53, 0.5); }
+.hist-bar.you { background: var(--accent); box-shadow: 0 0 12px rgba(200, 241, 53, 0.4); }
+.hist-bar.you::after {
+  content: 'YOU'; position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+  font-family: var(--font-mono); font-size: 8px; font-weight: 700; letter-spacing: 0.1em; color: var(--accent); white-space: nowrap;
+}
+.hist-axis { display: flex; justify-content: space-between; margin-top: 8px; font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.05em; }
+
+/* 1RM */
+.rm-result {
+  background: var(--bg-card); border: 2px solid var(--accent); border-radius: var(--radius-lg);
+  padding: 28px; margin-top: 20px; display: grid; grid-template-columns: auto 1fr;
+  gap: 28px; align-items: center; position: relative; overflow: hidden;
+}
+.rm-result::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at top left, var(--accent-glow), transparent 60%); pointer-events: none;
+}
+.rm-big { font-family: var(--font-display); font-size: 72px; font-weight: 900; color: var(--accent); line-height: 1; position: relative; z-index: 1; }
+.rm-sub { font-family: var(--font-mono); font-size: 12px; color: var(--text-tertiary); margin-top: 4px; letter-spacing: 0.03em; }
+.rm-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; position: relative; z-index: 1; }
+.rm-chip { background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px; }
+.rm-chip-lbl { font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+.rm-chip-val { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--text-primary); }
+
+.rep-table { width: 100%; border-collapse: collapse; }
+.rep-table tr { border-bottom: 1px solid var(--border-subtle); transition: background 0.15s; }
+.rep-table tr:last-child { border-bottom: none; }
+.rep-table tr:hover { background: rgba(255,255,255,0.02); }
+.rep-table td { padding: 10px 0; color: var(--text-secondary); font-size: 13px; }
+.rep-table td:first-child { color: var(--text-primary); font-weight: 600; font-family: var(--font-display); font-size: 15px; }
+.rep-table td:last-child { text-align: right; font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.rep-table tr.highlight td { color: var(--accent) !important; }
+
+.pct-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.pct-row {
+  background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+  padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.pct-row:hover { border-color: var(--border-mid); transform: translateX(2px); }
+.pct-pct { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.pct-desc { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+.pct-kg { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--text-primary); }
+
+/* MVW */
+.mvw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.mvw-card {
+  background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+  padding: 20px; text-align: center; transition: border-color 0.3s, transform 0.2s;
+}
+.mvw-card:hover { transform: translateY(-2px); }
+.mvw-card.accent { border-color: var(--accent-dim); }
+.mvw-card.accent:hover { border-color: var(--accent); }
+.mvw-sex { font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 8px; }
+.mvw-pct { font-family: var(--font-display); font-size: 52px; font-weight: 900; color: var(--text-primary); line-height: 1; }
+.mvw-pct .unit { font-size: 24px; color: var(--text-tertiary); }
+.mvw-pct.green { color: var(--accent); }
+.mvw-pct.green .unit { color: var(--accent-dim); }
+.mvw-meta { font-size: 11px; color: var(--text-muted); margin-top: 8px; font-family: var(--font-mono); letter-spacing: 0.03em; }
+
+/* GUIDES */
+.guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.guide-link {
+  display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+  background: var(--bg-input); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md); color: var(--accent); font-size: 13px;
+  font-weight: 500; text-decoration: none; transition: all 0.2s var(--ease-out);
+}
+.guide-link:hover { border-color: var(--accent-dim); background: var(--bg-card); transform: translateX(4px); }
+.guide-link::before { content: '\2192'; font-family: var(--font-mono); font-size: 14px; color: var(--text-muted); transition: color 0.2s; }
+.guide-link:hover::before { color: var(--accent); }
+
+.data-footer {
+  margin-top: 24px; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md); font-size: 12px; color: var(--text-muted);
+  font-family: var(--font-mono); letter-spacing: 0.02em;
+}
+.data-footer a { color: var(--accent); text-decoration: none; }
+.data-footer a:hover { text-decoration: underline; }
+
+.filter-expand {
+  font-size: 12px; color: var(--text-tertiary); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 14px;
+  background: none; border: none; padding: 0; font-family: var(--font-mono);
+  letter-spacing: 0.04em; transition: color 0.2s;
+}
+.filter-expand:hover { color: var(--accent); }
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .nav { padding: 0 16px; height: 52px; flex-wrap: wrap; gap: 8px; height: auto; padding: 10px 16px; }
+  .nav-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; justify-content: flex-start; }
+  .tab { padding: 6px 12px; font-size: 11.5px; }
+  .page-wrap { padding: 20px 16px 60px; }
+  .hero-title { font-size: 36px; }
+  .form-grid-2 { grid-template-columns: 1fr; }
+  .form-grid-4 { grid-template-columns: 1fr 1fr; }
+  .result-top { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .result-info { display: flex; flex-direction: column; align-items: center; }
+  .result-chips { justify-content: center; }
+  .scorecard { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .mvw-grid { grid-template-columns: 1fr; }
+  .rm-result { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .rm-chips { width: 100%; }
+  .pct-grid { grid-template-columns: 1fr; }
+  .guide-grid { grid-template-columns: 1fr; }
+  .two-col { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 480px) {
+  .logo-title { font-size: 15px; }
+  .gauge-wrap { width: 130px; height: 130px; }
+  .gauge-value { font-size: 36px; }
+  .rm-big { font-size: 56px; }
+  .stat-val { font-size: 22px; }
+  .mvw-pct { font-size: 40px; }
+}
+.card:nth-child(2) { animation-delay: 0.1s; }
+.card:nth-child(3) { animation-delay: 0.2s; }
+.card:nth-child(4) { animation-delay: 0.3s; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3A5500"/>
+      <stop offset="40%" stop-color="#C8F135"/>
+      <stop offset="100%" stop-color="#4ECDC4"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<nav class="nav">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 20 20" fill="none">
+        <rect x="2" y="8" width="16" height="4" rx="1" fill="#08080A"/>
+        <rect x="0" y="7" width="3" height="6" rx="1" fill="#08080A"/>
+        <rect x="17" y="7" width="3" height="6" rx="1" fill="#08080A"/>
+        <rect x="6" y="5" width="2" height="10" rx="1" fill="#08080A"/>
+        <rect x="12" y="5" width="2" height="10" rx="1" fill="#08080A"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-title">Iron Insights</div>
+      <div class="logo-sub">Powerlifting data explorer</div>
+    </div>
+  </div>
+  <div class="nav-tabs">
+    <button class="tab active" data-page="ranking">Ranking</button>
+    <button class="tab" data-page="stats">Stats for Nerds</button>
+    <button class="tab" data-page="mvw">Men vs Women</button>
+    <button class="tab" data-page="1rm">1RM Calculator</button>
+    <button class="tab" data-page="guides">Guides</button>
+  </div>
+</nav>
+
+<div class="page-wrap">
+
+<!-- RANKING -->
+<div id="page-ranking" class="page active">
+  <div class="hero-tag">// percentile ranking</div>
+  <h1 class="hero-title">How <span>Strong</span><br>Are You?</h1>
+  <p class="hero-desc">Enter your competition lifts. Get your exact percentile rank against real OpenPowerlifting data.</p>
+  <div class="data-badge"><strong>v2026-03-15</strong> <span class="sep">|</span> <strong>343,875</strong> lifters in cohort</div>
+
+  <div class="card">
+    <div class="card-title">Your Numbers</div>
+    <div class="form-grid form-grid-2">
+      <div class="field"><label>Sex</label><select class="select" id="g-sex"><option>Male</option><option>Female</option><option>Mx</option></select></div>
+      <div class="field"><label>Equipment</label><select class="select" id="g-equip"><option>Raw</option><option>Equipped</option><option>Wraps</option></select></div>
+    </div>
+    <div class="form-grid form-grid-4">
+      <div class="field"><label>Squat (kg)</label><input class="input" id="g-squat" value="230" type="number"></div>
+      <div class="field"><label>Bench (kg)</label><input class="input" id="g-bench" value="250" type="number"></div>
+      <div class="field"><label>Deadlift (kg)</label><input class="input" id="g-deadlift" value="340" type="number"></div>
+      <div class="field"><label>Bodyweight</label><input class="input" id="g-bw" value="114" type="number"></div>
+    </div>
+    <div class="btn-row" style="margin-bottom:16px">
+      <button class="unit-btn active" data-unit="kg">kg</button>
+      <button class="unit-btn" data-unit="lb">lb</button>
+      <button class="ghost-btn" onclick="clearInputs()">Clear</button>
+    </div>
+    <button class="cta" onclick="calcAll()">Calculate My Ranking</button>
+    <button class="filter-expand"><span class="arrow">&#9656;</span> More filters</button>
+  </div>
+
+  <div class="result-block" id="result-block">
+    <div class="result-top">
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" viewBox="0 0 100 100">
+          <circle class="gauge-bg" cx="50" cy="50" r="45"/>
+          <circle class="gauge-fill" id="gauge-fill" cx="50" cy="50" r="45" stroke-dasharray="283" stroke-dashoffset="3"/>
+        </svg>
+        <div class="gauge-center">
+          <div class="gauge-value" id="result-pct">98.9%</div>
+          <div class="gauge-label">Percentile</div>
+        </div>
+      </div>
+      <div class="result-info">
+        <div class="level-badge" id="level-badge">Elite</div>
+        <div class="result-desc" id="result-label">You are stronger than <strong>98.9%</strong> of lifters in the dataset</div>
+        <div class="result-chips">
+          <div class="result-chip">Rank <strong id="rank-top">Top 1.1%</strong></div>
+          <div class="result-chip">Total <strong id="total-kg">820 kg</strong></div>
+          <div class="result-chip">Cohort <strong>343,875</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill" id="bar-fill" style="width:98.9%"></div></div>
+      <div class="bar-labels"><span>0th</span><span class="current" id="bar-marker">98.9 / 100</span><span>100th</span></div>
+    </div>
+    <div class="action-row">
+      <button class="action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/></svg> Share ranking</button>
+      <button class="action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy link</button>
+      <button class="action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Challenge a friend</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Meet-Day Scorecard</div>
+    <div class="toggle-row">
+      <button class="toggle active" onclick="toggleMode(this)">Conservative</button>
+      <button class="toggle" onclick="toggleMode(this)">Aggressive</button>
+    </div>
+    <div class="scorecard">
+      <div class="sc-item">
+        <div class="sc-lift">Squat</div>
+        <div class="sc-attempt"><span class="sc-num opener" id="sc-sq-1">207.0</span><span class="sc-tag green">opener</span></div>
+        <div class="sc-attempt"><span class="sc-num second" id="sc-sq-2">219.8</span><span class="sc-tag">2nd</span></div>
+        <div class="sc-attempt"><span class="sc-num third" id="sc-sq-3">230</span><span class="sc-tag">3rd</span></div>
+      </div>
+      <div class="sc-item">
+        <div class="sc-lift">Bench</div>
+        <div class="sc-attempt"><span class="sc-num opener" id="sc-bp-1">225.0</span><span class="sc-tag green">opener</span></div>
+        <div class="sc-attempt"><span class="sc-num second" id="sc-bp-2">238.8</span><span class="sc-tag">2nd</span></div>
+        <div class="sc-attempt"><span class="sc-num third" id="sc-bp-3">250</span><span class="sc-tag">3rd</span></div>
+      </div>
+      <div class="sc-item">
+        <div class="sc-lift">Deadlift</div>
+        <div class="sc-attempt"><span class="sc-num opener" id="sc-dl-1">306.0</span><span class="sc-tag green">opener</span></div>
+        <div class="sc-attempt"><span class="sc-num second" id="sc-dl-2">324.9</span><span class="sc-tag">2nd</span></div>
+        <div class="sc-attempt"><span class="sc-num third" id="sc-dl-3">340</span><span class="sc-tag">3rd</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div id="page-stats" class="page">
+  <div class="hero-tag">// advanced analytics</div>
+  <h1 class="hero-title" style="font-size:clamp(32px,5vw,44px)">Stats for<br><span>Nerds</span></h1>
+  <div class="data-badge">Current cohort: <strong>343,875</strong> <span class="sep">|</span> <strong>5.0–1155.0 kg</strong> observed range</div>
+
+  <div class="card">
+    <div class="card-title">Compare Mode</div>
+    <div class="toggle-row">
+      <button class="toggle active">All lifters</button>
+      <button class="toggle">Same BW range</button>
+      <button class="toggle">Same weight class</button>
+      <button class="toggle">Same age class</button>
+      <button class="toggle">Tested only</button>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-lbl">Your percentile</div><div class="stat-val" id="st-pct">98.9<span class="stat-unit">%</span></div></div>
+      <div class="stat-box"><div class="stat-lbl">Cohort size</div><div class="stat-val">343<span class="stat-unit">K</span></div></div>
+      <div class="stat-box"><div class="stat-lbl">BW bin</div><div class="stat-val">114<span class="stat-unit">–119</span></div></div>
+      <div class="stat-box"><div class="stat-lbl">Nearby lifters</div><div class="stat-val">28<span class="stat-unit">K</span></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Distribution — Total (kg)</div>
+    <div class="hist-wrap">
+      <div class="hist-bars" id="hist-bars"></div>
+      <div class="hist-axis"><span>5 kg</span><span>580 kg</span><span>1155 kg</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Bodyweight-Conditioned Percentile</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin:0 0 14px;">Among nearby bodyweights (109–124 kg), you are stronger than <strong style="color:var(--accent)">95.7%</strong> of lifters.</p>
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-lbl">Nearby lifters</div><div class="stat-val" style="font-size:22px">28,877</div></div>
+      <div class="stat-box"><div class="stat-lbl">BW bin</div><div class="stat-val" style="font-size:18px">114–119</div></div>
+      <div class="stat-box"><div class="stat-lbl">Heat cell count</div><div class="stat-val" style="font-size:22px">67</div></div>
+      <div class="stat-box"><div class="stat-lbl">Neighbourhood</div><div class="stat-val" style="font-size:22px">718</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MEN VS WOMEN -->
+<div id="page-mvw" class="page">
+  <div class="hero-tag">// cross-sex comparison</div>
+  <h1 class="hero-title" style="font-size:clamp(32px,5vw,44px)">Men vs<br><span>Women</span></h1>
+  <p class="hero-desc">Same input scored against aligned male and female cohorts.</p>
+
+  <div class="card">
+    <div class="card-title">Results — Same input, both cohorts</div>
+    <div class="mvw-grid">
+      <div class="mvw-card">
+        <div class="mvw-sex">Men</div>
+        <div class="mvw-pct" id="mvw-m">98.9<span class="unit">%</span></div>
+        <div class="mvw-meta">343,875 lifters · <span id="mvw-m-total">820</span> kg</div>
+      </div>
+      <div class="mvw-card accent">
+        <div class="mvw-sex">Women</div>
+        <div class="mvw-pct green" id="mvw-f">100.0<span class="unit">%</span></div>
+        <div class="mvw-meta">159,758 lifters · <span id="mvw-f-total">820</span> kg</div>
+      </div>
+    </div>
+    <div class="stats-grid" style="margin-top:12px">
+      <div class="stat-box"><div class="stat-lbl">Women equiv.</div><div class="stat-val" style="font-size:20px">493.8<span class="stat-unit"> kg</span></div></div>
+      <div class="stat-box"><div class="stat-lbl">Men equiv.</div><div class="stat-val" style="font-size:20px">1138.8<span class="stat-unit"> kg</span></div></div>
+      <div class="stat-box"><div class="stat-lbl">Men class</div><div class="stat-val" style="font-size:20px">All</div></div>
+      <div class="stat-box"><div class="stat-lbl">Women class</div><div class="stat-val" style="font-size:20px">All</div></div>
+    </div>
+    <p style="font-size:11px;color:var(--text-muted);margin:14px 0 0;font-family:var(--font-mono);letter-spacing:0.02em;">Raw kg cross-sex comparisons are descriptive, not apples-to-apples. Prefer DOTS or Wilks when available.</p>
+  </div>
+</div>
+
+<!-- 1RM -->
+<div id="page-1rm" class="page">
+  <div class="hero-tag">// strength estimation</div>
+  <h1 class="hero-title" style="font-size:clamp(32px,5vw,44px)">Estimate Your<br><span>1-Rep Max</span></h1>
+  <p class="hero-desc">Turn a hard recent set into a realistic max, rep targets, and training loads.</p>
+
+  <div class="card">
+    <div class="btn-row" style="margin-bottom:16px">
+      <button class="unit-btn active">kg</button>
+      <button class="unit-btn">lb</button>
+      <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-left:10px;letter-spacing:0.08em;text-transform:uppercase">Epley + Brzycki avg</span>
+    </div>
+    <div class="form-grid form-grid-2">
+      <div class="field"><label>Lifted weight (kg)</label><input class="input" id="rm-weight" value="100" type="number"></div>
+      <div class="field"><label>Reps completed</label><input class="input" id="rm-reps" value="5" type="number"></div>
+    </div>
+    <div class="quick-rep-row">
+      <button class="quick-rep" onclick="setReps(1)">1</button>
+      <button class="quick-rep" onclick="setReps(2)">2</button>
+      <button class="quick-rep" onclick="setReps(3)">3</button>
+      <button class="quick-rep active" onclick="setReps(5)">5</button>
+      <button class="quick-rep" onclick="setReps(8)">8</button>
+      <button class="quick-rep" onclick="setReps(10)">10</button>
+      <button class="quick-rep" onclick="setReps(12)">12</button>
+    </div>
+  </div>
+
+  <div class="rm-result">
+    <div>
+      <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;position:relative;z-index:1">Estimated 1RM</div>
+      <div class="rm-big" id="est-1rm">112.5</div>
+      <div class="rm-sub" id="formula-range">Formula range: 112.5–116.7 kg</div>
+    </div>
+    <div class="rm-chips">
+      <div class="rm-chip"><div class="rm-chip-lbl">Working set</div><div class="rm-chip-val" id="working-set">100 × 5</div></div>
+      <div class="rm-chip"><div class="rm-chip-lbl">Set intensity</div><div class="rm-chip-val" id="set-intensity">89%</div></div>
+      <div class="rm-chip"><div class="rm-chip-lbl">80% work sets</div><div class="rm-chip-val" id="work-80">90.0 kg</div></div>
+      <div class="rm-chip"><div class="rm-chip-lbl">90% heavy work</div><div class="rm-chip-val" id="work-90">101.2 kg</div></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px" class="two-col">
+    <div class="card" style="margin-top:0">
+      <div class="card-title">Rep Max Targets</div>
+      <table class="rep-table" id="rep-table">
+        <tr><td>1 rep</td><td>max single</td><td id="r1">112.5 kg</td></tr>
+        <tr><td>2 reps</td><td>heavy double</td><td id="r2">109.4 kg</td></tr>
+        <tr><td>3 reps</td><td>hard triple</td><td id="r3">106.2 kg</td></tr>
+        <tr><td>4 reps</td><td>heavy four</td><td id="r4">103.1 kg</td></tr>
+        <tr class="highlight"><td>5 reps</td><td style="color:var(--accent-dim)">5RM</td><td id="r5">100.0 kg</td></tr>
+        <tr><td>8 reps</td><td>solid volume</td><td id="r8">90.6 kg</td></tr>
+        <tr><td>10 reps</td><td>high-rep</td><td id="r10">84.4 kg</td></tr>
+      </table>
+    </div>
+    <div class="card" style="margin-top:0">
+      <div class="card-title">Training Percentages</div>
+      <div class="pct-grid">
+        <div class="pct-row"><div><div class="pct-pct">60%</div><div class="pct-desc">light technique</div></div><div class="pct-kg" id="p60">67.5 kg</div></div>
+        <div class="pct-row"><div><div class="pct-pct">70%</div><div class="pct-desc">steady volume</div></div><div class="pct-kg" id="p70">78.8 kg</div></div>
+        <div class="pct-row"><div><div class="pct-pct">75%</div><div class="pct-desc">comfortable</div></div><div class="pct-kg" id="p75">84.4 kg</div></div>
+        <div class="pct-row"><div><div class="pct-pct">80%</div><div class="pct-desc">hard work sets</div></div><div class="pct-kg" id="p80">90.0 kg</div></div>
+        <div class="pct-row"><div><div class="pct-pct">85%</div><div class="pct-desc">top triples</div></div><div class="pct-kg" id="p85">95.6 kg</div></div>
+        <div class="pct-row"><div><div class="pct-pct">90%</div><div class="pct-desc">heavy singles</div></div><div class="pct-kg" id="p90">101.2 kg</div></div>
+        <div class="pct-row"><div><div class="pct-pct">95%</div><div class="pct-desc">near-max</div></div><div class="pct-kg" id="p95">106.9 kg</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GUIDES -->
+<div id="page-guides" class="page">
+  <div class="hero-tag">// landing hub</div>
+  <h1 class="hero-title" style="font-size:clamp(32px,5vw,44px)">Powerlifting<br><span>Percentile Guides</span></h1>
+  <p class="hero-desc">Crawlable entry points for search traffic. The interactive percentile calculator remains the source of truth.</p>
+  <div class="btn-row" style="margin-top:16px">
+    <button class="cta" style="width:auto;padding:12px 28px;font-size:14px" onclick="showPage('ranking')">Open Interactive Calculator</button>
+    <button class="ghost-btn" onclick="showPage('1rm')">Open 1RM Calculator</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Guides in this cluster</div>
+    <div class="guide-grid">
+      <a href="#" class="guide-link">Squat percentile calculator</a>
+      <a href="#" class="guide-link">Bench press percentile calculator</a>
+      <a href="#" class="guide-link">Deadlift percentile calculator</a>
+      <a href="#" class="guide-link">Powerlifting total percentile</a>
+      <a href="#" class="guide-link">Standards for men and women</a>
+      <a href="#" class="guide-link">Tested vs untested percentiles</a>
+      <a href="#" class="guide-link">Methodology</a>
+      <a href="#" class="guide-link">FAQ</a>
+    </div>
+  </div>
+  <div class="data-footer">Data powered by <a href="https://openpowerlifting.org">OpenPowerlifting.org</a>. Huge appreciation to their team for keeping this public dataset free and open.</div>
+</div>
+
+</div>
+
+<script>
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => showPage(tab.dataset.page));
+});
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const page = document.getElementById('page-' + id);
+  if (page) page.classList.add('active');
+  document.querySelector(`.tab[data-page="${id}"]`)?.classList.add('active');
+}
+
+function getInputs() {
+  return {
+    sq: parseFloat(document.getElementById('g-squat').value) || 0,
+    bp: parseFloat(document.getElementById('g-bench').value) || 0,
+    dl: parseFloat(document.getElementById('g-deadlift').value) || 0,
+    bw: parseFloat(document.getElementById('g-bw').value) || 0,
+  };
+}
+
+['g-squat','g-bench','g-deadlift','g-bw','g-sex','g-equip'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) { el.addEventListener('input', calcAll); el.addEventListener('change', calcAll); }
+});
+
+function calcAll() {
+  const d = getInputs();
+  const total = d.sq + d.bp + d.dl;
+  const pct = Math.min(99.9, Math.max(1, (total / 12) * 0.87 + 28));
+  const pctStr = pct.toFixed(1);
+  const topPct = (100 - pct).toFixed(1);
+  const level = pct >= 98 ? 'Elite' : pct >= 92 ? 'Advanced' : pct >= 75 ? 'Intermediate' : 'Novice';
+  const circumference = 283;
+  const offset = circumference - (pct / 100) * circumference;
+  document.getElementById('gauge-fill').style.strokeDashoffset = offset;
+  document.getElementById('result-pct').textContent = pctStr + '%';
+  document.getElementById('result-label').innerHTML = 'You are stronger than <strong>' + pctStr + '%</strong> of lifters in the dataset';
+  document.getElementById('rank-top').textContent = 'Top ' + topPct + '%';
+  document.getElementById('total-kg').textContent = total + ' kg';
+  document.getElementById('level-badge').textContent = level;
+  document.getElementById('bar-fill').style.width = pctStr + '%';
+  document.getElementById('bar-marker').textContent = pctStr + ' / 100';
+  const stPct = document.getElementById('st-pct');
+  if (stPct) stPct.innerHTML = pctStr + '<span class="stat-unit">%</span>';
+  document.getElementById('mvw-m-total').textContent = total;
+  document.getElementById('mvw-f-total').textContent = total;
+  updateScorecard(d.sq, d.bp, d.dl, false);
+}
+
+function updateScorecard(sq, bp, dl, aggressive) {
+  const m = aggressive ? 0.97 : 0.90;
+  const s2 = 0.955;
+  document.getElementById('sc-sq-1').textContent = (sq * m).toFixed(1);
+  document.getElementById('sc-sq-2').textContent = (sq * s2).toFixed(1);
+  document.getElementById('sc-sq-3').textContent = sq;
+  document.getElementById('sc-bp-1').textContent = (bp * m).toFixed(1);
+  document.getElementById('sc-bp-2').textContent = (bp * s2).toFixed(1);
+  document.getElementById('sc-bp-3').textContent = bp;
+  document.getElementById('sc-dl-1').textContent = (dl * m).toFixed(1);
+  document.getElementById('sc-dl-2').textContent = (dl * s2).toFixed(1);
+  document.getElementById('sc-dl-3').textContent = dl;
+}
+
+function toggleMode(btn) {
+  btn.parentElement.querySelectorAll('.toggle').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  const d = getInputs();
+  updateScorecard(d.sq, d.bp, d.dl, btn.textContent === 'Aggressive');
+}
+
+function clearInputs() {
+  ['g-squat','g-bench','g-deadlift','g-bw'].forEach(id => document.getElementById(id).value = '');
+  calcAll();
+}
+
+['rm-weight','rm-reps'].forEach(id => {
+  document.getElementById(id).addEventListener('input', calc1RM);
+});
+
+function calc1RM() {
+  const w = parseFloat(document.getElementById('rm-weight').value) || 0;
+  const r = parseFloat(document.getElementById('rm-reps').value) || 1;
+  const epley = r <= 1 ? w : w * (1 + r / 30);
+  const brzycki = r <= 1 ? w : w * (36 / (37 - r));
+  const avg = (epley + brzycki) / 2;
+  document.getElementById('est-1rm').textContent = avg.toFixed(1);
+  document.getElementById('formula-range').textContent = 'Formula range: ' + Math.min(epley, brzycki).toFixed(1) + '–' + Math.max(epley, brzycki).toFixed(1) + ' kg';
+  document.getElementById('working-set').textContent = w + ' \u00d7 ' + r;
+  document.getElementById('set-intensity').textContent = avg > 0 ? Math.round(w / avg * 100) + '%' : '\u2014';
+  document.getElementById('work-80').textContent = (avg * 0.8).toFixed(1) + ' kg';
+  document.getElementById('work-90').textContent = (avg * 0.9).toFixed(1) + ' kg';
+  [[1,1],[2,0.972],[3,0.943],[4,0.917],[5,0.889],[8,0.806],[10,0.75]].forEach(([rep, pct]) => {
+    const el = document.getElementById('r' + rep);
+    if (el) el.textContent = (avg * pct).toFixed(1) + ' kg';
+  });
+  [[60,'p60'],[70,'p70'],[75,'p75'],[80,'p80'],[85,'p85'],[90,'p90'],[95,'p95']].forEach(([pct, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = (avg * pct / 100).toFixed(1) + ' kg';
+  });
+  const rInt = Math.round(r);
+  document.querySelectorAll('.quick-rep').forEach(btn => btn.classList.toggle('active', parseInt(btn.textContent) === rInt));
+  document.querySelectorAll('.rep-table tr').forEach(tr => tr.classList.remove('highlight'));
+  const rowMap = {1:'r1',2:'r2',3:'r3',4:'r4',5:'r5',8:'r8',10:'r10'};
+  if (rowMap[rInt]) document.getElementById(rowMap[rInt])?.closest('tr')?.classList.add('highlight');
+}
+
+function setReps(n) {
+  document.getElementById('rm-reps').value = n;
+  calc1RM();
+}
+
+function buildHistogram() {
+  const bars = document.getElementById('hist-bars');
+  if (!bars) return;
+  const dist = [2,4,8,15,25,40,60,88,120,160,200,260,310,350,380,400,390,360,330,290,250,210,170,140,110,88,65,48,35,25,18,12,8,5,3,2,1];
+  const mx = Math.max(...dist);
+  bars.innerHTML = dist.map((v, i) => {
+    const isYou = i === 31;
+    const h = Math.round(v / mx * 100);
+    return `<div class="hist-bar ${isYou ? 'you' : 'normal'}" style="height:${h}px;animation:gridReveal 0.4s var(--ease-out) ${i * 0.02}s both"></div>`;
+  }).join('');
+}
+
+document.querySelectorAll('.unit-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    btn.parentElement.querySelectorAll('.unit-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+buildHistogram();
+calcAll();
+calc1RM();
+</script>
+</body>
+</html>
