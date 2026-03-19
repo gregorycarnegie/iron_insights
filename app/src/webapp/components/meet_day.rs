@@ -59,11 +59,15 @@ pub(in crate::webapp) fn MeetDayPanel(
 
     view! {
         <section class="panel meet-day">
-            <h2>"Meet-Day Scorecard"</h2>
-            <p class="muted">
-                "Suggested openers/seconds/thirds from your current numbers. Adjust by readiness and meet-day conditions."
-            </p>
-            <div class="toggle-buttons">
+            <div class="panel-titlebar">
+                <div>
+                    <h2>"Meet-Day Scorecard"</h2>
+                    <p class="muted">
+                        "Suggested openers, seconds, and thirds from your current numbers."
+                    </p>
+                </div>
+            </div>
+            <div class="toggle-buttons meet-toggle-row">
                 <button
                     type="button"
                     class:chip=true
@@ -81,27 +85,87 @@ pub(in crate::webapp) fn MeetDayPanel(
                     "Aggressive"
                 </button>
             </div>
-            <div class="meet-grid">
+            <div class="meet-grid meet-scorecard">
                 <div class="meet-item">
-                    <h3>"Squat"</h3>
-                    <p>{move || format!("Open {:.1} {}", kg_to_display(squat_plan.get().0, use_lbs.get()), unit_label.get())}</p>
-                    <p>{move || format!("Second {:.1} {}", kg_to_display(squat_plan.get().1, use_lbs.get()), unit_label.get())}</p>
-                    <p>{move || format!("Third {:.1} {}", kg_to_display(squat_plan.get().2, use_lbs.get()), unit_label.get())}</p>
+                    <div class="meet-item-header">
+                        <h3>"Squat"</h3>
+                        <p class="meet-current">
+                            {move || format!(
+                                "Current {:.1} {}",
+                                kg_to_display(squat.get(), use_lbs.get()),
+                                unit_label.get()
+                            )}
+                        </p>
+                    </div>
+                    <div class="meet-attempts">
+                        <div class="meet-attempt meet-attempt--opener">
+                            <span>"Opener"</span>
+                            <strong>{move || format!("{:.1} {}", kg_to_display(squat_plan.get().0, use_lbs.get()), unit_label.get())}</strong>
+                        </div>
+                        <div class="meet-attempt">
+                            <span>"Second"</span>
+                            <strong>{move || format!("{:.1} {}", kg_to_display(squat_plan.get().1, use_lbs.get()), unit_label.get())}</strong>
+                        </div>
+                        <div class="meet-attempt">
+                            <span>"Third"</span>
+                            <strong>{move || format!("{:.1} {}", kg_to_display(squat_plan.get().2, use_lbs.get()), unit_label.get())}</strong>
+                        </div>
+                    </div>
                 </div>
                 <div class="meet-item">
-                    <h3>"Bench"</h3>
-                    <p>{move || format!("Open {:.1} {}", kg_to_display(bench_plan.get().0, use_lbs.get()), unit_label.get())}</p>
-                    <p>{move || format!("Second {:.1} {}", kg_to_display(bench_plan.get().1, use_lbs.get()), unit_label.get())}</p>
-                    <p>{move || format!("Third {:.1} {}", kg_to_display(bench_plan.get().2, use_lbs.get()), unit_label.get())}</p>
+                    <div class="meet-item-header">
+                        <h3>"Bench"</h3>
+                        <p class="meet-current">
+                            {move || format!(
+                                "Current {:.1} {}",
+                                kg_to_display(bench.get(), use_lbs.get()),
+                                unit_label.get()
+                            )}
+                        </p>
+                    </div>
+                    <div class="meet-attempts">
+                        <div class="meet-attempt meet-attempt--opener">
+                            <span>"Opener"</span>
+                            <strong>{move || format!("{:.1} {}", kg_to_display(bench_plan.get().0, use_lbs.get()), unit_label.get())}</strong>
+                        </div>
+                        <div class="meet-attempt">
+                            <span>"Second"</span>
+                            <strong>{move || format!("{:.1} {}", kg_to_display(bench_plan.get().1, use_lbs.get()), unit_label.get())}</strong>
+                        </div>
+                        <div class="meet-attempt">
+                            <span>"Third"</span>
+                            <strong>{move || format!("{:.1} {}", kg_to_display(bench_plan.get().2, use_lbs.get()), unit_label.get())}</strong>
+                        </div>
+                    </div>
                 </div>
                 <div class="meet-item">
-                    <h3>"Deadlift"</h3>
-                    <p>{move || format!("Open {:.1} {}", kg_to_display(deadlift_plan.get().0, use_lbs.get()), unit_label.get())}</p>
-                    <p>{move || format!("Second {:.1} {}", kg_to_display(deadlift_plan.get().1, use_lbs.get()), unit_label.get())}</p>
-                    <p>{move || format!("Third {:.1} {}", kg_to_display(deadlift_plan.get().2, use_lbs.get()), unit_label.get())}</p>
+                    <div class="meet-item-header">
+                        <h3>"Deadlift"</h3>
+                        <p class="meet-current">
+                            {move || format!(
+                                "Current {:.1} {}",
+                                kg_to_display(deadlift.get(), use_lbs.get()),
+                                unit_label.get()
+                            )}
+                        </p>
+                    </div>
+                    <div class="meet-attempts">
+                        <div class="meet-attempt meet-attempt--opener">
+                            <span>"Opener"</span>
+                            <strong>{move || format!("{:.1} {}", kg_to_display(deadlift_plan.get().0, use_lbs.get()), unit_label.get())}</strong>
+                        </div>
+                        <div class="meet-attempt">
+                            <span>"Second"</span>
+                            <strong>{move || format!("{:.1} {}", kg_to_display(deadlift_plan.get().1, use_lbs.get()), unit_label.get())}</strong>
+                        </div>
+                        <div class="meet-attempt">
+                            <span>"Third"</span>
+                            <strong>{move || format!("{:.1} {}", kg_to_display(deadlift_plan.get().2, use_lbs.get()), unit_label.get())}</strong>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <p class="sim-summary">{move || identity.get()}</p>
+            <p class="meet-summary">{move || identity.get()}</p>
         </section>
     }
 }

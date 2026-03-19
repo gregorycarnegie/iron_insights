@@ -280,6 +280,7 @@ fn build_cohort_comparison_row(
 #[component]
 fn App() -> impl IntoView {
     let (calculated, set_calculated) = signal(false);
+    let (reveal_tick, set_reveal_tick) = signal(0u64);
     let (show_share, set_show_share) = signal(false);
     let (share_handle, set_share_handle) = signal(String::new());
     let (share_status, set_share_status) = signal(None::<String>);
@@ -762,7 +763,6 @@ fn App() -> impl IntoView {
             || bodyweight_error.get().is_some()
     });
     let unit_label = Memo::new(move |_| if use_lbs.get() { "lb" } else { "kg" });
-    let percentile_percent = Memo::new(move |_| percentile.get().map(|(pct, _, _)| pct * 100.0));
     let distribution_diagnostics =
         Memo::new(move |_| histogram_diagnostics(rebinned_hist.get().as_ref()));
     let rarity_snapshot = Memo::new(move |_| {
@@ -1983,6 +1983,7 @@ fn App() -> impl IntoView {
             set_deadlift_delta,
             set_share_handle,
             set_calculated,
+            set_reveal_tick,
             has_input_error,
             calculating,
             set_calculating,
@@ -2003,6 +2004,7 @@ fn App() -> impl IntoView {
                 calculated,
                 percentile,
                 rank_tier,
+                reveal_tick,
                 load_error,
                 unavailable_reason: result_unavailable_reason,
             },
@@ -2021,6 +2023,8 @@ fn App() -> impl IntoView {
                 bench,
                 deadlift,
                 lift,
+                use_lbs,
+                unit_label,
             },
         },
         meet_day: components::MeetDaySection {
@@ -2030,7 +2034,6 @@ fn App() -> impl IntoView {
             use_lbs,
             unit_label,
         },
-        percentile_percent,
     };
 
     let progress_sections = components::ProgressSections {

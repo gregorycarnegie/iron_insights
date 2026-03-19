@@ -282,9 +282,11 @@ pub(in crate::webapp) fn OnboardingPanel(form: OnboardingSections) -> impl IntoV
                     actions.set_share_status.set(None);
                     let set_calculating = actions.set_calculating;
                     let set_calculated = actions.set_calculated;
+                    let set_reveal_tick = actions.set_reveal_tick;
                     gloo_timers::callback::Timeout::new(420, move || {
                         set_calculating.set(false);
                         set_calculated.set(true);
+                        set_reveal_tick.update(|tick| *tick = tick.wrapping_add(1));
                     })
                     .forget();
                 }

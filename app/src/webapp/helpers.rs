@@ -25,20 +25,16 @@ pub(super) fn comparable_lift_value(lifter: ComparableLifter<'_>, lift: &str, me
 }
 
 pub(super) fn tier_for_percentile(pct: f32) -> &'static str {
-    if pct >= 0.999 {
-        "Mythical"
-    } else if pct >= 0.99 {
-        "Legendary"
+    if pct >= 0.99 {
+        "Legend"
     } else if pct >= 0.95 {
         "Elite"
     } else if pct >= 0.8 {
         "Advanced"
     } else if pct >= 0.6 {
         "Intermediate"
-    } else if pct >= 0.35 {
-        "Novice"
     } else {
-        "Beginner"
+        "Novice"
     }
 }
 

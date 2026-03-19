@@ -1,6 +1,4 @@
-use super::{
-    FaqPanel, MeetDayPanel, OnboardingPanel, PercentilePanel, RankingPageSections, ResultCardPanel,
-};
+use super::{FaqPanel, MeetDayPanel, OnboardingPanel, RankingPageSections, ResultCardPanel};
 use leptos::prelude::*;
 
 #[component]
@@ -10,7 +8,6 @@ pub(in crate::webapp) fn RankingPage(page: RankingPageSections) -> impl IntoView
         onboarding,
         result,
         meet_day,
-        percentile_percent,
     } = page;
     view! {
         <header class="hero">
@@ -34,7 +31,6 @@ pub(in crate::webapp) fn RankingPage(page: RankingPageSections) -> impl IntoView
 
         <OnboardingPanel form=onboarding />
         <ResultCardPanel card=result />
-        <PercentilePanel percentile_percent=percentile_percent />
         <MeetDayPanel
             squat=meet_day.squat
             bench=meet_day.bench

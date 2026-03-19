@@ -27,7 +27,6 @@ pub(super) struct RankingPageSections {
     pub(super) onboarding: OnboardingSections,
     pub(super) result: ResultCardSections,
     pub(super) meet_day: MeetDaySection,
-    pub(super) percentile_percent: Memo<Option<f32>>,
 }
 
 #[derive(Clone)]
@@ -112,6 +111,7 @@ pub(super) struct OnboardingActionSection {
     pub(super) set_deadlift_delta: WriteSignal<f32>,
     pub(super) set_share_handle: WriteSignal<String>,
     pub(super) set_calculated: WriteSignal<bool>,
+    pub(super) set_reveal_tick: WriteSignal<u64>,
     pub(super) has_input_error: Memo<bool>,
     pub(super) calculating: ReadSignal<bool>,
     pub(super) set_calculating: WriteSignal<bool>,
@@ -132,6 +132,7 @@ pub(super) struct ResultCardStatusSection {
     pub(super) calculated: ReadSignal<bool>,
     pub(super) percentile: Memo<Option<(f32, usize, u32)>>,
     pub(super) rank_tier: Memo<Option<&'static str>>,
+    pub(super) reveal_tick: ReadSignal<u64>,
     pub(super) load_error: ReadSignal<Option<String>>,
     pub(super) unavailable_reason: Memo<Option<String>>,
 }
@@ -154,6 +155,8 @@ pub(super) struct ResultCardLiftSection {
     pub(super) bench: ReadSignal<f32>,
     pub(super) deadlift: ReadSignal<f32>,
     pub(super) lift: ReadSignal<String>,
+    pub(super) use_lbs: ReadSignal<bool>,
+    pub(super) unit_label: Memo<&'static str>,
 }
 
 #[derive(Clone)]
@@ -389,7 +392,6 @@ pub(super) use nerds_page::NerdsPage;
 pub(super) use onboarding::OnboardingPanel;
 pub(super) use one_rep_max::OneRepMaxPanel;
 pub(super) use one_rm_page::OneRmPage;
-pub(super) use percentile::PercentilePanel;
 pub(super) use percentile_ladder::PercentileLadderPanel;
 pub(super) use progress::ProgressPanel;
 pub(super) use ranking_page::RankingPage;
