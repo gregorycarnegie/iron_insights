@@ -254,6 +254,7 @@ pub fn histogram_diagnostics(hist: Option<&HistogramBin>) -> Option<HistogramDia
     })
 }
 
+#[cfg(target_arch = "wasm32")]
 pub fn histogram_mean_stddev(hist: Option<&HistogramBin>) -> Option<(f32, f32)> {
     let hist = hist?;
 

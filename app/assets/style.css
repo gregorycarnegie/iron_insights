@@ -241,8 +241,8 @@ button {
   border-radius: 18px;
   background: rgba(12, 12, 15, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(18px) saturate(1.25);
   -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  backdrop-filter: blur(18px) saturate(1.25);
   box-shadow: var(--shadow-soft);
 }
 
@@ -1970,7 +1970,6 @@ canvas {
   .page-nav {
     overflow-x: auto;
     flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
   }
 
   .page-nav .chip {
