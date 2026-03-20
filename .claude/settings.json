@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/grego/rust_projects/iron_insights2/app/src -type f -name *.rs)",
+      "Bash(ls -la /c/Users/grego/rust_projects/iron_insights2/app/*.toml)",
+      "Bash(cargo check:*)"
+    ]
+  }
+}

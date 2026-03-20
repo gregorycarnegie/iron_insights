@@ -10,7 +10,7 @@ mod state;
 mod ui;
 
 use self::charts::draw_heatmap;
-use self::components::{LogoMark, MenVsWomenPage, NerdsPage, OneRmPage, RankingPage};
+use self::components::{LogoMark, MenVsWomenPage, NerdsPage, OneRmPage, PlateCalcPage, RankingPage};
 use self::data::{fetch_binary_first, fetch_json_first};
 use self::helpers::{
     ComparableLifter, build_share_url, comparable_lift_value, kg_to_display, parse_query_f32,
@@ -53,6 +53,7 @@ enum AppPage {
     StatsForNerds,
     MenVsWomen,
     OneRm,
+    PlateCalc,
 }
 
 const MIN_CROSS_SEX_COHORT_TOTAL: u32 = 50;
@@ -1872,6 +1873,8 @@ fn App() -> impl IntoView {
                 set_active_page.set(AppPage::MenVsWomen);
             } else if hash.eq_ignore_ascii_case("#nerds") {
                 set_active_page.set(AppPage::StatsForNerds);
+            } else if hash.eq_ignore_ascii_case("#plate-calc") {
+                set_active_page.set(AppPage::PlateCalc);
             } else {
                 set_active_page.set(AppPage::Rank);
             }
@@ -1891,6 +1894,7 @@ fn App() -> impl IntoView {
             AppPage::StatsForNerds => "#nerds",
             AppPage::MenVsWomen => "#men-vs-women",
             AppPage::OneRm => "#1rm",
+            AppPage::PlateCalc => "#plate-calc",
         };
         let _ = window.location().set_hash(hash);
     });
@@ -2225,6 +2229,14 @@ fn App() -> impl IntoView {
                     >
                         "1RM Calculator"
                     </button>
+                    <button
+                        type="button"
+                        class:chip=true
+                        class:active=move || active_page.get() == AppPage::PlateCalc
+                        on:click=move |_| set_active_page.set(AppPage::PlateCalc)
+                    >
+                        "Plate Calc"
+                    </button>
                     <a class="chip" href="./landing/index.html">
                         "Guides"
                     </a>
@@ -2245,6 +2257,10 @@ fn App() -> impl IntoView {
 
             <Show when=move || active_page.get() == AppPage::OneRm>
                 <OneRmPage />
+            </Show>
+
+            <Show when=move || active_page.get() == AppPage::PlateCalc>
+                <PlateCalcPage />
             </Show>
 
             <footer class="panel attribution">
