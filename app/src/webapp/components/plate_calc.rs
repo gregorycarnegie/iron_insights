@@ -349,7 +349,7 @@ pub(in crate::webapp) fn PlateCalcPanel() -> impl IntoView {
         draw_barbell(canvas_el, &plates, bar);
     });
 
-    let slider_max = Memo::new(move |_| if use_lbs.get() { 1100.0 } else { 500.0 });
+    let slider_max = Memo::new(move |_| if use_lbs.get() { 1540.0 } else { 700.0 });
     let slider_min = Memo::new(move |_| if use_lbs.get() { 45.0 } else { 20.0 });
     let slider_step = Memo::new(move |_| if use_lbs.get() { 2.5 } else { 1.25 });
 
