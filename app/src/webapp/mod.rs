@@ -10,7 +10,9 @@ mod state;
 mod ui;
 
 use self::charts::draw_heatmap;
-use self::components::{LogoMark, MenVsWomenPage, NerdsPage, OneRmPage, PlateCalcPage, RankingPage};
+use self::components::{
+    LogoMark, MenVsWomenPage, NerdsPage, OneRmPage, PlateCalcPage, RankingPage,
+};
 use self::data::{fetch_binary_first, fetch_json_first};
 use self::helpers::{
     ComparableLifter, build_share_url, comparable_lift_value, kg_to_display, parse_query_f32,

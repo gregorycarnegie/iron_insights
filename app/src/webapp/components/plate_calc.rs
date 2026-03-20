@@ -1,4 +1,6 @@
+use leptos::ev;
 use leptos::html::Canvas;
+use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
@@ -15,13 +17,62 @@ struct PlateSpec {
 }
 
 const PLATES: &[PlateSpec] = &[
-    PlateSpec { weight: 25.0,  name: "Red 25",       color: "#e63946", face_color: "#f04e5b", radius: 1.0,  thickness: 0.065 },
-    PlateSpec { weight: 20.0,  name: "Blue 20",      color: "#457bca", face_color: "#5a8fd4", radius: 0.93, thickness: 0.065 },
-    PlateSpec { weight: 15.0,  name: "Yellow 15",     color: "#ffd166", face_color: "#ffdb80", radius: 0.86, thickness: 0.065 },
-    PlateSpec { weight: 10.0,  name: "Green 10",      color: "#5cb85c", face_color: "#72c672", radius: 0.79, thickness: 0.055 },
-    PlateSpec { weight: 5.0,   name: "Black 5",       color: "#444444", face_color: "#555555", radius: 0.72, thickness: 0.055 },
-    PlateSpec { weight: 2.5,   name: "Black 2.5",     color: "#383838", face_color: "#4a4a4a", radius: 0.36, thickness: 0.055 },
-    PlateSpec { weight: 1.25,  name: "Black 1.25",    color: "#2a2a2a", face_color: "#3c3c3c", radius: 0.36, thickness: 0.028 },
+    PlateSpec {
+        weight: 25.0,
+        name: "Red 25",
+        color: "#e63946",
+        face_color: "#f04e5b",
+        radius: 1.0,
+        thickness: 0.065,
+    },
+    PlateSpec {
+        weight: 20.0,
+        name: "Blue 20",
+        color: "#457bca",
+        face_color: "#5a8fd4",
+        radius: 0.93,
+        thickness: 0.065,
+    },
+    PlateSpec {
+        weight: 15.0,
+        name: "Yellow 15",
+        color: "#ffd166",
+        face_color: "#ffdb80",
+        radius: 0.86,
+        thickness: 0.065,
+    },
+    PlateSpec {
+        weight: 10.0,
+        name: "Green 10",
+        color: "#5cb85c",
+        face_color: "#72c672",
+        radius: 0.79,
+        thickness: 0.055,
+    },
+    PlateSpec {
+        weight: 5.0,
+        name: "Black 5",
+        color: "#444444",
+        face_color: "#555555",
+        radius: 0.72,
+        thickness: 0.055,
+    },
+    PlateSpec {
+        weight: 2.5,
+        name: "Black 2.5",
+        color: "#383838",
+        face_color: "#4a4a4a",
+        radius: 0.36,
+        thickness: 0.055,
+    },
+    PlateSpec {
+        weight: 1.25,
+        name: "Black 1.25",
+        color: "#2a2a2a",
+        face_color: "#3c3c3c",
+        radius: 0.36,
+        thickness: 0.028,
+    },
 ];
 
 struct PlateResult {
@@ -58,12 +109,18 @@ fn calculate_plates(target_kg: f32, bar_kg: f32) -> CalcResult {
         }
         let count = (leftover / plate.weight).floor() as u32;
         if count > 0 {
-            plates.push(PlateResult { plate_idx: idx, count });
+            plates.push(PlateResult {
+                plate_idx: idx,
+                count,
+            });
             leftover = ((leftover - count as f32 * plate.weight) * 1000.0).round() / 1000.0;
         }
     }
 
-    let loaded: f32 = plates.iter().map(|p| p.count as f32 * PLATES[p.plate_idx].weight * 2.0).sum();
+    let loaded: f32 = plates
+        .iter()
+        .map(|p| p.count as f32 * PLATES[p.plate_idx].weight * 2.0)
+        .sum();
     let actual = bar_kg + loaded;
     let remainder = ((target_kg - actual) * 1000.0).round() / 1000.0;
 
@@ -75,7 +132,12 @@ fn calculate_plates(target_kg: f32, bar_kg: f32) -> CalcResult {
         None
     };
 
-    CalcResult { plates, actual, remainder, warning }
+    CalcResult {
+        plates,
+        actual,
+        remainder,
+        warning,
+    }
 }
 
 fn draw_barbell(canvas: &HtmlCanvasElement, plates: &[PlateResult], _bar_kg: f32) {
@@ -126,22 +188,57 @@ fn draw_barbell(canvas: &HtmlCanvasElement, plates: &[PlateResult], _bar_kg: f32
 
     // Bar shaft
     ctx.set_fill_style_str("#888888");
-    ctx.fill_rect(bar_x_start, cy - bar_radius, bar_total_len, bar_radius * 2.0);
+    ctx.fill_rect(
+        bar_x_start,
+        cy - bar_radius,
+        bar_total_len,
+        bar_radius * 2.0,
+    );
 
     // Sleeves
     ctx.set_fill_style_str("#999999");
-    ctx.fill_rect(bar_x_start, cy - sleeve_radius, sleeve_start_left - bar_x_start, sleeve_radius * 2.0);
-    ctx.fill_rect(sleeve_start_right, cy - sleeve_radius, bar_x_end - sleeve_start_right, sleeve_radius * 2.0);
+    ctx.fill_rect(
+        bar_x_start,
+        cy - sleeve_radius,
+        sleeve_start_left - bar_x_start,
+        sleeve_radius * 2.0,
+    );
+    ctx.fill_rect(
+        sleeve_start_right,
+        cy - sleeve_radius,
+        bar_x_end - sleeve_start_right,
+        sleeve_radius * 2.0,
+    );
 
     // Collars (at inner edge of sleeves)
     ctx.set_fill_style_str("#555555");
-    ctx.fill_rect(sleeve_start_left - collar_w, cy - collar_radius, collar_w, collar_radius * 2.0);
-    ctx.fill_rect(sleeve_start_right, cy - collar_radius, collar_w, collar_radius * 2.0);
+    ctx.fill_rect(
+        sleeve_start_left - collar_w,
+        cy - collar_radius,
+        collar_w,
+        collar_radius * 2.0,
+    );
+    ctx.fill_rect(
+        sleeve_start_right,
+        cy - collar_radius,
+        collar_w,
+        collar_radius * 2.0,
+    );
 
     // End caps
     ctx.set_fill_style_str("#666666");
-    ctx.fill_rect(bar_x_start, cy - sleeve_radius * 0.85, 3.0, sleeve_radius * 1.7);
-    ctx.fill_rect(bar_x_end - 3.0, cy - sleeve_radius * 0.85, 3.0, sleeve_radius * 1.7);
+    ctx.fill_rect(
+        bar_x_start,
+        cy - sleeve_radius * 0.85,
+        3.0,
+        sleeve_radius * 1.7,
+    );
+    ctx.fill_rect(
+        bar_x_end - 3.0,
+        cy - sleeve_radius * 0.85,
+        3.0,
+        sleeve_radius * 1.7,
+    );
 
     // Plates
     let gap = 1.5;
@@ -154,7 +251,11 @@ fn draw_barbell(canvas: &HtmlCanvasElement, plates: &[PlateResult], _bar_kg: f32
     for pr in plates {
         let spec = &PLATES[pr.plate_idx];
         let plate_h = max_plate_h * spec.radius as f64;
-        let thick = if spec.thickness < 0.04 { thin_plate_thickness } else { plate_thickness_base };
+        let thick = if spec.thickness < 0.04 {
+            thin_plate_thickness
+        } else {
+            plate_thickness_base
+        };
 
         for _ in 0..pr.count {
             // Left side (plates grow leftward)
@@ -179,25 +280,6 @@ fn draw_barbell(canvas: &HtmlCanvasElement, plates: &[PlateResult], _bar_kg: f32
             offset_right += thick + gap;
         }
     }
-
-    // Legend
-    let legend_x = 12.0;
-    let mut legend_y = 16.0;
-    ctx.set_font("11px 'Barlow', sans-serif");
-    ctx.set_text_baseline("middle");
-
-    for pr in plates {
-        let spec = &PLATES[pr.plate_idx];
-        ctx.set_fill_style_str(spec.color);
-        ctx.fill_rect(legend_x, legend_y - 5.0, 10.0, 10.0);
-        ctx.set_fill_style_str("#888888");
-        let _ = ctx.fill_text(
-            &format!("{}kg x{}", spec.weight, pr.count),
-            legend_x + 15.0,
-            legend_y,
-        );
-        legend_y += 18.0;
-    }
 }
 
 fn format_weight_input(v: f32) -> String {
@@ -215,8 +297,13 @@ pub(in crate::webapp) fn PlateCalcPanel() -> impl IntoView {
     let (use_lbs, set_use_lbs) = signal(false);
     let (target_kg, set_target_kg) = signal(100.0f32);
     let (bar_kg, set_bar_kg) = signal(20.0f32);
+    let (resize_tick, set_resize_tick) = signal(0u32);
 
     let canvas_ref: NodeRef<Canvas> = NodeRef::new();
+    let resize_handle = window_event_listener(ev::resize, move |_| {
+        set_resize_tick.update(|tick| *tick = tick.wrapping_add(1));
+    });
+    on_cleanup(move || resize_handle.remove());
 
     let display_target = Memo::new(move |_| kg_to_display(target_kg.get(), use_lbs.get()));
     let display_bar = Memo::new(move |_| kg_to_display(bar_kg.get(), use_lbs.get()));
@@ -226,7 +313,15 @@ pub(in crate::webapp) fn PlateCalcPanel() -> impl IntoView {
         let t = target_kg.get();
         let b = bar_kg.get();
         let r = calculate_plates(t, b);
-        (r.plates.iter().map(|p| (p.plate_idx, p.count)).collect::<Vec<_>>(), r.actual, r.remainder, r.warning)
+        (
+            r.plates
+                .iter()
+                .map(|p| (p.plate_idx, p.count))
+                .collect::<Vec<_>>(),
+            r.actual,
+            r.remainder,
+            r.warning,
+        )
     });
 
     let plates_data = Memo::new(move |_| result.get().0);
@@ -236,6 +331,7 @@ pub(in crate::webapp) fn PlateCalcPanel() -> impl IntoView {
 
     // Canvas redraw effect
     Effect::new(move || {
+        let _ = resize_tick.get();
         let pdata = plates_data.get();
         let bar = bar_kg.get();
         let Some(canvas_el) = canvas_ref.get() else {
@@ -243,7 +339,13 @@ pub(in crate::webapp) fn PlateCalcPanel() -> impl IntoView {
         };
         let canvas_el: &HtmlCanvasElement = &canvas_el;
 
-        let plates: Vec<PlateResult> = pdata.iter().map(|(idx, count)| PlateResult { plate_idx: *idx, count: *count }).collect();
+        let plates: Vec<PlateResult> = pdata
+            .iter()
+            .map(|(idx, count)| PlateResult {
+                plate_idx: *idx,
+                count: *count,
+            })
+            .collect();
         draw_barbell(canvas_el, &plates, bar);
     });
 
@@ -343,8 +445,50 @@ pub(in crate::webapp) fn PlateCalcPanel() -> impl IntoView {
             </div>
 
             <div class="plate-calc-canvas-wrap">
-                <canvas node_ref=canvas_ref class="plate-calc-canvas" />
-                <p class="plate-calc-canvas-label">"Side view — plates per side"</p>
+                <div class="plate-calc-visual">
+                    <div class="plate-calc-canvas-panel">
+                        <canvas node_ref=canvas_ref class="plate-calc-canvas" />
+                        <p class="plate-calc-canvas-label">"Side view — plates per side"</p>
+                    </div>
+
+                    {move || {
+                        let pdata = plates_data.get();
+                        let use_lbs = use_lbs.get();
+                        let unit = unit.get();
+
+                        if pdata.is_empty() {
+                            None
+                        } else {
+                            Some(view! {
+                                <aside class="plate-calc-key">
+                                    <div class="plate-calc-key-heading">
+                                        <span class="plate-calc-key-title">"Key"</span>
+                                        <span class="plate-calc-key-subtitle">"Per side"</span>
+                                    </div>
+                                    <div class="plate-calc-key-items">
+                                        {pdata.into_iter().map(|(idx, count)| {
+                                            let spec = &PLATES[idx];
+                                            let color = spec.color.to_string();
+                                            let label = format!(
+                                                "{} {}",
+                                                format_weight_input(kg_to_display(spec.weight, use_lbs)),
+                                                unit,
+                                            );
+
+                                            view! {
+                                                <div class="plate-calc-key-item">
+                                                    <span class="plate-calc-key-swatch" style=format!("background:{color}") />
+                                                    <span class="plate-calc-key-label">{label}</span>
+                                                    <strong class="plate-calc-key-count">{format!("x{count}")}</strong>
+                                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
+                                </aside>
+                            })
+                        }
+                    }}
+                </div>
             </div>
 
             <div class="plate-calc-breakdown">
