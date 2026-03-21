@@ -22,7 +22,7 @@ pub(in crate::webapp) fn OnboardingPanel(form: OnboardingSections) -> impl IntoV
                     </p>
                 </div>
             </div>
-            <div class="grid simple">
+            <div class="grid onboarding-primary-filters">
                 <label>"Sex"
                     <select on:change=move |ev| identity.set_sex.set(event_target_value(&ev))>
                         <For each=move || identity.sex_options.get() key=|v| v.clone() let:value>
@@ -49,6 +49,22 @@ pub(in crate::webapp) fn OnboardingPanel(form: OnboardingSections) -> impl IntoV
                                 value={value.clone()}
                             >
                                 {value.clone()}
+                            </option>
+                        </For>
+                    </select>
+                </label>
+                <label title="Pick squat, bench, deadlift, or total.">
+                    "Lift focus"
+                    <select on:change=move |ev| filters.set_lift.set(event_target_value(&ev))>
+                        <For each=move || filters.lift_options.get() key=|v| v.clone() let:value>
+                            <option
+                                selected={
+                                    let selected_value = value.clone();
+                                    move || filters.lift.get() == selected_value
+                                }
+                                value={value.clone()}
+                            >
+                                {lift_label(&value).to_string()}
                             </option>
                         </For>
                     </select>
@@ -340,22 +356,6 @@ pub(in crate::webapp) fn OnboardingPanel(form: OnboardingSections) -> impl IntoV
                                     value={value.clone()}
                                 >
                                     {value.clone()}
-                                </option>
-                            </For>
-                        </select>
-                    </label>
-                    <label title="Pick squat, bench, deadlift, or total.">
-                        "Lift focus"
-                        <select on:change=move |ev| filters.set_lift.set(event_target_value(&ev))>
-                            <For each=move || filters.lift_options.get() key=|v| v.clone() let:value>
-                                <option
-                                    selected={
-                                        let selected_value = value.clone();
-                                        move || filters.lift.get() == selected_value
-                                    }
-                                    value={value.clone()}
-                                >
-                                    {lift_label(&value).to_string()}
                                 </option>
                             </For>
                         </select>

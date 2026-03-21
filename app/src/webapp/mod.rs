@@ -2237,7 +2237,7 @@ fn App() -> impl IntoView {
                         class:active=move || active_page.get() == AppPage::PlateCalc
                         on:click=move |_| set_active_page.set(AppPage::PlateCalc)
                     >
-                        "Plate Calc"
+                        "Plate Calculator"
                     </button>
                     <a class="chip" href="./landing/index.html">
                         "Guides"

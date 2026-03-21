@@ -570,6 +570,10 @@ input[type="range"]::-moz-range-thumb {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.onboarding-primary-filters {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .grid.numbers {
   margin-top: 16px;
 }
@@ -2234,6 +2238,10 @@ canvas {
   .sim-grid,
   .meet-grid,
   .one-rm-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .onboarding-primary-filters {
     grid-template-columns: 1fr;
   }
 
