@@ -13,4 +13,4 @@ polars = { version = "0.53.0", default-features = false, features = ["lazy", "cs
 reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "rustls"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-zip = { version = "8.2.0", default-features = false, features = ["deflate"] }
+zip = { version = "8.3.0", default-features = false, features = ["deflate"] }
