@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::webapp::helpers::{display_to_kg, kg_to_display};
+use crate::webapp::helpers::{display_to_kg, format_input_bound, kg_to_display};
 
 const QUICK_REP_PRESETS: [u32; 4] = [3, 5, 8, 10];
 
@@ -196,6 +196,8 @@ pub(in crate::webapp) fn OneRepMaxPanel() -> impl IntoView {
         }
     });
     let unit = Memo::new(move |_| if use_lbs.get() { "lb" } else { "kg" });
+    let load_input_max = Memo::new(move |_| format_input_bound(2000.0, use_lbs.get()));
+    let load_input_step = Memo::new(move |_| if use_lbs.get() { "1" } else { "0.5" });
 
     view! {
         <section class="panel one-rm">
@@ -237,9 +239,9 @@ pub(in crate::webapp) fn OneRepMaxPanel() -> impl IntoView {
                 <label>{move || format!("Lifted weight ({})", unit.get())}
                     <input
                         type="number"
-                        min="1"
-                        max="2000"
-                        step="0.5"
+                        prop:min="1"
+                        prop:max=move || load_input_max.get()
+                        prop:step=move || load_input_step.get()
                         prop:value=move || format_input_weight(display_load.get())
                         on:change=move |ev| {
                             if let Ok(value) = event_target_value(&ev).parse::<f32>()

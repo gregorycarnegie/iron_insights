@@ -198,6 +198,18 @@ a:hover {
   color: #ddff63;
 }
 
+a:focus-visible,
+button:focus-visible,
+.chip:focus-visible,
+.primary:focus-visible,
+.secondary:focus-visible,
+.action-btn:focus-visible,
+summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-glow), 0 0 0 1px var(--accent);
+  border-color: var(--accent);
+}
+
 button,
 input,
 select,
@@ -227,6 +239,82 @@ button {
     linear-gradient(90deg, rgba(255, 255, 255, 0.012), transparent 12%, transparent 88%, rgba(255, 255, 255, 0.012));
   pointer-events: none;
   z-index: -1;
+}
+
+.boot-shell {
+  min-height: 100vh;
+  align-content: center;
+}
+
+.boot-panel {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 30px 28px;
+}
+
+.boot-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 7vw, 4.2rem);
+  font-weight: 900;
+  line-height: 0.92;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+}
+
+.boot-intro {
+  margin: 16px 0 0;
+  max-width: 34rem;
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.boot-status {
+  margin: 18px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(20, 20, 26, 0.92);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.boot-pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(200, 241, 53, 0.4);
+  animation: bootPulse 1.4s ease-out infinite;
+}
+
+.boot-noscript {
+  margin: 18px 0 0;
+  color: var(--text-secondary);
+}
+
+@keyframes bootPulse {
+  0% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(200, 241, 53, 0.4);
+  }
+
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 14px rgba(200, 241, 53, 0);
+  }
+
+  100% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(200, 241, 53, 0);
+  }
 }
 
 .topbar {
@@ -2284,12 +2372,14 @@ canvas {
   }
 
   .page-nav {
-    overflow-x: auto;
-    flex-wrap: nowrap;
+    overflow-x: visible;
+    flex-wrap: wrap;
   }
 
   .page-nav .chip {
-    white-space: nowrap;
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+    white-space: normal;
   }
 
   .result-block {
@@ -2341,7 +2431,8 @@ canvas {
   }
 
   .page-nav .chip {
-    width: auto;
+    width: 100%;
+    flex-basis: 100%;
   }
 
   .control-row {

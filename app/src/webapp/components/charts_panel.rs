@@ -92,7 +92,14 @@ pub(in crate::webapp) fn ChartsPanel(
                     }}
                 </button>
             </div>
-            <canvas class="heatmap-canvas" node_ref=canvas_ref width="800" height="420"></canvas>
+            <canvas
+                class="heatmap-canvas"
+                node_ref=canvas_ref
+                width="800"
+                height="420"
+                role="img"
+                aria-label=move || format!("Heatmap showing bodyweight versus {} for the selected cohort.", hist_x_label.get())
+            ></canvas>
         </section>
     }
 }

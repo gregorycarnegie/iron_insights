@@ -104,5 +104,29 @@
       }
     </script>
   </head>
-  <body></body>
+  <body>
+    <main id="app-shell" class="page boot-shell" aria-busy="true">
+      <section class="panel boot-panel">
+        <p class="hero-tag">Loading</p>
+        <h1 class="boot-title">Iron Insights</h1>
+        <p class="boot-intro">
+          Loading the powerlifting percentile calculator, cohort data, and comparison tools.
+        </p>
+        <p class="boot-status">
+          <span class="boot-pulse" aria-hidden="true"></span>
+          <span>Preparing the app.</span>
+        </p>
+        <noscript>
+          <p class="boot-noscript">
+            JavaScript is required for the live calculator. You can still browse the
+            <a href="./landing/index.html">guides</a>,
+            <a href="./landing/faq.html">FAQ</a>,
+            and
+            <a href="./landing/methodology.html">methodology notes</a>.
+          </p>
+        </noscript>
+      </section>
+    </main>
+    <div id="app"></div>
+  </body>
 </html>

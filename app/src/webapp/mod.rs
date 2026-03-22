@@ -41,12 +41,32 @@ use crate::core::{
 use leptos::ev;
 use leptos::html::Canvas;
 use leptos::leptos_dom::helpers::window_event_listener;
+use leptos::mount::mount_to;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::collections::BTreeMap;
+use wasm_bindgen::JsCast;
+use web_sys::HtmlElement;
 
 pub fn run() {
-    mount_to_body(|| view! { <App /> });
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        mount_to_body(|| view! { <App /> });
+        return;
+    };
+
+    let Some(app_root) = document
+        .get_element_by_id("app")
+        .and_then(|el| el.dyn_into::<HtmlElement>().ok())
+    else {
+        mount_to_body(|| view! { <App /> });
+        return;
+    };
+
+    let owner = mount_to(app_root, || view! { <App /> });
+    if let Some(shell) = document.get_element_by_id("app-shell") {
+        shell.remove();
+    }
+    owner.forget();
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -825,23 +845,21 @@ fn App() -> impl IntoView {
             return None::<String>;
         }
         if current_row.get().is_none() {
-            return Some(format!(
-                "No slice found for sex={}, equip={}, wc={}, age={}, tested={}, lift={}, metric={}.",
-                sex.get(),
-                equip.get(),
-                wc.get(),
-                age.get(),
-                tested.get(),
-                lift.get(),
-                metric.get()
-            ));
+            return Some(
+                "No matching comparison cohort was found for these filters. Try broader options like All weight classes, All ages, or a different tested status."
+                    .to_string(),
+            );
         }
         if hist.get().is_none() {
             return Some(load_error.get().unwrap_or_else(|| {
-                "Histogram payload was not loaded for this slice.".to_string()
+                "We found a matching cohort, but its distribution data is not available yet. Try again or widen the filters."
+                    .to_string()
             }));
         }
-        Some("Distribution exists but percentile could not be computed.".to_string())
+        Some(
+            "We found a matching cohort, but could not compute a percentile for this setup. Try recalculating or adjusting the filters."
+                .to_string(),
+        )
     });
     let dataset_blurb = Memo::new(move |_| {
         if let Some(err) = load_error.get() {
@@ -2203,6 +2221,7 @@ fn App() -> impl IntoView {
                         type="button"
                         class:chip=true
                         class:active=move || active_page.get() == AppPage::Rank
+                        aria-pressed=move || (active_page.get() == AppPage::Rank).to_string()
                         on:click=move |_| set_active_page.set(AppPage::Rank)
                     >
                         "Ranking"
@@ -2211,6 +2230,9 @@ fn App() -> impl IntoView {
                         type="button"
                         class:chip=true
                         class:active=move || active_page.get() == AppPage::StatsForNerds
+                        aria-pressed=move || {
+                            (active_page.get() == AppPage::StatsForNerds).to_string()
+                        }
                         on:click=move |_| set_active_page.set(AppPage::StatsForNerds)
                     >
                         "Stats for Nerds"
@@ -2219,6 +2241,7 @@ fn App() -> impl IntoView {
                         type="button"
                         class:chip=true
                         class:active=move || active_page.get() == AppPage::MenVsWomen
+                        aria-pressed=move || (active_page.get() == AppPage::MenVsWomen).to_string()
                         on:click=move |_| set_active_page.set(AppPage::MenVsWomen)
                     >
                         "Men vs Women"
@@ -2227,6 +2250,7 @@ fn App() -> impl IntoView {
                         type="button"
                         class:chip=true
                         class:active=move || active_page.get() == AppPage::OneRm
+                        aria-pressed=move || (active_page.get() == AppPage::OneRm).to_string()
                         on:click=move |_| set_active_page.set(AppPage::OneRm)
                     >
                         "1RM Calculator"
@@ -2235,6 +2259,7 @@ fn App() -> impl IntoView {
                         type="button"
                         class:chip=true
                         class:active=move || active_page.get() == AppPage::PlateCalc
+                        aria-pressed=move || (active_page.get() == AppPage::PlateCalc).to_string()
                         on:click=move |_| set_active_page.set(AppPage::PlateCalc)
                     >
                         "Plate Calculator"

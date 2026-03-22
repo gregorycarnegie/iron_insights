@@ -5,7 +5,7 @@ use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
-use crate::webapp::helpers::{display_to_kg, kg_to_display};
+use crate::webapp::helpers::{display_to_kg, format_input_bound, kg_to_display};
 
 struct PlateSpec {
     weight: f32,
@@ -352,6 +352,10 @@ pub(in crate::webapp) fn PlateCalcPanel() -> impl IntoView {
     let slider_max = Memo::new(move |_| if use_lbs.get() { 1540.0 } else { 700.0 });
     let slider_min = Memo::new(move |_| if use_lbs.get() { 45.0 } else { 20.0 });
     let slider_step = Memo::new(move |_| if use_lbs.get() { 2.5 } else { 1.25 });
+    let target_input_max = Memo::new(move |_| format_input_bound(2000.0, use_lbs.get()));
+    let target_input_step = Memo::new(move |_| if use_lbs.get() { "2.5" } else { "1.25" });
+    let bar_input_max = Memo::new(move |_| format_input_bound(100.0, use_lbs.get()));
+    let bar_input_step = Memo::new(move |_| if use_lbs.get() { "1" } else { "0.5" });
 
     view! {
         <section class="panel plate-calc">
@@ -413,9 +417,9 @@ pub(in crate::webapp) fn PlateCalcPanel() -> impl IntoView {
                 <label>{move || format!("Target weight ({})", unit.get())}
                     <input
                         type="number"
-                        min="0"
-                        max="2000"
-                        step="1.25"
+                        prop:min="0"
+                        prop:max=move || target_input_max.get()
+                        prop:step=move || target_input_step.get()
                         prop:value=move || format_weight_input(display_target.get())
                         on:change=move |ev| {
                             if let Ok(v) = event_target_value(&ev).parse::<f32>()
@@ -429,9 +433,9 @@ pub(in crate::webapp) fn PlateCalcPanel() -> impl IntoView {
                 <label>{move || format!("Bar weight ({})", unit.get())}
                     <input
                         type="number"
-                        min="0"
-                        max="100"
-                        step="0.5"
+                        prop:min="0"
+                        prop:max=move || bar_input_max.get()
+                        prop:step=move || bar_input_step.get()
                         prop:value=move || format_weight_input(display_bar.get())
                         on:change=move |ev| {
                             if let Ok(v) = event_target_value(&ev).parse::<f32>()

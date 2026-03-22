@@ -182,7 +182,9 @@ pub(in crate::webapp) fn ProgressPanel(tracking: ProgressSections) -> impl IntoV
                 ></textarea>
             </label>
             <Show when=move || status.get().is_some()>
-                <p class="muted">{move || status.get().unwrap_or_default()}</p>
+                <p class="muted" role="status" aria-live="polite" aria-atomic="true">
+                    {move || status.get().unwrap_or_default()}
+                </p>
             </Show>
             <div class="progress-list">
                 <Show

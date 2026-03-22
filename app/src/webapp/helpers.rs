@@ -53,6 +53,15 @@ pub(super) fn display_to_kg(value: f32, use_lbs: bool) -> f32 {
     if use_lbs { value / 2.204_622_5 } else { value }
 }
 
+pub(super) fn format_input_bound(value_kg: f32, use_lbs: bool) -> String {
+    let value = kg_to_display(value_kg, use_lbs);
+    if (value - value.round()).abs() < 0.05 {
+        format!("{:.0}", value)
+    } else {
+        format!("{:.1}", value)
+    }
+}
+
 pub(super) fn build_share_url(params: &[(&str, String)]) -> Option<String> {
     let window = web_sys::window()?;
     let search = web_sys::UrlSearchParams::new().ok()?;
@@ -60,5 +69,7 @@ pub(super) fn build_share_url(params: &[(&str, String)]) -> Option<String> {
         search.append(key, value);
     }
     let origin = window.location().origin().ok()?;
-    Some(format!("{origin}/?{}", search.to_string()))
+    let pathname = window.location().pathname().ok()?;
+    let hash = window.location().hash().ok().unwrap_or_default();
+    Some(format!("{origin}{pathname}?{}{}", search.to_string(), hash))
 }

@@ -31,6 +31,7 @@ pub(in crate::webapp) fn CompareModePanel(
                     type="button"
                     class="chip"
                     class:active=move || compare_mode.get() == CompareMode::AllLifters
+                    aria-pressed=move || (compare_mode.get() == CompareMode::AllLifters).to_string()
                     on:click=move |_| set_compare_mode.set(CompareMode::AllLifters)
                 >
                     "All lifters"
@@ -39,6 +40,9 @@ pub(in crate::webapp) fn CompareModePanel(
                     type="button"
                     class="chip"
                     class:active=move || compare_mode.get() == CompareMode::SameBodyweightRange
+                    aria-pressed=move || {
+                        (compare_mode.get() == CompareMode::SameBodyweightRange).to_string()
+                    }
                     on:click=move |_| set_compare_mode.set(CompareMode::SameBodyweightRange)
                 >
                     "Same bodyweight range"
@@ -47,6 +51,7 @@ pub(in crate::webapp) fn CompareModePanel(
                     type="button"
                     class="chip"
                     class:active=move || compare_mode.get() == CompareMode::SameWeightClass
+                    aria-pressed=move || (compare_mode.get() == CompareMode::SameWeightClass).to_string()
                     on:click=move |_| set_compare_mode.set(CompareMode::SameWeightClass)
                 >
                     "Same weight class"
@@ -55,6 +60,7 @@ pub(in crate::webapp) fn CompareModePanel(
                     type="button"
                     class="chip"
                     class:active=move || compare_mode.get() == CompareMode::SameAgeClass
+                    aria-pressed=move || (compare_mode.get() == CompareMode::SameAgeClass).to_string()
                     on:click=move |_| set_compare_mode.set(CompareMode::SameAgeClass)
                 >
                     "Same age class"
@@ -63,6 +69,9 @@ pub(in crate::webapp) fn CompareModePanel(
                     type="button"
                     class="chip"
                     class:active=move || compare_mode.get() == CompareMode::SameTestedStatus
+                    aria-pressed=move || {
+                        (compare_mode.get() == CompareMode::SameTestedStatus).to_string()
+                    }
                     on:click=move |_| set_compare_mode.set(CompareMode::SameTestedStatus)
                 >
                     "Same tested status"

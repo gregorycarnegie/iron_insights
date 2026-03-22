@@ -1,5 +1,5 @@
 use super::OnboardingSections;
-use crate::webapp::helpers::{display_to_kg, kg_to_display};
+use crate::webapp::helpers::{display_to_kg, format_input_bound, kg_to_display};
 use crate::webapp::models::SavedUiState;
 use crate::webapp::ui::{age_label, lift_label, metric_label};
 use leptos::prelude::*;
@@ -12,6 +12,13 @@ pub(in crate::webapp) fn OnboardingPanel(form: OnboardingSections) -> impl IntoV
         filters,
         actions,
     } = form;
+    let lift_input_step = Memo::new(move |_| if identity.use_lbs.get() { "1" } else { "0.5" });
+    let lift_input_max = Memo::new(move |_| format_input_bound(600.0, identity.use_lbs.get()));
+    let bodyweight_input_min = Memo::new(move |_| format_input_bound(35.0, identity.use_lbs.get()));
+    let bodyweight_input_max =
+        Memo::new(move |_| format_input_bound(300.0, identity.use_lbs.get()));
+    let bodyweight_input_step =
+        Memo::new(move |_| if identity.use_lbs.get() { "1" } else { "0.5" });
     view! {
         <section class="panel onboarding">
             <div class="panel-titlebar">
@@ -74,9 +81,9 @@ pub(in crate::webapp) fn OnboardingPanel(form: OnboardingSections) -> impl IntoV
                 <label>{move || format!("Squat ({})", identity.unit_label.get())}
                     <input
                         type="number"
-                        min="0"
-                        max="600"
-                        step="0.5"
+                        prop:min="0"
+                        prop:max=move || lift_input_max.get()
+                        prop:step=move || lift_input_step.get()
                         prop:value=move || kg_to_display(lifts.squat.get(), identity.use_lbs.get()).to_string()
                         on:change=move |ev| {
                             let raw = event_target_value(&ev);
@@ -103,9 +110,9 @@ pub(in crate::webapp) fn OnboardingPanel(form: OnboardingSections) -> impl IntoV
                 <label>{move || format!("Bench ({})", identity.unit_label.get())}
                     <input
                         type="number"
-                        min="0"
-                        max="600"
-                        step="0.5"
+                        prop:min="0"
+                        prop:max=move || lift_input_max.get()
+                        prop:step=move || lift_input_step.get()
                         prop:value=move || kg_to_display(lifts.bench.get(), identity.use_lbs.get()).to_string()
                         on:change=move |ev| {
                             let raw = event_target_value(&ev);
@@ -132,9 +139,9 @@ pub(in crate::webapp) fn OnboardingPanel(form: OnboardingSections) -> impl IntoV
                 <label>{move || format!("Deadlift ({})", identity.unit_label.get())}
                     <input
                         type="number"
-                        min="0"
-                        max="600"
-                        step="0.5"
+                        prop:min="0"
+                        prop:max=move || lift_input_max.get()
+                        prop:step=move || lift_input_step.get()
                         prop:value=move || kg_to_display(lifts.deadlift.get(), identity.use_lbs.get()).to_string()
                         on:change=move |ev| {
                             let raw = event_target_value(&ev);
@@ -161,9 +168,9 @@ pub(in crate::webapp) fn OnboardingPanel(form: OnboardingSections) -> impl IntoV
                 <label>{move || format!("Bodyweight ({})", identity.unit_label.get())}
                     <input
                         type="number"
-                        min="35"
-                        max="300"
-                        step="0.5"
+                        prop:min=move || bodyweight_input_min.get()
+                        prop:max=move || bodyweight_input_max.get()
+                        prop:step=move || bodyweight_input_step.get()
                         prop:value=move || kg_to_display(lifts.bodyweight.get(), identity.use_lbs.get()).to_string()
                         on:change=move |ev| {
                             let raw = event_target_value(&ev);

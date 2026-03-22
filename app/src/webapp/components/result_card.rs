@@ -272,6 +272,8 @@ pub(in crate::webapp) fn ResultCardPanel(card: ResultCardSections) -> impl IntoV
                                     <button
                                         type="button"
                                         class="action-btn"
+                                        aria-controls="share-options"
+                                        aria-expanded=move || show_share.get().to_string()
                                         on:click=move |_| set_show_share.update(|open| *open = !*open)
                                     >
                                         {move || if show_share.get() { "Hide share options" } else { "Share result" }}
@@ -321,7 +323,7 @@ pub(in crate::webapp) fn ResultCardPanel(card: ResultCardSections) -> impl IntoV
                                     </button>
                                 </div>
                                 <Show when=move || show_share.get()>
-                                    <div class="share-card">
+                                    <div id="share-options" class="share-card">
                                         <label>
                                             "Name / handle (optional)"
                                             <input
@@ -357,7 +359,9 @@ pub(in crate::webapp) fn ResultCardPanel(card: ResultCardSections) -> impl IntoV
                                     </div>
                                 </Show>
                                 <Show when=move || share_status.get().is_some()>
-                                    <p class="muted">{move || share_status.get().unwrap_or_default()}</p>
+                                    <p class="muted" role="status" aria-live="polite" aria-atomic="true">
+                                        {move || share_status.get().unwrap_or_default()}
+                                    </p>
                                 </Show>
                             </div>
                         }

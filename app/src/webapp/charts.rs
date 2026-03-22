@@ -61,6 +61,11 @@ pub(super) fn render_histogram_svg(
     user_value: Option<f32>,
     x_label: &str,
 ) -> AnyView {
+    let aria_label = if user_value.is_some() {
+        format!("Histogram showing lifter count by {x_label}, with a marker for your input.")
+    } else {
+        format!("Histogram showing lifter count by {x_label}.")
+    };
     let max_count = hist.counts.iter().copied().max().unwrap_or(1) as f32;
     let w = 760.0f32;
     let h = 240.0f32;
@@ -113,7 +118,7 @@ pub(super) fn render_histogram_svg(
     let y_tick_mid = (max_count * 0.5).round() as u32;
 
     view! {
-        <svg class="hist" viewBox="0 0 760 240" preserveAspectRatio="none">
+        <svg class="hist" viewBox="0 0 760 240" preserveAspectRatio="none" role="img" aria-label={aria_label}>
             <rect x="0" y="0" width={w.to_string()} height={h.to_string()} fill={SURFACE_COLOR} />
             <line x1={left.to_string()} y1={(top + plot_h).to_string()} x2={(left + plot_w).to_string()} y2={(top + plot_h).to_string()} stroke={AXIS_COLOR} stroke-width="1" />
             <line x1={left.to_string()} y1={top.to_string()} x2={left.to_string()} y2={(top + plot_h).to_string()} stroke={AXIS_COLOR} stroke-width="1" />
@@ -170,6 +175,13 @@ pub(super) fn render_dual_histogram_svg(
     user_value: Option<f32>,
     x_label: &str,
 ) -> AnyView {
+    let aria_label = if user_value.is_some() {
+        format!(
+            "Overlayed histogram comparing male and female lifter count by {x_label}, with a marker for your input."
+        )
+    } else {
+        format!("Overlayed histogram comparing male and female lifter count by {x_label}.")
+    };
     let max_count = male_hist
         .counts
         .iter()
@@ -239,7 +251,7 @@ pub(super) fn render_dual_histogram_svg(
     );
 
     view! {
-        <svg class="hist" viewBox="0 0 760 240" preserveAspectRatio="none">
+        <svg class="hist" viewBox="0 0 760 240" preserveAspectRatio="none" role="img" aria-label={aria_label}>
             <rect x="0" y="0" width={w.to_string()} height={h.to_string()} fill={SURFACE_COLOR} />
             <line x1={left.to_string()} y1={(top + plot_h).to_string()} x2={(left + plot_w).to_string()} y2={(top + plot_h).to_string()} stroke={AXIS_COLOR} stroke-width="1" />
             <line x1={left.to_string()} y1={top.to_string()} x2={left.to_string()} y2={(top + plot_h).to_string()} stroke={AXIS_COLOR} stroke-width="1" />

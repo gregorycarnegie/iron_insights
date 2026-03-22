@@ -244,7 +244,14 @@ pub(in crate::webapp) fn CrossSexChartsPanel(
                         rebinned_female_heat.get(),
                     ) {
                         (Ok(_), Some(_), Some(_)) => view! {
-                            <canvas class="heatmap-canvas" node_ref=canvas_ref width="800" height="420"></canvas>
+                            <canvas
+                                class="heatmap-canvas"
+                                node_ref=canvas_ref
+                                width="800"
+                                height="420"
+                                role="img"
+                                aria-label=move || format!("Overlayed heatmap comparing men and women across bodyweight versus {}.", hist_x_label.get())
+                            ></canvas>
                         }
                         .into_any(),
                         (Err(message), _, _) => {
