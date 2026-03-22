@@ -1,4 +1,4 @@
-# Iron Insights 2
+# Iron Insights
 
 [![Refresh Data And Deploy](https://github.com/gregorycarnegie/iron_insights/actions/workflows/refresh-data-and-deploy.yml/badge.svg)](https://github.com/gregorycarnegie/iron_insights/actions/workflows/refresh-data-and-deploy.yml)
 ![Rust](https://img.shields.io/badge/Rust-2024_edition-000000?logo=rust)
@@ -6,32 +6,36 @@
 ![Polars](https://img.shields.io/badge/Polars-0.53-5A32FA)
 ![Trunk](https://img.shields.io/badge/Trunk-WASM-2f9e44)
 
-A Rust + Leptos project that answers: **"How do I stack up?"** for powerlifting totals and lifts.
+Iron Insights is a Rust + Leptos powerlifting data project built around one question:
+**"How do I stack up?"**
 
-It builds compact histogram/heatmap aggregates from OpenPowerlifting data, serves them as static files, and renders percentile + comparison visuals in a client-side web app.
+The repo downloads OpenPowerlifting, builds compact histogram and heatmap bundles, and serves a static web app with percentile ranking, cohort analysis, cross-sex comparison, and training tools.
 
-## Repo Layout
+## What Is In Here
 
-- `app/` - Leptos CSR frontend (WASM + Trunk)
-  - `landing/` - static SEO landing pages (percentile lookups, FAQ, methodology)
-  - `robots.txt`, `sitemap.xml` - search-engine discoverability
-- `pipeline/` - Rust data pipeline (download, aggregate, publish)
-- `data/` - versioned published aggregate data (`vYYYY-MM-DD` + `latest.json`)
-- `docs/` - static build output for GitHub Pages
-- `scripts/qa.sh`, `scripts/qa.ps1` - integrity + payload budget checks
-- `todo.md` - implementation checklist and scope notes
+- `app/` - Leptos CSR frontend built with Trunk
+  - ranking page for quick percentile results
+  - "Stats for Nerds" page for cohort comparison, distribution analysis, targets, and trends
+  - "Men vs Women" page for aligned cross-sex cohort comparisons
+  - 1RM calculator and plate calculator utilities
+  - `landing/`, `robots.txt`, and `sitemap.xml` for static SEO pages
+- `pipeline/` - Rust data pipeline that downloads, aggregates, and publishes versioned data bundles
+- `data/` - published dataset snapshots such as `v2026-03-20/` plus `latest.json`
+- `docs/` - GitHub Pages build output
+- `scripts/qa.sh`, `scripts/qa.ps1` - integrity and payload checks for published data and site output
+- `src/` - placeholder root crate; product code lives in `app/` and `pipeline/`
 
 ## Prerequisites
 
-- Rust toolchain (stable)
+- Rust stable
 - `wasm32-unknown-unknown` target
 - Trunk (`cargo install trunk --locked`)
-- `jq` (for `scripts/qa.sh` on Linux/macOS)
-- PowerShell (for Windows helper scripts)
+- `jq` for `scripts/qa.sh` on Linux/macOS
+- PowerShell if you want to use the provided Windows helper scripts
 
-## Quickstart (Local)
+## Local Workflow
 
-### 1) Refresh data (optional if repo already has data)
+### 1) Build or refresh the published data
 
 ```bash
 cargo run --manifest-path pipeline/Cargo.toml --bin 01_download -- \
@@ -45,7 +49,12 @@ cargo run --manifest-path pipeline/Cargo.toml --bin 03_publish_data -- \
   --keep-versions 4
 ```
 
-### 2) Sync data into the app folder
+Notes:
+
+- `01_download` defaults to the latest OpenPowerlifting ZIP and writes `pipeline/output/openpowerlifting-latest.parquet`.
+- `03_publish_data` writes the versioned bundle into root `data/`. That is the source of truth.
+
+### 2) Sync root data into the app copy
 
 From `app/` on Windows PowerShell:
 
@@ -53,7 +62,7 @@ From `app/` on Windows PowerShell:
 pwsh -File .\sync-data.ps1
 ```
 
-On CI/Linux this is done via:
+On Linux/macOS:
 
 ```bash
 rm -rf app/data
@@ -61,18 +70,23 @@ mkdir -p app/data
 cp -a data/. app/data/
 ```
 
-### 3) Run frontend locally
+`app/data/` is a working copy used by Trunk. It can lag behind root `data/` until you resync it.
+
+### 3) Run the frontend locally
 
 ```bash
 cd app
 trunk serve --open
 ```
 
-The app fetches from relative paths first (for subpath hosting compatibility):
+The app loads:
 
-- `./data/latest.json`
-- `./data/<version>/index.json`
-- referenced `hist/*.bin`, `heat/*.bin`, `meta/*.json`
+- `data/latest.json`
+- `data/<version>/index.json`
+- `data/<version>/index_shards/<sex>/<equip>/index.json`
+- referenced `hist/*.bin` and `heat/*.bin`
+- `data/<version>/trends.json`
+- optional `meta/*.json` only when verbose compatibility output is enabled
 
 ## Build For GitHub Pages
 
@@ -81,28 +95,27 @@ cd app
 trunk build --release --dist ../docs --public-url "/<repo-name>/"
 ```
 
-Then serve/deploy `docs/`.
+That mirrors the GitHub Actions deploy step and produces a static site under `docs/`.
 
-## Data Pipeline Outputs
+## Published Data Layout
 
-- `pipeline/output/openpowerlifting-latest.parquet`
-- `pipeline/output/build_metadata.json`
-- `data/vYYYY-MM-DD/`
-- `data/latest.json`
+Each published version under `data/vYYYY-MM-DD/` contains:
 
-Published version folders contain:
+- `index.json` - root shard lookup by `sex` and `equip`
+- `index_shards/<sex>/<equip>/index.json` - slice lookup with embedded per-slice summary
+- `hist/<sex>/<equip>/<wc>/<age>/<tested>/<metric>/<lift>.bin`
+- `heat/<sex>/<equip>/<wc>/<age>/<tested>/<metric>/<lift>.bin`
+- `trends.json` - yearly cohort counts plus p50/p90 thresholds
+- optional `meta/<sex>/<equip>/<wc>/<age>/<tested>/<metric>/<lift>.json`
 
-- `hist/{sex}/{equip}/{wc}/{age}/{tested}/{lift}.bin`
-- `heat/{sex}/{equip}/{wc}/{age}/{tested}/{lift}.bin`
-- optional `meta/{sex}/{equip}/{wc}/{age}/{tested}/{lift}.json` (legacy/verbose mode)
-- `index.json` plus shard indexes under `index_shards/` (includes compact per-slice summary metadata)
+Metric behavior:
 
-`03_publish_data` now supports compact metadata mode:
+- squat, bench, and deadlift publish only `Kg`
+- total publishes `Kg`, `Dots`, `Wilks`, and `GL`
+- default publish mode embeds summary in shard indexes and skips `meta/`
+- `--write-meta-files true` writes legacy per-slice JSON metadata
 
-- default: skips per-slice meta files and embeds summary in shard indexes
-- verbose compatibility mode: `--write-meta-files true`
-
-## QA / Validation
+## QA And Validation
 
 Linux/macOS:
 
@@ -116,41 +129,21 @@ Windows PowerShell:
 pwsh -File .\scripts\qa.ps1 -DataDir data -SiteDir docs
 ```
 
-Checks include:
-
-- index -> file reference integrity
-- histogram/heatmap metadata sanity
-- aggregate totals non-zero
-- payload budget summary
-- optional URL timing probes
+Checks include slice reference integrity, histogram and heatmap sanity, non-zero totals, and payload size reporting.
 
 ## CI/CD
 
-GitHub Actions workflow: `.github/workflows/refresh-data-and-deploy.yml`
+Workflow: `.github/workflows/refresh-data-and-deploy.yml`
 
-It runs on:
+It currently:
 
-- push to `master`
-- weekly schedule (`0 3 * * 0`)
-- manual dispatch
-
-Workflow steps:
-
-1. Quality gates (tests + clippy across all crates)
-2. Run pipeline (`01_download`, `02_build_aggregates`, `03_publish_data`)
-3. Apply safeguards (row-count proxy drop check)
-4. Commit refreshed `data/` back to `master` when changed
-5. Build app with Trunk to `docs/`
-6. Run QA script
-7. Deploy `docs/` to GitHub Pages
+1. runs tests and clippy across the workspace
+2. rebuilds the data bundle with the pipeline
+3. applies a drop-threshold safeguard against suspicious aggregate shrinkage
+4. commits refreshed `data/` when it changed
+5. syncs `app/data/`, builds `docs/` with Trunk, runs QA, and deploys GitHub Pages
 
 ## Notes
 
-- Root crate (`src/main.rs`) is currently a placeholder; project functionality lives in `app/` and `pipeline/`.
-- `todo.md` tracks completed work and remaining features (e.g., Weight Class Analyzer, Federation Comparison).
-
-## Roadmap Themes
-
-- Faster web delivery via data packaging and tiered loading
-- Deeper comparisons (cohorts, federations, and trends)
-- More actionable outputs (targets, progression, and shareable summaries)
+- The public app branding is `Iron Insights`; the workspace root here still uses the local checkout name `iron_insights2`.
+- `app/dist/` and `docs/` are generated outputs, not authoritative source files.
