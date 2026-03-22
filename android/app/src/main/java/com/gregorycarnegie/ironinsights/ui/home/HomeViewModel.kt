@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.gregorycarnegie.ironinsights.data.model.PublishedSliceContract
+import com.gregorycarnegie.ironinsights.data.model.PublishedSliceKey
 import com.gregorycarnegie.ironinsights.data.model.DatasetLoadSource
 import com.gregorycarnegie.ironinsights.data.model.DatasetLoadSummary
 import com.gregorycarnegie.ironinsights.data.model.HistogramBin
@@ -24,6 +26,7 @@ import com.gregorycarnegie.ironinsights.data.model.TrendsJson
 import com.gregorycarnegie.ironinsights.data.model.TrendsPreview
 import com.gregorycarnegie.ironinsights.data.repository.PublishedDataRepository
 import com.gregorycarnegie.ironinsights.data.repository.valueForPercentile
+import com.gregorycarnegie.ironinsights.ui.navigation.AppRoute
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -34,6 +37,7 @@ class HomeViewModel(
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var datasetSnapshot: DatasetSnapshot? = null
+    private var currentRoute: AppRoute = AppRoute.LOOKUP
 
     var uiState by mutableStateOf(
         HomeUiState(cachedLatestVersion = repository.readCachedLatestVersion()),
@@ -44,6 +48,16 @@ class HomeViewModel(
         refresh()
     }
 
+    fun setRoute(route: AppRoute) {
+        val routeChanged = currentRoute != route
+        currentRoute = route
+        if (!routeChanged || uiState.isLoading || !stateNeedsReloadForRoute(uiState, route)) {
+            return
+        }
+
+        reloadCurrentSelection(loadModeForRoute(route))
+    }
+
     fun refresh() {
         if (uiState.isLoading) {
             return
@@ -51,11 +65,12 @@ class HomeViewModel(
 
         val previousState = uiState
         uiState = uiState.copy(isLoading = true, errorMessage = null)
+        val loadMode = loadModeForRoute(currentRoute)
 
         executor.execute {
-            val nextState = loadBootstrap(previousState)
+            val nextState = loadBootstrap(previousState, loadMode)
             mainHandler.post {
-                uiState = nextState
+                applyLoadedState(nextState, loadMode)
             }
         }
     }
@@ -71,17 +86,26 @@ class HomeViewModel(
         val snapshot = datasetSnapshot ?: return
         val currentFilters = uiState.selectorState?.filters ?: defaultFilters(snapshot.rootIndex)
         val requestedFilters = currentFilters.updated(field, value)
+        val loadMode = loadModeForRoute(currentRoute)
 
         uiState = uiState.copy(isLoading = true, errorMessage = null)
         executor.execute {
-            val nextState = buildHomeState(snapshot, requestedFilters, repository)
+            val nextState = buildHomeState(
+                snapshot = snapshot,
+                requestedFilters = requestedFilters,
+                repository = repository,
+                loadMode = loadMode,
+            )
             mainHandler.post {
-                uiState = nextState
+                applyLoadedState(nextState, loadMode)
             }
         }
     }
 
-    private fun loadBootstrap(previousState: HomeUiState): HomeUiState {
+    private fun loadBootstrap(
+        previousState: HomeUiState,
+        loadMode: LookupPayloadLoadMode,
+    ): HomeUiState {
         val latestLoaded = repository.fetchLatest().getOrElse { error ->
             datasetSnapshot = null
             return previousState.copy(
@@ -125,7 +149,57 @@ class HomeViewModel(
             snapshot = snapshot,
             requestedFilters = defaultFilters(rootIndex),
             repository = repository,
+            loadMode = loadMode,
         )
+    }
+
+    private fun reloadCurrentSelection(loadMode: LookupPayloadLoadMode = loadModeForRoute(currentRoute)) {
+        val snapshot = datasetSnapshot ?: return
+        val requestedFilters = uiState.selectorState?.filters ?: defaultFilters(snapshot.rootIndex)
+
+        uiState = uiState.copy(isLoading = true, errorMessage = null)
+        executor.execute {
+            val nextState = buildHomeState(
+                snapshot = snapshot,
+                requestedFilters = requestedFilters,
+                repository = repository,
+                loadMode = loadMode,
+            )
+            mainHandler.post {
+                applyLoadedState(nextState, loadMode)
+            }
+        }
+    }
+
+    private fun applyLoadedState(
+        nextState: HomeUiState,
+        completedLoadMode: LookupPayloadLoadMode,
+    ) {
+        uiState = nextState
+        val desiredLoadMode = loadModeForRoute(currentRoute)
+        if (completedLoadMode == desiredLoadMode || !stateNeedsReloadForRoute(nextState, currentRoute)) {
+            return
+        }
+
+        reloadCurrentSelection(desiredLoadMode)
+    }
+
+    private fun stateNeedsReloadForRoute(
+        state: HomeUiState,
+        route: AppRoute,
+    ): Boolean {
+        if (datasetSnapshot == null || state.selectorState == null) {
+            return false
+        }
+
+        return when (loadModeForRoute(route)) {
+            LookupPayloadLoadMode.FULL -> state.lookupPreview == null
+            LookupPayloadLoadMode.SUMMARY_ONLY -> {
+                state.lookupPreview != null ||
+                    state.loadSummary?.histogram != null ||
+                    state.loadSummary?.heatmap != null
+            }
+        }
     }
 
     override fun onCleared() {
@@ -162,6 +236,22 @@ private data class DatasetSnapshot(
     val heatmapByPath: MutableMap<String, HeatmapBin> = mutableMapOf(),
     val heatmapSourceByPath: MutableMap<String, DatasetLoadSource> = mutableMapOf(),
 )
+
+private enum class LookupPayloadLoadMode {
+    FULL,
+    SUMMARY_ONLY,
+}
+
+private fun loadModeForRoute(route: AppRoute): LookupPayloadLoadMode {
+    return when (route) {
+        AppRoute.COMPARE,
+        AppRoute.TRENDS,
+        AppRoute.CALCULATORS,
+        -> LookupPayloadLoadMode.SUMMARY_ONLY
+
+        AppRoute.LOOKUP -> LookupPayloadLoadMode.FULL
+    }
+}
 
 internal data class LookupSliceRow(
     val rawKey: String,
@@ -425,6 +515,7 @@ private fun buildHomeState(
     snapshot: DatasetSnapshot,
     requestedFilters: LookupFilters,
     repository: PublishedDataRepository,
+    loadMode: LookupPayloadLoadMode,
 ): HomeUiState {
     val sexes = sexOptions(snapshot.rootIndex)
     val sex = pickPreferredValue(sexes, requestedFilters.sex, "M")
@@ -516,6 +607,22 @@ private fun buildHomeState(
         filters = selectorState.filters,
         baseTotal = row.summary?.total,
     )
+
+    if (loadMode == LookupPayloadLoadMode.SUMMARY_ONLY) {
+        return HomeUiState(
+            isLoading = false,
+            cachedLatestVersion = snapshot.latest.version,
+            latest = snapshot.latest,
+            rootShardCount = snapshot.rootIndex.shards.size,
+            shardPreview = slicePreview,
+            selectorState = selectorState,
+            trendsPreview = snapshot.trendsPreview,
+            trendSeries = trendSeries,
+            comparisonRows = comparisonRows,
+            loadSummary = buildLoadSummary(snapshot, shardKey = shardKey),
+            errorMessage = null,
+        )
+    }
 
     val histogram = snapshot.histogramByPath[row.histPath] ?: repository
         .fetchHistogram(snapshot.latest.version, row.histPath)
@@ -638,7 +745,15 @@ private fun buildLookupRows(sliceIndex: SliceIndex): List<LookupSliceRow> {
         }
     }
 
-    return rows.sortedWith(
+    val canonicalRows = LinkedHashMap<LookupFilters, LookupSliceRow>()
+    for (row in rows) {
+        val current = canonicalRows[row.filters]
+        if (current == null || isPreferredLookupRowCandidate(candidate = row, current = current)) {
+            canonicalRows[row.filters] = row
+        }
+    }
+
+    return canonicalRows.values.sortedWith(
         compareBy<LookupSliceRow>(
             { ipfClassSortKey(it.filters.wc).first },
             { ipfClassSortKey(it.filters.wc).second },
@@ -649,6 +764,23 @@ private fun buildLookupRows(sliceIndex: SliceIndex): List<LookupSliceRow> {
             { it.filters.metric },
         ),
     )
+}
+
+private fun isPreferredLookupRowCandidate(
+    candidate: LookupSliceRow,
+    current: LookupSliceRow,
+): Boolean {
+    val candidateMetricExplicit =
+        PublishedSliceContract.parseSliceKey(candidate.rawKey)?.metricExplicit == true
+    val currentMetricExplicit =
+        PublishedSliceContract.parseSliceKey(current.rawKey)?.metricExplicit == true
+    if (candidateMetricExplicit != currentMetricExplicit) {
+        return candidateMetricExplicit
+    }
+
+    val candidateHasSummary = candidate.summary != null
+    val currentHasSummary = current.summary != null
+    return candidateHasSummary && !currentHasSummary
 }
 
 private fun buildSelectorState(
@@ -748,7 +880,7 @@ private fun currentRow(
 
 private fun sexOptions(rootIndex: RootIndex): List<String> {
     return rootIndex.shards.keys
-        .mapNotNull { keyParts(it)["sex"] }
+        .mapNotNull { PublishedSliceContract.parseShardKey(it)?.sex }
         .distinctSorted()
 }
 
@@ -758,31 +890,15 @@ private fun equipOptions(
 ): List<String> {
     return rootIndex.shards.keys
         .mapNotNull { key ->
-            val parts = keyParts(key)
-            if (parts["sex"] == sex) parts["equip"] else null
+            val shardKey = PublishedSliceContract.parseShardKey(key) ?: return@mapNotNull null
+            if (shardKey.sex == sex) shardKey.equip else null
         }
         .distinctSorted()
 }
 
 private fun parseLookupFilters(raw: String): LookupFilters? {
-    val parts = keyParts(raw)
-    val sex = parts["sex"] ?: return null
-    val equip = parts["equip"] ?: return null
-    val wc = parts["wc"] ?: return null
-    val age = parts["age"] ?: return null
-    val tested = parts["tested"] ?: return null
-    val lift = parts["lift"] ?: return null
-    return LookupFilters(
-        sex = sex,
-        equip = equip,
-        wc = wc,
-        age = age,
-        tested = tested,
-        lift = lift,
-        metric = parts["metric"] ?: "Kg",
-    )
+    return PublishedSliceContract.parseSliceKey(raw)?.toLookupFilters()
 }
-
 private fun LookupFilters.updated(
     field: LookupFilterField,
     value: String,
@@ -880,77 +996,22 @@ private fun liftLabel(raw: String?): String {
     }
 }
 
-private fun keyParts(raw: String): Map<String, String> {
-    return buildMap {
-        for (part in raw.split('|')) {
-            val equalsIndex = part.indexOf('=')
-            if (equalsIndex <= 0 || equalsIndex == part.lastIndex) {
-                continue
-            }
-            put(
-                part.substring(0, equalsIndex),
-                part.substring(equalsIndex + 1),
-            )
-        }
-    }
-}
-
 private fun histPathFromSliceKey(raw: String): String? {
-    return payloadPathFromSliceKey(raw, "hist")
+    return PublishedSliceContract.histPathFromSliceKey(raw)
 }
 
 private fun heatPathFromSliceKey(raw: String): String? {
-    return payloadPathFromSliceKey(raw, "heat")
+    return PublishedSliceContract.heatPathFromSliceKey(raw)
 }
 
-private fun payloadPathFromSliceKey(
-    raw: String,
-    payloadKind: String,
-): String? {
-    val parts = keyParts(raw)
-
-    val sex = parts["sex"] ?: return null
-    val equip = parts["equip"] ?: return null
-    val wc = parts["wc"] ?: return null
-    val age = parts["age"] ?: return null
-    val tested = parts["tested"] ?: return null
-    val lift = parts["lift"] ?: return null
-    val metric = parts["metric"] ?: "Kg"
-    val hasMetric = raw.contains("metric=")
-
-    val liftName = when (lift) {
-        "S" -> "squat"
-        "B" -> "bench"
-        "D" -> "deadlift"
-        "T" -> "total"
-        else -> return null
-    }
-
-    val testedDir = if (tested.equals("yes", ignoreCase = true)) {
-        "tested"
-    } else {
-        slugForSlicePath(tested)
-    }
-
-    val basePath = if (hasMetric) {
-        "${slugForSlicePath(sex)}/${slugForSlicePath(equip)}/${slugForSlicePath(wc)}/${slugForSlicePath(age)}/${testedDir}/${slugForSlicePath(metric)}/$liftName"
-    } else {
-        "${slugForSlicePath(sex)}/${slugForSlicePath(equip)}/${slugForSlicePath(wc)}/${slugForSlicePath(age)}/${testedDir}/$liftName"
-    }
-
-    return "$payloadKind/$basePath.bin"
-}
-
-private fun slugForSlicePath(input: String): String {
-    val builder = StringBuilder(input.length)
-    for (character in input) {
-        builder.append(
-            when {
-                character in 'A'..'Z' -> character.lowercaseChar()
-                character in 'a'..'z' || character in '0'..'9' || character == '-' -> character
-                else -> '_'
-            },
-        )
-    }
-    return builder.toString()
+private fun PublishedSliceKey.toLookupFilters(): LookupFilters {
+    return LookupFilters(
+        sex = sex,
+        equip = equip,
+        wc = wc,
+        age = age,
+        tested = tested,
+        lift = lift,
+        metric = metric,
+    )
 }

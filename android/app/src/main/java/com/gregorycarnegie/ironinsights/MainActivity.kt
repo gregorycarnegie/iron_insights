@@ -43,6 +43,7 @@ class MainActivity : ComponentActivity() {
                         uiState = uiState,
                         onRefresh = homeViewModel::refresh,
                         onFilterChange = homeViewModel::updateFilter,
+                        onRouteChange = homeViewModel::setRoute,
                     )
                 }
             }

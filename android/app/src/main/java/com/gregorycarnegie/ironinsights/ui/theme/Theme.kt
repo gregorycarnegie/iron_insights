@@ -2,60 +2,39 @@ package com.gregorycarnegie.ironinsights.ui.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.ui.graphics.Color
 
-private val IronInsightsLightColors = lightColorScheme(
-    primary = PlateRed,
-    onPrimary = Bone,
-    primaryContainer = Color(0xFFF2D6C8),
-    onPrimaryContainer = IronDark,
-    secondary = Graphite,
-    onSecondary = Bone,
-    secondaryContainer = Color(0xFFE1E7E9),
-    onSecondaryContainer = IronDark,
-    tertiary = PlateCopper,
-    onTertiary = IronDark,
-    background = Bone,
-    onBackground = IronDark,
-    surface = Color(0xFFF7F3EE),
-    onSurface = IronDark,
-    surfaceVariant = Color(0xFFE8E0D9),
-    onSurfaceVariant = Graphite,
-    outline = NightSteel,
-    outlineVariant = SteelMist,
-)
-
-private val IronInsightsDarkColors = darkColorScheme(
-    primary = PlateCopper,
-    onPrimary = IronDark,
-    primaryContainer = IronPanel,
+private val IronInsightsColorScheme = darkColorScheme(
+    primary = AccentLime,
+    onPrimary = NightVoid,
+    primaryContainer = AccentDim,
     onPrimaryContainer = Chalk,
-    secondary = SteelMist,
-    onSecondary = IronDark,
-    secondaryContainer = Graphite,
+    secondary = AccentTeal,
+    onSecondary = NightVoid,
+    secondaryContainer = AccentTealDeep,
     onSecondaryContainer = Chalk,
-    tertiary = PlateRed,
-    onTertiary = Chalk,
-    background = IronDark,
+    tertiary = SteelMist,
+    onTertiary = NightVoid,
+    tertiaryContainer = AccentLimeDeep,
+    onTertiaryContainer = Chalk,
+    background = NightVoid,
     onBackground = Chalk,
-    surface = IronSurface,
+    surface = NightRaised,
     onSurface = Chalk,
-    surfaceVariant = IronPanel,
+    surfaceVariant = NightCard,
     onSurfaceVariant = SteelMist,
-    outline = NightSteel,
-    outlineVariant = Graphite,
+    outline = BorderMid,
+    outlineVariant = BorderSubtle,
+    error = DangerHeat,
+    onError = NightVoid,
+    errorContainer = DangerHeatDeep,
+    onErrorContainer = Chalk,
 )
 
 @Composable
-fun IronInsightsTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit,
-) {
+fun IronInsightsTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = if (darkTheme) IronInsightsDarkColors else IronInsightsLightColors,
+        colorScheme = IronInsightsColorScheme,
         typography = IronInsightsTypography,
         content = content,
     )

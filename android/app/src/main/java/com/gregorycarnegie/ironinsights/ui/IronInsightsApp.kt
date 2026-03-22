@@ -1,6 +1,7 @@
 package com.gregorycarnegie.ironinsights.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -20,8 +21,13 @@ fun IronInsightsApp(
     uiState: HomeUiState,
     onRefresh: () -> Unit,
     onFilterChange: (LookupFilterField, String) -> Unit,
+    onRouteChange: (AppRoute) -> Unit,
 ) {
     var selectedRoute by rememberSaveable { mutableStateOf(AppRoute.LOOKUP) }
+
+    LaunchedEffect(selectedRoute) {
+        onRouteChange(selectedRoute)
+    }
 
     when (selectedRoute) {
         AppRoute.LOOKUP -> {

@@ -6,6 +6,8 @@
 - [x] Keep the website data contract as the source of truth.
 - [x] Add a shared config for the public site base URL.
 - [x] Add a Compose home screen that documents the current app state.
+- [x] Add launcher icon and basic brand assets from the website mark.
+- [x] Add a first website-aligned Compose theme pass for shared screens.
 
 ## Phase 2
 
@@ -13,7 +15,9 @@
 - [x] Fetch the version root index from the site.
 - [x] Cache the current dataset version.
 - [x] Add models and parsing for versioned indexes and a first histogram payload.
-- [ ] Move reusable Rust core logic out of `app/src/core.rs` or define the first Android-side mirror.
+- [x] Add version-aware pruning for cached dataset payload trees.
+- [x] Centralize shard and slice key parsing into a dedicated published-data contract helper.
+- [x] Move reusable Rust core logic out of `app/src/core.rs` or define the first Android-side mirror.
 - [x] Build a selector-driven percentile ranking screen in Compose.
 
 ## Phase 3
@@ -27,4 +31,4 @@
 - [ ] Configure the `android-release` environment secrets and optional Play upload credentials.
 - [x] Add offline cache and fallback error handling.
 - [x] Port the heatmap codec and bodyweight-conditioned percentile flow.
-- [ ] Decouple comparison summary loads from histogram and heatmap fetches.
+- [x] Decouple comparison summary loads from histogram and heatmap fetches.

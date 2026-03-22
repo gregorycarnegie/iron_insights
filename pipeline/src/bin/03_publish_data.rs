@@ -5,13 +5,11 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::Parser;
+use iron_insights_core::{BINARY_FORMAT_VERSION, HEATMAP_MAGIC, HISTOGRAM_MAGIC};
 use pipeline::BuildMetadata;
 use polars::prelude::*;
 use serde::Serialize;
 
-const HIST_MAGIC: [u8; 4] = *b"IIH1";
-const HEAT_MAGIC: [u8; 4] = *b"IIM1";
-const FORMAT_VERSION: u16 = 1;
 const LIFT_BIN_BASE_KG: f32 = 2.5;
 const BW_BIN_BASE_KG: f32 = 1.0;
 const SCORE_BIN_BASE_POINTS: f32 = 2.5;
@@ -718,8 +716,8 @@ fn build_heatmap(points: &[(f32, f32)], x_base: f32, y_base: f32) -> Result<Heat
 
 fn write_hist_bin(path: &Path, hist: &HistogramData, x_base: f32) -> Result<()> {
     let mut bytes = Vec::with_capacity(4 + 2 + (3 * 4) + 4 + hist.counts.len() * 4);
-    bytes.extend_from_slice(&HIST_MAGIC);
-    bytes.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
+    bytes.extend_from_slice(&HISTOGRAM_MAGIC);
+    bytes.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
     bytes.extend_from_slice(&x_base.to_le_bytes());
     bytes.extend_from_slice(&hist.min.to_le_bytes());
     bytes.extend_from_slice(&hist.max.to_le_bytes());
@@ -732,8 +730,8 @@ fn write_hist_bin(path: &Path, hist: &HistogramData, x_base: f32) -> Result<()> 
 
 fn write_heat_bin(path: &Path, heat: &HeatmapData, x_base: f32, y_base: f32) -> Result<()> {
     let mut bytes = Vec::with_capacity(4 + 2 + (6 * 4) + (2 * 4) + heat.grid.len() * 4);
-    bytes.extend_from_slice(&HEAT_MAGIC);
-    bytes.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
+    bytes.extend_from_slice(&HEATMAP_MAGIC);
+    bytes.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
     bytes.extend_from_slice(&x_base.to_le_bytes());
     bytes.extend_from_slice(&y_base.to_le_bytes());
     bytes.extend_from_slice(&heat.min_x.to_le_bytes());

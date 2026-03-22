@@ -1,4 +1,12 @@
+mod published_contract;
+
+pub use published_contract::{
+    SliceEntryPaths, SliceKey, entry_paths_from_slice_key, parse_shard_key, parse_slice_key,
+};
+
 pub const BINARY_FORMAT_VERSION: u16 = 1;
+pub const HISTOGRAM_MAGIC: [u8; 4] = *b"IIH1";
+pub const HEATMAP_MAGIC: [u8; 4] = *b"IIM1";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HistogramBin {
@@ -96,7 +104,7 @@ impl HistogramBin {
 }
 
 pub fn parse_hist_bin(bytes: &[u8]) -> Option<HistogramBin> {
-    if bytes.len() < 22 || &bytes[0..4] != b"IIH1" {
+    if bytes.len() < 22 || bytes[0..4] != HISTOGRAM_MAGIC {
         return None;
     }
     let version = u16::from_le_bytes(bytes[4..6].try_into().ok()?);
@@ -123,7 +131,7 @@ pub fn parse_hist_bin(bytes: &[u8]) -> Option<HistogramBin> {
 }
 
 pub fn parse_heat_bin(bytes: &[u8]) -> Option<HeatmapBin> {
-    if bytes.len() < 38 || &bytes[0..4] != b"IIM1" {
+    if bytes.len() < 38 || bytes[0..4] != HEATMAP_MAGIC {
         return None;
     }
     let version = u16::from_le_bytes(bytes[4..6].try_into().ok()?);

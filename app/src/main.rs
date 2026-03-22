@@ -1,5 +1,7 @@
 #[cfg(any(target_arch = "wasm32", test))]
-mod core;
+pub mod core {
+    pub use iron_insights_core::*;
+}
 
 #[cfg(target_arch = "wasm32")]
 mod webapp;

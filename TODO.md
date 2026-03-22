@@ -23,7 +23,8 @@
 - [x] Add app shell with an explicit dataset base URL config
 - [x] Add package structure for config, data, domain, and UI
 - [x] Add a home screen that states current app status and next milestones
-- [ ] Add app icon and brand assets adapted from existing web assets
+- [x] Add app icon and brand assets adapted from existing web assets
+- [x] Add a first website-aligned theme pass for Compose surfaces and navigation
 
 ## Phase 2: Data Client
 
@@ -33,15 +34,16 @@
 - [x] Fetch and parse the matching heatmap binary for nearby-bodyweight ranking
 - [x] Add repository layer with version-aware caching
 - [x] Add offline-friendly caching strategy for indexes and binary payloads
-- [ ] Add error handling for missing versions, parse failures, and stale cache
+- [x] Add error handling for missing versions, parse failures, and stale cache
+- [x] Add version-aware pruning for cached dataset payload trees
 
 ## Phase 3: Shared Logic
 
-- [ ] Extract the published contract layer first: JSON models plus shard and slice key parsing
-- [ ] Extract binary histogram and heatmap parsing into a shared crate or mirrored implementation
-- [ ] Extract percentile and distribution logic from the current web app into reusable core code
+- [x] Extract the published contract layer first: JSON models plus shard and slice key parsing
+- [x] Extract binary histogram and heatmap parsing into a shared crate or mirrored implementation
+- [x] Extract percentile and distribution logic from the current web app into reusable core code
 - [ ] Decide whether Android should call shared Rust through JNI or use a Kotlin port first
-- [ ] Keep binary format versioning explicit and tested
+- [x] Keep binary format versioning explicit and tested
 
 ## Phase 4: First User Features
 
@@ -53,7 +55,7 @@
 - [x] Add trends screen
 - [x] Add comparison screen backed by embedded shard summaries
 - [x] Add calculators for 1RM and plate loading
-- [ ] Decouple comparison summary loads from histogram and heatmap fetches
+- [x] Decouple comparison summary loads from histogram and heatmap fetches
 
 ## CI/CD Split
 
@@ -70,4 +72,4 @@
 - [x] Add real network layer and first endpoint fetch
 - [x] Add tests for histogram codec and lookup math
 - [x] Add first comparison surface on top of the shared selector state
-- [ ] Move `app/src/core.rs` into a reusable shared engine or define the first compatibility layer around it
+- [x] Move `app/src/core.rs` into a reusable shared engine or define the first compatibility layer around it

@@ -24,6 +24,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 import java.util.TreeMap
 
 private const val HISTOGRAM_HEADER_SIZE = 22
@@ -36,6 +37,35 @@ private const val HEATMAP_MAGIC_0 = 'I'.code
 private const val HEATMAP_MAGIC_1 = 'I'.code
 private const val HEATMAP_MAGIC_2 = 'M'.code
 private const val HEATMAP_MAGIC_3 = '1'.code
+private const val MAX_CACHED_DATASET_VERSIONS = 2
+
+private enum class PublishedPayloadType(
+    val label: String,
+) {
+    JSON("JSON"),
+    BINARY("binary"),
+}
+
+private class PublishedHttpException(
+    val relativePath: String,
+    val payloadType: PublishedPayloadType,
+    val status: Int,
+) : IOException("Published ${payloadType.label} $relativePath returned HTTP $status.")
+
+private class PublishedPayloadParseException(
+    val relativePath: String,
+    val payloadType: PublishedPayloadType,
+    val source: DatasetLoadSource,
+    cause: Throwable,
+) : IOException(
+        "Published ${payloadType.label} $relativePath from ${source.label()} was malformed.",
+        cause,
+    )
+
+private data class CachedLatestLookup(
+    val latest: LoadedResource<LatestJson>? = null,
+    val cacheError: Throwable? = null,
+)
 
 interface PublishedDataRepository {
     fun readCachedLatestVersion(): String?
@@ -55,18 +85,40 @@ class HttpPublishedDataRepository(
     override fun readCachedLatestVersion(): String? = latestDatasetVersionCache.read()
 
     override fun fetchLatest(): Result<LoadedResource<LatestJson>> = runCatching {
-        loadJsonWithCache(
-            relativePath = "latest.json",
-            parser = ::parseLatestJson,
-            fallback = {
-                latestDatasetVersionCache.read()?.let { cachedVersion ->
-                    LoadedResource(
-                        value = LatestJson(version = cachedVersion, revision = null),
-                        source = DatasetLoadSource.VERSION_CACHE,
-                    )
-                }
-            },
-        ).also { latest ->
+        val relativePath = "latest.json"
+        val requestUrl = environment.dataBaseUrl + relativePath
+        val preferredVersion = latestDatasetVersionCache.read()
+
+        try {
+            val body = loadJsonText(requestUrl, relativePath)
+            val latest = parsePublishedText(
+                relativePath = relativePath,
+                source = DatasetLoadSource.NETWORK,
+                parser = ::parseLatestJson,
+                payload = body,
+            )
+            payloadCache.writeText(relativePath, body)
+            pruneVersionedPayloads(relativePath)
+            LoadedResource(
+                value = latest,
+                source = DatasetLoadSource.NETWORK,
+            )
+        } catch (networkError: Exception) {
+            val cachedLatest = loadUsableCachedLatest(relativePath)
+            cachedLatest.latest
+                ?: resolveLatestFallbackResource(
+                    preferredVersion = preferredVersion,
+                    cachedVersions = payloadCache.cachedVersions(),
+                    hasVersionRootIndex = { version ->
+                        payloadCache.hasEntry(versionRootIndexPath(version))
+                    },
+                )
+                ?: throw latestFallbackError(
+                    preferredVersion = preferredVersion,
+                    networkError = networkError,
+                    cacheError = cachedLatest.cacheError,
+                )
+        }.also { latest ->
             latestDatasetVersionCache.write(latest.value.version)
         }
     }
@@ -107,6 +159,32 @@ class HttpPublishedDataRepository(
         )
     }
 
+    private fun loadUsableCachedLatest(relativePath: String): CachedLatestLookup {
+        val cachedBody = payloadCache.readText(relativePath) ?: return CachedLatestLookup()
+
+        return try {
+            val latest = parsePublishedText(
+                relativePath = relativePath,
+                source = DatasetLoadSource.DISK_CACHE,
+                parser = ::parseLatestJson,
+                payload = cachedBody,
+            )
+            if (!payloadCache.hasEntry(versionRootIndexPath(latest.version))) {
+                CachedLatestLookup(cacheError = staleLatestCacheError(latest.version))
+            } else {
+                CachedLatestLookup(
+                    latest = LoadedResource(
+                        value = latest,
+                        source = DatasetLoadSource.DISK_CACHE,
+                    ),
+                )
+            }
+        } catch (cacheError: Exception) {
+            payloadCache.delete(relativePath)
+            CachedLatestLookup(cacheError = cacheError)
+        }
+    }
+
     private fun <T> loadJsonWithCache(
         relativePath: String,
         parser: (String) -> T,
@@ -116,9 +194,15 @@ class HttpPublishedDataRepository(
         val requestUrl = environment.dataBaseUrl + normalizedPath
 
         try {
-            val body = loadJsonText(requestUrl)
-            val parsed = parser(body)
+            val body = loadJsonText(requestUrl, normalizedPath)
+            val parsed = parsePublishedText(
+                relativePath = normalizedPath,
+                source = DatasetLoadSource.NETWORK,
+                parser = parser,
+                payload = body,
+            )
             payloadCache.writeText(normalizedPath, body)
+            pruneVersionedPayloads(normalizedPath)
             return LoadedResource(
                 value = parsed,
                 source = DatasetLoadSource.NETWORK,
@@ -128,13 +212,19 @@ class HttpPublishedDataRepository(
             if (cachedBody != null) {
                 try {
                     return LoadedResource(
-                        value = parser(cachedBody),
+                        value = parsePublishedText(
+                            relativePath = normalizedPath,
+                            source = DatasetLoadSource.DISK_CACHE,
+                            parser = parser,
+                            payload = cachedBody,
+                        ),
                         source = DatasetLoadSource.DISK_CACHE,
                     )
                 } catch (cacheError: Exception) {
                     payloadCache.delete(normalizedPath)
                     throw combinedLoadError(
                         relativePath = normalizedPath,
+                        payloadType = PublishedPayloadType.JSON,
                         networkError = networkError,
                         cacheError = cacheError,
                     )
@@ -142,7 +232,11 @@ class HttpPublishedDataRepository(
             }
 
             fallback?.invoke()?.let { return it }
-            throw IOException("Failed to load published JSON $normalizedPath.", networkError)
+            throw primaryLoadError(
+                relativePath = normalizedPath,
+                payloadType = PublishedPayloadType.JSON,
+                networkError = networkError,
+            )
         }
     }
 
@@ -154,9 +248,15 @@ class HttpPublishedDataRepository(
         val requestUrl = environment.dataBaseUrl + normalizedPath
 
         try {
-            val payload = loadBinary(requestUrl)
-            val parsed = parser(payload)
+            val payload = loadBinary(requestUrl, normalizedPath)
+            val parsed = parsePublishedBytes(
+                relativePath = normalizedPath,
+                source = DatasetLoadSource.NETWORK,
+                parser = parser,
+                payload = payload,
+            )
             payloadCache.writeBytes(normalizedPath, payload)
+            pruneVersionedPayloads(normalizedPath)
             return LoadedResource(
                 value = parsed,
                 source = DatasetLoadSource.NETWORK,
@@ -166,24 +266,37 @@ class HttpPublishedDataRepository(
             if (cachedPayload != null) {
                 try {
                     return LoadedResource(
-                        value = parser(cachedPayload),
+                        value = parsePublishedBytes(
+                            relativePath = normalizedPath,
+                            source = DatasetLoadSource.DISK_CACHE,
+                            parser = parser,
+                            payload = cachedPayload,
+                        ),
                         source = DatasetLoadSource.DISK_CACHE,
                     )
                 } catch (cacheError: Exception) {
                     payloadCache.delete(normalizedPath)
                     throw combinedLoadError(
                         relativePath = normalizedPath,
+                        payloadType = PublishedPayloadType.BINARY,
                         networkError = networkError,
                         cacheError = cacheError,
                     )
                 }
             }
 
-            throw IOException("Failed to load published binary $normalizedPath.", networkError)
+            throw primaryLoadError(
+                relativePath = normalizedPath,
+                payloadType = PublishedPayloadType.BINARY,
+                networkError = networkError,
+            )
         }
     }
 
-    private fun loadJsonText(requestUrl: String): String {
+    private fun loadJsonText(
+        requestUrl: String,
+        relativePath: String,
+    ): String {
         val connection = (URL(requestUrl).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 10_000
@@ -194,7 +307,11 @@ class HttpPublishedDataRepository(
         return try {
             val status = connection.responseCode
             if (status !in 200..299) {
-                throw IOException("Failed to load published JSON: HTTP $status")
+                throw PublishedHttpException(
+                    relativePath = relativePath,
+                    payloadType = PublishedPayloadType.JSON,
+                    status = status,
+                )
             }
 
             connection.inputStream.bufferedReader().use { it.readText() }
@@ -203,7 +320,10 @@ class HttpPublishedDataRepository(
         }
     }
 
-    private fun loadBinary(requestUrl: String): ByteArray {
+    private fun loadBinary(
+        requestUrl: String,
+        relativePath: String,
+    ): ByteArray {
         val connection = (URL(requestUrl).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 10_000
@@ -213,7 +333,11 @@ class HttpPublishedDataRepository(
         return try {
             val status = connection.responseCode
             if (status !in 200..299) {
-                throw IOException("Failed to load published binary: HTTP $status")
+                throw PublishedHttpException(
+                    relativePath = relativePath,
+                    payloadType = PublishedPayloadType.BINARY,
+                    status = status,
+                )
             }
             connection.inputStream.use { input ->
                 input.readBytes()
@@ -225,15 +349,155 @@ class HttpPublishedDataRepository(
 
     private fun combinedLoadError(
         relativePath: String,
+        payloadType: PublishedPayloadType,
         networkError: Throwable,
         cacheError: Throwable,
     ): IOException {
         return IOException(
-            "Failed to load $relativePath from network and cache.",
+            "${primaryLoadError(relativePath, payloadType, networkError).message} Cached copy was also invalid.",
             networkError,
         ).apply {
             addSuppressed(cacheError)
         }
+    }
+
+    private fun pruneVersionedPayloads(relativePath: String) {
+        if (extractVersionSegment(relativePath) == null) {
+            return
+        }
+
+        payloadCache.pruneCachedVersions(MAX_CACHED_DATASET_VERSIONS)
+    }
+}
+
+internal fun resolveLatestFallbackResource(
+    preferredVersion: String?,
+    cachedVersions: List<String>,
+    hasVersionRootIndex: (String) -> Boolean,
+): LoadedResource<LatestJson>? {
+    val normalizedPreferred = preferredVersion?.trim()?.takeIf { it.isNotEmpty() }
+    if (normalizedPreferred != null && hasVersionRootIndex(normalizedPreferred)) {
+        return LoadedResource(
+            value = LatestJson(version = normalizedPreferred, revision = null),
+            source = DatasetLoadSource.VERSION_CACHE,
+        )
+    }
+
+    val discoveredVersion = cachedVersions
+        .asSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && it != normalizedPreferred }
+        .sortedDescending()
+        .firstOrNull { version -> hasVersionRootIndex(version) }
+        ?: return null
+
+    return LoadedResource(
+        value = LatestJson(version = discoveredVersion, revision = null),
+        source = DatasetLoadSource.DISK_CACHE,
+    )
+}
+
+private fun versionRootIndexPath(version: String): String = "${version.trim()}/index.json"
+
+internal fun extractVersionSegment(relativePath: String): String? {
+    val normalizedPath = relativePath.trim().trimStart('/').replace('\\', '/')
+    val version = normalizedPath.substringBefore('/', missingDelimiterValue = "")
+    return version.takeIf { it.isNotBlank() && it != "latest.json" }
+}
+
+private fun staleLatestCacheError(version: String): IOException {
+    return IOException(
+        "Cached latest pointer references dataset $version, but its cached root index is missing.",
+    )
+}
+
+private fun latestFallbackError(
+    preferredVersion: String?,
+    networkError: Throwable,
+    cacheError: Throwable?,
+): IOException {
+    val message = if (preferredVersion.isNullOrBlank()) {
+        "Failed to load a usable latest dataset pointer, and no cached dataset version was available."
+    } else {
+        "Cached dataset version $preferredVersion is stale or incomplete. Reconnect and refresh the published dataset before using the app offline."
+    }
+
+    return IOException(message, networkError).apply {
+        cacheError?.let(::addSuppressed)
+    }
+}
+
+private fun <T> parsePublishedText(
+    relativePath: String,
+    source: DatasetLoadSource,
+    parser: (String) -> T,
+    payload: String,
+): T {
+    return try {
+        parser(payload)
+    } catch (error: Exception) {
+        throw PublishedPayloadParseException(
+            relativePath = relativePath,
+            payloadType = PublishedPayloadType.JSON,
+            source = source,
+            cause = error,
+        )
+    }
+}
+
+private fun <T> parsePublishedBytes(
+    relativePath: String,
+    source: DatasetLoadSource,
+    parser: (ByteArray) -> T,
+    payload: ByteArray,
+): T {
+    return try {
+        parser(payload)
+    } catch (error: Exception) {
+        throw PublishedPayloadParseException(
+            relativePath = relativePath,
+            payloadType = PublishedPayloadType.BINARY,
+            source = source,
+            cause = error,
+        )
+    }
+}
+
+private fun primaryLoadError(
+    relativePath: String,
+    payloadType: PublishedPayloadType,
+    networkError: Throwable,
+): IOException {
+    val label = payloadType.label.lowercase(Locale.US)
+    return when (networkError) {
+        is PublishedPayloadParseException -> IOException(
+            "Published $label $relativePath was malformed and no valid cache copy was available.",
+            networkError,
+        )
+
+        is PublishedHttpException -> when (networkError.status) {
+            404,
+            410,
+            -> IOException(
+                "Published $label $relativePath was not found. The selected dataset version may be stale or not fully deployed yet.",
+                networkError,
+            )
+
+            else -> IOException(
+                "Failed to load published $label $relativePath: HTTP ${networkError.status}.",
+                networkError,
+            )
+        }
+
+        else -> IOException("Failed to load published $label $relativePath.", networkError)
+    }
+}
+
+private fun DatasetLoadSource.label(): String {
+    return when (this) {
+        DatasetLoadSource.NETWORK -> "network"
+        DatasetLoadSource.DISK_CACHE -> "disk cache"
+        DatasetLoadSource.VERSION_CACHE -> "cached version pointer"
     }
 }
 

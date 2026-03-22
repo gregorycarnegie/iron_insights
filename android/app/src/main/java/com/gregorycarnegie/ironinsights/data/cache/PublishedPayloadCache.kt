@@ -27,6 +27,11 @@ class PublishedPayloadCache(context: Context) {
         return runCatching { file.readBytes() }.getOrNull()
     }
 
+    fun hasEntry(relativePath: String): Boolean {
+        val file = fileFor(relativePath) ?: return false
+        return file.exists() && file.isFile
+    }
+
     fun writeBytes(
         relativePath: String,
         value: ByteArray,
@@ -58,6 +63,28 @@ class PublishedPayloadCache(context: Context) {
         }
     }
 
+    fun cachedVersions(): List<String> {
+        return rootDir
+            .listFiles()
+            ?.asSequence()
+            ?.filter { it.isDirectory }
+            ?.map { it.name }
+            ?.toList()
+            ?.let(::normalizeCachedVersions)
+            ?: emptyList()
+    }
+
+    fun pruneCachedVersions(maxVersions: Int): List<String> {
+        val versionsToRemove = versionsToPrune(cachedVersions(), maxVersions)
+        versionsToRemove.forEach { version ->
+            val directory = fileFor(version) ?: return@forEach
+            if (directory.exists() && directory.isDirectory) {
+                directory.deleteRecursively()
+            }
+        }
+        return versionsToRemove
+    }
+
     private fun fileFor(relativePath: String): File? {
         val segments = relativePath
             .replace('\\', '/')
@@ -76,4 +103,27 @@ class PublishedPayloadCache(context: Context) {
     private companion object {
         const val CACHE_DIR_NAME = "published_payloads"
     }
+}
+
+internal fun versionsToPrune(
+    cachedVersions: List<String>,
+    maxVersions: Int,
+): List<String> {
+    val normalizedVersions = normalizeCachedVersions(cachedVersions)
+
+    return when {
+        maxVersions <= 0 -> normalizedVersions
+        normalizedVersions.size <= maxVersions -> emptyList()
+        else -> normalizedVersions.drop(maxVersions)
+    }
+}
+
+private fun normalizeCachedVersions(cachedVersions: List<String>): List<String> {
+    return cachedVersions
+        .asSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .distinct()
+        .sortedDescending()
+        .toList()
 }
