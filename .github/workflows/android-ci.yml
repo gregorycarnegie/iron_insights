@@ -51,7 +51,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null
+          # sdkmanager exits as soon as it has accepted all licenses, which can leave
+          # `yes` with SIGPIPE; tolerate that expected broken-pipe case.
+          yes | sdkmanager --licenses >/dev/null || true
           sdkmanager \
             "platform-tools" \
             "platforms;android-35" \
