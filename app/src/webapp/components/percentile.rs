@@ -1,6 +1,8 @@
 use leptos::prelude::*;
 
 #[component]
+// False positive: `percentile_percent` is used in the view but the Leptos macro-generated
+// props struct triggers a dead_code warning because rustc can't trace the field read.
 pub(in crate::webapp) fn PercentilePanel(percentile_percent: Memo<Option<f32>>) -> impl IntoView {
     view! {
         <section class="panel">
