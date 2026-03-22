@@ -1,9 +1,19 @@
-name: Refresh Data And Deploy
+name: Website Data And Deploy
 
 on:
   push:
     branches:
       - master
+    paths:
+      - '.cargo/**'
+      - '.github/workflows/refresh-data-and-deploy.yml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'app/**'
+      - 'data/**'
+      - 'pipeline/**'
+      - 'scripts/**'
+      - 'src/**'
   schedule:
     - cron: '0 3 * * 0'
   workflow_dispatch:
@@ -23,6 +33,7 @@ env:
 
 jobs:
   refresh-and-deploy:
+    if: github.event_name != 'push' || github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

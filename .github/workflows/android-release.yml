@@ -1,0 +1,205 @@
+name: Android Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: Release version name override
+        required: false
+        type: string
+      version_code:
+        description: Android version code override
+        required: false
+        type: string
+      upload_to_play:
+        description: Upload the signed bundle to Google Play after building it
+        required: false
+        default: false
+        type: boolean
+      play_track:
+        description: Target Google Play track
+        required: false
+        default: internal
+        type: choice
+        options:
+          - internal
+          - beta
+          - production
+      play_status:
+        description: Google Play release status
+        required: false
+        default: draft
+        type: choice
+        options:
+          - draft
+          - completed
+          - inProgress
+          - halted
+  push:
+    tags:
+      - 'android-v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    environment: android-release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate release ref
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF}" == "refs/heads/master" || "${GITHUB_REF}" == refs/tags/android-v* ]]; then
+            exit 0
+          fi
+
+          echo "Manual releases must run from master or an android-v* tag."
+          exit 1
+
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION_NAME="${{ inputs.version_name }}"
+          VERSION_CODE="${{ inputs.version_code }}"
+
+          if [[ -z "${VERSION_NAME}" && "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            VERSION_NAME="${GITHUB_REF_NAME#android-v}"
+          fi
+
+          if [[ -z "${VERSION_NAME}" ]]; then
+            VERSION_NAME="0.1.${GITHUB_RUN_NUMBER}"
+          fi
+
+          if [[ -z "${VERSION_CODE}" ]]; then
+            VERSION_CODE="${GITHUB_RUN_NUMBER}"
+          fi
+
+          if ! [[ "${VERSION_CODE}" =~ ^[0-9]+$ ]]; then
+            echo "version_code must be a positive integer."
+            exit 1
+          fi
+
+          if (( VERSION_CODE < 1 )); then
+            echo "version_code must be greater than zero."
+            exit 1
+          fi
+
+          echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      - name: Decode release keystore
+        id: keystore
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          test -n "${ANDROID_KEYSTORE_BASE64}"
+          test -n "${ANDROID_KEYSTORE_PASSWORD}"
+          test -n "${ANDROID_KEY_ALIAS}"
+          test -n "${ANDROID_KEY_PASSWORD}"
+
+          KEYSTORE_PATH="${RUNNER_TEMP}/iron-insights-release.keystore"
+          echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > "${KEYSTORE_PATH}"
+          test -s "${KEYSTORE_PATH}"
+          echo "path=${KEYSTORE_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Build signed release bundle
+        shell: bash
+        env:
+          IRON_INSIGHTS_REQUIRE_RELEASE_SIGNING: "true"
+          IRON_INSIGHTS_VERSION_NAME: ${{ steps.meta.outputs.version_name }}
+          IRON_INSIGHTS_VERSION_CODE: ${{ steps.meta.outputs.version_code }}
+          IRON_INSIGHTS_KEYSTORE_PATH: ${{ steps.keystore.outputs.path }}
+          IRON_INSIGHTS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          IRON_INSIGHTS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          IRON_INSIGHTS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          gradle -p android :app:bundleRelease --max-workers=1
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: iron-insights-android-${{ steps.meta.outputs.version_name }}
+          path: android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+
+      - name: Validate Play upload credentials
+        if: github.event_name == 'workflow_dispatch' && inputs.upload_to_play
+        shell: bash
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          test -n "${PLAY_SERVICE_ACCOUNT_JSON}"
+
+      - name: Validate Play upload target
+        if: github.event_name == 'workflow_dispatch' && inputs.upload_to_play
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ inputs.play_track }}" == "production" || "${{ inputs.play_status }}" == "completed" ]]; then
+            if [[ "${GITHUB_REF}" != refs/tags/android-v* ]]; then
+              echo "Production or completed Play uploads must run from an android-v* tag."
+              exit 1
+            fi
+          fi
+
+      - name: Upload bundle to Google Play
+        if: github.event_name == 'workflow_dispatch' && inputs.upload_to_play
+        uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.gregorycarnegie.ironinsights
+          releaseFiles: android/app/build/outputs/bundle/release/*.aab
+          track: ${{ inputs.play_track }}
+          status: ${{ inputs.play_status }}
+          releaseName: ${{ steps.meta.outputs.version_name }}
