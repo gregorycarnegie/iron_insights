@@ -2,6 +2,7 @@
 
 [![Refresh Data And Deploy](https://github.com/gregorycarnegie/iron_insights/actions/workflows/refresh-data-and-deploy.yml/badge.svg)](https://github.com/gregorycarnegie/iron_insights/actions/workflows/refresh-data-and-deploy.yml)
 ![Rust](https://img.shields.io/badge/Rust-2024_edition-000000?logo=rust)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)
 ![Leptos](https://img.shields.io/badge/Leptos-0.8-ef3939)
 ![Polars](https://img.shields.io/badge/Polars-0.53-5A32FA)
 ![Trunk](https://img.shields.io/badge/Trunk-WASM-2f9e44)
@@ -9,7 +10,7 @@
 Iron Insights is a Rust + Leptos powerlifting data project built around one question:
 **"How do I stack up?"**
 
-The repo downloads OpenPowerlifting, builds compact histogram and heatmap bundles, and serves a static web app with percentile ranking, cohort analysis, cross-sex comparison, and training tools.
+The repo downloads OpenPowerlifting, builds compact histogram and heatmap bundles, serves a static web app, and now includes a native Android client that consumes the same published data contract.
 
 ## What Is In Here
 
@@ -19,6 +20,10 @@ The repo downloads OpenPowerlifting, builds compact histogram and heatmap bundle
   - "Men vs Women" page for aligned cross-sex cohort comparisons
   - 1RM calculator and plate calculator utilities
   - `landing/`, `robots.txt`, and `sitemap.xml` for static SEO pages
+- `android/` - native Kotlin + Jetpack Compose Android client
+  - lookup, comparison, trends, and calculator screens backed by the published site dataset
+  - Android-specific setup and release notes in `android/README.md` and `android/RELEASING.md`
+- `iron_insights_core/` - shared Rust crate for published-data contracts and binary format logic used by the web app and pipeline
 - `pipeline/` - Rust data pipeline that downloads, aggregates, and publishes versioned data bundles
 - `data/` - published dataset snapshots such as `v2026-03-20/` plus `latest.json`
 - `docs/` - GitHub Pages build output
@@ -32,6 +37,9 @@ The repo downloads OpenPowerlifting, builds compact histogram and heatmap bundle
 - Trunk (`cargo install trunk --locked`)
 - `jq` for `scripts/qa.sh` on Linux/macOS
 - PowerShell if you want to use the provided Windows helper scripts
+- Android Studio plus Android SDK Platform 35 if you want to run the Android app locally
+
+See `android/README.md` for the Android-specific workflow, release inputs, and output paths.
 
 ## Local Workflow
 
@@ -88,6 +96,25 @@ The app loads:
 - `data/<version>/trends.json`
 - optional `meta/*.json` only when verbose compatibility output is enabled
 
+### 4) Run the Android app locally
+
+The Android client consumes the same published payloads as the website.
+
+Best path:
+
+- open `android/` in Android Studio
+- let Studio install any missing SDK pieces
+- run the `app` configuration on a device or emulator
+
+Command-line builds also work if you already have Gradle 8.9 plus the Android SDK and JDK 17 configured:
+
+```bash
+gradle -p android testDebugUnitTest
+gradle -p android :app:assembleDebug
+```
+
+Detailed Android setup, release-signing inputs, and output locations are documented in `android/README.md`.
+
 ## Build For GitHub Pages
 
 ```bash
@@ -133,15 +160,11 @@ Checks include slice reference integrity, histogram and heatmap sanity, non-zero
 
 ## CI/CD
 
-Workflow: `.github/workflows/refresh-data-and-deploy.yml`
+Workflows:
 
-It currently:
-
-1. runs tests and clippy across the workspace
-2. rebuilds the data bundle with the pipeline
-3. applies a drop-threshold safeguard against suspicious aggregate shrinkage
-4. commits refreshed `data/` when it changed
-5. syncs `app/data/`, builds `docs/` with Trunk, runs QA, and deploys GitHub Pages
+- `.github/workflows/refresh-data-and-deploy.yml` - pipeline refresh, web build, QA, and Pages deploy
+- `.github/workflows/android-ci.yml` - Android debug build plus unit tests
+- `.github/workflows/android-release.yml` - signed Android release bundle build and optional Play upload
 
 ## Notes
 
