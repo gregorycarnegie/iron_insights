@@ -98,7 +98,7 @@ fun CalculatorsScreen(
                 end = 20.dp,
                 bottom = innerPadding.calculateBottomPadding() + 28.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             item {
                 AppRouteTabs(
@@ -108,26 +108,22 @@ fun CalculatorsScreen(
             }
 
             item {
-                SectionCard(
-                    title = "Training tools",
-                    eyebrow = "Local calculators",
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = "These screens do not hit the website data bundle. They mirror the web app's local calculator behavior inside Android.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = "Both calculators keep kg as the internal base even when you switch to pounds for input and display.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        UnitToggleRow(
-                            selectedUnit = unit,
-                            onUnitChange = ::switchUnit,
-                        )
-                    }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Training tools",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = "Estimate your max and plan your plate loading.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    UnitToggleRow(
+                        selectedUnit = unit,
+                        onUnitChange = ::switchUnit,
+                    )
                 }
             }
 
@@ -230,7 +226,7 @@ private fun OneRepMaxCard(
 
     SectionCard(
         title = "1RM calculator",
-        eyebrow = "Blended estimate",
+        eyebrow = "Estimate your max",
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Surface(
@@ -317,23 +313,63 @@ private fun OneRepMaxCard(
                     CalculatorStatCard(
                         title = "Set intensity",
                         value = formatPercent(intensityPercent),
-                        subtitle = "How hard the entered set is relative to the estimated max.",
+                        subtitle = "Your entered set vs. estimated max.",
                     )
                 }
                 item {
                     CalculatorStatCard(
-                        title = "80% work sets",
+                        title = "Work sets (80%)",
                         value = displayWeight(estimateKg * 0.8f, unit),
-                        subtitle = "Useful baseline for steady work.",
+                        subtitle = "Good for 3-5 sets of 5.",
                     )
                 }
                 item {
                     CalculatorStatCard(
-                        title = "90% heavy work",
+                        title = "Heavy work (90%)",
                         value = displayWeight(estimateKg * 0.9f, unit),
-                        subtitle = "Heavy single or double territory.",
+                        subtitle = "Singles and doubles territory.",
                     )
                 }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            Text(
+                text = "Today's training",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "Suggested sets based on your estimated ${displayWeight(estimateKg, unit)} max.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                TrainingSuggestionRow(
+                    label = "Warm-up",
+                    sets = "2-3 x 5",
+                    weight = displayWeight(estimateKg * 0.50f, unit),
+                    note = "50% — get moving",
+                )
+                TrainingSuggestionRow(
+                    label = "Work sets",
+                    sets = "3-5 x 5",
+                    weight = displayWeight(estimateKg * 0.75f, unit),
+                    note = "75% — build volume",
+                )
+                TrainingSuggestionRow(
+                    label = "Top sets",
+                    sets = "2-3 x 3",
+                    weight = displayWeight(estimateKg * 0.85f, unit),
+                    note = "85% — push intensity",
+                )
+                TrainingSuggestionRow(
+                    label = "Heavy single",
+                    sets = "1 x 1",
+                    weight = displayWeight(estimateKg * 0.93f, unit),
+                    note = "93% — test day territory",
+                )
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -360,7 +396,7 @@ private fun OneRepMaxCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             Text(
-                text = "Training percentages",
+                text = "Training zones",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -368,8 +404,8 @@ private fun OneRepMaxCard(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OneRepMaxCalculator.trainingPercentages.forEach { percentage ->
                     CalculatorTableRow(
-                        title = "${percentage.percent}%",
-                        note = percentage.label,
+                        title = "${percentage.percent}% — ${percentage.label}",
+                        note = trainingZoneDescription(percentage.percent),
                         value = displayWeight(
                             estimateKg * (percentage.percent.toFloat() / 100f),
                             unit,
@@ -377,30 +413,62 @@ private fun OneRepMaxCard(
                     )
                 }
             }
-
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = "Formula details",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = "Under 8 reps the estimate follows Brzycki. Above 10 reps it follows Epley. Reps 8-10 blend the two so the output stays smooth.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
         }
+    }
+}
+
+@Composable
+private fun TrainingSuggestionRow(
+    label: String,
+    sets: String,
+    weight: String,
+    note: String,
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = "$label — $sets",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Text(
+                    text = note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.84f),
+                )
+            }
+            Text(
+                text = weight,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+        }
+    }
+}
+
+private fun trainingZoneDescription(percent: Int): String {
+    return when {
+        percent <= 60 -> "Warm-up, rehab, technique drills"
+        percent <= 70 -> "Volume accumulation, hypertrophy"
+        percent <= 75 -> "Moderate intensity, repeatable sets"
+        percent <= 80 -> "Bread-and-butter strength work"
+        percent <= 85 -> "Heavy triples, peaking prep"
+        percent <= 90 -> "Near-max, competition prep"
+        else -> "Openers, max attempts"
     }
 }
 
@@ -428,7 +496,7 @@ private fun PlateCalculatorCard(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(
-                text = "Competition plate set only: 25, 20, 15, 10, 5, 2.5, and 1.25kg. Pounds mode only changes display and input.",
+                text = "Standard competition plates (25 down to 1.25 kg).",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,6 +30,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -67,6 +70,9 @@ fun HomeScreen(
     onRefresh: () -> Unit,
     onFilterChange: (LookupFilterField, String) -> Unit,
 ) {
+    var filtersExpanded by rememberSaveable { mutableStateOf(false) }
+    var devInfoExpanded by rememberSaveable { mutableStateOf(false) }
+
     val background = Brush.verticalGradient(
         colors = listOf(
             MaterialTheme.colorScheme.background,
@@ -86,7 +92,7 @@ fun HomeScreen(
                 end = 20.dp,
                 bottom = innerPadding.calculateBottomPadding() + 28.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             item {
                 AppRouteTabs(
@@ -94,22 +100,20 @@ fun HomeScreen(
                     onRouteChange = onRouteChange,
                 )
             }
-            item {
-                HeroCard(environment = environment)
-            }
 
             item {
-                StatusCard(
-                    environment = environment,
+                WelcomeHeader(
                     uiState = uiState,
-                    onRefresh = onRefresh,
+                    isLoading = uiState.isLoading,
                 )
             }
 
             uiState.selectorState?.let { selectorState ->
                 item {
-                    LookupSelectorCard(
+                    FilterSummaryBar(
                         selectorState = selectorState,
+                        expanded = filtersExpanded,
+                        onToggle = { filtersExpanded = !filtersExpanded },
                         enabled = !uiState.isLoading,
                         onFilterChange = onFilterChange,
                     )
@@ -128,32 +132,201 @@ fun HomeScreen(
                 }
             }
 
-            item {
-                SectionCard(
-                    title = "Dataset contract",
-                    eyebrow = "Reuse the wheel",
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        endpoints.forEachIndexed { index, endpoint ->
-                            EndpointRow(endpoint = endpoint)
-                            if (index < endpoints.lastIndex) {
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            }
-                        }
-                    }
+            if (uiState.lookupPreview != null) {
+                item {
+                    JourneyLinks(onRouteChange = onRouteChange)
                 }
             }
 
             item {
-                SectionCard(
-                    title = "Immediate milestones",
-                    eyebrow = "What happens next",
+                DevInfoSection(
+                    expanded = devInfoExpanded,
+                    onToggle = { devInfoExpanded = !devInfoExpanded },
+                    environment = environment,
+                    uiState = uiState,
+                    endpoints = endpoints,
+                    milestones = milestones,
+                    onRefresh = onRefresh,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WelcomeHeader(
+    uiState: HomeUiState,
+    isLoading: Boolean,
+) {
+    val filters = uiState.selectorState?.filters
+    val preview = uiState.lookupPreview
+    val cohortSize = preview?.histogram?.total
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "How strong are you?",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        when {
+            isLoading && preview == null -> {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        milestones.forEach { milestone ->
-                            MilestoneRow(text = milestone)
-                        }
-                    }
+                    CircularProgressIndicator(
+                        modifier = Modifier.width(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Text(
+                        text = "Loading powerlifting data...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            filters != null && cohortSize != null -> {
+                Text(
+                    text = "Enter a lift below to see your percentile among ${formatCount(cohortSize)} lifters.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            filters != null -> {
+                Text(
+                    text = "Pick your filters, then enter a lift to see where you rank.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        uiState.errorMessage?.let { error ->
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.errorContainer,
+            ) {
+                Text(
+                    modifier = Modifier.padding(12.dp),
+                    text = error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterSummaryBar(
+    selectorState: LookupSelectorState,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    enabled: Boolean,
+    onFilterChange: (LookupFilterField, String) -> Unit,
+) {
+    val filters = selectorState.filters
+    val options = selectorState.options
+    val summary = buildFilterSummary(filters)
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        ),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "Cohort",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                FilterChip(
+                    selected = expanded,
+                    onClick = onToggle,
+                    label = { Text(if (expanded) "Done" else "Refine") },
+                )
+            }
+
+            if (expanded) {
+                Column(
+                    modifier = Modifier.padding(top = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    SelectorChipRow(
+                        title = "Sex",
+                        options = options.sexes,
+                        selected = filters.sex,
+                        enabled = enabled,
+                        labelFor = ::sexOptionLabel,
+                        onSelect = { onFilterChange(LookupFilterField.SEX, it) },
+                    )
+                    SelectorChipRow(
+                        title = "Equipment",
+                        options = options.equips,
+                        selected = filters.equip,
+                        enabled = enabled,
+                        labelFor = { it },
+                        onSelect = { onFilterChange(LookupFilterField.EQUIP, it) },
+                    )
+                    SelectorChipRow(
+                        title = "Bodyweight class",
+                        options = options.weightClasses,
+                        selected = filters.wc,
+                        enabled = enabled,
+                        labelFor = { if (it == "All") "All classes" else it },
+                        onSelect = { onFilterChange(LookupFilterField.WEIGHT_CLASS, it) },
+                    )
+                    SelectorChipRow(
+                        title = "Age",
+                        options = options.ages,
+                        selected = filters.age,
+                        enabled = enabled,
+                        labelFor = ::ageOptionLabel,
+                        onSelect = { onFilterChange(LookupFilterField.AGE, it) },
+                    )
+                    SelectorChipRow(
+                        title = "Tested",
+                        options = options.tested,
+                        selected = filters.tested,
+                        enabled = enabled,
+                        labelFor = ::testedOptionLabel,
+                        onSelect = { onFilterChange(LookupFilterField.TESTED, it) },
+                    )
+                    SelectorChipRow(
+                        title = "Lift",
+                        options = options.lifts,
+                        selected = filters.lift,
+                        enabled = enabled,
+                        labelFor = ::liftOptionLabel,
+                        onSelect = { onFilterChange(LookupFilterField.LIFT, it) },
+                    )
+                    SelectorChipRow(
+                        title = "Metric",
+                        options = options.metrics,
+                        selected = filters.metric,
+                        enabled = enabled,
+                        labelFor = ::metricOptionLabel,
+                        onSelect = { onFilterChange(LookupFilterField.METRIC, it) },
+                    )
                 }
             }
         }
@@ -170,8 +343,8 @@ internal fun LookupSelectorCard(
     val options = selectorState.options
 
     SectionCard(
-        title = "Lookup filters",
-        eyebrow = "Choose cohort",
+        title = "Filters",
+        eyebrow = "Refine cohort",
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SelectorChipRow(
@@ -255,6 +428,7 @@ internal fun SelectorChipRow(
                     selected = option == selected,
                     onClick = { onSelect(option) },
                     enabled = enabled,
+                    modifier = Modifier.height(40.dp),
                     label = {
                         Text(labelFor(option))
                     },
@@ -283,59 +457,74 @@ private fun PercentileLookupCard(preview: HistogramLookupPreview) {
     val topPercent = lookup?.let { ((1f - it.percentile).coerceAtLeast(0f) * 100f) }
 
     SectionCard(
-        title = "Percentile lookup",
-        eyebrow = "Live histogram",
+        title = "Your result",
+        eyebrow = "Percentile lookup",
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(
-                text = preview.cohortLabel,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
             Text(
                 text = "${preview.liftLabel} in ${preview.metric} from ${formatCount(preview.histogram.total)} lifters",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
                 ) {
-                    Text(
-                        text = "Range ${formatMetricValue(preview.histogram.min)}-${formatMetricValue(preview.histogram.max)} ${preview.metric.lowercase(Locale.US)}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                    Text(
-                        text = "Bin width ${formatMetricValue(preview.histogram.baseBin)} ${preview.metric.lowercase(Locale.US)}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                    Text(
-                        text = "Median ${preview.p50?.let(::formatMetricValue) ?: "n/a"} • P90 ${preview.p90?.let(::formatMetricValue) ?: "n/a"}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = "Median",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        Text(
+                            text = "${preview.p50?.let(::formatMetricValue) ?: "n/a"} ${preview.metric.lowercase(Locale.US)}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                }
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = "Top 10%",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        Text(
+                            text = "${preview.p90?.let(::formatMetricValue) ?: "n/a"} ${preview.metric.lowercase(Locale.US)}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
                 }
             }
             OutlinedTextField(
                 value = liftInput,
                 onValueChange = { liftInput = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Enter ${preview.liftLabel.lowercase(Locale.US)} in ${preview.metric}") },
+                label = { Text("Your ${preview.liftLabel.lowercase(Locale.US)} (${preview.metric})") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             )
             when {
                 liftInput.isBlank() -> {
                     Text(
-                        text = "Enter a value to estimate percentile with the published histogram.",
+                        text = "Enter your best lift to see where you rank.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -343,13 +532,16 @@ private fun PercentileLookupCard(preview: HistogramLookupPreview) {
 
                 parsedLift == null -> {
                     Text(
-                        text = "Enter a valid number such as 500 or 182.5.",
+                        text = "Enter a valid number, e.g. 500 or 182.5.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
 
                 lookup != null -> {
+                    val percentileLabel = formatPercent(lookup.percentile * 100f)
+                    val strengthSummary = percentileInterpretation(lookup.percentile)
+
                     Surface(
                         shape = RoundedCornerShape(18.dp),
                         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -361,58 +553,57 @@ private fun PercentileLookupCard(preview: HistogramLookupPreview) {
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Text(
-                                text = "${formatPercent(lookup.percentile * 100f)} percentile",
+                                text = "You're stronger than $percentileLabel of similar lifters",
                                 style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                             )
                             Text(
-                                text = "Approx rank ${formatCount(lookup.rank)} of ${formatCount(lookup.total)}",
+                                text = "$strengthSummary  •  Rank ${formatCount(lookup.rank)} of ${formatCount(lookup.total)}",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                            Text(
-                                text = "Top ${topPercent?.let(::formatPercent) ?: "n/a"} • Bin ${formatMetricValue(lookup.binLow)}-${formatMetricValue(lookup.binHigh)} ${preview.metric.lowercase(Locale.US)}",
-                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                             )
                         }
                     }
+                    NextMilestoneHint(
+                        currentPercentile = lookup.percentile,
+                        preview = preview,
+                    )
+                    ShareResultButton(
+                        percentileLabel = percentileLabel,
+                        strengthSummary = strengthSummary,
+                        liftValue = liftInput,
+                        preview = preview,
+                    )
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Text(
-                text = "Bodyweight-conditioned percentile",
+                text = "Compare against your bodyweight",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "See how you rank among lifters near your bodyweight.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             OutlinedTextField(
                 value = bodyweightInput,
                 onValueChange = { bodyweightInput = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Enter bodyweight in kg") },
+                label = { Text("Your bodyweight (kg)") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             )
             when {
-                preview.heatmap == null -> {
-                    Text(
-                        text = "This metric appears after the selected slice heatmap loads.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                preview.heatmap == null -> {}
 
-                bodyweightInput.isBlank() -> {
-                    Text(
-                        text = "Enter bodyweight in kg to compare against nearby bodyweights.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                bodyweightInput.isBlank() -> {}
 
                 parsedBodyweight == null -> {
                     Text(
-                        text = "Enter a valid bodyweight in kg such as 90 or 82.5.",
+                        text = "Enter a valid bodyweight, e.g. 90 or 82.5.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
@@ -424,31 +615,72 @@ private fun PercentileLookupCard(preview: HistogramLookupPreview) {
                         lookup = conditionedLookup,
                     )
                 }
-
-                else -> {
-                    Text(
-                        text = "Bodyweight-conditioned metric unavailable for this heatmap.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
-            Text(
-                text = "Source slice: ${preview.sliceKey}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = "Histogram file: ${preview.histPath}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = "Heatmap file: ${preview.heatPath}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
+    }
+}
+
+@Composable
+private fun ShareResultButton(
+    percentileLabel: String,
+    strengthSummary: String,
+    liftValue: String,
+    preview: HistogramLookupPreview,
+) {
+    val context = LocalContext.current
+    Button(
+        onClick = {
+            val text = "I'm in the $percentileLabel ($strengthSummary) for ${preview.cohortLabel} " +
+                "with a ${preview.liftLabel.lowercase(Locale.US)} of $liftValue ${preview.metric}. " +
+                "Checked on Iron Insights."
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, text)
+            }
+            context.startActivity(Intent.createChooser(intent, "Share your result"))
+        },
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+    ) {
+        Text("Share this result")
+    }
+}
+
+@Composable
+private fun NextMilestoneHint(
+    currentPercentile: Float,
+    preview: HistogramLookupPreview,
+) {
+    val nextThreshold = when {
+        currentPercentile < 0.50f -> 0.50f
+        currentPercentile < 0.75f -> 0.75f
+        currentPercentile < 0.90f -> 0.90f
+        currentPercentile < 0.95f -> 0.95f
+        else -> null
+    }
+    if (nextThreshold == null) return
+
+    val nextValue = com.gregorycarnegie.ironinsights.data.repository.valueForPercentile(
+        preview.histogram,
+        nextThreshold,
+    ) ?: return
+    val label = formatPercent(nextThreshold * 100f)
+    val metric = preview.metric.lowercase(Locale.US)
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+    ) {
+        Text(
+            modifier = Modifier.padding(14.dp),
+            text = "Next goal: ${formatMetricValue(nextValue)} $metric to reach the $label mark.",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+        )
     }
 }
 
@@ -457,6 +689,8 @@ private fun BodyweightConditionedCard(
     preview: HistogramLookupPreview,
     lookup: BodyweightConditionedLookup,
 ) {
+    val strengthSummary = percentileInterpretation(lookup.percentile)
+
     Surface(
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.tertiaryContainer,
@@ -468,27 +702,13 @@ private fun BodyweightConditionedCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "Among nearby bodyweights (${formatMetricValue(lookup.bwWindowLow)}-${formatMetricValue(lookup.bwWindowHigh)} kg), you're stronger than ${formatPercent(lookup.percentile * 100f)}.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
-            )
-            Text(
-                text = "Rank ~${formatCount(lookup.rank)} / ${formatCount(lookup.totalNearby)} nearby lifters",
+                text = "Stronger than ${formatPercent(lookup.percentile * 100f)} of lifters at ${formatMetricValue(lookup.bwWindowLow)}-${formatMetricValue(lookup.bwWindowHigh)} kg",
                 style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
             )
             Text(
-                text = "Current BW bin ${formatMetricValue(lookup.bwBinLow)}-${formatMetricValue(lookup.bwBinHigh)} kg",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
-            )
-            Text(
-                text = "Current heat cell ${formatCount(lookup.localCellCount)} • 3x3 neighborhood ${formatCount(lookup.neighborhoodCount)}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
-            )
-            Text(
-                text = "Neighborhood share ${formatPercent(lookup.neighborhoodShare * 100f)} • Lift bin ${formatMetricValue(lookup.liftBinLow)}-${formatMetricValue(lookup.liftBinHigh)} ${preview.metric.lowercase(Locale.US)}",
+                text = "$strengthSummary  •  Rank ~${formatCount(lookup.rank)} of ${formatCount(lookup.totalNearby)} nearby lifters",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
             )
@@ -499,17 +719,21 @@ private fun BodyweightConditionedCard(
 @Composable
 private fun TrendsCard(trends: TrendSeriesPresentation) {
     val latest = trends.points.lastOrNull() ?: return
+    val first = trends.points.firstOrNull()
 
     SectionCard(
-        title = "Trend snapshot",
+        title = "Trends at a glance",
         eyebrow = "Yearly cohort",
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(
-                text = trends.note,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (first != null && latest.total > first.total) {
+                Text(
+                    text = "This cohort grew from ${formatCount(first.total.toLong())} to ${formatCount(latest.total.toLong())} lifters since ${first.year}.",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
                     TrendMetricCard(
@@ -694,310 +918,169 @@ internal fun TrendSparkline(points: List<TrendPoint>) {
     }
 }
 @Composable
-private fun HeroCard(environment: EnvironmentConfig) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
-        ),
-        shape = RoundedCornerShape(28.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+private fun JourneyLinks(
+    onRouteChange: (AppRoute) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Button(
+            onClick = { onRouteChange(AppRoute.TRENDS) },
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.24f)
-                    .height(3.dp)
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.secondary,
-                            ),
-                        ),
-                        shape = RoundedCornerShape(99.dp),
-                    ),
-            )
-            Text(
-                text = "LIVE DATASET CLIENT",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Text(
-                text = "Same published bundle. Same powerlifting signal. Native Android shell.",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = "This app follows the website contract from latest.json through versioned indexes, shard slices, histograms, and heatmaps. The UI is native; the data source stays shared.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = "Base URL",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        text = environment.siteBaseUrl,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = AppConfig.resolvePublishedPath("data/latest.json"),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            Text("See how this cohort has changed over time")
+        }
+        Button(
+            onClick = { onRouteChange(AppRoute.COMPARE) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Compare to similar cohorts")
         }
     }
 }
 
 @Composable
-private fun StatusCard(
+private fun DevInfoSection(
+    expanded: Boolean,
+    onToggle: () -> Unit,
     environment: EnvironmentConfig,
     uiState: HomeUiState,
+    endpoints: List<DatasetEndpoint>,
+    milestones: List<String>,
     onRefresh: () -> Unit,
 ) {
-    SectionCard(
-        title = "Live dataset status",
-        eyebrow = "First real fetch",
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+        ),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            uiState.cachedLatestVersion?.let { cachedVersion ->
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(
-                            text = "Cached latest version",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                        )
-                        Text(
-                            text = cachedVersion,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                        )
-                    }
-                }
-            }
-
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = "Request path",
-                        style = MaterialTheme.typography.labelMedium,
+                        text = "Data sources & developer info",
+                        style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Text(
-                        text = environment.dataBaseUrl + "latest.json",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-
-            when {
-                uiState.isLoading && uiState.latest == null -> {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.width(20.dp),
-                            strokeWidth = 2.dp,
-                        )
+                    uiState.latest?.let {
                         Text(
-                            text = "Loading the active published dataset pointer.",
-                            style = MaterialTheme.typography.bodyLarge,
+                            text = "Dataset ${it.version}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
+                FilterChip(
+                    selected = expanded,
+                    onClick = onToggle,
+                    label = { Text(if (expanded) "Hide" else "Show") },
+                )
+            }
 
-                uiState.latest != null -> {
+            if (expanded) {
+                Column(
+                    modifier = Modifier.padding(top = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
                     Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Text(
-                                text = "Latest dataset",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                text = "Base URL",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
                             )
                             Text(
-                                text = uiState.latest.version,
-                                style = MaterialTheme.typography.headlineMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                            uiState.rootShardCount?.let { shardCount ->
-                                Text(
-                                    text = "Root index shards: $shardCount",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                )
-                            }
-                            Text(
-                                text = uiState.latest.revision ?: "No revision metadata published.",
+                                text = environment.siteBaseUrl,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
                         }
                     }
-                }
-            }
 
-            uiState.shardPreview?.let { preview ->
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
+                    uiState.latest?.let { latest ->
                         Text(
-                            text = "Current shard",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        Text(
-                            text = preview.shardKey,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        Text(
-                            text = "Shard file: ${preview.shardPath}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        Text(
-                            text = "Slice entries: ${preview.sliceCount}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        preview.sampleSliceKey?.let { sampleSliceKey ->
-                            Text(
-                                text = "Sample slice: $sampleSliceKey",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            )
-                        }
-                        preview.sampleHistPath?.let { sampleHistPath ->
-                            Text(
-                                text = "Sample hist: $sampleHistPath",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            )
-                        }
-                    }
-                }
-            }
-
-            uiState.trendsPreview?.let { trends ->
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = "Trends payload",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = "Bucket: ${trends.bucket}",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = "Series count: ${trends.seriesCount}",
+                            text = "Version: ${latest.version}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        trends.sampleSeriesKey?.let { sampleSeriesKey ->
+                        latest.revision?.let {
                             Text(
-                                text = "Sample series: $sampleSeriesKey",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        trends.samplePointCount?.let { samplePointCount ->
-                            Text(
-                                text = "Sample points: $samplePointCount",
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = "Revision: $it",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
-                }
-            }
 
-            uiState.loadSummary?.let { summary ->
-                LoadSourcesCard(summary = summary)
-            }
+                    uiState.rootShardCount?.let { shardCount ->
+                        Text(
+                            text = "Root index shards: $shardCount",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
 
-            uiState.errorMessage?.let { error ->
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.errorContainer,
-                ) {
+                    uiState.shardPreview?.let { preview ->
+                        Text(
+                            text = "Current shard: ${preview.shardKey} (${preview.sliceCount} slices)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    uiState.trendsPreview?.let { trends ->
+                        Text(
+                            text = "Trends: ${trends.seriesCount} series, bucket=${trends.bucket}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    uiState.loadSummary?.let { summary ->
+                        LoadSourcesCard(summary = summary)
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
                     Text(
-                        modifier = Modifier.padding(16.dp),
-                        text = error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        text = "Dataset endpoints",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-            }
+                    endpoints.forEach { endpoint ->
+                        EndpointRow(endpoint = endpoint)
+                    }
 
-            Button(
-                onClick = onRefresh,
-                enabled = !uiState.isLoading,
-            ) {
-                Text(if (uiState.isLoading) "Loading..." else "Refresh latest.json")
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                    Text(
+                        text = "Milestones",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    milestones.forEach { milestone ->
+                        MilestoneRow(text = milestone)
+                    }
+
+                    Button(
+                        onClick = onRefresh,
+                        enabled = !uiState.isLoading,
+                    ) {
+                        Text(if (uiState.isLoading) "Loading..." else "Refresh data")
+                    }
+                }
             }
         }
     }
@@ -1168,6 +1251,29 @@ private fun formatLoadSource(source: DatasetLoadSource): String {
         DatasetLoadSource.NETWORK -> "Network"
         DatasetLoadSource.DISK_CACHE -> "Disk cache"
         DatasetLoadSource.VERSION_CACHE -> "Cached version pointer"
+    }
+}
+
+private fun buildFilterSummary(filters: LookupFilters): String {
+    return listOf(
+        sexOptionLabel(filters.sex),
+        filters.equip,
+        if (filters.wc == "All") "All bodyweights" else "${filters.wc} kg",
+        if (filters.age == "All Ages") "All ages" else ageOptionLabel(filters.age),
+        liftOptionLabel(filters.lift),
+        metricOptionLabel(filters.metric),
+    ).joinToString(" · ")
+}
+
+private fun percentileInterpretation(percentile: Float): String {
+    return when {
+        percentile >= 0.99f -> "Elite"
+        percentile >= 0.95f -> "Exceptional"
+        percentile >= 0.90f -> "Advanced"
+        percentile >= 0.75f -> "Above average"
+        percentile >= 0.50f -> "Intermediate"
+        percentile >= 0.25f -> "Developing"
+        else -> "Beginner"
     }
 }
 

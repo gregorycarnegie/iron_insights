@@ -15,17 +15,26 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gregorycarnegie.ironinsights.data.model.TrendPoint
 import com.gregorycarnegie.ironinsights.data.model.TrendsPreview
@@ -59,6 +68,8 @@ fun TrendsScreen(
     onRefresh: () -> Unit,
     onFilterChange: (LookupFilterField, String) -> Unit,
 ) {
+    var devExpanded by rememberSaveable { mutableStateOf(false) }
+
     val background = Brush.verticalGradient(
         colors = listOf(
             MaterialTheme.colorScheme.background,
@@ -78,33 +89,13 @@ fun TrendsScreen(
                 end = 20.dp,
                 bottom = innerPadding.calculateBottomPadding() + 28.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             item {
                 AppRouteTabs(
                     selectedRoute = selectedRoute,
                     onRouteChange = onRouteChange,
                 )
-            }
-
-            item {
-                SectionCard(
-                    title = "Trends over time",
-                    eyebrow = "Yearly cohorts",
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "The Android client is using the same yearly trend payload as the website. Each series is keyed by sex, equipment, tested status, lift, and metric.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = "Age and bodyweight class stay in the percentile lookup flow. The published trends aggregate across those buckets for the selected lift slice.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
             }
 
             uiState.selectorState?.let { selectorState ->
@@ -128,18 +119,6 @@ fun TrendsScreen(
                 TrendsUnavailableCard(uiState = uiState)
             }
 
-            uiState.trendsPreview?.let { preview ->
-                item {
-                    TrendsPayloadCard(preview = preview)
-                }
-            }
-
-            uiState.loadSummary?.let { summary ->
-                item {
-                    LoadSourcesCard(summary = summary)
-                }
-            }
-
             uiState.errorMessage?.let { error ->
                 item {
                     Surface(
@@ -157,13 +136,12 @@ fun TrendsScreen(
             }
 
             item {
-                Button(
-                    onClick = onRefresh,
-                    enabled = !uiState.isLoading,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(if (uiState.isLoading) "Loading..." else "Refresh trend payloads")
-                }
+                TrendsDevInfo(
+                    expanded = devExpanded,
+                    onToggle = { devExpanded = !devExpanded },
+                    uiState = uiState,
+                    onRefresh = onRefresh,
+                )
             }
         }
     }
@@ -180,14 +158,9 @@ private fun TrendSelectorCard(
 
     SectionCard(
         title = "Trend filters",
-        eyebrow = "Series dimensions",
+        eyebrow = "Choose series",
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(
-                text = "These selectors change the published yearly trend series. Weight class ${filters.wc} and age ${ageOptionLabel(filters.age)} stay lookup-only.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             SelectorChipRow(
                 title = "Sex",
                 options = options.sexes,
@@ -238,23 +211,27 @@ private fun TrendOverviewCard(
     axisLabel: String,
 ) {
     val latest = trends.points.lastOrNull() ?: return
+    val first = trends.points.firstOrNull()
 
     SectionCard(
-        title = "Selected cohort",
-        eyebrow = "Full trend view",
+        title = "How this cohort has changed",
+        eyebrow = "Yearly trends",
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(
-                text = trends.note,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (first != null && latest.total > first.total) {
+                Text(
+                    text = "${formatCount(first.total.toLong())} lifters in ${first.year}, ${formatCount(latest.total.toLong())} today.",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
                     TrendMetricCard(
                         title = "Latest year",
                         value = latest.year.toString(),
-                        subtitle = trends.bucket.replaceFirstChar { it.uppercase() } + " buckets",
+                        subtitle = "${trends.points.size} years of data",
                     )
                 }
                 item {
@@ -266,20 +243,27 @@ private fun TrendOverviewCard(
                 }
                 item {
                     TrendMetricCard(
-                        title = "p50",
+                        title = "Median",
                         value = formatMetricValue(latest.p50),
                         subtitle = trends.p50DriftSummary,
                     )
                 }
                 item {
                     TrendMetricCard(
-                        title = "p90",
+                        title = "Top 10%",
                         value = formatMetricValue(latest.p90),
                         subtitle = trends.p90DriftSummary,
                     )
                 }
             }
-            TrendSparkline(points = trends.points)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "Number of lifters per year",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TrendSparkline(points = trends.points)
+            }
             ThresholdTrendCard(
                 points = trends.points,
                 axisLabel = axisLabel,
@@ -326,25 +310,20 @@ private fun ThresholdTrendCard(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "Percentile thresholds by year",
+                text = "Strength thresholds over time",
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = "The website tracks yearly p50 and p90 thresholds for this cohort key. Android is rendering the same series here.",
-                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Column(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 TrendLegendChip(
-                    label = "p50",
+                    label = "Median (p50)",
                     color = p50Color,
                     summary = p50Summary,
                 )
                 TrendLegendChip(
-                    label = "p90",
+                    label = "Top 10% (p90)",
                     color = p90Color,
                     summary = p90Summary,
                 )
@@ -477,14 +456,14 @@ private fun TrendLegendChip(
 @Composable
 private fun TrendsUnavailableCard(uiState: HomeUiState) {
     val message = when {
-        uiState.isLoading -> "Loading yearly trend data for the selected cohort."
-        uiState.trendsPreview == null -> "This dataset version did not expose a usable trends payload."
-        else -> "No trend series matched the current filters. Try another lift, equipment class, or tested status."
+        uiState.isLoading -> "Loading trend data..."
+        uiState.trendsPreview == null -> "No trend data available for this dataset version."
+        else -> "No trend series matched the current filters. Try another lift or equipment class."
     }
 
     SectionCard(
-        title = "Trend availability",
-        eyebrow = "Fallback",
+        title = "No trends available",
+        eyebrow = "Trends",
     ) {
         Text(
             text = message,
@@ -495,42 +474,67 @@ private fun TrendsUnavailableCard(uiState: HomeUiState) {
 }
 
 @Composable
-private fun TrendsPayloadCard(preview: TrendsPreview) {
-    SectionCard(
-        title = "Trend payload metadata",
-        eyebrow = "Contract view",
+private fun TrendsDevInfo(
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    uiState: HomeUiState,
+    onRefresh: () -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+        ),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                text = "Bucket: ${preview.bucket}",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = "Series count: ${preview.seriesCount}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            preview.sampleSeriesKey?.let { key ->
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
                 Text(
-                    text = "Sample series: $key",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "Data sources",
+                    style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-            preview.samplePointCount?.let { points ->
-                Text(
-                    text = "Sample points: $points",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                FilterChip(
+                    selected = expanded,
+                    onClick = onToggle,
+                    label = { Text(if (expanded) "Hide" else "Show") },
                 )
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Text(
-                text = "Series key format: sex | equip | tested | lift | metric",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (expanded) {
+                Column(
+                    modifier = Modifier.padding(top = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    uiState.trendsPreview?.let { preview ->
+                        Text(
+                            text = "Bucket: ${preview.bucket}, ${preview.seriesCount} series",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        preview.sampleSeriesKey?.let { key ->
+                            Text(
+                                text = "Sample: $key",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    uiState.loadSummary?.let { summary ->
+                        LoadSourcesCard(summary = summary)
+                    }
+                    Button(
+                        onClick = onRefresh,
+                        enabled = !uiState.isLoading,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (uiState.isLoading) "Loading..." else "Refresh data")
+                    }
+                }
+            }
         }
     }
 }

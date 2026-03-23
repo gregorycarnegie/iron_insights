@@ -33,11 +33,10 @@ Best local workflow:
 
 If you want to build from the command line instead of Android Studio:
 
-- Gradle 8.9 on your `PATH`
+- use the checked-in Gradle wrapper in `android/`
 
 Important:
 
-- there is currently no checked-in Gradle wrapper under `android/`
 - Android Studio is the simplest Windows workflow today
 
 ## Open In Android Studio
@@ -52,8 +51,8 @@ Important:
 From the repo root:
 
 ```bash
-gradle -p android testDebugUnitTest
-gradle -p android :app:assembleDebug
+./android/gradlew -p android testDebugUnitTest
+./android/gradlew -p android :app:assembleDebug
 ```
 
 Debug APK output:
@@ -63,11 +62,16 @@ Debug APK output:
 If you prefer to run the commands from inside `android/`:
 
 ```bash
-gradle testDebugUnitTest
-gradle :app:assembleDebug
+./gradlew testDebugUnitTest
+./gradlew :app:assembleDebug
 ```
 
-On Windows PowerShell the commands are the same if `gradle` is installed and on `PATH`.
+On Windows PowerShell, use:
+
+```powershell
+.\android\gradlew.bat -p android testDebugUnitTest
+.\android\gradlew.bat -p android :app:assembleDebug
+```
 
 ## Release Build
 
@@ -94,7 +98,7 @@ $env:IRON_INSIGHTS_KEYSTORE_PASSWORD="..."
 $env:IRON_INSIGHTS_KEY_ALIAS="ironinsights"
 $env:IRON_INSIGHTS_KEY_PASSWORD="..."
 
-gradle -p android validateReleaseConfig :app:bundleRelease
+.\android\gradlew.bat -p android validateReleaseConfig :app:bundleRelease
 ```
 
 Release bundle output:

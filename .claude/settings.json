@@ -4,7 +4,17 @@
       "Bash(find /c/Users/grego/rust_projects/iron_insights2/app/src -type f -name *.rs)",
       "Bash(ls -la /c/Users/grego/rust_projects/iron_insights2/app/*.toml)",
       "Bash(cargo check:*)",
-      "Bash(cargo clippy:*)"
+      "Bash(cargo clippy:*)",
+      "Bash(./gradlew compileDebugKotlin)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Program Files/Android/Android Studio/jbr//**)",
+      "Read(//c/Users/grego/rust_projects/iron_insights2/android/$LOCALAPPDATA/**)",
+      "Bash(where java:*)",
+      "Bash(reg query:*)",
+      "Bash(export JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\grego\\.claude\\projects\\c--Users-grego-rust-projects-iron-insights2\\memory"
     ]
   }
 }

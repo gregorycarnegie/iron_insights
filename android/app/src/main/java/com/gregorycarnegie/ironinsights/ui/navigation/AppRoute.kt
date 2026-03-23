@@ -4,7 +4,7 @@ enum class AppRoute(
     val label: String,
 ) {
     LOOKUP("Lookup"),
-    COMPARE("Compare"),
+    COMPARE("Similar"),
     TRENDS("Trends"),
-    CALCULATORS("Calculators"),
+    CALCULATORS("Calc"),
 }

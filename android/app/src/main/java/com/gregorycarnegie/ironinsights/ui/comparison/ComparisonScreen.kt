@@ -10,12 +10,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -46,6 +54,8 @@ fun ComparisonScreen(
     onRefresh: () -> Unit,
     onFilterChange: (LookupFilterField, String) -> Unit,
 ) {
+    var devExpanded by rememberSaveable { mutableStateOf(false) }
+
     val background = Brush.verticalGradient(
         colors = listOf(
             MaterialTheme.colorScheme.background,
@@ -68,7 +78,7 @@ fun ComparisonScreen(
                 end = 20.dp,
                 bottom = innerPadding.calculateBottomPadding() + 28.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             item {
                 AppRouteTabs(
@@ -78,22 +88,15 @@ fun ComparisonScreen(
             }
 
             item {
-                SectionCard(
-                    title = "Cohort comparison",
-                    eyebrow = "Embedded summaries",
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "These rows use embedded slice summaries only. They compare cohort size and observed range for nearby cohort variants.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = "Exact percentile deltas and cross-sex comparisons are not loaded yet. This screen is the fast summary layer on top of the current shard index.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                CurrentCohortCard(
+                    filters = uiState.selectorState?.filters,
+                    row = currentRow,
+                )
+            }
+
+            if (broaderRows.isNotEmpty()) {
+                item {
+                    BroaderCohortsCard(rows = broaderRows)
                 }
             }
 
@@ -104,23 +107,6 @@ fun ComparisonScreen(
                         enabled = !uiState.isLoading,
                         onFilterChange = onFilterChange,
                     )
-                }
-            }
-
-            item {
-                CurrentCohortCard(
-                    filters = uiState.selectorState?.filters,
-                    row = currentRow,
-                )
-            }
-
-            item {
-                BroaderCohortsCard(rows = broaderRows)
-            }
-
-            uiState.loadSummary?.let { summary ->
-                item {
-                    LoadSourcesCard(summary = summary)
                 }
             }
 
@@ -141,13 +127,12 @@ fun ComparisonScreen(
             }
 
             item {
-                Button(
-                    onClick = onRefresh,
-                    enabled = !uiState.isLoading,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(if (uiState.isLoading) "Loading..." else "Refresh comparison data")
-                }
+                ComparisonDevInfo(
+                    expanded = devExpanded,
+                    onToggle = { devExpanded = !devExpanded },
+                    uiState = uiState,
+                    onRefresh = onRefresh,
+                )
             }
         }
     }
@@ -165,8 +150,8 @@ private fun CurrentCohortCard(
     val metric = row?.metric ?: filters?.metric ?: "Kg"
 
     SectionCard(
-        title = "Current cohort",
-        eyebrow = "Baseline",
+        title = "Your cohort",
+        eyebrow = "Current selection",
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             cohortLabel?.let { label ->
@@ -184,20 +169,15 @@ private fun CurrentCohortCard(
                     modifier = Modifier.weight(1f),
                     title = "Lifters",
                     value = total?.let { formatCount(it) } ?: "n/a",
-                    subtitle = "Current slice cohort size.",
+                    subtitle = "In this cohort.",
                 )
                 ComparisonStatCard(
                     modifier = Modifier.weight(1f),
-                    title = "Observed range",
+                    title = "Range",
                     value = formatObservedRange(minValue, maxValue, metric),
                     subtitle = observedRangeSubtitle(metric),
                 )
             }
-            Text(
-                text = row?.status ?: "Current slice summary still loading.",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (row?.statusOk == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
@@ -205,20 +185,12 @@ private fun CurrentCohortCard(
 @Composable
 private fun BroaderCohortsCard(rows: List<CohortComparisonRowPresentation>) {
     SectionCard(
-        title = "Broader cohorts",
-        eyebrow = "Quick rows",
+        title = "Nearby cohorts",
+        eyebrow = "How similar groups compare",
     ) {
-        if (rows.isEmpty()) {
-            Text(
-                text = "No comparison rows are available for the current selection yet.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                rows.forEach { row ->
-                    ComparisonRowCard(row = row)
-                }
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            rows.forEach { row ->
+                ComparisonRowCard(row = row)
             }
         }
     }
@@ -247,11 +219,6 @@ private fun ComparisonRowCard(row: CohortComparisonRowPresentation) {
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            Text(
-                text = "wc ${row.wc} • ${ageOptionLabel(row.age)} • ${testedOptionLabel(row.tested)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -260,30 +227,13 @@ private fun ComparisonRowCard(row: CohortComparisonRowPresentation) {
                     modifier = Modifier.weight(1f),
                     title = "Lifters",
                     value = row.total?.let { formatCount(it.toLong()) } ?: "n/a",
-                    subtitle = "Embedded cohort size.",
+                    subtitle = formatDeltaLabel(row.totalDelta),
                 )
                 ComparisonStatCard(
                     modifier = Modifier.weight(1f),
-                    title = "Δ lifters",
-                    value = formatDelta(row.totalDelta),
-                    subtitle = "Vs current slice.",
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ComparisonStatCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Observed range",
+                    title = "Range",
                     value = formatObservedRange(row.minKg, row.maxKg, row.metric),
                     subtitle = observedRangeSubtitle(row.metric),
-                )
-                StatusPill(
-                    status = row.status,
-                    ok = row.statusOk,
-                    modifier = Modifier.weight(1f),
                 )
             }
         }
@@ -328,33 +278,54 @@ private fun ComparisonStatCard(
 }
 
 @Composable
-private fun StatusPill(
-    status: String,
-    ok: Boolean,
-    modifier: Modifier = Modifier,
+private fun ComparisonDevInfo(
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    uiState: HomeUiState,
+    onRefresh: () -> Unit,
 ) {
-    val background = if (ok) {
-        MaterialTheme.colorScheme.secondaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val foreground = if (ok) {
-        MaterialTheme.colorScheme.onSecondaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(999.dp),
-        color = background,
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+        ),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Text(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            text = status,
-            style = MaterialTheme.typography.labelLarge,
-            color = foreground,
-        )
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "Data sources",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FilterChip(
+                    selected = expanded,
+                    onClick = onToggle,
+                    label = { Text(if (expanded) "Hide" else "Show") },
+                )
+            }
+            if (expanded) {
+                Column(
+                    modifier = Modifier.padding(top = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    uiState.loadSummary?.let { summary ->
+                        LoadSourcesCard(summary = summary)
+                    }
+                    Button(
+                        onClick = onRefresh,
+                        enabled = !uiState.isLoading,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (uiState.isLoading) "Loading..." else "Refresh data")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -369,7 +340,7 @@ private fun fallbackCohortLabel(filters: LookupFilters): String {
         if (filters.wc == "All") "All bodyweights" else "${filters.wc} kg class",
         ageOptionLabel(filters.age),
         testedOptionLabel(filters.tested),
-    ).joinToString(" • ")
+    ).joinToString(" · ")
 }
 
 private fun formatObservedRange(
@@ -385,7 +356,7 @@ private fun formatObservedRange(
 }
 
 private fun observedRangeSubtitle(metric: String): String {
-    return "Published min-max ${metricOptionLabel(metric).lowercase(Locale.US)}."
+    return "Min-max ${metricOptionLabel(metric).lowercase(Locale.US)}."
 }
 
 private fun formatDelta(delta: Long?): String {
@@ -394,5 +365,14 @@ private fun formatDelta(delta: Long?): String {
         delta == 0L -> "0"
         delta > 0L -> "+${formatCount(delta)}"
         else -> "-${formatCount(abs(delta))}"
+    }
+}
+
+private fun formatDeltaLabel(delta: Long?): String {
+    return when {
+        delta == null -> ""
+        delta == 0L -> "Same as your cohort."
+        delta > 0L -> "${formatDelta(delta)} more lifters."
+        else -> "${formatDelta(delta)} fewer lifters."
     }
 }

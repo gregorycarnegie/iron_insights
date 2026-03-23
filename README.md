@@ -2,7 +2,7 @@
 
 [![Refresh Data And Deploy](https://github.com/gregorycarnegie/iron_insights/actions/workflows/refresh-data-and-deploy.yml/badge.svg)](https://github.com/gregorycarnegie/iron_insights/actions/workflows/refresh-data-and-deploy.yml)
 ![Rust](https://img.shields.io/badge/Rust-2024_edition-000000?logo=rust)
-![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?logo=kotlin&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-7F52FF?logo=kotlin&logoColor=white)
 ![Leptos](https://img.shields.io/badge/Leptos-0.8-ef3939)
 ![Polars](https://img.shields.io/badge/Polars-0.53-5A32FA)
 ![Trunk](https://img.shields.io/badge/Trunk-WASM-2f9e44)
@@ -106,11 +106,11 @@ Best path:
 - let Studio install any missing SDK pieces
 - run the `app` configuration on a device or emulator
 
-Command-line builds also work if you already have Gradle 8.9 plus the Android SDK and JDK 17 configured:
+Command-line builds also work with the checked-in Gradle wrapper:
 
 ```bash
-gradle -p android testDebugUnitTest
-gradle -p android :app:assembleDebug
+./android/gradlew -p android testDebugUnitTest
+./android/gradlew -p android :app:assembleDebug
 ```
 
 Detailed Android setup, release-signing inputs, and output locations are documented in `android/README.md`.
