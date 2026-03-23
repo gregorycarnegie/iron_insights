@@ -1,3 +1,4 @@
+import com.android.sdklib.AndroidVersion.VersionCodes.BAKLAVA
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 
@@ -104,7 +105,7 @@ android {
     defaultConfig {
         applicationId = "com.gregorycarnegie.ironinsights"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = BAKLAVA
         versionCode = releaseVersionCode
         versionName = releaseVersionName
         buildConfigField(

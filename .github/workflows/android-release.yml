@@ -59,6 +59,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Ensure Gradle wrapper is executable
+        shell: bash
+        run: chmod +x android/gradlew
+
       - name: Validate release ref
         if: github.event_name == 'workflow_dispatch'
         shell: bash
