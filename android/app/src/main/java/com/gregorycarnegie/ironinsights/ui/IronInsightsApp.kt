@@ -1,20 +1,21 @@
 package com.gregorycarnegie.ironinsights.ui
 
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import com.gregorycarnegie.ironinsights.config.AppConfig
-import com.gregorycarnegie.ironinsights.data.model.PublishedDataContract
-import com.gregorycarnegie.ironinsights.ui.calculators.CalculatorsScreen
-import com.gregorycarnegie.ironinsights.ui.comparison.ComparisonScreen
-import com.gregorycarnegie.ironinsights.ui.home.HomeScreen
+import androidx.compose.ui.Modifier
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import com.gregorycarnegie.ironinsights.ui.home.HomeUiState
 import com.gregorycarnegie.ironinsights.ui.home.LookupFilterField
+import com.gregorycarnegie.ironinsights.ui.equipment.EquipmentViewModel
+import com.gregorycarnegie.ironinsights.ui.log.WorkoutLogViewModel
 import com.gregorycarnegie.ironinsights.ui.navigation.AppRoute
-import com.gregorycarnegie.ironinsights.ui.trends.TrendsScreen
+import com.gregorycarnegie.ironinsights.ui.navigation.BottomNavBar
+import com.gregorycarnegie.ironinsights.ui.navigation.IronInsightsNavHost
+import com.gregorycarnegie.ironinsights.ui.programmes.ProgrammeViewModel
+import com.gregorycarnegie.ironinsights.ui.progress.ProgressViewModel
 
 @Composable
 fun IronInsightsApp(
@@ -22,52 +23,39 @@ fun IronInsightsApp(
     onRefresh: () -> Unit,
     onFilterChange: (LookupFilterField, String) -> Unit,
     onRouteChange: (AppRoute) -> Unit,
+    workoutLogViewModel: WorkoutLogViewModel,
+    programmeViewModel: ProgrammeViewModel,
+    progressViewModel: ProgressViewModel,
+    equipmentViewModel: EquipmentViewModel,
 ) {
-    var selectedRoute by rememberSaveable { mutableStateOf(AppRoute.LOOKUP) }
+    val navController = rememberNavController()
+    val navBackStackEntry = navController.currentBackStackEntryAsState()
 
-    LaunchedEffect(selectedRoute) {
-        onRouteChange(selectedRoute)
+    // Sync navigation destination changes back to HomeViewModel for analytics routes.
+    LaunchedEffect(navBackStackEntry.value?.destination?.route) {
+        val currentRoute = navBackStackEntry.value?.destination?.route
+        val appRoute = AppRoute.fromNavRoute(currentRoute)
+        if (appRoute != null) {
+            onRouteChange(appRoute)
+        }
     }
 
-    when (selectedRoute) {
-        AppRoute.LOOKUP -> {
-            HomeScreen(
-                environment = AppConfig.environment,
-                endpoints = PublishedDataContract.bootstrapSequence,
-                milestones = PublishedDataContract.nextMilestones,
-                uiState = uiState,
-                selectedRoute = selectedRoute,
-                onRouteChange = { selectedRoute = it },
-                onRefresh = onRefresh,
-                onFilterChange = onFilterChange,
-            )
-        }
-
-        AppRoute.COMPARE -> {
-            ComparisonScreen(
-                uiState = uiState,
-                selectedRoute = selectedRoute,
-                onRouteChange = { selectedRoute = it },
-                onRefresh = onRefresh,
-                onFilterChange = onFilterChange,
-            )
-        }
-
-        AppRoute.TRENDS -> {
-            TrendsScreen(
-                uiState = uiState,
-                selectedRoute = selectedRoute,
-                onRouteChange = { selectedRoute = it },
-                onRefresh = onRefresh,
-                onFilterChange = onFilterChange,
-            )
-        }
-
-        AppRoute.CALCULATORS -> {
-            CalculatorsScreen(
-                selectedRoute = selectedRoute,
-                onRouteChange = { selectedRoute = it },
-            )
-        }
+    Scaffold(
+        bottomBar = {
+            BottomNavBar(navController = navController)
+        },
+    ) { innerPadding ->
+        IronInsightsNavHost(
+            navController = navController,
+            uiState = uiState,
+            onRefresh = onRefresh,
+            onFilterChange = onFilterChange,
+            onRouteChange = onRouteChange,
+            workoutLogViewModel = workoutLogViewModel,
+            programmeViewModel = programmeViewModel,
+            progressViewModel = progressViewModel,
+            equipmentViewModel = equipmentViewModel,
+            modifier = Modifier.padding(innerPadding),
+        )
     }
 }

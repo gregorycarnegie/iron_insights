@@ -7,6 +7,7 @@ data class PlateSpec(
     val weightKg: Float,
     val name: String,
     val colorHex: String,
+    val maxPairs: Int = Int.MAX_VALUE,
 )
 
 data class PlateLoad(
@@ -55,10 +56,14 @@ object PlateCalculator {
             if (leftover <= 0f) {
                 break
             }
-            val count = kotlin.math.floor(leftover / plate.weightKg).toInt()
-            if (count > 0) {
-                loads += PlateLoad(plate = plate, countPerSide = count)
-                leftover = roundToThousandth(leftover - count.toFloat() * plate.weightKg)
+            val maxCount = if (plate.maxPairs == Int.MAX_VALUE) {
+                kotlin.math.floor(leftover / plate.weightKg).toInt()
+            } else {
+                minOf(kotlin.math.floor(leftover / plate.weightKg).toInt(), plate.maxPairs)
+            }
+            if (maxCount > 0) {
+                loads += PlateLoad(plate = plate, countPerSide = maxCount)
+                leftover = roundToThousandth(leftover - maxCount.toFloat() * plate.weightKg)
             }
         }
 

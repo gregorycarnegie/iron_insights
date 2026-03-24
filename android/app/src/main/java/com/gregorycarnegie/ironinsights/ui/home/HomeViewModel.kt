@@ -247,6 +247,9 @@ private fun loadModeForRoute(route: AppRoute): LookupPayloadLoadMode {
         AppRoute.COMPARE,
         AppRoute.TRENDS,
         AppRoute.CALCULATORS,
+        AppRoute.LOG,
+        AppRoute.PROGRAMMES,
+        AppRoute.PROGRESS,
         -> LookupPayloadLoadMode.SUMMARY_ONLY
 
         AppRoute.LOOKUP -> LookupPayloadLoadMode.FULL

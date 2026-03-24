@@ -91,7 +91,10 @@ fun AppRouteTabs(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(AppRoute.entries, key = { it.name }) { route ->
+                items(
+                    AppRoute.analyticsRoutes.toList(),
+                    key = { it.name },
+                ) { route ->
                     FilterChip(
                         selected = selectedRoute == route,
                         onClick = { onRouteChange(route) },
