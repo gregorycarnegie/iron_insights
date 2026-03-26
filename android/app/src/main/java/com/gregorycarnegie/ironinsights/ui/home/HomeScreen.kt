@@ -118,11 +118,23 @@ fun HomeScreen(
                         onFilterChange = onFilterChange,
                     )
                 }
+                if (selectorState.options.lifts.size > 1) {
+                    item {
+                        QuickLiftFocusCard(
+                            selectorState = selectorState,
+                            enabled = !uiState.isLoading,
+                            onFilterChange = onFilterChange,
+                        )
+                    }
+                }
             }
 
             uiState.lookupPreview?.let { lookupPreview ->
                 item {
-                    PercentileLookupCard(preview = lookupPreview)
+                    PercentileLookupCard(
+                        preview = lookupPreview,
+                        crossSexPreview = uiState.crossSexPreview,
+                    )
                 }
             }
 
@@ -215,6 +227,38 @@ private fun WelcomeHeader(
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun QuickLiftFocusCard(
+    selectorState: LookupSelectorState,
+    enabled: Boolean,
+    onFilterChange: (LookupFilterField, String) -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "Lift focus",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            SelectorChipRow(
+                title = "Choose squat, bench, deadlift, or total",
+                options = selectorState.options.lifts,
+                selected = selectorState.filters.lift,
+                enabled = enabled,
+                labelFor = ::liftOptionLabel,
+                onSelect = { onFilterChange(LookupFilterField.LIFT, it) },
+            )
         }
     }
 }
@@ -439,7 +483,10 @@ internal fun SelectorChipRow(
 }
 
 @Composable
-private fun PercentileLookupCard(preview: HistogramLookupPreview) {
+private fun PercentileLookupCard(
+    preview: HistogramLookupPreview,
+    crossSexPreview: CrossSexLookupPresentation?,
+) {
     var liftInput by rememberSaveable(preview.sliceKey) {
         mutableStateOf(preview.p50?.let(::formatMetricValue).orEmpty())
     }
@@ -616,6 +663,18 @@ private fun PercentileLookupCard(preview: HistogramLookupPreview) {
                     )
                 }
             }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            DistributionCard(
+                preview = preview,
+                inputValue = parsedLift,
+                bodyweightKg = parsedBodyweight,
+            )
+            crossSexPreview?.let { comparison ->
+                CrossSexComparisonCard(
+                    preview = comparison,
+                    inputValue = parsedLift,
+                )
+            }
         }
     }
 }
@@ -712,6 +771,474 @@ private fun BodyweightConditionedCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
             )
+        }
+    }
+}
+
+@Composable
+private fun DistributionCard(
+    preview: HistogramLookupPreview,
+    inputValue: Float?,
+    bodyweightKg: Float?,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            text = "Distribution view",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = "Histogram and bodyweight heatmap for the exact cohort behind your lookup.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        HistogramChart(
+            histogram = preview.histogram,
+            metric = preview.metric,
+            inputValue = inputValue,
+        )
+        preview.heatmap?.let { heatmap ->
+            HeatmapChart(
+                heatmap = heatmap,
+                metric = preview.metric,
+                inputValue = inputValue,
+                bodyweightKg = bodyweightKg,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistogramChart(
+    histogram: com.gregorycarnegie.ironinsights.data.model.HistogramBin,
+    metric: String,
+    inputValue: Float?,
+) {
+    val bins = rebinHistogramForDisplay(histogram)
+    val maxCount = bins.maxOfOrNull { it.count }?.toFloat()?.coerceAtLeast(1f) ?: 1f
+    val axisColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.75f)
+    val barColor = MaterialTheme.colorScheme.primary
+    val markerColor = MaterialTheme.colorScheme.tertiary
+
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = "Histogram",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp),
+            ) {
+                val left = 30f
+                val top = 12f
+                val right = 8f
+                val bottom = 24f
+                val plotWidth = (size.width - left - right).coerceAtLeast(1f)
+                val plotHeight = (size.height - top - bottom).coerceAtLeast(1f)
+                val span = (histogram.max - histogram.min).coerceAtLeast(0.001f)
+
+                drawLine(
+                    color = axisColor,
+                    start = Offset(left, top + plotHeight),
+                    end = Offset(left + plotWidth, top + plotHeight),
+                    strokeWidth = 2f,
+                )
+                drawLine(
+                    color = axisColor,
+                    start = Offset(left, top),
+                    end = Offset(left, top + plotHeight),
+                    strokeWidth = 2f,
+                )
+
+                repeat(3) { index ->
+                    val y = top + plotHeight * (index / 2f)
+                    drawLine(
+                        color = axisColor,
+                        start = Offset(left, y),
+                        end = Offset(left + plotWidth, y),
+                        strokeWidth = 1f,
+                    )
+                }
+
+                bins.forEach { bin ->
+                    if (bin.count == 0L) return@forEach
+                    val x0 = left + ((bin.start - histogram.min) / span) * plotWidth
+                    val x1 = left + ((bin.end - histogram.min) / span) * plotWidth
+                    val barHeight = (bin.count.toFloat() / maxCount) * plotHeight
+                    drawRect(
+                        color = barColor,
+                        topLeft = Offset(x0, top + plotHeight - barHeight),
+                        size = androidx.compose.ui.geometry.Size(
+                            width = (x1 - x0).coerceAtLeast(1f),
+                            height = barHeight,
+                        ),
+                    )
+                }
+
+                inputValue?.let { value ->
+                    val markerX = left + ((value - histogram.min) / span).coerceIn(0f, 1f) * plotWidth
+                    drawLine(
+                        color = markerColor,
+                        start = Offset(markerX, top),
+                        end = Offset(markerX, top + plotHeight),
+                        strokeWidth = 4f,
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = formatMetricValue(histogram.min),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = metricOptionLabel(metric),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = formatMetricValue(histogram.max),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeatmapChart(
+    heatmap: com.gregorycarnegie.ironinsights.data.model.HeatmapBin,
+    metric: String,
+    inputValue: Float?,
+    bodyweightKg: Float?,
+) {
+    val cells = rebinHeatmapForDisplay(heatmap)
+    val maxCell = cells.maxOfOrNull { it.count }?.toFloat()?.coerceAtLeast(1f) ?: 1f
+    val axisColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.75f)
+    val heatColor = MaterialTheme.colorScheme.secondary
+    val markerColor = MaterialTheme.colorScheme.tertiary
+
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = "Bodyweight heatmap",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp),
+            ) {
+                val left = 34f
+                val top = 12f
+                val right = 10f
+                val bottom = 28f
+                val plotWidth = (size.width - left - right).coerceAtLeast(1f)
+                val plotHeight = (size.height - top - bottom).coerceAtLeast(1f)
+                val xSpan = (heatmap.maxX - heatmap.minX).coerceAtLeast(0.001f)
+                val ySpan = (heatmap.maxY - heatmap.minY).coerceAtLeast(0.001f)
+
+                drawLine(
+                    color = axisColor,
+                    start = Offset(left, top + plotHeight),
+                    end = Offset(left + plotWidth, top + plotHeight),
+                    strokeWidth = 2f,
+                )
+                drawLine(
+                    color = axisColor,
+                    start = Offset(left, top),
+                    end = Offset(left, top + plotHeight),
+                    strokeWidth = 2f,
+                )
+
+                cells.forEach { cell ->
+                    if (cell.count == 0L) return@forEach
+                    val x0 = left + ((cell.x0 - heatmap.minX) / xSpan) * plotWidth
+                    val x1 = left + ((cell.x1 - heatmap.minX) / xSpan) * plotWidth
+                    val y0 = top + plotHeight - ((cell.y1 - heatmap.minY) / ySpan) * plotHeight
+                    val y1 = top + plotHeight - ((cell.y0 - heatmap.minY) / ySpan) * plotHeight
+                    drawRect(
+                        color = heatColor.copy(
+                            alpha = (0.12f + 0.88f * (cell.count.toFloat() / maxCell)).coerceIn(0.12f, 1f),
+                        ),
+                        topLeft = Offset(x0, y0),
+                        size = androidx.compose.ui.geometry.Size(
+                            width = (x1 - x0).coerceAtLeast(1f),
+                            height = (y1 - y0).coerceAtLeast(1f),
+                        ),
+                    )
+                }
+
+                if (inputValue != null && bodyweightKg != null) {
+                    val markerX = left + ((inputValue - heatmap.minX) / xSpan).coerceIn(0f, 1f) * plotWidth
+                    val markerY = top + plotHeight - ((bodyweightKg - heatmap.minY) / ySpan).coerceIn(0f, 1f) * plotHeight
+                    drawLine(
+                        color = markerColor,
+                        start = Offset(markerX, top),
+                        end = Offset(markerX, top + plotHeight),
+                        strokeWidth = 3f,
+                    )
+                    drawLine(
+                        color = markerColor,
+                        start = Offset(left, markerY),
+                        end = Offset(left + plotWidth, markerY),
+                        strokeWidth = 3f,
+                    )
+                    drawCircle(
+                        color = markerColor,
+                        radius = 6f,
+                        center = Offset(markerX, markerY),
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "${formatMetricValue(heatmap.minY)} kg",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "Bodyweight vs ${metricOptionLabel(metric)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "${formatMetricValue(heatmap.maxY)} kg",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+private data class DisplayHistogramBin(
+    val start: Float,
+    val end: Float,
+    val count: Long,
+)
+
+private data class DisplayHeatCell(
+    val x0: Float,
+    val x1: Float,
+    val y0: Float,
+    val y1: Float,
+    val count: Long,
+)
+
+private fun rebinHistogramForDisplay(
+    histogram: com.gregorycarnegie.ironinsights.data.model.HistogramBin,
+    maxBins: Int = 48,
+): List<DisplayHistogramBin> {
+    val counts = histogram.counts
+    if (counts.isEmpty()) {
+        return emptyList()
+    }
+    val groupSize = kotlin.math.ceil(counts.size / maxBins.toFloat()).toInt().coerceAtLeast(1)
+    return counts.chunked(groupSize).mapIndexed { index, chunk ->
+        val start = histogram.min + index * groupSize * histogram.baseBin
+        val end = (start + chunk.size * histogram.baseBin).coerceAtMost(histogram.max)
+        DisplayHistogramBin(
+            start = start,
+            end = end,
+            count = chunk.sum(),
+        )
+    }
+}
+
+private fun rebinHeatmapForDisplay(
+    heatmap: com.gregorycarnegie.ironinsights.data.model.HeatmapBin,
+    maxWidth: Int = 32,
+    maxHeight: Int = 24,
+): List<DisplayHeatCell> {
+    if (heatmap.width <= 0 || heatmap.height <= 0 || heatmap.grid.isEmpty()) {
+        return emptyList()
+    }
+    val xGroup = kotlin.math.ceil(heatmap.width / maxWidth.toFloat()).toInt().coerceAtLeast(1)
+    val yGroup = kotlin.math.ceil(heatmap.height / maxHeight.toFloat()).toInt().coerceAtLeast(1)
+    val cells = mutableListOf<DisplayHeatCell>()
+    var groupedY = 0
+    while (groupedY < heatmap.height) {
+        var groupedX = 0
+        while (groupedX < heatmap.width) {
+            var total = 0L
+            val xEndIndex = minOf(groupedX + xGroup, heatmap.width)
+            val yEndIndex = minOf(groupedY + yGroup, heatmap.height)
+            for (y in groupedY until yEndIndex) {
+                for (x in groupedX until xEndIndex) {
+                    total += heatmap.grid[y * heatmap.width + x]
+                }
+            }
+            cells += DisplayHeatCell(
+                x0 = heatmap.minX + groupedX * heatmap.baseX,
+                x1 = (heatmap.minX + xEndIndex * heatmap.baseX).coerceAtMost(heatmap.maxX),
+                y0 = heatmap.minY + groupedY * heatmap.baseY,
+                y1 = (heatmap.minY + yEndIndex * heatmap.baseY).coerceAtMost(heatmap.maxY),
+                count = total,
+            )
+            groupedX += xGroup
+        }
+        groupedY += yGroup
+    }
+    return cells
+}
+
+@Composable
+private fun CrossSexComparisonCard(
+    preview: CrossSexLookupPresentation,
+    inputValue: Float?,
+) {
+    val maleLookup = inputValue?.let { percentileForValue(preview.male.histogram, it) }
+    val femaleLookup = inputValue?.let { percentileForValue(preview.female.histogram, it) }
+    val femaleEquivalent = maleLookup?.let {
+        com.gregorycarnegie.ironinsights.data.repository.valueForPercentile(
+            preview.female.histogram,
+            it.percentile,
+        )
+    }
+    val maleEquivalent = femaleLookup?.let {
+        com.gregorycarnegie.ironinsights.data.repository.valueForPercentile(
+            preview.male.histogram,
+            it.percentile,
+        )
+    }
+
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Men vs women",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Same lift, same equipment, same tested status, compared side by side across male and female cohorts.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (inputValue == null) {
+                Text(
+                    text = "Enter a lift above to compare how the same score lands in both cohorts.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (maleLookup != null && femaleLookup != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    CrossSexStatCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Men",
+                        percentile = formatPercent(maleLookup.percentile * 100f),
+                        cohortSize = formatCount(maleLookup.total),
+                        note = preview.male.note,
+                    )
+                    CrossSexStatCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Women",
+                        percentile = formatPercent(femaleLookup.percentile * 100f),
+                        cohortSize = formatCount(femaleLookup.total),
+                        note = preview.female.note,
+                    )
+                }
+                femaleEquivalent?.let { value ->
+                    Text(
+                        text = "Women's equivalent at the same men's percentile: ${formatMetricValue(value)} ${preview.metric.lowercase(Locale.US)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                maleEquivalent?.let { value ->
+                    Text(
+                        text = "Men's equivalent at the same women's percentile: ${formatMetricValue(value)} ${preview.metric.lowercase(Locale.US)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CrossSexStatCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    percentile: String,
+    cohortSize: String,
+    note: String?,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = percentile,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "$cohortSize lifters",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            note?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
         }
     }
 }

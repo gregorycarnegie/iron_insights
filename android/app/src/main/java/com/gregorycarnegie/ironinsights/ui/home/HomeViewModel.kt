@@ -425,6 +425,11 @@ private data class CohortComparisonVariant(
     val isCurrent: Boolean,
 )
 
+private data class CrossSexRowMatch(
+    val row: LookupSliceRow,
+    val note: String?,
+)
+
 internal fun buildComparisonRows(
     rows: List<LookupSliceRow>,
     filters: LookupFilters,
@@ -659,6 +664,14 @@ private fun buildHomeState(
         }
         ?.value
 
+    val crossSexPreview = buildCrossSexLookupPresentation(
+        snapshot = snapshot,
+        repository = repository,
+        filters = selectorState.filters,
+        currentRow = row,
+        currentHistogram = histogram,
+    )
+
     return HomeUiState(
         isLoading = false,
         cachedLatestVersion = snapshot.latest.version,
@@ -667,6 +680,7 @@ private fun buildHomeState(
         shardPreview = slicePreview,
         selectorState = selectorState,
         lookupPreview = buildHistogramLookupPreview(row, histogram, heatmap),
+        crossSexPreview = crossSexPreview,
         trendsPreview = snapshot.trendsPreview,
         trendSeries = trendSeries,
         comparisonRows = comparisonRows,
@@ -714,6 +728,147 @@ private fun buildCohortLabel(filters: LookupFilters): String {
             else -> filters.tested
         },
     ).joinToString(" • ")
+}
+
+private fun buildCrossSexLookupPresentation(
+    snapshot: DatasetSnapshot,
+    repository: PublishedDataRepository,
+    filters: LookupFilters,
+    currentRow: LookupSliceRow,
+    currentHistogram: HistogramBin,
+): CrossSexLookupPresentation? {
+    val male = loadCrossSexCohort(
+        snapshot = snapshot,
+        repository = repository,
+        requestedFilters = filters,
+        targetSex = "M",
+        currentRow = currentRow,
+        currentHistogram = currentHistogram,
+    ) ?: return null
+    val female = loadCrossSexCohort(
+        snapshot = snapshot,
+        repository = repository,
+        requestedFilters = filters,
+        targetSex = "F",
+        currentRow = currentRow,
+        currentHistogram = currentHistogram,
+    ) ?: return null
+
+    return CrossSexLookupPresentation(
+        liftLabel = liftLabel(filters.lift),
+        metric = filters.metric,
+        male = male,
+        female = female,
+    )
+}
+
+private fun loadCrossSexCohort(
+    snapshot: DatasetSnapshot,
+    repository: PublishedDataRepository,
+    requestedFilters: LookupFilters,
+    targetSex: String,
+    currentRow: LookupSliceRow,
+    currentHistogram: HistogramBin,
+): CrossSexCohortPresentation? {
+    val match = if (requestedFilters.sex == targetSex) {
+        CrossSexRowMatch(
+            row = currentRow,
+            note = null,
+        )
+    } else {
+        resolveCrossSexRowMatch(
+            snapshot = snapshot,
+            repository = repository,
+            requestedFilters = requestedFilters,
+            targetSex = targetSex,
+        )
+    } ?: return null
+
+    val histogram = if (match.row.histPath == currentRow.histPath) {
+        currentHistogram
+    } else {
+        loadHistogramFromCacheOrRepository(
+            snapshot = snapshot,
+            repository = repository,
+            histogramPath = match.row.histPath,
+        ) ?: return null
+    }
+
+    return CrossSexCohortPresentation(
+        label = buildCohortLabel(match.row.filters),
+        histogram = histogram,
+        note = match.note,
+    )
+}
+
+private fun resolveCrossSexRowMatch(
+    snapshot: DatasetSnapshot,
+    repository: PublishedDataRepository,
+    requestedFilters: LookupFilters,
+    targetSex: String,
+): CrossSexRowMatch? {
+    val shardKey = "sex=$targetSex|equip=${requestedFilters.equip}"
+    val shardPath = snapshot.rootIndex.shards[shardKey] ?: return null
+    val sliceIndex = snapshot.sliceIndexByShard[shardKey] ?: repository
+        .fetchSliceIndex(snapshot.latest.version, shardPath)
+        .getOrNull()
+        ?.also { loaded ->
+            snapshot.sliceIndexByShard[shardKey] = loaded.value
+            snapshot.sliceIndexSourceByShard[shardKey] = loaded.source
+        }
+        ?.value
+        ?: return null
+
+    val rows = buildLookupRows(sliceIndex)
+    val requested = requestedFilters.copy(sex = targetSex)
+    val variants = listOf(
+        requested,
+        requested.copy(wc = "All"),
+        requested.copy(age = "All Ages"),
+        requested.copy(tested = "All"),
+        requested.copy(wc = "All", age = "All Ages"),
+        requested.copy(wc = "All", age = "All Ages", tested = "All"),
+    )
+
+    val resolved = variants.firstNotNullOfOrNull { candidate ->
+        currentRow(rows, candidate)?.let { row ->
+            CrossSexRowMatch(
+                row = row,
+                note = buildCrossSexFallbackNote(requested = requested, resolved = row.filters),
+            )
+        }
+    }
+
+    return resolved
+}
+
+private fun buildCrossSexFallbackNote(
+    requested: LookupFilters,
+    resolved: LookupFilters,
+): String? {
+    val notes = mutableListOf<String>()
+    if (resolved.wc != requested.wc) {
+        notes += "bodyweight ${requested.wc} -> ${resolved.wc}"
+    }
+    if (resolved.age != requested.age) {
+        notes += "age ${requested.age} -> ${resolved.age}"
+    }
+    if (resolved.tested != requested.tested) {
+        notes += "tested ${requested.tested} -> ${resolved.tested}"
+    }
+    return if (notes.isEmpty()) null else "Fallback used: ${notes.joinToString(", ")}."
+}
+
+private fun loadHistogramFromCacheOrRepository(
+    snapshot: DatasetSnapshot,
+    repository: PublishedDataRepository,
+    histogramPath: String,
+): HistogramBin? {
+    snapshot.histogramByPath[histogramPath]?.let { return it }
+    val loaded = repository.fetchHistogram(snapshot.latest.version, histogramPath).getOrNull() ?: return null
+    snapshot.histogramByPath[histogramPath] = loaded.value
+    snapshot.histogramSourceByPath[histogramPath] = loaded.source
+    return loaded.value
 }
 
 private fun buildLookupRows(sliceIndex: SliceIndex): List<LookupSliceRow> {

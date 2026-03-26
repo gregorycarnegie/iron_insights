@@ -24,6 +24,9 @@ interface ProgrammeDao {
     @Update
     suspend fun updateProgramme(programme: Programme)
 
+    @Query("UPDATE programmes SET isActive = CASE WHEN id = :programmeId THEN 1 ELSE 0 END")
+    suspend fun setActiveProgramme(programmeId: Long)
+
     @Delete
     suspend fun deleteProgramme(programme: Programme)
 

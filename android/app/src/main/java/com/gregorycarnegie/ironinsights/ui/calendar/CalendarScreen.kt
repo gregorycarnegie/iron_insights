@@ -82,10 +82,10 @@ fun CalendarScreen(
 @Composable
 private fun BlockTimelineCard(block: ProgrammeBlock) {
     val blockColor = when (block.blockType) {
-        "hypertrophy" -> MaterialTheme.colorScheme.secondary
-        "strength" -> MaterialTheme.colorScheme.primary
-        "peak" -> MaterialTheme.colorScheme.error
-        "deload" -> MaterialTheme.colorScheme.tertiary
+        "hypertrophy", "accumulation" -> MaterialTheme.colorScheme.secondary
+        "strength", "intensification" -> MaterialTheme.colorScheme.primary
+        "peak", "realization" -> MaterialTheme.colorScheme.error
+        "deload", "taper" -> MaterialTheme.colorScheme.tertiary
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 

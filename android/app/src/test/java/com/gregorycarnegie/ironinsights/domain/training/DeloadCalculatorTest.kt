@@ -22,11 +22,27 @@ class DeloadCalculatorTest {
     }
 
     @Test
+    fun `accumulation deload matches volume-oriented prescription`() {
+        val result = DeloadCalculator.deloadWeek("accumulation", 120f, 6, 8)
+        assertEquals(72f, result.weightKg, 0.01f)
+        assertEquals(3, result.sets)
+        assertEquals(8, result.reps)
+    }
+
+    @Test
     fun `peak deload uses 50 percent weight, 2 sets, 3 reps`() {
         val result = DeloadCalculator.deloadWeek("peak", 140f, 6, 2)
         assertEquals(70f, result.weightKg, 0.01f)
         assertEquals(2, result.sets)
         assertEquals(3, result.reps)
+    }
+
+    @Test
+    fun `taper keeps more intensity while cutting volume harder`() {
+        val result = DeloadCalculator.deloadWeek("taper", 200f, 5, 4)
+        assertEquals(180f, result.weightKg, 0.01f)
+        assertEquals(2, result.sets)
+        assertEquals(2, result.reps)
     }
 
     @Test

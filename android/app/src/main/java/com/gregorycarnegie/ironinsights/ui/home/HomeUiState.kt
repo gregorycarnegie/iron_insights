@@ -1,6 +1,7 @@
 package com.gregorycarnegie.ironinsights.ui.home
 
 import com.gregorycarnegie.ironinsights.data.model.DatasetLoadSummary
+import com.gregorycarnegie.ironinsights.data.model.HistogramBin
 import com.gregorycarnegie.ironinsights.data.model.HistogramLookupPreview
 import com.gregorycarnegie.ironinsights.data.model.LatestJson
 import com.gregorycarnegie.ironinsights.data.model.SliceIndexPreview
@@ -15,6 +16,7 @@ data class HomeUiState(
     val shardPreview: SliceIndexPreview? = null,
     val selectorState: LookupSelectorState? = null,
     val lookupPreview: HistogramLookupPreview? = null,
+    val crossSexPreview: CrossSexLookupPresentation? = null,
     val trendsPreview: TrendsPreview? = null,
     val trendSeries: TrendSeriesPresentation? = null,
     val comparisonRows: List<CohortComparisonRowPresentation> = emptyList(),
@@ -46,6 +48,19 @@ data class CohortComparisonRowPresentation(
     val status: String,
     val statusOk: Boolean,
     val isCurrent: Boolean,
+)
+
+data class CrossSexLookupPresentation(
+    val liftLabel: String,
+    val metric: String,
+    val male: CrossSexCohortPresentation,
+    val female: CrossSexCohortPresentation,
+)
+
+data class CrossSexCohortPresentation(
+    val label: String,
+    val histogram: HistogramBin,
+    val note: String? = null,
 )
 
 data class LookupFilters(

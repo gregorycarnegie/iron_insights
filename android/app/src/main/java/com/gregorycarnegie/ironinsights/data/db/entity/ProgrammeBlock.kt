@@ -14,7 +14,7 @@ data class ProgrammeBlock(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val programmeId: Long,
     val name: String,
-    val blockType: String,     // "hypertrophy", "strength", "peak", "deload"
+    val blockType: String,     // e.g. hypertrophy, accumulation, strength, intensification, realization, peak, taper, deload
     val orderIndex: Int,
     val weekCount: Int,
     val startDateEpochMs: Long? = null,

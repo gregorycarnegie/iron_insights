@@ -12,20 +12,36 @@ object DeloadCalculator {
         normalReps: Int,
     ): DeloadPrescription {
         return when (blockType) {
-            "hypertrophy" -> DeloadPrescription(
+            "hypertrophy",
+            "accumulation",
+            -> DeloadPrescription(
                 weightKg = normalWeightKg * 0.6f,
                 sets = (normalSets * 0.5f).roundToInt().coerceAtLeast(1),
                 reps = normalReps,
             )
-            "strength" -> DeloadPrescription(
+            "strength",
+            "intensification",
+            -> DeloadPrescription(
                 weightKg = normalWeightKg * 0.7f,
                 sets = (normalSets * 0.6f).roundToInt().coerceAtLeast(1),
                 reps = (normalReps * 0.6f).roundToInt().coerceAtLeast(1),
             )
-            "peak" -> DeloadPrescription(
+            "peak",
+            "realization",
+            -> DeloadPrescription(
                 weightKg = normalWeightKg * 0.5f,
                 sets = 2,
                 reps = 3,
+            )
+            "taper" -> DeloadPrescription(
+                weightKg = normalWeightKg * 0.9f,
+                sets = (normalSets * 0.4f).roundToInt().coerceAtLeast(1),
+                reps = (normalReps * 0.5f).roundToInt().coerceAtLeast(1),
+            )
+            "deload" -> DeloadPrescription(
+                weightKg = normalWeightKg * 0.6f,
+                sets = (normalSets * 0.5f).roundToInt().coerceAtLeast(1),
+                reps = (normalReps * 0.8f).roundToInt().coerceAtLeast(1),
             )
             else -> DeloadPrescription(
                 weightKg = normalWeightKg * 0.5f,

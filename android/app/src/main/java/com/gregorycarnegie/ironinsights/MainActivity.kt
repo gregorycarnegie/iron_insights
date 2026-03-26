@@ -65,7 +65,11 @@ class MainActivity : ComponentActivity() {
             WorkoutLogViewModel.factory(
                 repository = trainingRepository,
                 exerciseDao = database.exerciseDefinitionDao(),
+                programmeDao = database.programmeDao(),
+                trainingStatsDao = database.trainingStatsDao(),
+                preferencesRepository = preferencesRepository,
                 onSessionFinished = { sessionId ->
+                    progressViewModel.refresh()
                     // Enqueue Health Connect sync if enabled
                     val inputData = Data.Builder()
                         .putLong("session_id", sessionId)
@@ -83,6 +87,9 @@ class MainActivity : ComponentActivity() {
             ProgrammeViewModel.factory(
                 programmeDao = database.programmeDao(),
                 plannedSessionDao = database.plannedSessionDao(),
+                exerciseDefinitionDao = database.exerciseDefinitionDao(),
+                trainingStatsDao = database.trainingStatsDao(),
+                preferencesRepository = preferencesRepository,
             ),
         )[ProgrammeViewModel::class.java]
 

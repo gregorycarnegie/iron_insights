@@ -28,6 +28,10 @@ class ProgressViewModel(
         loadProgressData()
     }
 
+    fun refresh() {
+        loadProgressData()
+    }
+
     private fun loadProgressData() {
         viewModelScope.launch(Dispatchers.IO) {
             uiState = uiState.copy(isLoading = true)

@@ -14,33 +14,40 @@ class TrainingRepository(database: IronInsightsDatabase) {
     private val exercisePerformedDao = database.exercisePerformedDao()
     private val setEntryDao = database.setEntryDao()
 
-    suspend fun startSession(title: String? = null, bodyweightKg: Float? = null): Long {
+    suspend fun startSession(
+        title: String? = null,
+        notes: String? = null,
+        programmeSessionId: Long? = null,
+        bodyweightKg: Float? = null,
+    ): Long {
         val session = WorkoutSession(
             startedAtEpochMs = System.currentTimeMillis(),
             title = title,
+            notes = notes,
+            programmeSessionId = programmeSessionId,
             bodyweightKg = bodyweightKg,
         )
         return sessionDao.insert(session)
     }
 
     suspend fun finishSession(sessionId: Long) {
-        val session = sessionDao.getById(sessionId) // Flow — we need the current value
-        // We need to fetch the raw session to update it; use a direct approach
-        sessionDao.update(
-            WorkoutSession(
-                id = sessionId,
-                startedAtEpochMs = 0, // Will be overwritten below
-                finishedAtEpochMs = System.currentTimeMillis(),
-            )
+        sessionDao.finishSession(
+            sessionId = sessionId,
+            finishedAtEpochMs = System.currentTimeMillis(),
         )
     }
 
-    suspend fun addExercise(sessionId: Long, exerciseId: Long): Long {
+    suspend fun addExercise(
+        sessionId: Long,
+        exerciseId: Long,
+        notes: String? = null,
+    ): Long {
         val nextIndex = exercisePerformedDao.getNextOrderIndex(sessionId)
         val exercisePerformed = ExercisePerformed(
             sessionId = sessionId,
             exerciseId = exerciseId,
             orderIndex = nextIndex,
+            notes = notes,
         )
         return exercisePerformedDao.insert(exercisePerformed)
     }
@@ -52,7 +59,7 @@ class TrainingRepository(database: IronInsightsDatabase) {
         rpe: Float? = null,
         isWarmup: Boolean = false,
     ): Long {
-        val sets = setEntryDao.getByExercisePerformedId(exercisePerformedId)
+        val nextSetIndex = setEntryDao.getNextSetIndex(exercisePerformedId)
         val e1rmKg = if (!isWarmup && reps > 0) {
             OneRepMaxCalculator.blended1rm(weightKg, reps)
         } else {
@@ -60,7 +67,7 @@ class TrainingRepository(database: IronInsightsDatabase) {
         }
         val setEntry = SetEntry(
             exercisePerformedId = exercisePerformedId,
-            setIndex = 0, // Will be corrected below
+            setIndex = nextSetIndex,
             weightKg = weightKg,
             reps = reps,
             rpe = rpe,
@@ -89,5 +96,9 @@ class TrainingRepository(database: IronInsightsDatabase) {
 
     fun getRecentSessions(limit: Int = 20): Flow<List<WorkoutSession>> {
         return sessionDao.getRecentSessions(limit)
+    }
+
+    fun getRecentSessionDetails(limit: Int = 20): Flow<List<SessionWithExercises>> {
+        return sessionDao.getRecentSessionDetails(limit)
     }
 }

@@ -14,6 +14,10 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM workout_sessions ORDER BY startedAtEpochMs DESC LIMIT :limit")
     fun getRecentSessions(limit: Int = 20): Flow<List<WorkoutSession>>
 
+    @Transaction
+    @Query("SELECT * FROM workout_sessions ORDER BY startedAtEpochMs DESC LIMIT :limit")
+    fun getRecentSessionDetails(limit: Int = 20): Flow<List<SessionWithExercises>>
+
     @Query("SELECT * FROM workout_sessions WHERE startedAtEpochMs BETWEEN :startMs AND :endMs ORDER BY startedAtEpochMs DESC")
     fun getSessionsBetween(startMs: Long, endMs: Long): Flow<List<WorkoutSession>>
 
@@ -22,6 +26,12 @@ interface WorkoutSessionDao {
 
     @Insert
     suspend fun insert(session: WorkoutSession): Long
+
+    @Query("UPDATE workout_sessions SET finishedAtEpochMs = :finishedAtEpochMs WHERE id = :sessionId")
+    suspend fun finishSession(
+        sessionId: Long,
+        finishedAtEpochMs: Long,
+    )
 
     @Update
     suspend fun update(session: WorkoutSession)

@@ -9,6 +9,9 @@ interface SetEntryDao {
     @Query("SELECT * FROM set_entries WHERE exercisePerformedId = :exercisePerformedId ORDER BY setIndex ASC")
     fun getByExercisePerformedId(exercisePerformedId: Long): Flow<List<SetEntry>>
 
+    @Query("SELECT COALESCE(MAX(setIndex), -1) + 1 FROM set_entries WHERE exercisePerformedId = :exercisePerformedId")
+    suspend fun getNextSetIndex(exercisePerformedId: Long): Int
+
     @Insert
     suspend fun insert(set: SetEntry): Long
 

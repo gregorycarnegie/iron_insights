@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,9 +42,18 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.gregorycarnegie.ironinsights.data.db.entity.ExerciseDefinition
+import com.gregorycarnegie.ironinsights.data.db.relation.SessionWithExercises
 import com.gregorycarnegie.ironinsights.data.db.relation.ExerciseWithSets
 import com.gregorycarnegie.ironinsights.domain.calculators.WeightUnit
 import com.gregorycarnegie.ironinsights.domain.calculators.formatWeightInput
+import com.gregorycarnegie.ironinsights.domain.calculators.kgToDisplay
+import com.gregorycarnegie.ironinsights.domain.training.ExercisePrescription
+import com.gregorycarnegie.ironinsights.domain.training.ProgrammedWorkoutMetadata
+import com.gregorycarnegie.ironinsights.domain.training.ProgrammedWorkoutRecommendation
+import com.gregorycarnegie.ironinsights.domain.training.SetPrescription
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 @Composable
@@ -53,6 +63,9 @@ fun WorkoutLogScreen(
     modifier: Modifier = Modifier,
 ) {
     val state = viewModel.uiState
+    val exerciseNameById = remember(state.exerciseLibrary) {
+        state.exerciseLibrary.associateBy(ExerciseDefinition::id)
+    }
 
     Scaffold(
         modifier = modifier,
@@ -81,7 +94,14 @@ fun WorkoutLogScreen(
                 state.activeSession == null -> {
                     StartWorkoutContent(
                         onStartWorkout = { viewModel.startNewSession() },
-                        modifier = Modifier.align(Alignment.Center),
+                        onStartProgrammedWorkout = { viewModel.startProgrammedWorkout() },
+                        recommendedProgrammedWorkout = state.recommendedProgrammedWorkout,
+                        recentSessions = state.recentSessions.filter { it.session.finishedAtEpochMs != null },
+                        weightUnit = weightUnit,
+                        exerciseNameFor = { exerciseId ->
+                            exerciseNameById[exerciseId]?.name ?: "Exercise #$exerciseId"
+                        },
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
 
@@ -105,6 +125,9 @@ fun WorkoutLogScreen(
                                 viewModel.removeExercise(exercise)
                             },
                             onStartRestTimer = { seconds -> viewModel.startRestTimer(seconds) },
+                            exerciseNameFor = { exerciseId ->
+                                exerciseNameById[exerciseId]?.name ?: "Exercise #$exerciseId"
+                            },
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -142,40 +165,290 @@ fun WorkoutLogScreen(
 @Composable
 private fun StartWorkoutContent(
     onStartWorkout: () -> Unit,
+    onStartProgrammedWorkout: () -> Unit,
+    recommendedProgrammedWorkout: ProgrammedWorkoutRecommendation?,
+    recentSessions: List<SessionWithExercises>,
+    weightUnit: WeightUnit,
+    exerciseNameFor: (Long) -> String,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Text(
-            text = "Ready to train?",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Start a workout to begin logging sets.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = onStartWorkout,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-            ),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth(0.6f),
+        item {
+            if (recommendedProgrammedWorkout != null) {
+                ProgrammedStartCard(
+                    recommendation = recommendedProgrammedWorkout,
+                    onStartProgrammedWorkout = onStartProgrammedWorkout,
+                    onStartManualWorkout = onStartWorkout,
+                )
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            text = "Ready to train?",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = "Start a workout to log sets, then review recent sessions below.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Button(
+                            onClick = onStartWorkout,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = "Start Workout",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(vertical = 4.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (recentSessions.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Previous workouts",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "Recent completed sessions stay visible here even when no workout is active.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            items(recentSessions, key = { it.session.id }) { sessionWithExercises ->
+                WorkoutHistoryCard(
+                    sessionWithExercises = sessionWithExercises,
+                    weightUnit = weightUnit,
+                    exerciseNameFor = exerciseNameFor,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProgrammedStartCard(
+    recommendation: ProgrammedWorkoutRecommendation,
+    onStartProgrammedWorkout: () -> Unit,
+    onStartManualWorkout: () -> Unit,
+) {
+    val exerciseSummary = recommendation.session.exercises
+        .take(3)
+        .joinToString(" • ") { it.exerciseName }
+
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.86f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "Start Workout",
+                text = "Programmed workout ready",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "${recommendation.metadata.programmeName} • Week ${recommendation.metadata.weekNumber} • ${recommendation.metadata.dayLabel}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                text = recommendation.session.title,
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(vertical = 4.dp),
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = exerciseSummary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Button(
+                onClick = onStartProgrammedWorkout,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                ),
+            ) {
+                Text("Start Programmed Workout")
+            }
+            OutlinedButton(
+                onClick = onStartManualWorkout,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Text("Start Manual Workout")
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutHistoryCard(
+    sessionWithExercises: SessionWithExercises,
+    weightUnit: WeightUnit,
+    exerciseNameFor: (Long) -> String,
+) {
+    val session = sessionWithExercises.session
+    val stats = historyStats(sessionWithExercises)
+    val exerciseSummary = sessionWithExercises.exercises
+        .map { exerciseNameFor(it.exercise.exerciseId) }
+        .distinct()
+        .take(4)
+        .joinToString(", ")
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = session.title ?: "Workout",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "${formatSessionTimestamp(session.startedAtEpochMs)}  •  ${formatSessionDuration(session.startedAtEpochMs, session.finishedAtEpochMs)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                HistoryStatChip(
+                    modifier = Modifier.weight(1f),
+                    label = "Exercises",
+                    value = stats.exerciseCount.toString(),
+                )
+                HistoryStatChip(
+                    modifier = Modifier.weight(1f),
+                    label = "Sets",
+                    value = stats.setCount.toString(),
+                )
+                HistoryStatChip(
+                    modifier = Modifier.weight(1f),
+                    label = "Volume",
+                    value = "${formatWeightInput(kgToDisplay(stats.volumeKg, weightUnit))} ${weightUnit.label}",
+                )
+            }
+            if (exerciseSummary.isNotBlank()) {
+                Text(
+                    text = exerciseSummary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryStatChip(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: String,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
             )
         }
+    }
+}
+
+private data class WorkoutHistoryStats(
+    val exerciseCount: Int,
+    val setCount: Int,
+    val volumeKg: Float,
+)
+
+private fun historyStats(sessionWithExercises: SessionWithExercises): WorkoutHistoryStats {
+    val setCount = sessionWithExercises.exercises.sumOf { it.sets.size }
+    val volumeKg = sessionWithExercises.exercises
+        .flatMap { it.sets }
+        .sumOf { set -> (set.weightKg * set.reps).toDouble() }
+        .toFloat()
+    return WorkoutHistoryStats(
+        exerciseCount = sessionWithExercises.exercises.size,
+        setCount = setCount,
+        volumeKg = volumeKg,
+    )
+}
+
+private fun formatSessionTimestamp(epochMs: Long): String {
+    val formatter = SimpleDateFormat("EEE d MMM • HH:mm", Locale.US)
+    return formatter.format(Date(epochMs))
+}
+
+private fun formatSessionDuration(
+    startedAtEpochMs: Long,
+    finishedAtEpochMs: Long?,
+): String {
+    val end = finishedAtEpochMs ?: return "In progress"
+    val totalMinutes = ((end - startedAtEpochMs) / 60_000L).coerceAtLeast(0L)
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        hours > 0 -> "${hours}h ${minutes}m"
+        else -> "${minutes}m"
     }
 }
 
@@ -189,6 +462,7 @@ private fun ActiveWorkoutContent(
     onDeleteSet: (com.gregorycarnegie.ironinsights.data.db.entity.SetEntry) -> Unit,
     onRemoveExercise: (com.gregorycarnegie.ironinsights.data.db.entity.ExercisePerformed) -> Unit,
     onStartRestTimer: (Int) -> Unit,
+    exerciseNameFor: (Long) -> String,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -198,6 +472,7 @@ private fun ActiveWorkoutContent(
         item {
             SessionHeader(
                 session = state.activeSession!!,
+                programmedSessionMetadata = state.programmedSessionMetadata,
                 sessionVolume = state.sessionVolume,
                 weightUnit = weightUnit,
             )
@@ -206,7 +481,9 @@ private fun ActiveWorkoutContent(
         items(state.exercises, key = { it.exercise.id }) { exerciseWithSets ->
             ExerciseCard(
                 exerciseWithSets = exerciseWithSets,
+                exerciseName = exerciseNameFor(exerciseWithSets.exercise.exerciseId),
                 weightUnit = weightUnit,
+                prescription = state.programmedExercisePrescriptions[exerciseWithSets.exercise.id],
                 onLogSet = { w, r, rpe ->
                     onLogSet(exerciseWithSets.exercise.id, w, r, rpe)
                 },
@@ -250,6 +527,7 @@ private fun ActiveWorkoutContent(
 @Composable
 private fun SessionHeader(
     session: com.gregorycarnegie.ironinsights.data.db.entity.WorkoutSession,
+    programmedSessionMetadata: ProgrammedWorkoutMetadata?,
     sessionVolume: com.gregorycarnegie.ironinsights.domain.training.VolumeCalculator.SessionVolume?,
     weightUnit: WeightUnit,
 ) {
@@ -267,6 +545,14 @@ private fun SessionHeader(
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold,
             )
+            programmedSessionMetadata?.let { metadata ->
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "${metadata.programmeName} • Week ${metadata.weekNumber} • ${metadata.dayLabel}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             Spacer(modifier = Modifier.height(4.dp))
             val elapsed = (System.currentTimeMillis() - session.startedAtEpochMs) / 1000
             val elapsedMin = elapsed / 60
@@ -302,7 +588,9 @@ private fun SessionHeader(
 @Composable
 private fun ExerciseCard(
     exerciseWithSets: ExerciseWithSets,
+    exerciseName: String,
     weightUnit: WeightUnit,
+    prescription: ExercisePrescription?,
     onLogSet: (Float, Int, Float?) -> Unit,
     onDeleteSet: (com.gregorycarnegie.ironinsights.data.db.entity.SetEntry) -> Unit,
     onRemoveExercise: () -> Unit,
@@ -324,7 +612,7 @@ private fun ExerciseCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Exercise #${exerciseWithSets.exercise.orderIndex + 1}",
+                    text = exerciseName,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
@@ -336,6 +624,31 @@ private fun ExerciseCard(
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
+            }
+
+            prescription?.let { guided ->
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Prescription",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                guided.lines.forEach { line ->
+                    Text(
+                        text = formatGuidedLine(line, weightUnit),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                guided.note?.let { note ->
+                    Text(
+                        text = note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
             }
 
             // Set header row
@@ -392,6 +705,8 @@ private fun ExerciseCard(
             // Add set input row
             AddSetRow(
                 lastSet = exerciseWithSets.sets.lastOrNull(),
+                prescription = prescription,
+                completedSetCount = exerciseWithSets.sets.size,
                 weightUnit = weightUnit,
                 onLogSet = onLogSet,
                 onStartRestTimer = onStartRestTimer,
@@ -403,13 +718,27 @@ private fun ExerciseCard(
 @Composable
 private fun AddSetRow(
     lastSet: com.gregorycarnegie.ironinsights.data.db.entity.SetEntry?,
+    prescription: ExercisePrescription?,
+    completedSetCount: Int,
     weightUnit: WeightUnit,
     onLogSet: (Float, Int, Float?) -> Unit,
     onStartRestTimer: (Int) -> Unit,
 ) {
-    var weightText by remember(lastSet) {
+    val nextPrescriptionLine = nextPrescriptionLine(
+        prescription = prescription,
+        completedSetCount = completedSetCount,
+    )
+
+    var weightText by remember(lastSet, nextPrescriptionLine, weightUnit) {
         mutableStateOf(
-            lastSet?.let {
+            nextPrescriptionLine?.targetWeightKg?.let {
+                formatWeightInput(
+                    com.gregorycarnegie.ironinsights.domain.calculators.kgToDisplay(
+                        it,
+                        weightUnit,
+                    ),
+                )
+            } ?: lastSet?.let {
                 formatWeightInput(
                     com.gregorycarnegie.ironinsights.domain.calculators.kgToDisplay(
                         it.weightKg,
@@ -419,10 +748,16 @@ private fun AddSetRow(
             } ?: "",
         )
     }
-    var repsText by remember(lastSet) {
-        mutableStateOf(lastSet?.reps?.toString() ?: "")
+    var repsText by remember(lastSet, nextPrescriptionLine) {
+        mutableStateOf(
+            nextPrescriptionLine?.reps?.toString()
+                ?: lastSet?.reps?.toString()
+                ?: "",
+        )
     }
-    var rpeText by remember { mutableStateOf("") }
+    var rpeText by remember(nextPrescriptionLine) {
+        mutableStateOf(nextPrescriptionLine?.targetRpe?.let { formatWeightInput(it) } ?: "")
+    }
 
     Row(
         modifier = Modifier
@@ -465,11 +800,47 @@ private fun AddSetRow(
                     weightUnit,
                 )
                 onLogSet(weightKg, reps, rpe)
-                onStartRestTimer(90)
+                onStartRestTimer(nextPrescriptionLine?.restSeconds ?: 90)
             },
             shape = RoundedCornerShape(8.dp),
         ) {
             Text("Log")
         }
     }
+}
+
+private fun formatGuidedLine(
+    line: SetPrescription,
+    weightUnit: WeightUnit,
+): String {
+    val load = line.targetWeightKg?.let {
+        "${formatWeightInput(kgToDisplay(it, weightUnit))} ${weightUnit.label}"
+    } ?: line.intensityPercent?.let {
+        "${(it * 100f).toInt()}% e1RM"
+    } ?: "Self-limit"
+    val rpe = line.targetRpe?.let { " @ RPE ${formatWeightInput(it)}" } ?: ""
+    return "${line.label}: ${line.sets} x ${line.reps} @ $load$rpe • rest ${formatRestDuration(line.restSeconds)}"
+}
+
+private fun nextPrescriptionLine(
+    prescription: ExercisePrescription?,
+    completedSetCount: Int,
+): SetPrescription? {
+    if (prescription == null || prescription.lines.isEmpty()) return null
+
+    var consumedSets = 0
+    prescription.lines.forEach { line ->
+        val boundary = consumedSets + line.sets
+        if (completedSetCount < boundary) {
+            return line
+        }
+        consumedSets = boundary
+    }
+    return prescription.lines.last()
+}
+
+private fun formatRestDuration(seconds: Int): String {
+    val minutes = seconds / 60
+    val remainder = seconds % 60
+    return "$minutes:${remainder.toString().padStart(2, '0')}"
 }

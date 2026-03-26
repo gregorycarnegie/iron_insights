@@ -17,6 +17,7 @@ import com.gregorycarnegie.ironinsights.ui.home.HomeUiState
 import com.gregorycarnegie.ironinsights.ui.home.LookupFilterField
 import com.gregorycarnegie.ironinsights.ui.log.WorkoutLogScreen
 import com.gregorycarnegie.ironinsights.ui.log.WorkoutLogViewModel
+import com.gregorycarnegie.ironinsights.ui.programmes.ProgrammeDetailScreen
 import com.gregorycarnegie.ironinsights.ui.programmes.ProgrammeViewModel
 import com.gregorycarnegie.ironinsights.ui.programmes.ProgrammesScreen
 import com.gregorycarnegie.ironinsights.ui.progress.ProgressScreen
@@ -98,12 +99,41 @@ fun IronInsightsNavHost(
 
         composable(NavRoutes.PROGRAMMES) {
             val state = programmeViewModel.uiState
-            ProgrammesScreen(
-                uiState = state,
-                onCreateProgramme = programmeViewModel::createProgramme,
-                onSelectProgramme = programmeViewModel::selectProgramme,
-                onDeleteProgramme = programmeViewModel::deleteProgramme,
-            )
+            val selectedProgramme = state.selectedProgramme
+            if (selectedProgramme == null) {
+                ProgrammesScreen(
+                    uiState = state,
+                    onCreateProgramme = programmeViewModel::createProgramme,
+                    onSelectProgramme = programmeViewModel::selectProgramme,
+                    onDeleteProgramme = programmeViewModel::deleteProgramme,
+                )
+            } else {
+                ProgrammeDetailScreen(
+                    programmeWithBlocks = selectedProgramme,
+                    generatedPlan = state.generatedPlan,
+                    liftBaselines = state.liftBaselines,
+                    weightUnit = state.weightUnit,
+                    onSetActiveProgramme = {
+                        programmeViewModel.setActiveProgramme(selectedProgramme.programme.id)
+                    },
+                    onAddBlock = { name, blockType, weekCount ->
+                        programmeViewModel.addBlock(
+                            programmeId = selectedProgramme.programme.id,
+                            name = name,
+                            blockType = blockType,
+                            weekCount = weekCount,
+                        )
+                    },
+                    onAddBlockSequence = { drafts ->
+                        programmeViewModel.addBlockSequence(
+                            programmeId = selectedProgramme.programme.id,
+                            blocks = drafts,
+                        )
+                    },
+                    onDeleteBlock = programmeViewModel::deleteBlock,
+                    onNavigateBack = programmeViewModel::clearSelection,
+                )
+            }
         }
 
         composable(NavRoutes.PROGRESS) {

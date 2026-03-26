@@ -2,12 +2,10 @@ package com.gregorycarnegie.ironinsights.ui.progress
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -25,26 +23,37 @@ import com.gregorycarnegie.ironinsights.domain.calculators.kgToDisplay
 fun PrBoard(records: Map<String, PrSummary>, weightUnit: WeightUnit) {
     val liftOrder = listOf("S" to "Squat", "B" to "Bench", "D" to "Deadlift", "T" to "Total")
 
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp),
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        items(liftOrder) { (code, fallbackName) ->
-            val pr = records[code]
-            PrCard(
-                liftName = pr?.liftName ?: fallbackName,
-                bestE1rmKg = pr?.bestE1rmKg,
-                bestWeightKg = pr?.bestWeightKg,
-                bestReps = pr?.bestReps,
-                percentileLabel = pr?.percentileLabel,
-                weightUnit = weightUnit,
-            )
+        liftOrder.chunked(2).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                rowItems.forEach { (code, fallbackName) ->
+                    val pr = records[code]
+                    PrCard(
+                        modifier = Modifier.weight(1f),
+                        liftName = pr?.liftName ?: fallbackName,
+                        bestE1rmKg = pr?.bestE1rmKg,
+                        bestWeightKg = pr?.bestWeightKg,
+                        bestReps = pr?.bestReps,
+                        percentileLabel = pr?.percentileLabel,
+                        weightUnit = weightUnit,
+                    )
+                }
+                if (rowItems.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun PrCard(
+    modifier: Modifier = Modifier,
     liftName: String,
     bestE1rmKg: Float?,
     bestWeightKg: Float?,
@@ -57,7 +66,7 @@ private fun PrCard(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
         shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.width(150.dp),
+        modifier = modifier,
     ) {
         Column(
             modifier = Modifier
