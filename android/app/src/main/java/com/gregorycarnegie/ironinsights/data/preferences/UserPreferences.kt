@@ -9,4 +9,16 @@ data class UserPreferences(
     val plateInventoryId: Long? = null,
     val barPresetId: Long? = null,
     val healthConnectEnabled: Boolean = false,
+
+    // Profile / onboarding fields
+    val onboardingCompleted: Boolean = false,
+    val sex: String = "",
+    val bodyweightKg: Float? = null,
+    val heightCm: Float? = null,
+    val age: Int? = null,
+    val equipment: String = "",
+    val tested: String = "",
+    val squatKg: Float? = null,
+    val benchKg: Float? = null,
+    val deadliftKg: Float? = null,
 )

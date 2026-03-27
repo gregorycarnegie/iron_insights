@@ -17,6 +17,10 @@ import com.gregorycarnegie.ironinsights.ui.home.HomeUiState
 import com.gregorycarnegie.ironinsights.ui.home.LookupFilterField
 import com.gregorycarnegie.ironinsights.ui.log.WorkoutLogScreen
 import com.gregorycarnegie.ironinsights.ui.log.WorkoutLogViewModel
+import com.gregorycarnegie.ironinsights.ui.onboarding.OnboardingScreen
+import com.gregorycarnegie.ironinsights.ui.onboarding.OnboardingViewModel
+import com.gregorycarnegie.ironinsights.ui.profile.ProfileScreen
+import com.gregorycarnegie.ironinsights.ui.profile.ProfileViewModel
 import com.gregorycarnegie.ironinsights.ui.programmes.ProgrammeDetailScreen
 import com.gregorycarnegie.ironinsights.ui.programmes.ProgrammeViewModel
 import com.gregorycarnegie.ironinsights.ui.programmes.ProgrammesScreen
@@ -30,11 +34,17 @@ fun IronInsightsNavHost(
     uiState: HomeUiState,
     onRefresh: () -> Unit,
     onFilterChange: (LookupFilterField, String) -> Unit,
+    onLookupLiftInputChange: (String) -> Unit,
+    onLookupBodyweightInputChange: (String) -> Unit,
+    onResetLookupInputsToProfile: () -> Unit,
     onRouteChange: (AppRoute) -> Unit,
     workoutLogViewModel: WorkoutLogViewModel,
     programmeViewModel: ProgrammeViewModel,
     progressViewModel: ProgressViewModel,
     equipmentViewModel: EquipmentViewModel,
+    onboardingViewModel: OnboardingViewModel,
+    profileViewModel: ProfileViewModel,
+    startDestination: String,
     modifier: Modifier = Modifier,
 ) {
     val analyticsOnRouteChange: (AppRoute) -> Unit = { route ->
@@ -50,9 +60,41 @@ fun IronInsightsNavHost(
 
     NavHost(
         navController = navController,
-        startDestination = NavRoutes.LOOKUP,
+        startDestination = startDestination,
         modifier = modifier,
     ) {
+        composable(NavRoutes.ONBOARDING) {
+            val onboardingState = onboardingViewModel.uiState
+            OnboardingScreen(
+                uiState = onboardingState,
+                onUpdateSex = onboardingViewModel::updateSex,
+                onUpdateBodyweight = onboardingViewModel::updateBodyweight,
+                onUpdateHeight = onboardingViewModel::updateHeight,
+                onUpdateAge = onboardingViewModel::updateAge,
+                onUpdateEquipment = onboardingViewModel::updateEquipment,
+                onUpdateTested = onboardingViewModel::updateTested,
+                onUpdateSquat = onboardingViewModel::updateSquat,
+                onUpdateBench = onboardingViewModel::updateBench,
+                onUpdateDeadlift = onboardingViewModel::updateDeadlift,
+                onNext = onboardingViewModel::nextStep,
+                onBack = onboardingViewModel::previousStep,
+                onFinish = {
+                    onboardingViewModel.finish {
+                        navController.navigate(NavRoutes.LOOKUP) {
+                            popUpTo(NavRoutes.ONBOARDING) { inclusive = true }
+                        }
+                    }
+                },
+                onSkip = {
+                    onboardingViewModel.finish {
+                        navController.navigate(NavRoutes.LOOKUP) {
+                            popUpTo(NavRoutes.ONBOARDING) { inclusive = true }
+                        }
+                    }
+                },
+            )
+        }
+
         composable(NavRoutes.LOOKUP) {
             HomeScreen(
                 environment = AppConfig.environment,
@@ -63,6 +105,9 @@ fun IronInsightsNavHost(
                 onRouteChange = analyticsOnRouteChange,
                 onRefresh = onRefresh,
                 onFilterChange = onFilterChange,
+                onLookupLiftInputChange = onLookupLiftInputChange,
+                onLookupBodyweightInputChange = onLookupBodyweightInputChange,
+                onResetLookupInputsToProfile = onResetLookupInputsToProfile,
             )
         }
 
@@ -145,6 +190,26 @@ fun IronInsightsNavHost(
 
         composable(NavRoutes.EQUIPMENT) {
             EquipmentScreen(viewModel = equipmentViewModel)
+        }
+
+        composable(NavRoutes.PROFILE) {
+            val profileState = profileViewModel.uiState
+            ProfileScreen(
+                uiState = profileState,
+                onNavigateBack = { navController.popBackStack() },
+                onStartEditing = profileViewModel::startEditing,
+                onCancelEditing = profileViewModel::cancelEditing,
+                onSaveProfile = profileViewModel::saveProfile,
+                onUpdateSex = profileViewModel::updateSex,
+                onUpdateBodyweight = profileViewModel::updateBodyweight,
+                onUpdateHeight = profileViewModel::updateHeight,
+                onUpdateAge = profileViewModel::updateAge,
+                onUpdateEquipment = profileViewModel::updateEquipment,
+                onUpdateTested = profileViewModel::updateTested,
+                onUpdateSquat = profileViewModel::updateSquat,
+                onUpdateBench = profileViewModel::updateBench,
+                onUpdateDeadlift = profileViewModel::updateDeadlift,
+            )
         }
     }
 }

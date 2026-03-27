@@ -26,6 +26,16 @@ class UserPreferencesRepository(
             plateInventoryId = plateInventoryId,
             barPresetId = barPresetId,
             healthConnectEnabled = healthConnectEnabled,
+            onboardingCompleted = preferences[PreferenceKeys.ONBOARDING_COMPLETED] ?: false,
+            sex = preferences[PreferenceKeys.SEX] ?: "",
+            bodyweightKg = preferences[PreferenceKeys.BODYWEIGHT_KG],
+            heightCm = preferences[PreferenceKeys.HEIGHT_CM],
+            age = preferences[PreferenceKeys.AGE],
+            equipment = preferences[PreferenceKeys.EQUIPMENT] ?: "",
+            tested = preferences[PreferenceKeys.TESTED] ?: "",
+            squatKg = preferences[PreferenceKeys.SQUAT_KG],
+            benchKg = preferences[PreferenceKeys.BENCH_KG],
+            deadliftKg = preferences[PreferenceKeys.DEADLIFT_KG],
         )
     }
 
@@ -71,5 +81,50 @@ class UserPreferencesRepository(
         dataStore.edit { preferences ->
             preferences[PreferenceKeys.HEALTH_CONNECT_ENABLED] = enabled
         }
+    }
+
+    suspend fun completeOnboarding(
+        sex: String,
+        bodyweightKg: Float?,
+        heightCm: Float?,
+        age: Int?,
+        equipment: String,
+        tested: String,
+        squatKg: Float?,
+        benchKg: Float?,
+        deadliftKg: Float?,
+    ) {
+        dataStore.edit { prefs ->
+            prefs[PreferenceKeys.ONBOARDING_COMPLETED] = true
+            prefs[PreferenceKeys.SEX] = sex
+            if (bodyweightKg != null) prefs[PreferenceKeys.BODYWEIGHT_KG] = bodyweightKg
+            else prefs.remove(PreferenceKeys.BODYWEIGHT_KG)
+            if (heightCm != null) prefs[PreferenceKeys.HEIGHT_CM] = heightCm
+            else prefs.remove(PreferenceKeys.HEIGHT_CM)
+            if (age != null) prefs[PreferenceKeys.AGE] = age
+            else prefs.remove(PreferenceKeys.AGE)
+            prefs[PreferenceKeys.EQUIPMENT] = equipment
+            prefs[PreferenceKeys.TESTED] = tested
+            if (squatKg != null) prefs[PreferenceKeys.SQUAT_KG] = squatKg
+            else prefs.remove(PreferenceKeys.SQUAT_KG)
+            if (benchKg != null) prefs[PreferenceKeys.BENCH_KG] = benchKg
+            else prefs.remove(PreferenceKeys.BENCH_KG)
+            if (deadliftKg != null) prefs[PreferenceKeys.DEADLIFT_KG] = deadliftKg
+            else prefs.remove(PreferenceKeys.DEADLIFT_KG)
+        }
+    }
+
+    suspend fun updateProfile(
+        sex: String,
+        bodyweightKg: Float?,
+        heightCm: Float?,
+        age: Int?,
+        equipment: String,
+        tested: String,
+        squatKg: Float?,
+        benchKg: Float?,
+        deadliftKg: Float?,
+    ) {
+        completeOnboarding(sex, bodyweightKg, heightCm, age, equipment, tested, squatKg, benchKg, deadliftKg)
     }
 }

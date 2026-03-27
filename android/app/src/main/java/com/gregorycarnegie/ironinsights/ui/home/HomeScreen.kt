@@ -26,6 +26,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -69,6 +70,9 @@ fun HomeScreen(
     onRouteChange: (AppRoute) -> Unit,
     onRefresh: () -> Unit,
     onFilterChange: (LookupFilterField, String) -> Unit,
+    onLookupLiftInputChange: (String) -> Unit,
+    onLookupBodyweightInputChange: (String) -> Unit,
+    onResetLookupInputsToProfile: () -> Unit,
 ) {
     var filtersExpanded by rememberSaveable { mutableStateOf(false) }
     var devInfoExpanded by rememberSaveable { mutableStateOf(false) }
@@ -133,7 +137,11 @@ fun HomeScreen(
                 item {
                     PercentileLookupCard(
                         preview = lookupPreview,
+                        inputState = uiState.lookupInputState,
                         crossSexPreview = uiState.crossSexPreview,
+                        onLiftInputChange = onLookupLiftInputChange,
+                        onBodyweightInputChange = onLookupBodyweightInputChange,
+                        onResetToProfile = onResetLookupInputsToProfile,
                     )
                 }
             }
@@ -485,14 +493,14 @@ internal fun SelectorChipRow(
 @Composable
 private fun PercentileLookupCard(
     preview: HistogramLookupPreview,
+    inputState: LookupInputState,
     crossSexPreview: CrossSexLookupPresentation?,
+    onLiftInputChange: (String) -> Unit,
+    onBodyweightInputChange: (String) -> Unit,
+    onResetToProfile: () -> Unit,
 ) {
-    var liftInput by rememberSaveable(preview.sliceKey) {
-        mutableStateOf(preview.p50?.let(::formatMetricValue).orEmpty())
-    }
-    var bodyweightInput by rememberSaveable(preview.sliceKey) {
-        mutableStateOf("")
-    }
+    val liftInput = inputState.liftInput
+    val bodyweightInput = inputState.bodyweightInput
     val parsedLift = liftInput.toFloatOrNull()
     val parsedBodyweight = bodyweightInput.toFloatOrNull()
     val lookup = parsedLift?.let { percentileForValue(preview.histogram, it) }
@@ -560,9 +568,28 @@ private fun PercentileLookupCard(
                     }
                 }
             }
+            if (inputState.hasProfileValues) {
+                val resetEnabled =
+                    (inputState.profileLiftInput.isNotBlank() && inputState.liftInput != inputState.profileLiftInput) ||
+                        (
+                            inputState.profileBodyweightInput.isNotBlank() &&
+                                inputState.bodyweightInput != inputState.profileBodyweightInput
+                            )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    OutlinedButton(
+                        onClick = onResetToProfile,
+                        enabled = resetEnabled,
+                    ) {
+                        Text("Reset to profile")
+                    }
+                }
+            }
             OutlinedTextField(
                 value = liftInput,
-                onValueChange = { liftInput = it },
+                onValueChange = onLiftInputChange,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Your ${preview.liftLabel.lowercase(Locale.US)} (${preview.metric})") },
                 singleLine = true,
@@ -637,7 +664,7 @@ private fun PercentileLookupCard(
             )
             OutlinedTextField(
                 value = bodyweightInput,
-                onValueChange = { bodyweightInput = it },
+                onValueChange = onBodyweightInputChange,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Your bodyweight (kg)") },
                 singleLine = true,

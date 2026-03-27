@@ -31,6 +31,7 @@ fun BottomNavBar(
         AppRoute.LOOKUP,
         AppRoute.PROGRESS,
         AppRoute.PROGRAMMES,
+        AppRoute.PROFILE,
     )
 
     NavigationBar(

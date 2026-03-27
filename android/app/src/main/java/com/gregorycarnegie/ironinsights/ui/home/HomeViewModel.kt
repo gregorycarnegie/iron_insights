@@ -31,13 +31,27 @@ import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+data class ProfileLookupDefaults(
+    val sex: String = "",
+    val equipment: String = "",
+    val tested: String = "",
+    val bodyweightKg: Float? = null,
+    val squatKg: Float? = null,
+    val benchKg: Float? = null,
+    val deadliftKg: Float? = null,
+)
+
 class HomeViewModel(
     private val repository: PublishedDataRepository,
+    initialProfileDefaults: ProfileLookupDefaults = ProfileLookupDefaults(),
 ) : ViewModel() {
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var datasetSnapshot: DatasetSnapshot? = null
     private var currentRoute: AppRoute = AppRoute.LOOKUP
+    private var profileDefaults: ProfileLookupDefaults = initialProfileDefaults
+    private val lookupLiftOverrides = mutableMapOf<String, String>()
+    private var lookupBodyweightOverride: String? = null
 
     var uiState by mutableStateOf(
         HomeUiState(cachedLatestVersion = repository.readCachedLatestVersion()),
@@ -84,7 +98,7 @@ class HomeViewModel(
         }
 
         val snapshot = datasetSnapshot ?: return
-        val currentFilters = uiState.selectorState?.filters ?: defaultFilters(snapshot.rootIndex)
+        val currentFilters = uiState.selectorState?.filters ?: defaultFilters(snapshot.rootIndex, profileDefaults)
         val requestedFilters = currentFilters.updated(field, value)
         val loadMode = loadModeForRoute(currentRoute)
 
@@ -100,6 +114,33 @@ class HomeViewModel(
                 applyLoadedState(nextState, loadMode)
             }
         }
+    }
+
+    fun updateLookupLiftInput(value: String) {
+        val filters = uiState.selectorState?.filters ?: return
+        lookupLiftOverrides[lookupInputKey(filters)] = value
+        uiState = resolveLookupInputState(uiState)
+    }
+
+    fun updateLookupBodyweightInput(value: String) {
+        lookupBodyweightOverride = value
+        uiState = resolveLookupInputState(uiState)
+    }
+
+    fun resetLookupInputsToProfile() {
+        val filters = uiState.selectorState?.filters
+        if (filters != null && profileLiftInputFor(filters).isNotBlank()) {
+            lookupLiftOverrides.remove(lookupInputKey(filters))
+        }
+        if (profileBodyweightInput().isNotBlank()) {
+            lookupBodyweightOverride = null
+        }
+        uiState = resolveLookupInputState(uiState)
+    }
+
+    fun syncProfileDefaults(updatedProfileDefaults: ProfileLookupDefaults) {
+        profileDefaults = updatedProfileDefaults
+        uiState = resolveLookupInputState(uiState)
     }
 
     private fun loadBootstrap(
@@ -147,7 +188,7 @@ class HomeViewModel(
         datasetSnapshot = snapshot
         return buildHomeState(
             snapshot = snapshot,
-            requestedFilters = defaultFilters(rootIndex),
+            requestedFilters = defaultFilters(rootIndex, profileDefaults),
             repository = repository,
             loadMode = loadMode,
         )
@@ -155,7 +196,7 @@ class HomeViewModel(
 
     private fun reloadCurrentSelection(loadMode: LookupPayloadLoadMode = loadModeForRoute(currentRoute)) {
         val snapshot = datasetSnapshot ?: return
-        val requestedFilters = uiState.selectorState?.filters ?: defaultFilters(snapshot.rootIndex)
+        val requestedFilters = uiState.selectorState?.filters ?: defaultFilters(snapshot.rootIndex, profileDefaults)
 
         uiState = uiState.copy(isLoading = true, errorMessage = null)
         executor.execute {
@@ -175,7 +216,7 @@ class HomeViewModel(
         nextState: HomeUiState,
         completedLoadMode: LookupPayloadLoadMode,
     ) {
-        uiState = nextState
+        uiState = resolveLookupInputState(nextState)
         val desiredLoadMode = loadModeForRoute(currentRoute)
         if (completedLoadMode == desiredLoadMode || !stateNeedsReloadForRoute(nextState, currentRoute)) {
             return
@@ -207,16 +248,85 @@ class HomeViewModel(
     }
 
     companion object {
-        fun factory(repository: PublishedDataRepository): ViewModelProvider.Factory =
+        fun factory(
+            repository: PublishedDataRepository,
+            profileDefaults: ProfileLookupDefaults = ProfileLookupDefaults(),
+        ): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
-                        return HomeViewModel(repository) as T
+                        return HomeViewModel(repository, profileDefaults) as T
                     }
                     throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
                 }
             }
+    }
+
+    private fun resolveLookupInputState(state: HomeUiState): HomeUiState {
+        val filters = state.selectorState?.filters
+        val profileLiftInput = filters?.let(::profileLiftInputFor).orEmpty()
+        val liftInput = when {
+            filters == null -> ""
+            lookupLiftOverrides.containsKey(lookupInputKey(filters)) -> {
+                lookupLiftOverrides.getValue(lookupInputKey(filters))
+            }
+            profileLiftInput.isNotBlank() -> profileLiftInput
+            else -> state.lookupPreview?.p50?.let(::formatMetricValue).orEmpty()
+        }
+
+        val profileBodyweightInput = profileBodyweightInput()
+        val bodyweightInput = lookupBodyweightOverride ?: profileBodyweightInput
+
+        return state.copy(
+            lookupInputState = LookupInputState(
+                liftInput = liftInput,
+                bodyweightInput = bodyweightInput,
+                profileLiftInput = profileLiftInput,
+                profileBodyweightInput = profileBodyweightInput,
+                hasProfileValues = profileLiftInput.isNotBlank() || profileBodyweightInput.isNotBlank(),
+            ),
+        )
+    }
+
+    private fun lookupInputKey(filters: LookupFilters): String {
+        return "${filters.lift}|${filters.metric}"
+    }
+
+    private fun profileBodyweightInput(): String {
+        return profileDefaults.bodyweightKg?.let(::formatMetricValue).orEmpty()
+    }
+
+    private fun profileLiftInputFor(filters: LookupFilters): String {
+        val liftKg = profileLiftValueKg(filters.lift) ?: return ""
+        return formatProfileValueForMetric(liftKg, filters.metric).orEmpty()
+    }
+
+    private fun profileLiftValueKg(lift: String): Float? {
+        return when (lift) {
+            "S" -> profileDefaults.squatKg
+            "B" -> profileDefaults.benchKg
+            "D" -> profileDefaults.deadliftKg
+            "T" -> {
+                val squat = profileDefaults.squatKg
+                val bench = profileDefaults.benchKg
+                val deadlift = profileDefaults.deadliftKg
+                if (squat != null && bench != null && deadlift != null) {
+                    squat + bench + deadlift
+                } else {
+                    null
+                }
+            }
+            else -> null
+        }
+    }
+
+    private fun formatProfileValueForMetric(valueKg: Float, metric: String): String? {
+        return when (metric.lowercase(Locale.US)) {
+            "kg" -> formatMetricValue(valueKg)
+            "lb" -> formatMetricValue(valueKg * 2.20462f)
+            else -> null
+        }
     }
 }
 
@@ -250,6 +360,7 @@ private fun loadModeForRoute(route: AppRoute): LookupPayloadLoadMode {
         AppRoute.LOG,
         AppRoute.PROGRAMMES,
         AppRoute.PROGRESS,
+        AppRoute.PROFILE,
         -> LookupPayloadLoadMode.SUMMARY_ONLY
 
         AppRoute.LOOKUP -> LookupPayloadLoadMode.FULL
@@ -1009,15 +1120,21 @@ private fun buildSelectorState(
     )
 }
 
-private fun defaultFilters(rootIndex: RootIndex): LookupFilters {
-    val sex = pickPreferredValue(sexOptions(rootIndex), "", "M")
-    val equip = pickPreferredValue(equipOptions(rootIndex, sex), "", "Raw")
+private fun defaultFilters(
+    rootIndex: RootIndex,
+    profile: ProfileLookupDefaults = ProfileLookupDefaults(),
+): LookupFilters {
+    val preferredSex = profile.sex.ifEmpty { "M" }
+    val preferredEquip = profile.equipment.ifEmpty { "Raw" }
+    val preferredTested = profile.tested.ifEmpty { "All" }
+    val sex = pickPreferredValue(sexOptions(rootIndex), "", preferredSex)
+    val equip = pickPreferredValue(equipOptions(rootIndex, sex), "", preferredEquip)
     return LookupFilters(
         sex = sex,
         equip = equip,
         wc = "All",
         age = "All Ages",
-        tested = "All",
+        tested = preferredTested,
         lift = "T",
         metric = "Kg",
     )

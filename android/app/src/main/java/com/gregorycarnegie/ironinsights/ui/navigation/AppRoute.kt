@@ -11,6 +11,7 @@ enum class AppRoute(
     LOG("Log", NavRoutes.LOG),
     PROGRAMMES("Plan", NavRoutes.PROGRAMMES),
     PROGRESS("PRs", NavRoutes.PROGRESS),
+    PROFILE("Profile", NavRoutes.PROFILE),
     ;
 
     val isAnalytics: Boolean

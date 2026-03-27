@@ -21,7 +21,16 @@ data class HomeUiState(
     val trendSeries: TrendSeriesPresentation? = null,
     val comparisonRows: List<CohortComparisonRowPresentation> = emptyList(),
     val loadSummary: DatasetLoadSummary? = null,
+    val lookupInputState: LookupInputState = LookupInputState(),
     val errorMessage: String? = null,
+)
+
+data class LookupInputState(
+    val liftInput: String = "",
+    val bodyweightInput: String = "",
+    val profileLiftInput: String = "",
+    val profileBodyweightInput: String = "",
+    val hasProfileValues: Boolean = false,
 )
 
 data class TrendSeriesPresentation(

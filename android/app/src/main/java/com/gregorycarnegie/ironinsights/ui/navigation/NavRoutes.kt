@@ -1,6 +1,7 @@
 package com.gregorycarnegie.ironinsights.ui.navigation
 
 object NavRoutes {
+    const val ONBOARDING = "onboarding"
     const val LOOKUP = "lookup"
     const val COMPARE = "compare"
     const val TRENDS = "trends"
@@ -14,4 +15,5 @@ object NavRoutes {
     const val EQUIPMENT = "equipment"
     const val SETTINGS = "settings"
     const val EXPORT = "export"
+    const val PROFILE = "profile"
 }
