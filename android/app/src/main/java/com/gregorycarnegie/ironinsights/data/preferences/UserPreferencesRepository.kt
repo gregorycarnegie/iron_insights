@@ -114,17 +114,4 @@ class UserPreferencesRepository(
         }
     }
 
-    suspend fun updateProfile(
-        sex: String,
-        bodyweightKg: Float?,
-        heightCm: Float?,
-        age: Int?,
-        equipment: String,
-        tested: String,
-        squatKg: Float?,
-        benchKg: Float?,
-        deadliftKg: Float?,
-    ) {
-        completeOnboarding(sex, bodyweightKg, heightCm, age, equipment, tested, squatKg, benchKg, deadliftKg)
-    }
 }

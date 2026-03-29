@@ -8,8 +8,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gregorycarnegie.ironinsights.data.preferences.UserPreferencesRepository
 import com.gregorycarnegie.ironinsights.domain.calculators.WeightUnit
+import com.gregorycarnegie.ironinsights.domain.calculators.displayToKg
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class OnboardingUiState(
     val step: OnboardingStep = OnboardingStep.BODY_METRICS,
@@ -99,20 +101,12 @@ class OnboardingViewModel(
         uiState = uiState.copy(isSaving = true)
 
         val unit = uiState.weightUnit
-        val bwKg = uiState.bodyweightInput.toFloatOrNull()?.let {
-            if (unit == WeightUnit.LB) it / 2.20462f else it
-        }
+        val bwKg = uiState.bodyweightInput.toFloatOrNull()?.let { displayToKg(it, unit) }
         val heightCm = uiState.heightInput.toFloatOrNull()
         val age = uiState.ageInput.toIntOrNull()
-        val squatKg = uiState.squatInput.toFloatOrNull()?.let {
-            if (unit == WeightUnit.LB) it / 2.20462f else it
-        }
-        val benchKg = uiState.benchInput.toFloatOrNull()?.let {
-            if (unit == WeightUnit.LB) it / 2.20462f else it
-        }
-        val deadliftKg = uiState.deadliftInput.toFloatOrNull()?.let {
-            if (unit == WeightUnit.LB) it / 2.20462f else it
-        }
+        val squatKg = uiState.squatInput.toFloatOrNull()?.let { displayToKg(it, unit) }
+        val benchKg = uiState.benchInput.toFloatOrNull()?.let { displayToKg(it, unit) }
+        val deadliftKg = uiState.deadliftInput.toFloatOrNull()?.let { displayToKg(it, unit) }
 
         viewModelScope.launch(Dispatchers.IO) {
             preferencesRepository.completeOnboarding(
@@ -126,7 +120,7 @@ class OnboardingViewModel(
                 benchKg = benchKg,
                 deadliftKg = deadliftKg,
             )
-            viewModelScope.launch(Dispatchers.Main) {
+            withContext(Dispatchers.Main) {
                 onComplete()
             }
         }

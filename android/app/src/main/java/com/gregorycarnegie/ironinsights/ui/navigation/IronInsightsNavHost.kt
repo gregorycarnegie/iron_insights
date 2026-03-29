@@ -65,6 +65,13 @@ fun IronInsightsNavHost(
     ) {
         composable(NavRoutes.ONBOARDING) {
             val onboardingState = onboardingViewModel.uiState
+            val finishOnboarding: () -> Unit = {
+                onboardingViewModel.finish {
+                    navController.navigate(NavRoutes.LOOKUP) {
+                        popUpTo(NavRoutes.ONBOARDING) { inclusive = true }
+                    }
+                }
+            }
             OnboardingScreen(
                 uiState = onboardingState,
                 onUpdateSex = onboardingViewModel::updateSex,
@@ -78,20 +85,8 @@ fun IronInsightsNavHost(
                 onUpdateDeadlift = onboardingViewModel::updateDeadlift,
                 onNext = onboardingViewModel::nextStep,
                 onBack = onboardingViewModel::previousStep,
-                onFinish = {
-                    onboardingViewModel.finish {
-                        navController.navigate(NavRoutes.LOOKUP) {
-                            popUpTo(NavRoutes.ONBOARDING) { inclusive = true }
-                        }
-                    }
-                },
-                onSkip = {
-                    onboardingViewModel.finish {
-                        navController.navigate(NavRoutes.LOOKUP) {
-                            popUpTo(NavRoutes.ONBOARDING) { inclusive = true }
-                        }
-                    }
-                },
+                onFinish = finishOnboarding,
+                onSkip = finishOnboarding,
             )
         }
 

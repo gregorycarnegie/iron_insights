@@ -9,8 +9,11 @@ import androidx.lifecycle.viewModelScope
 import com.gregorycarnegie.ironinsights.data.preferences.UserPreferences
 import com.gregorycarnegie.ironinsights.data.preferences.UserPreferencesRepository
 import com.gregorycarnegie.ironinsights.domain.calculators.WeightUnit
+import com.gregorycarnegie.ironinsights.domain.calculators.displayToKg
+import com.gregorycarnegie.ironinsights.domain.calculators.kgToDisplay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ProfileUiState(
     val preferences: UserPreferences = UserPreferences(),
@@ -36,19 +39,7 @@ class ProfileViewModel(
     init {
         viewModelScope.launch {
             preferencesRepository.preferencesFlow.collect { prefs ->
-                val unit = prefs.weightUnit
-                uiState = uiState.copy(
-                    preferences = prefs,
-                    sexInput = prefs.sex,
-                    bodyweightInput = prefs.bodyweightKg?.let { formatForUnit(it, unit) } ?: "",
-                    heightInput = prefs.heightCm?.let { "%.0f".format(it) } ?: "",
-                    ageInput = prefs.age?.toString() ?: "",
-                    equipmentInput = prefs.equipment,
-                    testedInput = prefs.tested,
-                    squatInput = prefs.squatKg?.let { formatForUnit(it, unit) } ?: "",
-                    benchInput = prefs.benchKg?.let { formatForUnit(it, unit) } ?: "",
-                    deadliftInput = prefs.deadliftKg?.let { formatForUnit(it, unit) } ?: "",
-                )
+                uiState = inputsFromPrefs(prefs)
             }
         }
     }
@@ -58,10 +49,13 @@ class ProfileViewModel(
     }
 
     fun cancelEditing() {
-        val prefs = uiState.preferences
+        uiState = inputsFromPrefs(uiState.preferences).copy(isEditing = false)
+    }
+
+    private fun inputsFromPrefs(prefs: UserPreferences): ProfileUiState {
         val unit = prefs.weightUnit
-        uiState = uiState.copy(
-            isEditing = false,
+        return uiState.copy(
+            preferences = prefs,
             sexInput = prefs.sex,
             bodyweightInput = prefs.bodyweightKg?.let { formatForUnit(it, unit) } ?: "",
             heightInput = prefs.heightCm?.let { "%.0f".format(it) } ?: "",
@@ -86,23 +80,15 @@ class ProfileViewModel(
 
     fun saveProfile() {
         val unit = uiState.preferences.weightUnit
-        val bwKg = uiState.bodyweightInput.toFloatOrNull()?.let {
-            if (unit == WeightUnit.LB) it / 2.20462f else it
-        }
+        val bwKg = uiState.bodyweightInput.toFloatOrNull()?.let { displayToKg(it, unit) }
         val heightCm = uiState.heightInput.toFloatOrNull()
         val age = uiState.ageInput.toIntOrNull()
-        val squatKg = uiState.squatInput.toFloatOrNull()?.let {
-            if (unit == WeightUnit.LB) it / 2.20462f else it
-        }
-        val benchKg = uiState.benchInput.toFloatOrNull()?.let {
-            if (unit == WeightUnit.LB) it / 2.20462f else it
-        }
-        val deadliftKg = uiState.deadliftInput.toFloatOrNull()?.let {
-            if (unit == WeightUnit.LB) it / 2.20462f else it
-        }
+        val squatKg = uiState.squatInput.toFloatOrNull()?.let { displayToKg(it, unit) }
+        val benchKg = uiState.benchInput.toFloatOrNull()?.let { displayToKg(it, unit) }
+        val deadliftKg = uiState.deadliftInput.toFloatOrNull()?.let { displayToKg(it, unit) }
 
         viewModelScope.launch(Dispatchers.IO) {
-            preferencesRepository.updateProfile(
+            preferencesRepository.completeOnboarding(
                 sex = uiState.sexInput,
                 bodyweightKg = bwKg,
                 heightCm = heightCm,
@@ -113,7 +99,7 @@ class ProfileViewModel(
                 benchKg = benchKg,
                 deadliftKg = deadliftKg,
             )
-            viewModelScope.launch(Dispatchers.Main) {
+            withContext(Dispatchers.Main) {
                 uiState = uiState.copy(isEditing = false)
             }
         }
@@ -130,7 +116,7 @@ class ProfileViewModel(
         }
 
         private fun formatForUnit(kg: Float, unit: WeightUnit): String {
-            val value = if (unit == WeightUnit.LB) kg * 2.20462f else kg
+            val value = kgToDisplay(kg, unit)
             return if (value == value.toLong().toFloat()) "%.0f".format(value)
             else "%.1f".format(value)
         }

@@ -3,7 +3,6 @@ package com.gregorycarnegie.ironinsights.ui.profile
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,19 +23,22 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.gregorycarnegie.ironinsights.domain.calculators.WeightUnit
+import com.gregorycarnegie.ironinsights.domain.calculators.kgToDisplay
 import com.gregorycarnegie.ironinsights.ui.home.SectionCard
 import kotlin.math.PI
 import kotlin.math.cos
@@ -83,7 +85,6 @@ fun ProfileScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
-            // Header
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -112,7 +113,6 @@ fun ProfileScreen(
                 }
             }
 
-            // Radar chart for S/B/D
             val squatKg = prefs.squatKg
             val benchKg = prefs.benchKg
             val deadliftKg = prefs.deadliftKg
@@ -133,7 +133,6 @@ fun ProfileScreen(
             }
 
             if (uiState.isEditing) {
-                // Editable fields
                 item {
                     SectionCard(title = "About you", eyebrow = "Body metrics") {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -269,14 +268,12 @@ fun ProfileScreen(
                     }
                 }
             } else {
-                // Read-only summary
                 item {
                     SectionCard(title = "Details", eyebrow = "Body metrics") {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             ProfileDetailRow("Sex", if (prefs.sex == "M") "Male" else if (prefs.sex == "F") "Female" else "--")
                             ProfileDetailRow("Bodyweight", prefs.bodyweightKg?.let {
-                                val display = if (prefs.weightUnit == com.gregorycarnegie.ironinsights.domain.calculators.WeightUnit.LB) it * 2.20462f else it
-                                "%.1f $weightLabel".format(display)
+                                "%.1f $weightLabel".format(kgToDisplay(it, prefs.weightUnit))
                             } ?: "--")
                             ProfileDetailRow("Height", prefs.heightCm?.let { "%.0f cm".format(it) } ?: "--")
                             ProfileDetailRow("Age", prefs.age?.toString() ?: "--")
@@ -324,20 +321,35 @@ private fun LiftRadarChart(
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
     val outlineColor = MaterialTheme.colorScheme.outlineVariant
-    val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
-    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val onSurfaceArgb = MaterialTheme.colorScheme.onSurface.toArgb()
 
-    // 3 axes: Squat, Bench, Deadlift
     val labels = listOf("Squat", "Bench", "Deadlift")
     val values = listOf(squatKg, benchKg, deadliftKg)
     val maxValue = values.max().coerceAtLeast(1f)
+
+    val textPaint = remember(onSurfaceArgb) {
+        android.graphics.Paint().apply {
+            color = onSurfaceArgb
+            textSize = 38f
+            textAlign = android.graphics.Paint.Align.CENTER
+            isAntiAlias = true
+        }
+    }
+    val smallPaint = remember(onSurfaceArgb) {
+        android.graphics.Paint().apply {
+            color = onSurfaceArgb
+            textSize = 32f
+            textAlign = android.graphics.Paint.Align.CENTER
+            isAntiAlias = true
+        }
+    }
 
     Canvas(modifier = modifier.padding(32.dp)) {
         val centerX = size.width / 2f
         val centerY = size.height / 2f
         val radius = minOf(centerX, centerY) * 0.75f
         val axisCount = 3
-        // Start from top (- PI/2)
+        // Start from top (-PI/2) so Squat axis points upward
         val angleStep = (2 * PI / axisCount).toFloat()
         val startAngle = (-PI / 2f).toFloat()
 
@@ -347,7 +359,6 @@ private fun LiftRadarChart(
             centerY + r * sin(angleFor(i)),
         )
 
-        // Draw concentric grid polygons (5 levels)
         val gridLevels = 5
         for (level in 1..gridLevels) {
             val r = radius * level / gridLevels
@@ -360,7 +371,6 @@ private fun LiftRadarChart(
             drawPath(path, color = outlineColor.copy(alpha = 0.3f), style = Stroke(width = 1f))
         }
 
-        // Draw axes
         for (i in 0 until axisCount) {
             val end = pointAt(i, radius)
             drawLine(
@@ -371,7 +381,6 @@ private fun LiftRadarChart(
             )
         }
 
-        // Draw data polygon (filled)
         val dataPath = Path()
         for (i in values.indices) {
             val normalized = (values[i] / maxValue).coerceIn(0f, 1f)
@@ -380,18 +389,9 @@ private fun LiftRadarChart(
         }
         dataPath.close()
 
-        drawPath(
-            path = dataPath,
-            color = primaryColor.copy(alpha = 0.2f),
-            style = Fill,
-        )
-        drawPath(
-            path = dataPath,
-            color = primaryColor,
-            style = Stroke(width = 3f),
-        )
+        drawPath(path = dataPath, color = primaryColor.copy(alpha = 0.2f), style = Fill)
+        drawPath(path = dataPath, color = primaryColor, style = Stroke(width = 3f))
 
-        // Draw data points
         for (i in values.indices) {
             val normalized = (values[i] / maxValue).coerceIn(0f, 1f)
             val pt = pointAt(i, radius * normalized)
@@ -399,36 +399,13 @@ private fun LiftRadarChart(
             drawCircle(color = Color.White, radius = 3f, center = pt)
         }
 
-        // Draw labels
-        val textPaint = android.graphics.Paint().apply {
-            color = onSurfaceColor.hashCode()
-            textSize = 38f
-            textAlign = android.graphics.Paint.Align.CENTER
-            isAntiAlias = true
-        }
-
         for (i in labels.indices) {
             val labelOffset = pointAt(i, radius + 40f)
-            val valueDisplay = if (values[i] > 0f) {
-                val displayVal = if (weightLabel == "lb") values[i] * 2.20462f else values[i]
-                "\n%.0f $weightLabel".format(displayVal)
-            } else ""
-
-            drawContext.canvas.nativeCanvas.drawText(
-                labels[i],
-                labelOffset.x,
-                labelOffset.y,
-                textPaint,
-            )
-            if (valueDisplay.isNotEmpty()) {
-                val smallPaint = android.graphics.Paint().apply {
-                    color = onSurfaceColor.hashCode()
-                    textSize = 32f
-                    textAlign = android.graphics.Paint.Align.CENTER
-                    isAntiAlias = true
-                }
+            drawContext.canvas.nativeCanvas.drawText(labels[i], labelOffset.x, labelOffset.y, textPaint)
+            if (values[i] > 0f) {
+                val displayVal = kgToDisplay(values[i], if (weightLabel == "lb") WeightUnit.LB else WeightUnit.KG)
                 drawContext.canvas.nativeCanvas.drawText(
-                    valueDisplay.trim(),
+                    "%.0f $weightLabel".format(displayVal),
                     labelOffset.x,
                     labelOffset.y + 40f,
                     smallPaint,

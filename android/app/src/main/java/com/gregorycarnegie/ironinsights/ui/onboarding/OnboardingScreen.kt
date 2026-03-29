@@ -111,7 +111,6 @@ fun OnboardingScreen(
                 }
             }
 
-            // Bottom navigation buttons
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
