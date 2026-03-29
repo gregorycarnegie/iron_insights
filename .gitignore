@@ -2,6 +2,8 @@
 /app/target
 /app/dist
 /app/data
+/app/Cargo.lock
+/pipeline/Cargo.lock
 /dist
 .codex
 
