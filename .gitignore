@@ -3,6 +3,7 @@
 /app/dist
 /app/data
 /dist
+.codex
 
 # Keep only canonical dataset in /data tracked.
 # Generated copies should stay untracked.

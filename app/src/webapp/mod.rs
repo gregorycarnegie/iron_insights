@@ -2298,6 +2298,13 @@ fn App() -> impl IntoView {
                     </a>
                     ". Huge appreciation to their team for keeping this public dataset free."
                 </p>
+                <p>
+                    "If Iron Insights helps your training, "
+                    <a href="./landing/help-make-it-better.html">
+                        "help make it better"
+                    </a>
+                    "."
+                </p>
             </footer>
         </div>
     }
