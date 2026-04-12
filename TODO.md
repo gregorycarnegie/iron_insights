@@ -66,6 +66,14 @@
 - [x] Use workflow `paths` filters so website and Android pipelines do not trigger each other unnecessarily
 - [ ] Configure GitHub environments and secrets for Android signing and store upload
 
+## Code Quality
+
+- [x] Canvas context `expect()` in `app/src/webapp/components/plate_calc.rs` `draw_barbell()` — replace with early return so a missing 2D context fails silently rather than panicking in WASM
+- [ ] No unit tests in the `app` crate — WASM CSR makes unit tests awkward but integration/snapshot tests would catch regressions in complex components
+- [ ] Component size — `trends.rs` (~474 LOC), `plate_calc.rs` (~562 LOC), and `one_rep_max.rs` (~434 LOC) exceed a comfortable reading size; candidates for sub-component extraction
+- [x] No `///` doc comments on public types in `iron_insights_core` (`HistogramBin`, `HeatmapBin`, `HistogramDiagnostics`, etc.)
+- [x] IPF weight class boundaries are hardcoded in `pipeline/src/bin/02_build_aggregates.rs`; if they ever change they have only one owner today but a shared-constants home in `iron_insights_core` would make the contract explicit
+
 ## Immediate Next Slice
 
 - [x] Finish initial `android/` scaffold

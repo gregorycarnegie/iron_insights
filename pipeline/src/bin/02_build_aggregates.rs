@@ -4,6 +4,7 @@ use std::thread;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use iron_insights_core::{IPF_FEMALE_WEIGHT_CLASSES, IPF_MALE_WEIGHT_CLASSES};
 use polars::prelude::*;
 
 #[derive(Debug, Parser)]
@@ -168,43 +169,31 @@ fn event_filter(events: &[&str]) -> Expr {
         .fold(lit(false), |expr, ev| expr.or(col("Event").eq(lit(*ev))))
 }
 
+fn weight_class_chain(bw: Expr, classes: &[(f32, &'static str)]) -> Expr {
+    // Build a when/then chain from the shared IPF boundary constants in iron_insights_core.
+    // Bootstrap with two entries to produce a ChainedThen — Then and ChainedThen are distinct
+    // Polars types so both can't be held in the same mut variable.
+    let mut iter = classes.iter();
+    let (u0, l0) = iter.next().expect("classes must have at least 2 entries");
+    let (u1, l1) = iter.next().expect("classes must have at least 2 entries");
+    let mut expr = when(bw.clone().lt_eq(lit(*u0)))
+        .then(lit(*l0))
+        .when(bw.clone().lt_eq(lit(*u1)))
+        .then(lit(*l1));
+    for (upper, label) in iter {
+        if upper.is_finite() {
+            expr = expr.when(bw.clone().lt_eq(lit(*upper))).then(lit(*label));
+        } else {
+            return expr.otherwise(lit(*label));
+        }
+    }
+    expr.otherwise(lit("Unknown"))
+}
+
 fn derive_ipf_weight_class_expr() -> Expr {
     let bw = col("BodyweightKg").cast(DataType::Float32);
-    let men = when(bw.clone().lt_eq(lit(53.0f32)))
-        .then(lit("53"))
-        .when(bw.clone().lt_eq(lit(59.0f32)))
-        .then(lit("59"))
-        .when(bw.clone().lt_eq(lit(66.0f32)))
-        .then(lit("66"))
-        .when(bw.clone().lt_eq(lit(74.0f32)))
-        .then(lit("74"))
-        .when(bw.clone().lt_eq(lit(83.0f32)))
-        .then(lit("83"))
-        .when(bw.clone().lt_eq(lit(93.0f32)))
-        .then(lit("93"))
-        .when(bw.clone().lt_eq(lit(105.0f32)))
-        .then(lit("105"))
-        .when(bw.clone().lt_eq(lit(120.0f32)))
-        .then(lit("120"))
-        .otherwise(lit("120+"));
-
-    let women = when(bw.clone().lt_eq(lit(43.0f32)))
-        .then(lit("43"))
-        .when(bw.clone().lt_eq(lit(47.0f32)))
-        .then(lit("47"))
-        .when(bw.clone().lt_eq(lit(52.0f32)))
-        .then(lit("52"))
-        .when(bw.clone().lt_eq(lit(57.0f32)))
-        .then(lit("57"))
-        .when(bw.clone().lt_eq(lit(63.0f32)))
-        .then(lit("63"))
-        .when(bw.clone().lt_eq(lit(69.0f32)))
-        .then(lit("69"))
-        .when(bw.clone().lt_eq(lit(76.0f32)))
-        .then(lit("76"))
-        .when(bw.clone().lt_eq(lit(84.0f32)))
-        .then(lit("84"))
-        .otherwise(lit("84+"));
+    let men = weight_class_chain(bw.clone(), IPF_MALE_WEIGHT_CLASSES);
+    let women = weight_class_chain(bw, IPF_FEMALE_WEIGHT_CLASSES);
 
     when(col("Sex").eq(lit("M")))
         .then(men)

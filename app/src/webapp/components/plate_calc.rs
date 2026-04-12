@@ -156,12 +156,14 @@ fn draw_barbell(canvas: &HtmlCanvasElement, plates: &[PlateResult], _bar_kg: f32
     canvas.set_width(buf_w);
     canvas.set_height(buf_h);
 
-    let ctx: CanvasRenderingContext2d = canvas
+    let Some(ctx): Option<CanvasRenderingContext2d> = canvas
         .get_context("2d")
         .ok()
         .flatten()
         .and_then(|c| c.dyn_into().ok())
-        .expect("2d context");
+    else {
+        return;
+    };
 
     let _ = ctx.scale(dpr, dpr);
     let w = css_w;

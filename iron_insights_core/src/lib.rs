@@ -8,28 +8,49 @@ pub const BINARY_FORMAT_VERSION: u16 = 1;
 pub const HISTOGRAM_MAGIC: [u8; 4] = *b"IIH1";
 pub const HEATMAP_MAGIC: [u8; 4] = *b"IIM1";
 
+/// A parsed histogram binary payload for a single lifter cohort slice.
+///
+/// `counts[i]` is the number of lifters whose best lift falls in the bin
+/// `[min + i * base_bin, min + (i + 1) * base_bin)`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HistogramBin {
+    /// Lower bound of the first bin (kg).
     pub min: f32,
+    /// Upper bound of the last bin (kg).
     pub max: f32,
+    /// Width of each bin (kg).
     pub base_bin: f32,
+    /// Per-bin lifter counts.
     pub counts: Vec<u32>,
     total: u32,
 }
 
+/// A parsed heatmap binary payload mapping bodyweight (x) vs lift (y) cell counts.
+///
+/// `grid[y * width + x]` is the number of lifters in that (bodyweight, lift) cell.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HeatmapBin {
+    /// Lower bodyweight bound (kg).
     pub min_x: f32,
+    /// Upper bodyweight bound (kg).
     pub max_x: f32,
+    /// Lower lift bound (kg).
     pub min_y: f32,
+    /// Upper lift bound (kg).
     pub max_y: f32,
+    /// Bodyweight bin width (kg).
     pub base_x: f32,
+    /// Lift bin width (kg).
     pub base_y: f32,
+    /// Number of bodyweight columns.
     pub width: usize,
+    /// Number of lift rows.
     pub height: usize,
+    /// Row-major grid of lifter counts (`grid[y * width + x]`).
     pub grid: Vec<u32>,
 }
 
+/// Descriptive statistics derived from a [`HistogramBin`] for display and QA.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HistogramDiagnostics {
     pub p01: f32,
@@ -41,22 +62,30 @@ pub struct HistogramDiagnostics {
     pub p90: f32,
     pub p95: f32,
     pub p99: f32,
+    /// Interquartile range (p75 − p25).
     pub iqr: f32,
+    /// p10 value (lower bound of the central 80%).
     pub central_80_low: f32,
+    /// p90 value (upper bound of the central 80%).
     pub central_80_high: f32,
     pub mode_bin_start: f32,
     pub mode_bin_end: f32,
     pub mode_bin_center: f32,
     pub mode_bin_count: u32,
+    /// Number of bins with at least one lifter.
     pub occupied_bins: usize,
     pub total_bins: usize,
+    /// Fraction of bins that are empty (0.0 = dense, 1.0 = all empty).
     pub sparsity_score: f32,
     pub total_lifters: u32,
+    /// True when the cohort is below [`TINY_COHORT_WARNING_THRESHOLD`].
     pub tiny_sample_warning: bool,
 }
 
+/// Local density context around a single histogram bin (e.g. the bin containing a user's lift).
 #[derive(Debug, Clone, PartialEq)]
 pub struct HistogramDensity {
+    /// Human-readable label for this density sample (e.g. `"your lift"`).
     pub label: &'static str,
     pub bin_index: usize,
     pub bin_start: f32,
@@ -64,15 +93,26 @@ pub struct HistogramDensity {
     pub current_bin_count: u32,
     pub left_bin_count: u32,
     pub right_bin_count: u32,
+    /// Sum of current, left, and right bin counts.
     pub neighborhood_count: u32,
+    /// `current_bin_count / neighborhood_count`, or 0 if neighborhood is empty.
     pub local_density_ratio: f32,
+    /// Fraction of total cohort that falls in the three-bin neighborhood.
     pub neighborhood_share: f32,
 }
 
+/// Percentile and rank statistics conditioned on a lifter's bodyweight band.
+///
+/// Derived from the heatmap by summing counts in the bodyweight column(s) that
+/// bracket the lifter's actual bodyweight, then computing a rank within that
+/// narrowed distribution.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BodyweightConditionedStats {
+    /// Percentile within the bodyweight-conditioned cohort (0–100).
     pub percentile: f32,
+    /// 1-based rank within the bodyweight-conditioned cohort.
     pub rank: usize,
+    /// Total lifters in the bodyweight window used for conditioning.
     pub total_nearby: u32,
     pub bw_bin_index: usize,
     pub bw_bin_low: f32,
@@ -89,6 +129,53 @@ pub struct BodyweightConditionedStats {
 
 pub const TINY_COHORT_WARNING_THRESHOLD: u32 = 250;
 const DIAGNOSTIC_PERCENTILES: [f32; 9] = [0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99];
+
+/// IPF men's weight class boundaries and their canonical string labels.
+///
+/// Each entry is `(upper_bound_kg_exclusive, label)`. The final entry uses
+/// `f32::INFINITY` to represent the open-ended top class (`"120+"`).
+pub const IPF_MALE_WEIGHT_CLASSES: &[(f32, &str)] = &[
+    (53.0, "53"),
+    (59.0, "59"),
+    (66.0, "66"),
+    (74.0, "74"),
+    (83.0, "83"),
+    (93.0, "93"),
+    (105.0, "105"),
+    (120.0, "120"),
+    (f32::INFINITY, "120+"),
+];
+
+/// IPF women's weight class boundaries and their canonical string labels.
+///
+/// Each entry is `(upper_bound_kg_exclusive, label)`. The final entry uses
+/// `f32::INFINITY` to represent the open-ended top class (`"84+"`).
+pub const IPF_FEMALE_WEIGHT_CLASSES: &[(f32, &str)] = &[
+    (43.0, "43"),
+    (47.0, "47"),
+    (52.0, "52"),
+    (57.0, "57"),
+    (63.0, "63"),
+    (69.0, "69"),
+    (76.0, "76"),
+    (84.0, "84"),
+    (f32::INFINITY, "84+"),
+];
+
+/// Returns the IPF weight class label for a given bodyweight (kg) and sex (`"M"` or `"F"`).
+///
+/// Returns `None` if the sex string is not `"M"` or `"F"`.
+pub fn ipf_weight_class(bodyweight_kg: f32, sex: &str) -> Option<&'static str> {
+    let classes = match sex {
+        "M" => IPF_MALE_WEIGHT_CLASSES,
+        "F" => IPF_FEMALE_WEIGHT_CLASSES,
+        _ => return None,
+    };
+    classes
+        .iter()
+        .find(|(upper, _)| bodyweight_kg <= *upper)
+        .map(|(_, label)| *label)
+}
 
 impl HistogramBin {
     pub fn new(min: f32, max: f32, base_bin: f32, counts: Vec<u32>) -> Self {

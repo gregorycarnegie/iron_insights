@@ -32,7 +32,12 @@
       "Bash(\"C:/Program Files/Android/Android Studio/jbr/bin/javap\" -p -classpath classes.jar \"androidx.health.connect.client.records.metadata.Metadata\")",
       "Bash(\"C:/Program Files/Android/Android Studio/jbr/bin/javap\" -p -classpath classes.jar \"androidx.health.connect.client.records.metadata.Device\")",
       "Bash(ls /c/Users/grego/rust_projects/iron_insights2/android/app/src/main/java/com/gregorycarnegie/ironinsights/ui/*/)",
-      "Bash(grep -r formatMetricValue c:/Users/grego/rust_projects/iron_insights2/android/app/src/main/java/com/gregorycarnegie/ironinsights/ --include=*.kt)"
+      "Bash(grep -r formatMetricValue c:/Users/grego/rust_projects/iron_insights2/android/app/src/main/java/com/gregorycarnegie/ironinsights/ --include=*.kt)",
+      "Read(//c/Users/grego/AppData/Local/Temp/claude/c--Users-grego-rust-projects-iron-insights2/89717580-887a-4a70-86e1-cdfc59960595/tasks/**)",
+      "Bash(grep -r \"edition\" /c/Users/grego/rust_projects/iron_insights2/Cargo.toml /c/Users/grego/rust_projects/iron_insights2/*/Cargo.toml)",
+      "Bash(wc -l /c/Users/grego/rust_projects/iron_insights2/app/src/webapp/*.rs)",
+      "Bash(wc -l /c/Users/grego/rust_projects/iron_insights2/pipeline/src/*.rs /c/Users/grego/rust_projects/iron_insights2/pipeline/src/bin/*.rs)",
+      "Bash(cargo test:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\grego\\.claude\\projects\\c--Users-grego-rust-projects-iron-insights2\\memory"
