@@ -24,8 +24,7 @@ data class PublishedSliceKey(
 
 data class PublishedSlicePaths(
     val meta: String,
-    val hist: String,
-    val heat: String,
+    val bin: String,
 )
 
 data class PublishedSliceEntry(
@@ -51,14 +50,14 @@ object PublishedDataContract {
             purpose = "Resolve slice summaries and binary payload locations.",
         ),
         DatasetEndpoint(
-            title = "Histogram and heatmap binaries",
-            relativePath = "data/<version>/(hist|heat)/*.bin",
-            purpose = "Drive percentile, density, and bodyweight-conditioned views.",
+            title = "Combined binary (IIC1)",
+            relativePath = "data/<version>/bin/*.bin",
+            purpose = "Drive percentile, density, and bodyweight-conditioned views (histogram + heatmap in one fetch).",
         ),
         DatasetEndpoint(
             title = "Trends payload",
-            relativePath = "data/<version>/trends.json",
-            purpose = "Power the trend charts and cohort history screens.",
+            relativePath = "data/<version>/trends_shards/<sex>/<equip>/trends.json",
+            purpose = "Power the trend charts and cohort history screens (per sex/equip shard).",
         ),
     )
 
@@ -105,15 +104,12 @@ object PublishedSliceContract {
             key = key,
             paths = PublishedSlicePaths(
                 meta = "meta/$basePath.json",
-                hist = "hist/$basePath.bin",
-                heat = "heat/$basePath.bin",
+                bin = "bin/$basePath.bin",
             ),
         )
     }
 
-    fun histPathFromSliceKey(raw: String): String? = entryFromSliceKey(raw)?.paths?.hist
-
-    fun heatPathFromSliceKey(raw: String): String? = entryFromSliceKey(raw)?.paths?.heat
+    fun binPathFromSliceKey(raw: String): String? = entryFromSliceKey(raw)?.paths?.bin
 
     private fun payloadBasePathFromSliceKey(key: PublishedSliceKey): String? {
         val liftName = when (key.lift) {

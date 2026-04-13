@@ -9,8 +9,8 @@ pub(super) fn entry_from_slice_key(raw: &str) -> Option<(SliceKey, SliceIndexEnt
         key,
         SliceIndexEntry {
             meta: paths.meta,
-            hist: paths.hist,
-            heat: paths.heat,
+            bin: paths.bin,
+            inline: String::new(),
             summary: None,
         },
     ))

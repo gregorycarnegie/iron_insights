@@ -54,7 +54,7 @@ cargo run --manifest-path pipeline/Cargo.toml --bin 02_build_aggregates
 cargo run --manifest-path pipeline/Cargo.toml --bin 03_publish_data -- \
   --data-dir data \
   --version vYYYY-MM-DD \
-  --keep-versions 4
+  --keep-versions 2
 ```
 
 Notes:

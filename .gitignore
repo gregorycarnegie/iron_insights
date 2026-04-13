@@ -5,6 +5,8 @@
 /app/Cargo.lock
 /pipeline/Cargo.lock
 /dist
+/app2
+powerlifting-analytics.jsx
 .codex
 
 # Keep only canonical dataset in /data tracked.

@@ -9,6 +9,7 @@ data class LatestJson(
 
 data class RootIndex(
     val shards: SortedMap<String, String>,
+    val trendsShards: SortedMap<String, String> = sortedMapOf(),
 )
 
 data class SliceIndex(
@@ -20,7 +21,7 @@ data class SliceIndexPreview(
     val shardPath: String,
     val sliceCount: Int,
     val sampleSliceKey: String?,
-    val sampleHistPath: String?,
+    val sampleBinPath: String?,
 )
 
 data class TrendsPreview(
@@ -55,8 +56,7 @@ data class HistogramLookupPreview(
     val cohortLabel: String,
     val liftLabel: String,
     val metric: String,
-    val histPath: String,
-    val heatPath: String,
+    val binPath: String,
     val histogram: HistogramBin,
     val heatmap: HeatmapBin?,
     val p50: Float?,
@@ -101,8 +101,8 @@ sealed interface SliceIndexEntries {
 
 data class SliceIndexEntry(
     val meta: String = "",
-    val hist: String,
-    val heat: String,
+    val bin: String = "",
+    val inline: String = "",
     val summary: SliceSummary? = null,
 )
 

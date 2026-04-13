@@ -37,7 +37,11 @@
       "Bash(grep -r \"edition\" /c/Users/grego/rust_projects/iron_insights2/Cargo.toml /c/Users/grego/rust_projects/iron_insights2/*/Cargo.toml)",
       "Bash(wc -l /c/Users/grego/rust_projects/iron_insights2/app/src/webapp/*.rs)",
       "Bash(wc -l /c/Users/grego/rust_projects/iron_insights2/pipeline/src/*.rs /c/Users/grego/rust_projects/iron_insights2/pipeline/src/bin/*.rs)",
-      "Bash(cargo test:*)"
+      "Bash(cargo test:*)",
+      "Bash(mkdir -p /c/Users/grego/rust_projects/iron_insights2/app2/src/pages)",
+      "Bash(mkdir -p /c/Users/grego/rust_projects/iron_insights2/app2/assets)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)[:5]\\); print\\(type\\(d\\)\\)\")",
+      "Bash(xargs grep:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\grego\\.claude\\projects\\c--Users-grego-rust-projects-iron-insights2\\memory"

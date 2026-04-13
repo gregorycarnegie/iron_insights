@@ -61,6 +61,8 @@ pub(super) struct LatestJson {
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct RootIndex {
     pub(super) shards: BTreeMap<String, String>,
+    #[serde(default)]
+    pub(super) trends_shards: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -99,8 +101,12 @@ pub(super) enum SliceIndexEntries {
 pub(super) struct SliceIndexEntry {
     #[serde(default)]
     pub(super) meta: String,
-    pub(super) hist: String,
-    pub(super) heat: String,
+    #[serde(default)]
+    pub(super) bin: String,
+    /// Base64-encoded IIC1 payload for sparse cohorts. When non-empty the app
+    /// decodes and parses directly without a network fetch.
+    #[serde(default)]
+    pub(super) inline: String,
     #[serde(default)]
     pub(super) summary: Option<SliceSummary>,
 }
@@ -144,7 +150,7 @@ pub(super) struct CohortComparisonRow {
     pub(super) max_kg: Option<f32>,
     pub(super) status: String,
     pub(super) status_ok: bool,
-    pub(super) hist_path: Option<String>,
+    pub(super) bin_path: Option<String>,
     pub(super) is_current: bool,
 }
 

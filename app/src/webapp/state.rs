@@ -1,3 +1,5 @@
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use super::data::{fetch_binary_first, fetch_json_first};
 use super::debug_log;
 use super::models::{
@@ -6,7 +8,7 @@ use super::models::{
 };
 use super::slices::{entry_from_slice_key, parse_shard_key, parse_slice_key};
 use super::ui::{pick_preferred, unique};
-use crate::core::{HeatmapBin, HistogramBin, parse_heat_bin, parse_hist_bin};
+use crate::core::{HeatmapBin, HistogramBin, parse_combined_bin};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
@@ -217,6 +219,9 @@ pub(super) fn setup_slice_rows_effect(context: SliceRowsEffectContext) {
 
 pub(super) fn setup_trends_effect(
     latest: ReadSignal<Option<LatestJson>>,
+    root_index: ReadSignal<Option<RootIndex>>,
+    sex: ReadSignal<String>,
+    equip: ReadSignal<String>,
     should_load_trends: Memo<bool>,
     set_trends: WriteSignal<Vec<TrendSeries>>,
     trends_request_id: ReadSignal<u64>,
@@ -227,13 +232,21 @@ pub(super) fn setup_trends_effect(
         set_trends_request_id.set(next_request_id);
 
         let latest_v = latest.get();
+        let root = root_index.get();
         let load_trends = should_load_trends.get();
+        let shard_key = format!("sex={}|equip={}", sex.get(), equip.get());
+
         if !load_trends {
             set_trends.set(Vec::new());
             return;
         }
 
-        let Some(latest_v) = latest_v else {
+        let (Some(latest_v), Some(root)) = (latest_v, root) else {
+            set_trends.set(Vec::new());
+            return;
+        };
+
+        let Some(shard_rel) = root.trends_shards.get(&shard_key).cloned() else {
             set_trends.set(Vec::new());
             return;
         };
@@ -241,7 +254,7 @@ pub(super) fn setup_trends_effect(
         let set_trends = set_trends;
         let trends_request_id = trends_request_id;
         spawn_local(async move {
-            let trends_url = data_url(&format!("{}/trends.json", latest_v.version));
+            let trends_url = data_url(&format!("{}/{}", latest_v.version, shard_rel));
             match fetch_json_first::<TrendsJson>(&[&trends_url]).await {
                 Ok(payload) => {
                     if trends_request_id.get_untracked() != next_request_id {
@@ -260,7 +273,6 @@ pub(super) fn setup_trends_effect(
                     if trends_request_id.get_untracked() != next_request_id {
                         return;
                     }
-                    // Older data versions may not include trends.json yet.
                     set_trends.set(Vec::new());
                 }
             }
@@ -300,86 +312,85 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
         }
 
         if let (Some(row), Some(latest_v)) = (row, latest_v) {
-            let hist_url = data_url(&format!("{}/{}", latest_v.version, row.entry.hist));
-            let heat_url = data_url(&format!("{}/{}", latest_v.version, row.entry.heat));
-
             let set_hist = outputs.set_hist;
             let set_heat = outputs.set_heat;
             let set_hist_load_ms = outputs.set_hist_load_ms;
             let set_heat_load_ms = outputs.set_heat_load_ms;
             let set_load_error = outputs.set_load_error;
             let dist_request_id = request.current;
-            let hist_err = hist_url.clone();
-            let heat_err = heat_url.clone();
             set_hist.set(None);
             set_hist_load_ms.set(None);
             if should_load_heat {
                 set_heat.set(None);
                 set_heat_load_ms.set(None);
             }
-            spawn_local(async move {
-                if dist_request_id.get_untracked() != next_request_id {
-                    debug_log(&format!(
-                        "Ignored stale distribution response for request {next_request_id}"
-                    ));
-                    return;
-                }
 
-                if let Ok(bytes) = fetch_binary_first(&[&hist_url]).await {
+            // Fast path: payload is inlined as base64 — no network fetch needed.
+            if !row.entry.inline.is_empty() {
+                match BASE64.decode(&row.entry.inline) {
+                    Ok(bytes) => match parse_combined_bin(&bytes) {
+                        Some((hist, heat)) => {
+                            set_hist.set(Some(hist));
+                            set_hist_load_ms.set(Some(0));
+                            if should_load_heat {
+                                set_heat.set(Some(heat));
+                                set_heat_load_ms.set(Some(0));
+                            }
+                        }
+                        None => set_load_error.set(Some(
+                            "Invalid inlined binary payload.".to_string(),
+                        )),
+                    },
+                    Err(_) => set_load_error
+                        .set(Some("Failed to decode inlined binary payload.".to_string())),
+                }
+            } else {
+                let bin_url = data_url(&format!("{}/{}", latest_v.version, row.entry.bin));
+                spawn_local(async move {
                     if dist_request_id.get_untracked() != next_request_id {
                         debug_log(&format!(
-                            "Ignored stale histogram payload for request {next_request_id}"
+                            "Ignored stale distribution response for request {next_request_id}"
                         ));
                         return;
                     }
-                    let parsed = parse_hist_bin(&bytes);
-                    if parsed.is_none() {
-                        set_load_error.set(Some(format!(
-                            "Invalid or unsupported histogram binary format: {hist_err}"
-                        )));
-                    }
-                    set_hist.set(parsed);
-                    set_hist_load_ms.set(Some(0));
-                } else {
-                    if dist_request_id.get_untracked() != next_request_id {
-                        debug_log(&format!(
-                            "Ignored stale histogram error for request {next_request_id}"
-                        ));
-                        return;
-                    }
-                    set_hist.set(None);
-                    set_load_error.set(Some(format!("Failed to fetch histogram data: {hist_err}")));
-                }
 
-                if should_load_heat {
-                    if let Ok(bytes) = fetch_binary_first(&[&heat_url]).await {
-                        if dist_request_id.get_untracked() != next_request_id {
-                            debug_log(&format!(
-                                "Ignored stale heatmap payload for request {next_request_id}"
-                            ));
-                            return;
+                    match fetch_binary_first(&[&bin_url]).await {
+                        Ok(bytes) => {
+                            if dist_request_id.get_untracked() != next_request_id {
+                                debug_log(&format!(
+                                    "Ignored stale combined payload for request {next_request_id}"
+                                ));
+                                return;
+                            }
+                            match parse_combined_bin(&bytes) {
+                                Some((hist, heat)) => {
+                                    set_hist.set(Some(hist));
+                                    set_hist_load_ms.set(Some(0));
+                                    if should_load_heat {
+                                        set_heat.set(Some(heat));
+                                        set_heat_load_ms.set(Some(0));
+                                    }
+                                }
+                                None => {
+                                    set_load_error.set(Some(format!(
+                                        "Invalid or unsupported combined binary format: {bin_url}"
+                                    )));
+                                }
+                            }
                         }
-                        let parsed = parse_heat_bin(&bytes);
-                        if parsed.is_none() {
-                            set_load_error.set(Some(format!(
-                                "Invalid or unsupported heatmap binary format: {heat_err}"
-                            )));
+                        Err(_) => {
+                            if dist_request_id.get_untracked() != next_request_id {
+                                debug_log(&format!(
+                                    "Ignored stale combined error for request {next_request_id}"
+                                ));
+                                return;
+                            }
+                            set_hist.set(None);
+                            set_load_error.set(Some(format!("Failed to fetch data: {bin_url}")));
                         }
-                        set_heat.set(parsed);
-                        set_heat_load_ms.set(Some(0));
-                    } else {
-                        if dist_request_id.get_untracked() != next_request_id {
-                            debug_log(&format!(
-                                "Ignored stale heatmap error for request {next_request_id}"
-                            ));
-                            return;
-                        }
-                        set_heat.set(None);
-                        set_load_error
-                            .set(Some(format!("Failed to fetch heatmap data: {heat_err}")));
                     }
-                }
-            });
+                });
+            }
         } else {
             outputs.set_hist.set(None);
             outputs.set_heat.set(None);

@@ -58,8 +58,7 @@ class PublishedSliceContractTest {
         requireNotNull(entry)
         assertFalse(entry.key.metricExplicit)
         assertEquals("meta/m/raw/all/all_ages/tested/total.json", entry.paths.meta)
-        assertEquals("hist/m/raw/all/all_ages/tested/total.bin", entry.paths.hist)
-        assertEquals("heat/m/raw/all/all_ages/tested/total.bin", entry.paths.heat)
+        assertEquals("bin/m/raw/all/all_ages/tested/total.bin", entry.paths.bin)
     }
 
     @Test
@@ -71,7 +70,6 @@ class PublishedSliceContractTest {
         requireNotNull(entry)
         assertTrue(entry.key.metricExplicit)
         assertEquals("meta/f/raw/63/open/all/lb/bench.json", entry.paths.meta)
-        assertEquals("hist/f/raw/63/open/all/lb/bench.bin", entry.paths.hist)
-        assertEquals("heat/f/raw/63/open/all/lb/bench.bin", entry.paths.heat)
+        assertEquals("bin/f/raw/63/open/all/lb/bench.bin", entry.paths.bin)
     }
 }

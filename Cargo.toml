@@ -1,5 +1,5 @@
 [workspace]
-members = ["app", "pipeline", "iron_insights_core"]
+members = ["app", "app2", "pipeline", "iron_insights_core"]
 
 [workspace.package]
 version = "0.1.0"

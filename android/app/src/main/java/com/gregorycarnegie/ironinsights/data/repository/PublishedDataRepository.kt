@@ -18,6 +18,7 @@ import com.gregorycarnegie.ironinsights.data.model.SliceSummary
 import com.gregorycarnegie.ironinsights.data.model.TrendPoint
 import com.gregorycarnegie.ironinsights.data.model.TrendSeries
 import com.gregorycarnegie.ironinsights.data.model.TrendsJson
+import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -37,6 +38,11 @@ private const val HEATMAP_MAGIC_0 = 'I'.code
 private const val HEATMAP_MAGIC_1 = 'I'.code
 private const val HEATMAP_MAGIC_2 = 'M'.code
 private const val HEATMAP_MAGIC_3 = '1'.code
+private const val COMBINED_MAGIC_0 = 'I'.code
+private const val COMBINED_MAGIC_1 = 'I'.code
+private const val COMBINED_MAGIC_2 = 'C'.code
+private const val COMBINED_MAGIC_3 = '1'.code
+private const val COMBINED_HEADER_SIZE = 10
 private const val MAX_CACHED_DATASET_VERSIONS = 2
 
 private enum class PublishedPayloadType(
@@ -72,9 +78,12 @@ interface PublishedDataRepository {
     fun fetchLatest(): Result<LoadedResource<LatestJson>>
     fun fetchRootIndex(version: String): Result<LoadedResource<RootIndex>>
     fun fetchSliceIndex(version: String, shardPath: String): Result<LoadedResource<SliceIndex>>
-    fun fetchHistogram(version: String, histogramPath: String): Result<LoadedResource<HistogramBin>>
-    fun fetchHeatmap(version: String, heatmapPath: String): Result<LoadedResource<HeatmapBin>>
-    fun fetchTrends(version: String): Result<LoadedResource<TrendsJson>>
+    fun fetchCombinedBin(
+        version: String,
+        binPath: String,
+        inlineData: String = "",
+    ): Result<LoadedResource<Pair<HistogramBin, HeatmapBin?>>>
+    fun fetchTrends(version: String, trendsPath: String): Result<LoadedResource<TrendsJson>>
 }
 
 class HttpPublishedDataRepository(
@@ -138,23 +147,30 @@ class HttpPublishedDataRepository(
         )
     }
 
-    override fun fetchHistogram(version: String, histogramPath: String): Result<LoadedResource<HistogramBin>> = runCatching {
-        val normalizedPath = histogramPath.trimStart('/')
+    override fun fetchCombinedBin(
+        version: String,
+        binPath: String,
+        inlineData: String,
+    ): Result<LoadedResource<Pair<HistogramBin, HeatmapBin?>>> = runCatching {
+        if (inlineData.isNotEmpty()) {
+            val bytes = Base64.decode(inlineData, Base64.DEFAULT)
+            val parsed = parseCombinedBin(bytes)
+                ?: throw IOException("Failed to parse inline combined binary.")
+            return@runCatching LoadedResource(
+                value = parsed,
+                source = DatasetLoadSource.NETWORK,
+            )
+        }
+        val normalizedPath = binPath.trimStart('/')
         loadBinaryWithCache(relativePath = "$version/$normalizedPath") { payload ->
-            parseHistogramBin(payload) ?: throw IOException("Failed to parse histogram binary.")
+            parseCombinedBin(payload) ?: throw IOException("Failed to parse combined binary.")
         }
     }
 
-    override fun fetchHeatmap(version: String, heatmapPath: String): Result<LoadedResource<HeatmapBin>> = runCatching {
-        val normalizedPath = heatmapPath.trimStart('/')
-        loadBinaryWithCache(relativePath = "$version/$normalizedPath") { payload ->
-            parseHeatmapBin(payload) ?: throw IOException("Failed to parse heatmap binary.")
-        }
-    }
-
-    override fun fetchTrends(version: String): Result<LoadedResource<TrendsJson>> = runCatching {
+    override fun fetchTrends(version: String, trendsPath: String): Result<LoadedResource<TrendsJson>> = runCatching {
+        val normalizedPath = trendsPath.trimStart('/')
         loadJsonWithCache(
-            relativePath = "$version/trends.json",
+            relativePath = "$version/$normalizedPath",
             parser = ::parseTrendsJson,
         )
     }
@@ -520,12 +536,21 @@ internal fun parseRootIndex(json: String): RootIndex {
         val payload = JSONObject(json)
         val shardsJson = payload.getJSONObject("shards")
         val shards = TreeMap<String, String>()
-        val keys = shardsJson.keys()
+        var keys = shardsJson.keys()
         while (keys.hasNext()) {
             val key = keys.next()
             shards[key] = shardsJson.getString(key)
         }
-        return RootIndex(shards = shards)
+        val trendsShards = TreeMap<String, String>()
+        val trendsShardsJson = payload.optJSONObject("trends_shards")
+        if (trendsShardsJson != null) {
+            keys = trendsShardsJson.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                trendsShards[key] = trendsShardsJson.getString(key)
+            }
+        }
+        return RootIndex(shards = shards, trendsShards = trendsShards)
     } catch (error: JSONException) {
         throw IOException("Failed to parse root index.", error)
     }
@@ -577,8 +602,8 @@ private fun parseSliceIndexEntry(json: JSONObject): SliceIndexEntry {
 
     return SliceIndexEntry(
         meta = if (json.isNull("meta")) "" else json.optString("meta", ""),
-        hist = json.getString("hist"),
-        heat = json.getString("heat"),
+        bin = json.optString("bin", ""),
+        inline = json.optString("inline", ""),
         summary = summary,
     )
 }
@@ -725,6 +750,30 @@ internal fun parseHeatmapBin(bytes: ByteArray): HeatmapBin? {
         height = height.toInt(),
         grid = grid,
     )
+}
+
+internal fun parseCombinedBin(bytes: ByteArray): Pair<HistogramBin, HeatmapBin?>? {
+    if (bytes.size < COMBINED_HEADER_SIZE) return null
+    if (
+        bytes[0].toInt() != COMBINED_MAGIC_0 ||
+        bytes[1].toInt() != COMBINED_MAGIC_1 ||
+        bytes[2].toInt() != COMBINED_MAGIC_2 ||
+        bytes[3].toInt() != COMBINED_MAGIC_3
+    ) return null
+
+    val version = readU16Le(bytes, 4)
+    if (version != 1) return null
+
+    val histLen = readU32Le(bytes, 6).toInt()
+    val histEnd = COMBINED_HEADER_SIZE + histLen
+    if (histEnd > bytes.size) return null
+
+    val histBytes = bytes.copyOfRange(COMBINED_HEADER_SIZE, histEnd)
+    val heatBytes = bytes.copyOfRange(histEnd, bytes.size)
+
+    val histogram = parseHistogramBin(histBytes) ?: return null
+    val heatmap = parseHeatmapBin(heatBytes)
+    return histogram to heatmap
 }
 
 internal fun percentileForValue(

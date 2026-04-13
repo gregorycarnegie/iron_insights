@@ -13,8 +13,8 @@
 - Dataset pointer: `data/latest.json`
 - Versioned root index: `data/<version>/index.json`
 - Shard index: `data/<version>/index_shards/<sex>/<equip>/index.json`
-- Binary payloads: `hist/*.bin` and `heat/*.bin`
-- Trends payload: `data/<version>/trends.json`
+- Binary payloads: `bin/*.bin` (IIC1 combined histogram+heatmap; replaces old `hist/*.bin` + `heat/*.bin`)
+- Trends payload: `data/<version>/trends_shards/<sex>/<equip>/trends.json` (sharded; path in `root.trends_shards`)
 
 ## Phase 1: Android Foundation
 
@@ -73,6 +73,15 @@
 - [ ] Component size — `trends.rs` (~474 LOC), `plate_calc.rs` (~562 LOC), and `one_rep_max.rs` (~434 LOC) exceed a comfortable reading size; candidates for sub-component extraction
 - [x] No `///` doc comments on public types in `iron_insights_core` (`HistogramBin`, `HeatmapBin`, `HistogramDiagnostics`, etc.)
 - [x] IPF weight class boundaries are hardcoded in `pipeline/src/bin/02_build_aggregates.rs`; if they ever change they have only one owner today but a shared-constants home in `iron_insights_core` would make the contract explicit
+
+## Pipeline Performance
+
+- [x] Reduce `--keep-versions` from 4 to 2 in CI — cuts live working-tree size from ~1.8 GB to ~900 MB
+- [x] Shard `trends.json` by sex/equip — replace the monolithic ~1 MB file with per-shard files matching the `index_shards` layout; app fetches only the series it needs
+- [x] Merge `hist` + `heat` into a single `.bin` per slice — halve the 51k file count and halve per-chart HTTP request count; requires new magic `IIC1` combined format in core
+- [x] Inline tiny slices — embed ≤400-byte payloads as base64 in the shard index JSON to eliminate the second round-trip for sparse cohorts
+- [ ] Content-addressed bin names — deferred: git already deduplicates blob content internally; the HTTP-caching benefit (immutable headers) only materialises if/when hosting moves to a CDN that supports custom `Cache-Control` (Cloudflare Pages, etc.)
+- [ ] Note: Brotli pre-compression not applicable for GitHub Pages (transport gzip is applied by their CDN automatically)
 
 ## Immediate Next Slice
 

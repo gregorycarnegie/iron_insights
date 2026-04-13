@@ -171,19 +171,11 @@ class HomeViewModel(
         }
         val rootIndex = rootIndexLoaded.value
 
-        val trendsLoaded = repository.fetchTrends(latest.version).getOrNull()
-        val trendsPayload = trendsLoaded?.value
-        val trendsPreview = trendsPayload?.let(::buildTrendsPreview)
-
         val snapshot = DatasetSnapshot(
             latest = latest,
             latestSource = latestLoaded.source,
             rootIndex = rootIndex,
             rootIndexSource = rootIndexLoaded.source,
-            trendsPreview = trendsPreview,
-            trendsSource = trendsLoaded?.source,
-            trendBucket = trendsPayload?.bucket,
-            trendSeries = trendsPayload?.series ?: emptyList(),
         )
         datasetSnapshot = snapshot
         return buildHomeState(
@@ -335,16 +327,12 @@ private data class DatasetSnapshot(
     val latestSource: DatasetLoadSource,
     val rootIndex: RootIndex,
     val rootIndexSource: DatasetLoadSource,
-    val trendsPreview: TrendsPreview?,
-    val trendsSource: DatasetLoadSource?,
-    val trendBucket: String? = null,
-    val trendSeries: List<TrendSeries> = emptyList(),
     val sliceIndexByShard: MutableMap<String, SliceIndex> = mutableMapOf(),
     val sliceIndexSourceByShard: MutableMap<String, DatasetLoadSource> = mutableMapOf(),
-    val histogramByPath: MutableMap<String, HistogramBin> = mutableMapOf(),
-    val histogramSourceByPath: MutableMap<String, DatasetLoadSource> = mutableMapOf(),
-    val heatmapByPath: MutableMap<String, HeatmapBin> = mutableMapOf(),
-    val heatmapSourceByPath: MutableMap<String, DatasetLoadSource> = mutableMapOf(),
+    val combinedByPath: MutableMap<String, Pair<HistogramBin, HeatmapBin?>> = mutableMapOf(),
+    val combinedSourceByPath: MutableMap<String, DatasetLoadSource> = mutableMapOf(),
+    val trendsByShard: MutableMap<String, TrendsJson> = mutableMapOf(),
+    val trendsSourceByShard: MutableMap<String, DatasetLoadSource> = mutableMapOf(),
 )
 
 private enum class LookupPayloadLoadMode {
@@ -370,8 +358,8 @@ private fun loadModeForRoute(route: AppRoute): LookupPayloadLoadMode {
 internal data class LookupSliceRow(
     val rawKey: String,
     val filters: LookupFilters,
-    val histPath: String,
-    val heatPath: String,
+    val binPath: String,
+    val inlineData: String = "",
     val summary: SliceSummary?,
 )
 
@@ -388,7 +376,7 @@ private fun buildSliceIndexPreview(
                 shardPath = shardPath,
                 sliceCount = slices.entries.size,
                 sampleSliceKey = sampleEntry?.key,
-                sampleHistPath = sampleEntry?.value?.hist,
+                sampleBinPath = sampleEntry?.value?.bin?.ifEmpty { null },
             )
         }
 
@@ -398,7 +386,7 @@ private fun buildSliceIndexPreview(
                 shardPath = shardPath,
                 sliceCount = slices.keys.size,
                 sampleSliceKey = slices.keys.firstOrNull(),
-                sampleHistPath = slices.keys.firstOrNull()?.let(::histPathFromSliceKey),
+                sampleBinPath = slices.keys.firstOrNull()?.let(::binPathFromSliceKey),
             )
         }
     }
@@ -417,16 +405,17 @@ private fun buildTrendsPreview(trends: TrendsJson): TrendsPreview {
 private fun buildLoadSummary(
     snapshot: DatasetSnapshot,
     shardKey: String? = null,
-    histogramPath: String? = null,
-    heatmapPath: String? = null,
+    trendsShardKey: String? = null,
+    binPath: String? = null,
 ): DatasetLoadSummary {
+    val binSource = binPath?.let { snapshot.combinedSourceByPath[it] }
     return DatasetLoadSummary(
         latest = snapshot.latestSource,
         rootIndex = snapshot.rootIndexSource,
         shardIndex = shardKey?.let { snapshot.sliceIndexSourceByShard[it] },
-        histogram = histogramPath?.let { snapshot.histogramSourceByPath[it] },
-        heatmap = heatmapPath?.let { snapshot.heatmapSourceByPath[it] },
-        trends = snapshot.trendsSource,
+        histogram = binSource,
+        heatmap = binSource,
+        trends = trendsShardKey?.let { snapshot.trendsSourceByShard[it] },
     )
 }
 
@@ -649,7 +638,6 @@ private fun buildHomeState(
             cachedLatestVersion = snapshot.latest.version,
             latest = snapshot.latest,
             rootShardCount = snapshot.rootIndex.shards.size,
-            trendsPreview = snapshot.trendsPreview,
             loadSummary = buildLoadSummary(snapshot),
             errorMessage = "Root index did not contain shard $shardKey.",
         )
@@ -663,7 +651,6 @@ private fun buildHomeState(
                 cachedLatestVersion = snapshot.latest.version,
                 latest = snapshot.latest,
                 rootShardCount = snapshot.rootIndex.shards.size,
-                trendsPreview = snapshot.trendsPreview,
                 loadSummary = buildLoadSummary(snapshot),
                 errorMessage = error.message ?: "Failed to load shard index.",
             )
@@ -673,6 +660,9 @@ private fun buildHomeState(
             snapshot.sliceIndexSourceByShard[shardKey] = loaded.source
         }
         .value
+
+    val trendsPayload = loadTrendsForShard(snapshot, repository, shardKey)
+    val trendsPreview = trendsPayload?.let(::buildTrendsPreview)
 
     val slicePreview = buildSliceIndexPreview(
         shardKey = shardKey,
@@ -688,8 +678,8 @@ private fun buildHomeState(
             latest = snapshot.latest,
             rootShardCount = snapshot.rootIndex.shards.size,
             shardPreview = slicePreview,
-            trendsPreview = snapshot.trendsPreview,
-            loadSummary = buildLoadSummary(snapshot, shardKey = shardKey),
+            trendsPreview = trendsPreview,
+            loadSummary = buildLoadSummary(snapshot, shardKey = shardKey, trendsShardKey = shardKey),
             errorMessage = "Selected shard did not contain any slice rows.",
         )
     }
@@ -702,8 +692,8 @@ private fun buildHomeState(
             equip = equip,
         ),
     )
-    val trendSeries = snapshot.trendBucket?.let { bucket ->
-        buildTrendSeriesPresentation(bucket, snapshot.trendSeries, selectorState.filters)
+    val trendSeries = trendsPayload?.let { payload ->
+        buildTrendSeriesPresentation(payload.bucket, payload.series, selectorState.filters)
     }
 
     val row = currentRow(rows, selectorState.filters)
@@ -715,9 +705,9 @@ private fun buildHomeState(
             rootShardCount = snapshot.rootIndex.shards.size,
             shardPreview = slicePreview,
             selectorState = selectorState,
-            trendsPreview = snapshot.trendsPreview,
+            trendsPreview = trendsPreview,
             trendSeries = trendSeries,
-            loadSummary = buildLoadSummary(snapshot, shardKey = shardKey),
+            loadSummary = buildLoadSummary(snapshot, shardKey = shardKey, trendsShardKey = shardKey),
             errorMessage = "Current filters did not resolve to an exact slice.",
         )
     }
@@ -735,16 +725,16 @@ private fun buildHomeState(
             rootShardCount = snapshot.rootIndex.shards.size,
             shardPreview = slicePreview,
             selectorState = selectorState,
-            trendsPreview = snapshot.trendsPreview,
+            trendsPreview = trendsPreview,
             trendSeries = trendSeries,
             comparisonRows = comparisonRows,
-            loadSummary = buildLoadSummary(snapshot, shardKey = shardKey),
+            loadSummary = buildLoadSummary(snapshot, shardKey = shardKey, trendsShardKey = shardKey),
             errorMessage = null,
         )
     }
 
-    val histogram = snapshot.histogramByPath[row.histPath] ?: repository
-        .fetchHistogram(snapshot.latest.version, row.histPath)
+    val (histogram, heatmap) = snapshot.combinedByPath[row.binPath] ?: repository
+        .fetchCombinedBin(snapshot.latest.version, row.binPath, row.inlineData)
         .getOrElse { error ->
             return HomeUiState(
                 isLoading = false,
@@ -753,27 +743,18 @@ private fun buildHomeState(
                 rootShardCount = snapshot.rootIndex.shards.size,
                 shardPreview = slicePreview,
                 selectorState = selectorState,
-                trendsPreview = snapshot.trendsPreview,
+                trendsPreview = trendsPreview,
                 trendSeries = trendSeries,
                 comparisonRows = comparisonRows,
-                loadSummary = buildLoadSummary(snapshot, shardKey = shardKey),
-                errorMessage = error.message ?: "Failed to load histogram binary.",
+                loadSummary = buildLoadSummary(snapshot, shardKey = shardKey, trendsShardKey = shardKey),
+                errorMessage = error.message ?: "Failed to load combined binary.",
             )
         }
         .also { loaded ->
-            snapshot.histogramByPath[row.histPath] = loaded.value
-            snapshot.histogramSourceByPath[row.histPath] = loaded.source
+            snapshot.combinedByPath[row.binPath] = loaded.value
+            snapshot.combinedSourceByPath[row.binPath] = loaded.source
         }
         .value
-
-    val heatmap = snapshot.heatmapByPath[row.heatPath] ?: repository
-        .fetchHeatmap(snapshot.latest.version, row.heatPath)
-        .getOrNull()
-        ?.also { loaded ->
-            snapshot.heatmapByPath[row.heatPath] = loaded.value
-            snapshot.heatmapSourceByPath[row.heatPath] = loaded.source
-        }
-        ?.value
 
     val crossSexPreview = buildCrossSexLookupPresentation(
         snapshot = snapshot,
@@ -792,14 +773,14 @@ private fun buildHomeState(
         selectorState = selectorState,
         lookupPreview = buildHistogramLookupPreview(row, histogram, heatmap),
         crossSexPreview = crossSexPreview,
-        trendsPreview = snapshot.trendsPreview,
+        trendsPreview = trendsPreview,
         trendSeries = trendSeries,
         comparisonRows = comparisonRows,
         loadSummary = buildLoadSummary(
             snapshot = snapshot,
             shardKey = shardKey,
-            histogramPath = row.histPath,
-            heatmapPath = row.heatPath,
+            trendsShardKey = shardKey,
+            binPath = row.binPath,
         ),
         errorMessage = null,
     )
@@ -815,8 +796,7 @@ private fun buildHistogramLookupPreview(
         cohortLabel = buildCohortLabel(row.filters),
         liftLabel = liftLabel(row.filters.lift),
         metric = row.filters.metric,
-        histPath = row.histPath,
-        heatPath = row.heatPath,
+        binPath = row.binPath,
         histogram = histogram,
         heatmap = heatmap,
         p50 = valueForPercentile(histogram, 0.50f),
@@ -895,14 +875,15 @@ private fun loadCrossSexCohort(
         )
     } ?: return null
 
-    val histogram = if (match.row.histPath == currentRow.histPath) {
+    val histogram = if (match.row.binPath == currentRow.binPath) {
         currentHistogram
     } else {
-        loadHistogramFromCacheOrRepository(
+        loadCombinedFromCacheOrRepository(
             snapshot = snapshot,
             repository = repository,
-            histogramPath = match.row.histPath,
-        ) ?: return null
+            binPath = match.row.binPath,
+            inlineData = match.row.inlineData,
+        )?.first ?: return null
     }
 
     return CrossSexCohortPresentation(
@@ -970,15 +951,29 @@ private fun buildCrossSexFallbackNote(
     return if (notes.isEmpty()) null else "Fallback used: ${notes.joinToString(", ")}."
 }
 
-private fun loadHistogramFromCacheOrRepository(
+private fun loadTrendsForShard(
     snapshot: DatasetSnapshot,
     repository: PublishedDataRepository,
-    histogramPath: String,
-): HistogramBin? {
-    snapshot.histogramByPath[histogramPath]?.let { return it }
-    val loaded = repository.fetchHistogram(snapshot.latest.version, histogramPath).getOrNull() ?: return null
-    snapshot.histogramByPath[histogramPath] = loaded.value
-    snapshot.histogramSourceByPath[histogramPath] = loaded.source
+    shardKey: String,
+): TrendsJson? {
+    snapshot.trendsByShard[shardKey]?.let { return it }
+    val trendsPath = snapshot.rootIndex.trendsShards[shardKey] ?: return null
+    val loaded = repository.fetchTrends(snapshot.latest.version, trendsPath).getOrNull() ?: return null
+    snapshot.trendsByShard[shardKey] = loaded.value
+    snapshot.trendsSourceByShard[shardKey] = loaded.source
+    return loaded.value
+}
+
+private fun loadCombinedFromCacheOrRepository(
+    snapshot: DatasetSnapshot,
+    repository: PublishedDataRepository,
+    binPath: String,
+    inlineData: String = "",
+): Pair<HistogramBin, HeatmapBin?>? {
+    snapshot.combinedByPath[binPath]?.let { return it }
+    val loaded = repository.fetchCombinedBin(snapshot.latest.version, binPath, inlineData).getOrNull() ?: return null
+    snapshot.combinedByPath[binPath] = loaded.value
+    snapshot.combinedSourceByPath[binPath] = loaded.source
     return loaded.value
 }
 
@@ -990,8 +985,8 @@ private fun buildLookupRows(sliceIndex: SliceIndex): List<LookupSliceRow> {
                     LookupSliceRow(
                         rawKey = rawKey,
                         filters = filters,
-                        histPath = entry.hist,
-                        heatPath = entry.heat,
+                        binPath = entry.bin,
+                        inlineData = entry.inline,
                         summary = entry.summary,
                     )
                 }
@@ -1001,13 +996,11 @@ private fun buildLookupRows(sliceIndex: SliceIndex): List<LookupSliceRow> {
         is SliceIndexEntries.KeyEntries -> {
             slices.keys.mapNotNull { rawKey ->
                 val filters = parseLookupFilters(rawKey) ?: return@mapNotNull null
-                val histPath = histPathFromSliceKey(rawKey) ?: return@mapNotNull null
-                val heatPath = heatPathFromSliceKey(rawKey) ?: return@mapNotNull null
+                val binPath = binPathFromSliceKey(rawKey) ?: return@mapNotNull null
                 LookupSliceRow(
                     rawKey = rawKey,
                     filters = filters,
-                    histPath = histPath,
-                    heatPath = heatPath,
+                    binPath = binPath,
                     summary = null,
                 )
             }
@@ -1271,12 +1264,8 @@ private fun liftLabel(raw: String?): String {
     }
 }
 
-private fun histPathFromSliceKey(raw: String): String? {
-    return PublishedSliceContract.histPathFromSliceKey(raw)
-}
-
-private fun heatPathFromSliceKey(raw: String): String? {
-    return PublishedSliceContract.heatPathFromSliceKey(raw)
+private fun binPathFromSliceKey(raw: String): String? {
+    return PublishedSliceContract.binPathFromSliceKey(raw)
 }
 
 private fun PublishedSliceKey.toLookupFilters(): LookupFilters {

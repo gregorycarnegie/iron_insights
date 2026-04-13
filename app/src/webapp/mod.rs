@@ -36,7 +36,7 @@ use self::ui::{age_label, metric_label};
 use crate::core::{
     HeatmapBin, HistogramBin, bodyweight_conditioned_percentile,
     equivalent_value_for_same_percentile, histogram_density_for_value, histogram_diagnostics,
-    parse_heat_bin, parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
+    parse_combined_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
 };
 use leptos::ev;
 use leptos::html::Canvas;
@@ -251,13 +251,13 @@ fn build_cohort_comparison_row(
         },
     );
 
-    let (total, min_kg, max_kg, hist_path, status, status_ok) = match row {
+    let (total, min_kg, max_kg, bin_path, status, status_ok) = match row {
         Some(found) => match found.entry.summary.as_ref() {
             Some(summary) => (
                 Some(summary.total),
                 Some(summary.min_kg),
                 Some(summary.max_kg),
-                Some(found.entry.hist.clone()),
+                Some(found.entry.bin.clone()),
                 "embedded summary".to_string(),
                 true,
             ),
@@ -265,7 +265,7 @@ fn build_cohort_comparison_row(
                 None,
                 None,
                 None,
-                Some(found.entry.hist.clone()),
+                Some(found.entry.bin.clone()),
                 "slice found; summary missing".to_string(),
                 false,
             ),
@@ -295,7 +295,7 @@ fn build_cohort_comparison_row(
         max_kg,
         status,
         status_ok,
-        hist_path,
+        bin_path,
         is_current,
     }
 }
@@ -408,6 +408,9 @@ fn App() -> impl IntoView {
     });
     setup_trends_effect(
         latest,
+        root_index,
+        sex,
+        equip,
         nerds_page_active,
         set_trend_series,
         trends_request_id,
@@ -1393,9 +1396,9 @@ fn App() -> impl IntoView {
                 continue;
             }
 
-            if let Some(hist_path) = row.hist_path {
+            if let Some(bin_path) = row.bin_path {
                 hist_groups
-                    .entry(hist_path)
+                    .entry(bin_path)
                     .or_default()
                     .push((row.id, row.metric));
             } else {
@@ -1422,7 +1425,7 @@ fn App() -> impl IntoView {
             let mut resolved = prefetched;
             let mut errors = Vec::new();
 
-            for (hist_path, targets) in hist_groups {
+            for (bin_path, targets) in hist_groups {
                 if cohort_exact_request_id.get_untracked() != next_request_id {
                     debug_log(&format!(
                         "Ignored stale cohort comparison response for request {next_request_id}"
@@ -1430,9 +1433,9 @@ fn App() -> impl IntoView {
                     return;
                 }
 
-                let hist_url = dataset_file_url(&latest_v.version, &hist_path);
-                match fetch_binary_first(&[&hist_url]).await {
-                    Ok(bytes) => match parse_hist_bin(&bytes) {
+                let bin_url = dataset_file_url(&latest_v.version, &bin_path);
+                match fetch_binary_first(&[&bin_url]).await {
+                    Ok(bytes) => match parse_combined_bin(&bytes).map(|(h, _)| h) {
                         Some(histogram) => {
                             let current_lifter = ComparableLifter {
                                 sex: &current_sex,
@@ -1454,14 +1457,14 @@ fn App() -> impl IntoView {
                             }
                         }
                         None => {
-                            errors.push(format!("{hist_path}: invalid histogram payload"));
+                            errors.push(format!("{bin_path}: invalid binary payload"));
                             for (row_id, _) in targets {
                                 resolved.insert(row_id, None);
                             }
                         }
                     },
                     Err(err) => {
-                        errors.push(format!("{hist_path}: {err}"));
+                        errors.push(format!("{bin_path}: {err}"));
                         for (row_id, _) in targets {
                             resolved.insert(row_id, None);
                         }
@@ -1529,16 +1532,16 @@ fn App() -> impl IntoView {
             return;
         };
 
-        let selected_row_hist = current_row.get().map(|row| row.entry.hist);
+        let selected_row_bin = current_row.get().map(|row| row.entry.bin);
         let selected_hist = hist.get();
 
         let mut prefetched_male = None;
         let mut prefetched_female = None;
-        if let (Some(selected_row_hist), Some(selected_hist)) = (selected_row_hist, selected_hist) {
-            if selected_row_hist == male_choice.row.entry.hist {
+        if let (Some(selected_row_bin), Some(selected_hist)) = (selected_row_bin, selected_hist) {
+            if selected_row_bin == male_choice.row.entry.bin {
                 prefetched_male = Some(selected_hist.clone());
             }
-            if selected_row_hist == female_choice.row.entry.hist {
+            if selected_row_bin == female_choice.row.entry.bin {
                 prefetched_female = Some(selected_hist);
             }
         }
@@ -1565,13 +1568,13 @@ fn App() -> impl IntoView {
             let mut issues = Vec::new();
 
             if resolved_male.is_none() {
-                let male_url = dataset_file_url(&latest_v.version, &male_choice.row.entry.hist);
+                let male_url = dataset_file_url(&latest_v.version, &male_choice.row.entry.bin);
                 match fetch_binary_first(&[&male_url]).await {
-                    Ok(bytes) => match parse_hist_bin(&bytes) {
+                    Ok(bytes) => match parse_combined_bin(&bytes).map(|(h, _)| h) {
                         Some(histogram) => resolved_male = Some(histogram),
-                        None => issues.push("Invalid men's histogram payload.".to_string()),
+                        None => issues.push("Invalid men's binary payload.".to_string()),
                     },
-                    Err(err) => issues.push(format!("Failed men's histogram fetch: {err}")),
+                    Err(err) => issues.push(format!("Failed men's bin fetch: {err}")),
                 }
             }
 
@@ -1583,13 +1586,13 @@ fn App() -> impl IntoView {
             }
 
             if resolved_female.is_none() {
-                let female_url = dataset_file_url(&latest_v.version, &female_choice.row.entry.hist);
+                let female_url = dataset_file_url(&latest_v.version, &female_choice.row.entry.bin);
                 match fetch_binary_first(&[&female_url]).await {
-                    Ok(bytes) => match parse_hist_bin(&bytes) {
+                    Ok(bytes) => match parse_combined_bin(&bytes).map(|(h, _)| h) {
                         Some(histogram) => resolved_female = Some(histogram),
-                        None => issues.push("Invalid women's histogram payload.".to_string()),
+                        None => issues.push("Invalid women's binary payload.".to_string()),
                     },
-                    Err(err) => issues.push(format!("Failed women's histogram fetch: {err}")),
+                    Err(err) => issues.push(format!("Failed women's bin fetch: {err}")),
                 }
             }
 
@@ -1661,13 +1664,13 @@ fn App() -> impl IntoView {
             let mut resolved_female = None;
             let mut issues = Vec::new();
 
-            let male_url = dataset_file_url(&latest_v.version, &male_choice.row.entry.heat);
+            let male_url = dataset_file_url(&latest_v.version, &male_choice.row.entry.bin);
             match fetch_binary_first(&[&male_url]).await {
-                Ok(bytes) => match parse_heat_bin(&bytes) {
+                Ok(bytes) => match parse_combined_bin(&bytes).map(|(_, h)| h) {
                     Some(heatmap) => resolved_male = Some(heatmap),
-                    None => issues.push("Invalid men's heatmap payload.".to_string()),
+                    None => issues.push("Invalid men's binary payload.".to_string()),
                 },
-                Err(err) => issues.push(format!("Failed men's heatmap fetch: {err}")),
+                Err(err) => issues.push(format!("Failed men's bin fetch: {err}")),
             }
 
             if cross_sex_heat_request_id.get_untracked() != next_request_id {
@@ -1677,13 +1680,13 @@ fn App() -> impl IntoView {
                 return;
             }
 
-            let female_url = dataset_file_url(&latest_v.version, &female_choice.row.entry.heat);
+            let female_url = dataset_file_url(&latest_v.version, &female_choice.row.entry.bin);
             match fetch_binary_first(&[&female_url]).await {
-                Ok(bytes) => match parse_heat_bin(&bytes) {
+                Ok(bytes) => match parse_combined_bin(&bytes).map(|(_, h)| h) {
                     Some(heatmap) => resolved_female = Some(heatmap),
-                    None => issues.push("Invalid women's heatmap payload.".to_string()),
+                    None => issues.push("Invalid women's binary payload.".to_string()),
                 },
-                Err(err) => issues.push(format!("Failed women's heatmap fetch: {err}")),
+                Err(err) => issues.push(format!("Failed women's bin fetch: {err}")),
             }
 
             if cross_sex_heat_request_id.get_untracked() != next_request_id {

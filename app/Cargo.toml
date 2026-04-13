@@ -4,18 +4,19 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+base64 = "0.22"
 iron_insights_core = { path = "../iron_insights_core" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo-net = "0.7.0"
 gloo-timers = "0.4.0"
-js-sys = "0.3.92"
+js-sys = "0.3.95"
 leptos = { version = "0.8.17", features = ["csr"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-wasm-bindgen = "0.2.115"
-wasm-bindgen-futures = "0.4.65"
-web-sys = { version = "0.3.92", features = [
+wasm-bindgen = "0.2.118"
+wasm-bindgen-futures = "0.4.68"
+web-sys = { version = "0.3.95", features = [
   "Clipboard",
   "CanvasRenderingContext2d",
   "Document",

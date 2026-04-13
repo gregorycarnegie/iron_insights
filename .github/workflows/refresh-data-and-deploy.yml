@@ -96,7 +96,7 @@ jobs:
           cargo run --manifest-path pipeline/Cargo.toml --bin 03_publish_data -- \
             --data-dir data \
             --version "${VERSION}" \
-            --keep-versions 4
+            --keep-versions 2
 
       - name: Safeguards and metadata report
         shell: bash
