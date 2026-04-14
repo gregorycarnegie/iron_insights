@@ -13,8 +13,7 @@ pub struct SliceKey {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SliceEntryPaths {
     pub meta: String,
-    pub hist: String,
-    pub heat: String,
+    pub bin: String,
 }
 
 pub fn parse_slice_key(raw: &str) -> Option<SliceKey> {
@@ -80,8 +79,7 @@ pub fn entry_paths_from_slice_key(raw: &str) -> Option<(SliceKey, SliceEntryPath
         key,
         SliceEntryPaths {
             meta: format!("meta/{base}.json"),
-            hist: format!("hist/{base}.bin"),
-            heat: format!("heat/{base}.bin"),
+            bin: format!("bin/{base}.bin"),
         },
     ))
 }
@@ -189,8 +187,7 @@ mod tests {
                 .expect("paths");
 
         assert_eq!(paths.meta, "meta/m/raw/all/all_ages/tested/total.json");
-        assert_eq!(paths.hist, "hist/m/raw/all/all_ages/tested/total.bin");
-        assert_eq!(paths.heat, "heat/m/raw/all/all_ages/tested/total.bin");
+        assert_eq!(paths.bin, "bin/m/raw/all/all_ages/tested/total.bin");
     }
 
     #[test]
@@ -202,7 +199,6 @@ mod tests {
 
         assert!(key.metric_explicit);
         assert_eq!(paths.meta, "meta/f/raw/63/open/all/lb/bench.json");
-        assert_eq!(paths.hist, "hist/f/raw/63/open/all/lb/bench.bin");
-        assert_eq!(paths.heat, "heat/f/raw/63/open/all/lb/bench.bin");
+        assert_eq!(paths.bin, "bin/f/raw/63/open/all/lb/bench.bin");
     }
 }

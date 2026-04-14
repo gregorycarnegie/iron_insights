@@ -82,7 +82,7 @@ paths_from_key() {
   lift="$(lift_name_from_code "$lift_code")" || return 1
   local base
   base="$(slug "$sex")/$(slug "$equip")/$(slug "$wc")/$(slug "$age")/$tested_dir${metric_dir}/$lift"
-  printf 'meta/%s.json\thist/%s.bin\theat/%s.bin' "$base" "$base" "$base"
+  printf 'meta/%s.json\tbin/%s.bin' "$base" "$base"
 }
 
 index_root_bytes="$(wc -c < "$INDEX_JSON")"
@@ -122,8 +122,7 @@ for i in "${!slice_source_files[@]}"; do
       | [
           .key,
           (if ((.value.meta // "") | length) > 0 then .value.meta else "-" end),
-          .value.hist,
-          .value.heat,
+          .value.bin,
           $rel,
           (if .value.summary.total == null then "-" else (.value.summary.total | tostring) end)
         ]
@@ -152,11 +151,11 @@ missing=0
 invalid=0
 meta_total_sum=0
 
-while IFS=$'\t' read -r key meta_rel hist_rel heat_rel shard_rel summary_total; do
+while IFS=$'\t' read -r key meta_rel bin_rel shard_rel summary_total; do
   [[ "$meta_rel" == "-" ]] && meta_rel=""
   [[ "$summary_total" == "-" ]] && summary_total=""
 
-  for rel in "$meta_rel" "$hist_rel" "$heat_rel"; do
+  for rel in "$meta_rel" "$bin_rel"; do
     [[ -n "$rel" ]] || continue
     [[ "$rel" != /* ]] || {
       echo "[qa] invalid absolute path in index ($key): $rel" >&2
@@ -249,7 +248,7 @@ fi
 if [[ -z "$sample_line" ]]; then
   sample_line="$(head -n1 "$entries_tsv")"
 fi
-IFS=$'\t' read -r sample_name sample_meta_rel sample_hist_rel sample_heat_rel sample_shard_rel sample_summary_total <<<"$sample_line"
+IFS=$'\t' read -r sample_name sample_meta_rel sample_bin_rel sample_shard_rel sample_summary_total <<<"$sample_line"
 [[ "$sample_meta_rel" == "-" ]] && sample_meta_rel=""
 [[ "$sample_summary_total" == "-" ]] && sample_summary_total=""
 
@@ -266,9 +265,8 @@ if [[ -n "$sample_meta_rel" && -s "$VERSION_DIR/$sample_meta_rel" ]]; then
 else
   sample_meta_bytes=0
 fi
-sample_hist_bytes="$(wc -c < "$VERSION_DIR/$sample_hist_rel")"
-sample_heat_bytes="$(wc -c < "$VERSION_DIR/$sample_heat_rel")"
-sample_data_bytes=$((latest_bytes + index_budget_sample_bytes + sample_meta_bytes + sample_hist_bytes + sample_heat_bytes))
+sample_bin_bytes="$(wc -c < "$VERSION_DIR/$sample_bin_rel")"
+sample_data_bytes=$((latest_bytes + index_budget_sample_bytes + sample_meta_bytes + sample_bin_bytes))
 
 male_probe_line="$(awk -F'\t' '$1 ~ /^sex=M\|equip=All\|wc=[^|]+\|age=24-34\|tested=All\|lift=B$/ {print; exit}' "$entries_tsv")"
 if [[ -z "$male_probe_line" ]]; then
@@ -282,11 +280,10 @@ if [[ -z "$male_probe_line" ]]; then
 fi
 male_probe_name=""
 male_probe_meta_rel=""
-male_probe_hist_rel=""
-male_probe_heat_rel=""
+male_probe_bin_rel=""
 male_probe_shard_rel=""
 if [[ -n "$male_probe_line" ]]; then
-  IFS=$'\t' read -r male_probe_name male_probe_meta_rel male_probe_hist_rel male_probe_heat_rel male_probe_shard_rel male_probe_summary_total <<<"$male_probe_line"
+  IFS=$'\t' read -r male_probe_name male_probe_meta_rel male_probe_bin_rel male_probe_shard_rel male_probe_summary_total <<<"$male_probe_line"
   [[ "$male_probe_meta_rel" == "-" ]] && male_probe_meta_rel=""
   [[ "$male_probe_summary_total" == "-" ]] && male_probe_summary_total=""
 fi
@@ -307,9 +304,9 @@ echo "[qa] Files checked: $file_count"
 echo "[qa] Data payload: total=$(fmt_bytes "$total_bytes") (bin=$(fmt_bytes "$bin_bytes"), json=$(fmt_bytes "$json_bytes"))"
 echo "[qa] Sample slice: $sample_name"
 if [[ "$mode" == "sharded" ]]; then
-  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index_root+index_shard+summary/meta+hist+heat)"
+  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index_root+index_shard+summary/meta+bin)"
 else
-  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index+summary/meta+hist+heat)"
+  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index+summary/meta+bin)"
 fi
 if [[ "$site_budget_bytes" -gt 0 ]]; then
   echo "[qa] Site static payload (.html/.css/.js/.wasm): $(fmt_bytes "$site_budget_bytes")"
@@ -336,9 +333,7 @@ if [[ -n "$BASE_URL" ]]; then
     urls+=("$base/data/$VERSION/$sample_meta_rel")
     labels+=("sample")
   fi
-  urls+=("$base/data/$VERSION/$sample_hist_rel")
-  labels+=("sample")
-  urls+=("$base/data/$VERSION/$sample_heat_rel")
+  urls+=("$base/data/$VERSION/$sample_bin_rel")
   labels+=("sample")
 
   if [[ -n "$male_probe_name" && "$male_probe_name" != "$sample_name" ]]; then
@@ -351,9 +346,7 @@ if [[ -n "$BASE_URL" ]]; then
       urls+=("$base/data/$VERSION/$male_probe_meta_rel")
       labels+=("m_all")
     fi
-    urls+=("$base/data/$VERSION/$male_probe_hist_rel")
-    labels+=("m_all")
-    urls+=("$base/data/$VERSION/$male_probe_heat_rel")
+    urls+=("$base/data/$VERSION/$male_probe_bin_rel")
     labels+=("m_all")
   fi
   for i in "${!urls[@]}"; do

@@ -7,6 +7,9 @@ pub use published_contract::{
 pub const BINARY_FORMAT_VERSION: u16 = 1;
 pub const HISTOGRAM_MAGIC: [u8; 4] = *b"IIH1";
 pub const HEATMAP_MAGIC: [u8; 4] = *b"IIM1";
+/// Magic for the combined histogram+heatmap binary (IIC1 = Iron Insights Combined v1).
+/// Layout: `[IIC1][version u16 LE][hist_len u32 LE][IIH1 blob][IIM1 blob]`
+pub const COMBINED_MAGIC: [u8; 4] = *b"IIC1";
 
 /// A parsed histogram binary payload for a single lifter cohort slice.
 ///
@@ -256,6 +259,26 @@ pub fn parse_heat_bin(bytes: &[u8]) -> Option<HeatmapBin> {
         height,
         grid,
     })
+}
+
+/// Parses a combined IIC1 binary payload into a histogram and heatmap.
+///
+/// The IIC1 format stores both payloads in a single file:
+/// `[IIC1][version u16 LE][hist_len u32 LE][IIH1 blob (hist_len bytes)][IIM1 blob (remainder)]`
+pub fn parse_combined_bin(bytes: &[u8]) -> Option<(HistogramBin, HeatmapBin)> {
+    if bytes.len() < 10 || bytes[0..4] != COMBINED_MAGIC {
+        return None;
+    }
+    let version = u16::from_le_bytes(bytes[4..6].try_into().ok()?);
+    if version != BINARY_FORMAT_VERSION {
+        return None;
+    }
+    let hist_len = u32::from_le_bytes(bytes[6..10].try_into().ok()?) as usize;
+    let hist_bytes = bytes.get(10..10 + hist_len)?;
+    let heat_bytes = bytes.get(10 + hist_len..)?;
+    let hist = parse_hist_bin(hist_bytes)?;
+    let heat = parse_heat_bin(heat_bytes)?;
+    Some((hist, heat))
 }
 
 pub fn percentile_for_value(hist: Option<&HistogramBin>, value: f32) -> Option<(f32, usize, u32)> {
@@ -642,9 +665,10 @@ pub fn rebin_2d(
 #[cfg(test)]
 mod tests {
     use super::{
-        BINARY_FORMAT_VERSION, HeatmapBin, HistogramBin, TINY_COHORT_WARNING_THRESHOLD,
-        bodyweight_conditioned_percentile, dots_points, equivalent_value_for_same_percentile,
-        goodlift_points, histogram_density_for_value, histogram_diagnostics, parse_heat_bin,
+        BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC, HeatmapBin,
+        HistogramBin, TINY_COHORT_WARNING_THRESHOLD, bodyweight_conditioned_percentile,
+        dots_points, equivalent_value_for_same_percentile, goodlift_points,
+        histogram_density_for_value, histogram_diagnostics, parse_combined_bin, parse_heat_bin,
         parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
         wilks_points,
     };
@@ -715,6 +739,73 @@ mod tests {
         assert_eq!(heat.width, 3);
         assert_eq!(heat.height, 2);
         assert_eq!(heat.grid.len(), 6);
+    }
+
+    fn make_hist_blob() -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&HISTOGRAM_MAGIC);
+        b.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
+        push_f32(&mut b, 2.5);   // base
+        push_f32(&mut b, 100.0); // min
+        push_f32(&mut b, 105.0); // max
+        push_u32(&mut b, 2);     // bins count
+        push_u32(&mut b, 4);     // bin[0]
+        push_u32(&mut b, 1);     // bin[1]
+        b
+    }
+
+    fn make_heat_blob() -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&HEATMAP_MAGIC);
+        b.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
+        push_f32(&mut b, 2.5); // base_x
+        push_f32(&mut b, 1.0); // base_y
+        push_f32(&mut b, 80.0); push_f32(&mut b, 82.5); // min_x, max_x
+        push_f32(&mut b, 100.0); push_f32(&mut b, 101.0); // min_y, max_y
+        push_u32(&mut b, 1); // width
+        push_u32(&mut b, 1); // height
+        push_u32(&mut b, 5); // grid[0]
+        b
+    }
+
+    #[test]
+    fn parse_combined_bin_round_trips_hist_and_heat() {
+        let hist_blob = make_hist_blob();
+        let heat_blob = make_heat_blob();
+        let hist_len = hist_blob.len() as u32;
+
+        let mut combined = Vec::new();
+        combined.extend_from_slice(&COMBINED_MAGIC);
+        combined.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
+        combined.extend_from_slice(&hist_len.to_le_bytes());
+        combined.extend_from_slice(&hist_blob);
+        combined.extend_from_slice(&heat_blob);
+
+        let (hist, heat) = parse_combined_bin(&combined).expect("combined should parse");
+        assert_eq!(hist.counts, vec![4, 1]);
+        assert_eq!(hist.total, 5);
+        assert_eq!(heat.width, 1);
+        assert_eq!(heat.height, 1);
+        assert_eq!(heat.grid, vec![5]);
+    }
+
+    #[test]
+    fn parse_combined_bin_rejects_wrong_magic() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"BAD!");
+        bytes.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
+        bytes.extend_from_slice(&[0u8; 4]); // hist_len
+        assert!(parse_combined_bin(&bytes).is_none());
+    }
+
+    #[test]
+    fn parse_combined_bin_rejects_truncated_payload() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&COMBINED_MAGIC);
+        bytes.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
+        // hist_len claims 100 bytes but we provide none
+        bytes.extend_from_slice(&100u32.to_le_bytes());
+        assert!(parse_combined_bin(&bytes).is_none());
     }
 
     #[test]

@@ -1,0 +1,1 @@
+{"version":"v2026-04-13","bucket":"year","series":[{"key":"sex=F|equip=Straps|tested=All|lift=D|metric=Kg","points":[{"year":2019,"total":3,"p50":185.0,"p90":187.5},{"year":2024,"total":1,"p50":150.0,"p90":150.0}]}]}

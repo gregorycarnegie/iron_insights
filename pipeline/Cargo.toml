@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 anyhow = "1.0.102"
+base64 = "0.22"
 # Pinned for Polars compatibility; do not bump independently.
 chrono = { version = "0.4.41", default-features = false, features = ["clock", "serde"] }
 # Pinned for Polars compatibility; do not bump independently.

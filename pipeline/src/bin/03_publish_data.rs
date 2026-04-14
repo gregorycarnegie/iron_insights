@@ -2,10 +2,13 @@ use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
+
 use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::Parser;
-use iron_insights_core::{BINARY_FORMAT_VERSION, HEATMAP_MAGIC, HISTOGRAM_MAGIC};
+use iron_insights_core::{BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC};
 use pipeline::BuildMetadata;
 use polars::prelude::*;
 use serde::Serialize;
@@ -119,6 +122,7 @@ enum Metric {
 struct RootIndex {
     version: String,
     shards: BTreeMap<String, String>,
+    trends_shards: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -152,8 +156,13 @@ struct SliceIndex {
 #[derive(Debug, Serialize)]
 struct SliceIndexEntry {
     meta: String,
-    hist: String,
-    heat: String,
+    /// Relative path to the combined IIC1 binary, or empty if the payload is inlined.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    bin: String,
+    /// Base64-encoded IIC1 payload for sparse cohorts (≤ INLINE_THRESHOLD bytes).
+    /// When present, the app decodes and parses directly without a network fetch.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    inline: String,
     summary: SliceSummary,
 }
 
@@ -287,22 +296,22 @@ impl<'a> MetricPublisher<'a> {
             let wc_slug = slug(weight_class);
             let age_slug = slug(age_class);
 
-            let hist_rel = format!(
-                "hist/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.bin"
-            );
-            let heat_rel = format!(
-                "heat/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.bin"
-            );
             let meta_rel = format!(
                 "meta/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.json"
             );
-
-            let hist_path = version_dir.join(&hist_rel);
-            let heat_path = version_dir.join(&heat_rel);
             let meta_path = version_dir.join(&meta_rel);
 
-            write_hist_bin(&hist_path, &hist_data, x_base)?;
-            write_heat_bin(&heat_path, &heat_data, x_base, BW_BIN_BASE_KG)?;
+            let combined = build_combined_bytes(&hist_data, &heat_data, x_base, BW_BIN_BASE_KG);
+            let (bin_rel, inline) = if combined.len() <= INLINE_THRESHOLD {
+                (String::new(), BASE64.encode(&combined))
+            } else {
+                let rel = format!(
+                    "bin/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.bin"
+                );
+                let path = version_dir.join(&rel);
+                write_bytes(&path, &combined)?;
+                (rel, String::new())
+            };
 
             let meta = SliceMeta {
                 version: version.to_string(),
@@ -314,7 +323,7 @@ impl<'a> MetricPublisher<'a> {
                 lift: lift.to_string(),
                 metric: metric_code.to_string(),
                 hist: HistMeta {
-                    file: hist_rel.clone(),
+                    file: bin_rel.clone(),
                     base_bin_size_kg: x_base,
                     min_kg: hist_data.min,
                     max_kg: hist_data.max,
@@ -322,7 +331,7 @@ impl<'a> MetricPublisher<'a> {
                     total: hist_data.total,
                 },
                 heat: HeatMeta {
-                    file: heat_rel.clone(),
+                    file: bin_rel.clone(),
                     x_base_bin_size_kg: x_base,
                     y_base_bin_size_kg: BW_BIN_BASE_KG,
                     min_x_kg: heat_data.min_x,
@@ -363,8 +372,8 @@ impl<'a> MetricPublisher<'a> {
                     } else {
                         String::new()
                     },
-                    hist: hist_rel,
-                    heat: heat_rel,
+                    bin: bin_rel,
+                    inline,
                     summary: SliceSummary {
                         min_kg: hist_data.min,
                         max_kg: hist_data.max,
@@ -437,18 +446,31 @@ fn main() -> Result<()> {
         shard_paths.insert(shard_key, shard_rel);
     }
 
+    let trends_shards = build_trends_shards(&version, trends_acc);
+    let mut trends_shard_paths = BTreeMap::<String, String>::new();
+    for (shard_key, payload) in &trends_shards {
+        let Some((sex, equip)) = parse_shard_key(shard_key) else {
+            continue;
+        };
+        let rel = format!("trends_shards/{}/{}/trends.json", slug(sex), slug(equip));
+        let path = version_dir.join(&rel);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed creating {}", parent.display()))?;
+        }
+        fs::write(&path, serde_json::to_vec(payload)?)
+            .with_context(|| format!("failed writing {}", path.display()))?;
+        trends_shard_paths.insert(shard_key.clone(), rel);
+    }
+
     let index = RootIndex {
         version: version.clone(),
         shards: shard_paths,
+        trends_shards: trends_shard_paths,
     };
     let index_path = version_dir.join("index.json");
     fs::write(&index_path, serde_json::to_vec(&index)?)
         .with_context(|| format!("failed writing {}", index_path.display()))?;
-
-    let trends = build_trends_json(&version, trends_acc);
-    let trends_path = version_dir.join("trends.json");
-    fs::write(&trends_path, serde_json::to_vec(&trends)?)
-        .with_context(|| format!("failed writing {}", trends_path.display()))?;
 
     let latest = LatestJson {
         version: version.clone(),
@@ -578,11 +600,14 @@ fn collect_records_frame(records_path: &Path) -> Result<DataFrame> {
         .with_context(|| format!("failed collecting {}", records_path.display()))
 }
 
-fn build_trends_json(
+/// Builds a per-shard trends map keyed by `sex=X|equip=Y`.
+/// Each value is a `TrendsJson` containing only the series for that shard.
+fn build_trends_shards(
     version: &str,
     trends_acc: BTreeMap<String, BTreeMap<i32, Vec<f32>>>,
-) -> TrendsJson {
-    let mut series = Vec::new();
+) -> BTreeMap<String, TrendsJson> {
+    // Accumulate series into per-shard buckets.
+    let mut by_shard: BTreeMap<String, Vec<TrendSeries>> = BTreeMap::new();
     for (key, by_year) in trends_acc {
         let mut points = Vec::new();
         for (year, mut values) in by_year {
@@ -600,16 +625,33 @@ fn build_trends_json(
             });
         }
         points.sort_by_key(|p| p.year);
-        if !points.is_empty() {
-            series.push(TrendSeries { key, points });
+        if points.is_empty() {
+            continue;
         }
+        // Extract the `sex=X|equip=Y` shard prefix from the key.
+        let shard_key = key
+            .split('|')
+            .take(2)
+            .collect::<Vec<_>>()
+            .join("|");
+        by_shard
+            .entry(shard_key)
+            .or_default()
+            .push(TrendSeries { key, points });
     }
-    series.sort_by(|a, b| a.key.cmp(&b.key));
-    TrendsJson {
-        version: version.to_string(),
-        bucket: "year".to_string(),
-        series,
-    }
+
+    by_shard
+        .into_iter()
+        .map(|(shard_key, mut series)| {
+            series.sort_by(|a, b| a.key.cmp(&b.key));
+            let payload = TrendsJson {
+                version: version.to_string(),
+                bucket: "year".to_string(),
+                series,
+            };
+            (shard_key, payload)
+        })
+        .collect()
 }
 
 fn parse_year_bucket(value: Option<&str>) -> Option<i32> {
@@ -714,7 +756,7 @@ fn build_heatmap(points: &[(f32, f32)], x_base: f32, y_base: f32) -> Result<Heat
     })
 }
 
-fn write_hist_bin(path: &Path, hist: &HistogramData, x_base: f32) -> Result<()> {
+fn hist_bytes(hist: &HistogramData, x_base: f32) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(4 + 2 + (3 * 4) + 4 + hist.counts.len() * 4);
     bytes.extend_from_slice(&HISTOGRAM_MAGIC);
     bytes.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
@@ -725,10 +767,10 @@ fn write_hist_bin(path: &Path, hist: &HistogramData, x_base: f32) -> Result<()> 
     for value in &hist.counts {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
-    write_bytes(path, &bytes)
+    bytes
 }
 
-fn write_heat_bin(path: &Path, heat: &HeatmapData, x_base: f32, y_base: f32) -> Result<()> {
+fn heat_bytes(heat: &HeatmapData, x_base: f32, y_base: f32) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(4 + 2 + (6 * 4) + (2 * 4) + heat.grid.len() * 4);
     bytes.extend_from_slice(&HEATMAP_MAGIC);
     bytes.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
@@ -743,7 +785,25 @@ fn write_heat_bin(path: &Path, heat: &HeatmapData, x_base: f32, y_base: f32) -> 
     for value in &heat.grid {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
-    write_bytes(path, &bytes)
+    bytes
+}
+
+/// Payload bytes below this size are embedded as base64 in the shard index
+/// rather than written as separate files, eliminating an HTTP round-trip for
+/// sparse cohorts.
+const INLINE_THRESHOLD: usize = 400;
+
+fn build_combined_bytes(hist: &HistogramData, heat: &HeatmapData, x_base: f32, y_base: f32) -> Vec<u8> {
+    let h = hist_bytes(hist, x_base);
+    let m = heat_bytes(heat, x_base, y_base);
+    let hist_len = h.len() as u32;
+    let mut combined = Vec::with_capacity(10 + h.len() + m.len());
+    combined.extend_from_slice(&COMBINED_MAGIC);
+    combined.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
+    combined.extend_from_slice(&hist_len.to_le_bytes());
+    combined.extend_from_slice(&h);
+    combined.extend_from_slice(&m);
+    combined
 }
 
 fn write_bytes(path: &Path, bytes: &[u8]) -> Result<()> {
