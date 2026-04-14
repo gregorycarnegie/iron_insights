@@ -1562,16 +1562,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iron_analytics"
-version = "0.1.0"
-dependencies = [
- "js-sys",
- "leptos",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
 name = "iron_insights"
 version = "0.1.0"
 
