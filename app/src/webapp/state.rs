@@ -1,5 +1,3 @@
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD as BASE64;
 use super::data::{fetch_binary_first, fetch_json_first};
 use super::debug_log;
 use super::models::{
@@ -9,6 +7,8 @@ use super::models::{
 use super::slices::{entry_from_slice_key, parse_shard_key, parse_slice_key};
 use super::ui::{pick_preferred, unique};
 use crate::core::{HeatmapBin, HistogramBin, parse_combined_bin};
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
@@ -337,9 +337,9 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
                                 set_heat_load_ms.set(Some(0));
                             }
                         }
-                        None => set_load_error.set(Some(
-                            "Invalid inlined binary payload.".to_string(),
-                        )),
+                        None => {
+                            set_load_error.set(Some("Invalid inlined binary payload.".to_string()))
+                        }
                     },
                     Err(_) => set_load_error
                         .set(Some("Failed to decode inlined binary payload.".to_string())),
