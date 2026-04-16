@@ -1566,23 +1566,6 @@ name = "iron_insights"
 version = "0.1.0"
 
 [[package]]
-name = "iron_insights_app"
-version = "0.1.0"
-dependencies = [
- "base64",
- "gloo-net 0.7.0",
- "gloo-timers",
- "iron_insights_core",
- "js-sys",
- "leptos",
- "serde",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
 name = "iron_insights_core"
 version = "0.1.0"
 

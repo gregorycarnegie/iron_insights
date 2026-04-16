@@ -507,6 +507,8 @@ select {
 .bf-gauge .pct .sign { color: var(--iron); font-size: 36px; }
 .bf-gauge .cat { font-size: 10px; color: var(--ink-dim); letter-spacing: 0.25em; margin-top: -4px; }
 
+.bf-mass-grid { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
 .bf-categories { margin-top: 24px; display: grid; gap: 6px; }
 
 .bf-cat { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); font-size: 11px; align-items: center; }

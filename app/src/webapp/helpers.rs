@@ -97,10 +97,10 @@ pub(super) fn calc_bodyfat_male(
         return None;
     }
     let bf = 495.0
-        / (1.0293 - 0.1905 * (diff as f64).log10() as f32
-            + 0.0794 * (height_cm as f64).log10() as f32)
+        / (1.0324 - 0.19077 * (diff as f64).log10() as f32
+            + 0.15456 * (height_cm as f64).log10() as f32)
         - 450.0;
-    let bf = bf.clamp(3.0, 60.0);
+    let bf = bf.clamp(2.0, 60.0);
     let fat_mass = weight_kg * bf / 100.0;
     let lean_mass = weight_kg - fat_mass;
     Some(BodyfatResult {
@@ -142,9 +142,11 @@ pub(super) fn bodyfat_category(pct: f32, is_male: bool) -> &'static str {
     if is_male {
         if pct < 6.0 {
             "Essential"
-        } else if pct < 14.0 {
+        } else if pct < 11.0 {
+            "Elite Athlete"
+        } else if pct < 15.0 {
             "Athlete"
-        } else if pct < 18.0 {
+        } else if pct < 20.0 {
             "Fitness"
         } else if pct < 25.0 {
             "Average"
@@ -154,9 +156,11 @@ pub(super) fn bodyfat_category(pct: f32, is_male: bool) -> &'static str {
     } else {
         if pct < 14.0 {
             "Essential"
-        } else if pct < 21.0 {
+        } else if pct < 18.0 {
+            "Elite Athlete"
+        } else if pct < 22.0 {
             "Athlete"
-        } else if pct < 25.0 {
+        } else if pct < 26.0 {
             "Fitness"
         } else if pct < 32.0 {
             "Average"
