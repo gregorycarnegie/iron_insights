@@ -1,5 +1,5 @@
 [package]
-name = "iron_insights_app"
+name = "ironscale"
 version.workspace = true
 edition.workspace = true
 

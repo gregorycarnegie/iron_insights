@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://gregorycarnegie.github.io/iron_insights/sitemap.xml

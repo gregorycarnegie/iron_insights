@@ -34,121 +34,142 @@ pub(super) fn download_share_png(payload: ShareImagePayload<'_>) -> Result<(), S
         .dyn_into::<web_sys::CanvasRenderingContext2d>()
         .map_err(|_| "Invalid canvas rendering context.")?;
 
-    context.set_fill_style_str("#08080a");
+    // Background
+    context.set_fill_style_str("#0b0b0d");
     context.fill_rect(0.0, 0.0, 1200.0, 630.0);
 
-    context.set_fill_style_str("#14141a");
+    context.set_fill_style_str("#121215");
     context.fill_rect(40.0, 40.0, 1120.0, 550.0);
-    context.set_fill_style_str("rgba(78, 205, 196, 0.08)");
-    context.fill_rect(760.0, 40.0, 400.0, 220.0);
-    context.set_fill_style_str("rgba(200, 241, 53, 0.06)");
-    context.fill_rect(40.0, 40.0, 320.0, 180.0);
 
-    context.set_stroke_style_str("#1c1c24");
+    // Iron glow
+    context.set_fill_style_str("rgba(232, 71, 43, 0.06)");
+    context.fill_rect(40.0, 40.0, 400.0, 550.0);
+
+    context.set_stroke_style_str("#2a2a30");
     context.stroke_rect(40.0, 40.0, 1120.0, 550.0);
 
-    context.set_fill_style_str("#c8f135");
-    context.fill_rect(80.0, 78.0, 186.0, 34.0);
-    context.set_fill_style_str("#08080a");
-    context.set_font("800 18px 'Barlow Condensed', sans-serif");
-    context
-        .fill_text("IRON INSIGHTS", 96.0, 101.0)
-        .map_err(|_| "Failed to render brand tag.")?;
+    // Corner accents
+    context.set_stroke_style_str("#e8472b");
+    context.set_line_width(1.5);
+    context.begin_path();
+    context.move_to(48.0, 60.0);
+    context.line_to(48.0, 48.0);
+    context.line_to(60.0, 48.0);
+    context.stroke();
+    context.begin_path();
+    context.move_to(1148.0, 60.0);
+    context.line_to(1148.0, 48.0);
+    context.line_to(1136.0, 48.0);
+    context.stroke();
 
-    context.set_fill_style_str("#f0efe8");
-    context.set_font("900 56px 'Barlow Condensed', sans-serif");
-    context
-        .fill_text("Ranking Snapshot", 80.0, 170.0)
-        .map_err(|_| "Failed to render heading text.")?;
+    // Brand bar
+    context.set_fill_style_str("#e8472b");
+    context.fill_rect(80.0, 72.0, 12.0, 36.0);
+    context.set_fill_style_str("#e8e3d6");
+    context.fill_rect(72.0, 80.0, 4.0, 20.0);
+    context.fill_rect(92.0, 80.0, 4.0, 20.0);
 
-    context.set_font("600 36px Barlow, sans-serif");
-    let who = if payload.handle.trim().is_empty() {
-        "Anonymous Lifter".to_string()
-    } else {
-        payload.handle.trim().to_string()
-    };
+    context.set_fill_style_str("#f4f1ea");
+    context.set_font("700 20px 'JetBrains Mono', monospace");
     context
-        .fill_text(&who, 80.0, 224.0)
-        .map_err(|_| "Failed to render handle.")?;
+        .fill_text("IRONSCALE", 112.0, 96.0)
+        .map_err(|_| "Failed to render brand.")?;
 
-    context.set_fill_style_str("#c8f135");
-    context.set_font("900 124px 'Barlow Condensed', sans-serif");
+    context.set_fill_style_str("#52504c");
+    context.set_font("500 13px 'JetBrains Mono', monospace");
     context
-        .fill_text(&format!("{:.1}%", payload.percentile * 100.0), 80.0, 360.0)
+        .fill_text("// WHERE YOU STAND", 112.0, 114.0)
+        .map_err(|_| "Failed to render tagline.")?;
+
+    // Main percentile
+    context.set_fill_style_str("#e8472b");
+    context.set_font("900 110px 'Archivo Black', sans-serif");
+    context
+        .fill_text(&format!("{:.1}%", payload.percentile * 100.0), 80.0, 320.0)
         .map_err(|_| "Failed to render percentile.")?;
 
-    context.set_fill_style_str("#f0efe8");
-    context.set_font("700 34px 'Barlow Condensed', sans-serif");
+    context.set_fill_style_str("#f4f1ea");
+    context.set_font("400 26px 'JetBrains Mono', monospace");
     context
-        .fill_text("Stronger than the matched field", 80.0, 408.0)
+        .fill_text("STRONGER THAN THE MATCHED FIELD", 80.0, 368.0)
         .map_err(|_| "Failed to render rank label.")?;
 
-    context.set_fill_style_str("#b2b2b8");
-    context.set_font("500 28px Barlow, sans-serif");
-    context
-        .fill_text(
-            &format!("Tier {}  |  Focus {}", payload.tier, payload.lift_focus),
-            80.0,
-            448.0,
-        )
-        .map_err(|_| "Failed to render tier line.")?;
-
-    context.set_fill_style_str("#7a7a84");
-    context.set_font("500 23px 'JetBrains Mono', monospace");
+    // Tier
+    context.set_fill_style_str("#8a8680");
+    context.set_font("400 18px 'JetBrains Mono', monospace");
     context
         .fill_text(
             &format!(
-                "BW {:.1} kg | S {:.1} | B {:.1} | D {:.1}",
+                "TIER {} · FOCUS {}",
+                payload.tier.to_uppercase(),
+                payload.lift_focus
+            ),
+            80.0,
+            408.0,
+        )
+        .map_err(|_| "Failed to render tier.")?;
+
+    // Lifts
+    context
+        .fill_text(
+            &format!(
+                "BW {:.1} · S {:.1} · B {:.1} · D {:.1} KG",
                 payload.bodyweight, payload.squat, payload.bench, payload.deadlift
             ),
             80.0,
-            492.0,
+            440.0,
         )
-        .map_err(|_| "Failed to render lift line.")?;
+        .map_err(|_| "Failed to render lifts.")?;
 
-    context.set_fill_style_str("#14141a");
-    context.fill_rect(760.0, 104.0, 320.0, 322.0);
-    context.set_stroke_style_str("#2a2a34");
-    context.stroke_rect(760.0, 104.0, 320.0, 322.0);
+    // Handle
+    if !payload.handle.trim().is_empty() {
+        context.set_fill_style_str("#e8e3d6");
+        context.set_font("400 22px 'JetBrains Mono', monospace");
+        context
+            .fill_text(payload.handle.trim(), 80.0, 490.0)
+            .map_err(|_| "Failed to render handle.")?;
+    }
 
-    context.set_fill_style_str("#5a5a64");
-    context.set_font("600 18px 'JetBrains Mono', monospace");
+    // Percentile bar (right side)
+    context.set_fill_style_str("#1a1a1f");
+    context.fill_rect(780.0, 100.0, 320.0, 380.0);
+    context.set_stroke_style_str("#2a2a30");
+    context.stroke_rect(780.0, 100.0, 320.0, 380.0);
+
+    context.set_fill_style_str("#52504c");
+    context.set_font("400 11px 'JetBrains Mono', monospace");
     context
-        .fill_text("Percentile meter", 790.0, 145.0)
+        .fill_text("PERCENTILE", 800.0, 132.0)
         .map_err(|_| "Failed to render meter label.")?;
 
-    context.set_fill_style_str("#0a0a0d");
-    context.fill_rect(790.0, 182.0, 260.0, 18.0);
-    context.set_fill_style_str("#c8f135");
+    // Track
+    context.set_fill_style_str("#0b0b0d");
+    context.fill_rect(800.0, 152.0, 280.0, 12.0);
+    context.set_fill_style_str("#e8472b");
     context.fill_rect(
-        790.0,
-        182.0,
-        (payload.percentile * 260.0).clamp(0.0, 260.0) as f64,
-        18.0,
+        800.0,
+        152.0,
+        (payload.percentile * 280.0).clamp(0.0, 280.0) as f64,
+        12.0,
     );
-    context.set_fill_style_str("#7a7a84");
-    context.set_font("600 18px 'JetBrains Mono', monospace");
-    context
-        .fill_text("0", 790.0, 224.0)
-        .map_err(|_| "Failed to render meter min.")?;
-    context
-        .fill_text("100", 1018.0, 224.0)
-        .map_err(|_| "Failed to render meter max.")?;
 
-    context.set_fill_style_str("#f0efe8");
-    context.set_font("900 64px 'Barlow Condensed', sans-serif");
+    context.set_fill_style_str("#f4f1ea");
+    context.set_font("900 80px 'Archivo Black', sans-serif");
     context
-        .fill_text(&format!("{:.1}", payload.percentile * 100.0), 790.0, 322.0)
+        .fill_text(&format!("{:.1}", payload.percentile * 100.0), 800.0, 310.0)
         .map_err(|_| "Failed to render meter value.")?;
-    context.set_font("700 28px 'Barlow Condensed', sans-serif");
+
+    context.set_fill_style_str("#8a8680");
+    context.set_font("400 16px 'JetBrains Mono', monospace");
     context
-        .fill_text("percentile", 790.0, 358.0)
+        .fill_text("PERCENTILE", 800.0, 342.0)
         .map_err(|_| "Failed to render meter unit.")?;
 
-    context.set_fill_style_str("#7a7a84");
-    context.set_font("500 22px 'JetBrains Mono', monospace");
+    // Watermark
+    context.set_fill_style_str("#3a3a42");
+    context.set_font("400 13px 'JetBrains Mono', monospace");
     context
-        .fill_text("iron-insights", 80.0, 555.0)
+        .fill_text("IRONSCALE · WHERE YOU STAND", 80.0, 565.0)
         .map_err(|_| "Failed to render watermark.")?;
 
     let data_url = canvas
@@ -160,7 +181,7 @@ pub(super) fn download_share_png(payload: ShareImagePayload<'_>) -> Result<(), S
         .dyn_into::<web_sys::HtmlAnchorElement>()
         .map_err(|_| "Failed to create download anchor.")?;
     anchor.set_href(&data_url);
-    anchor.set_download("iron-insights-ranking.png");
+    anchor.set_download("ironscale-ranking.png");
     anchor.click();
     Ok(())
 }

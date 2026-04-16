@@ -3,9 +3,13 @@
 /app/dist
 /app/data
 /app/Cargo.lock
+/app2/target
+/app2/dist
+/app2/data
+/app2/Cargo.lock
 /pipeline/Cargo.lock
 /dist
-/app2
+# /app2
 powerlifting-analytics.jsx
 .codex
 

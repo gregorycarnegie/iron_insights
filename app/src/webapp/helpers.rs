@@ -73,3 +73,95 @@ pub(super) fn build_share_url(params: &[(&str, String)]) -> Option<String> {
     let hash = window.location().hash().ok().unwrap_or_default();
     Some(format!("{origin}{pathname}?{}{}", search.to_string(), hash))
 }
+
+// ===== BODYFAT (US NAVY METHOD) =====
+
+#[derive(Clone, Copy, PartialEq)]
+pub(super) struct BodyfatResult {
+    pub(super) body_fat_pct: f32,
+    pub(super) lean_mass_kg: f32,
+    pub(super) fat_mass_kg: f32,
+}
+
+pub(super) fn calc_bodyfat_male(
+    height_cm: f32,
+    weight_kg: f32,
+    neck_cm: f32,
+    waist_cm: f32,
+) -> Option<BodyfatResult> {
+    if height_cm <= 0.0 || neck_cm <= 0.0 || waist_cm <= neck_cm {
+        return None;
+    }
+    let diff = waist_cm - neck_cm;
+    if diff <= 0.0 {
+        return None;
+    }
+    let bf = 495.0
+        / (1.0293 - 0.1905 * (diff as f64).log10() as f32
+            + 0.0794 * (height_cm as f64).log10() as f32)
+        - 450.0;
+    let bf = bf.clamp(3.0, 60.0);
+    let fat_mass = weight_kg * bf / 100.0;
+    let lean_mass = weight_kg - fat_mass;
+    Some(BodyfatResult {
+        body_fat_pct: bf,
+        lean_mass_kg: lean_mass,
+        fat_mass_kg: fat_mass,
+    })
+}
+
+pub(super) fn calc_bodyfat_female(
+    height_cm: f32,
+    weight_kg: f32,
+    neck_cm: f32,
+    waist_cm: f32,
+    hip_cm: f32,
+) -> Option<BodyfatResult> {
+    if height_cm <= 0.0 || neck_cm <= 0.0 {
+        return None;
+    }
+    let diff = waist_cm + hip_cm - neck_cm;
+    if diff <= 0.0 {
+        return None;
+    }
+    let bf = 495.0
+        / (1.29579 - 0.35004 * (diff as f64).log10() as f32
+            + 0.22100 * (height_cm as f64).log10() as f32)
+        - 450.0;
+    let bf = bf.clamp(8.0, 60.0);
+    let fat_mass = weight_kg * bf / 100.0;
+    let lean_mass = weight_kg - fat_mass;
+    Some(BodyfatResult {
+        body_fat_pct: bf,
+        lean_mass_kg: lean_mass,
+        fat_mass_kg: fat_mass,
+    })
+}
+
+pub(super) fn bodyfat_category(pct: f32, is_male: bool) -> &'static str {
+    if is_male {
+        if pct < 6.0 {
+            "Essential"
+        } else if pct < 14.0 {
+            "Athlete"
+        } else if pct < 18.0 {
+            "Fitness"
+        } else if pct < 25.0 {
+            "Average"
+        } else {
+            "Obese"
+        }
+    } else {
+        if pct < 14.0 {
+            "Essential"
+        } else if pct < 21.0 {
+            "Athlete"
+        } else if pct < 25.0 {
+            "Fitness"
+        } else if pct < 32.0 {
+            "Average"
+        } else {
+            "Obese"
+        }
+    }
+}

@@ -3,130 +3,35 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Iron Insights</title>
-    <meta
-      name="description"
-      content="Iron Insights is a powerlifting percentile calculator that compares your squat, bench, and deadlift against real-world lifting data."
-    />
-    <meta
-      name="keywords"
-      content="powerlifting percentile calculator, squat bench deadlift calculator, strength standards, powerlifting ranks"
-    />
-    <meta name="robots" content="index, follow, max-image-preview:large" />
-    <meta name="theme-color" content="#08080A" />
-    <meta name="application-name" content="Iron Insights" />
-    <link rel="canonical" href="https://gregorycarnegie.github.io/iron_insights/" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Iron Insights" />
-    <meta property="og:locale" content="en_US" />
-    <meta property="og:title" content="Iron Insights | Powerlifting Percentile Calculator" />
-    <meta
-      property="og:description"
-      content="Enter your squat, bench, and deadlift to see your percentile and compare your strength to lifters in the dataset."
-    />
-    <meta property="og:url" content="https://gregorycarnegie.github.io/iron_insights/" />
-    <meta property="og:image" content="https://gregorycarnegie.github.io/iron_insights/og-card.svg" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Iron Insights | Powerlifting Percentile Calculator" />
-    <meta
-      name="twitter:description"
-      content="See how your lifts stack up with a powerlifting percentile calculator built on real meet data."
-    />
-    <meta name="twitter:image" content="https://gregorycarnegie.github.io/iron_insights/og-card.svg" />
+    <title>IRONSCALE // Where You Stand</title>
+    <meta name="description" content="IRONSCALE places your powerlifting numbers against 2M+ federated lifters. Percentiles, distributions, and strength analytics." />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#0b0b0d" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Barlow:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@300;400;500;700&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,500&display=swap" rel="stylesheet" />
     <link data-trunk rel="css" href="assets/style.css" />
     <link data-trunk rel="copy-dir" href="assets" />
-    <link data-trunk rel="copy-file" href="assets/logo.svg" />
-    <link data-trunk rel="copy-file" href="assets/og-card.svg" />
-    <link data-trunk rel="copy-file" href="robots.txt" />
-    <link data-trunk rel="copy-file" href="sitemap.xml" />
     <link data-trunk rel="copy-file" href="data/latest.json" />
-    <link data-trunk rel="copy-dir" href="landing" />
     <link data-trunk rel="copy-dir" href="data" />
-    <link rel="icon" type="image/svg+xml" href="logo.svg" />
-    <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@graph": [
-          {
-            "@type": "WebSite",
-            "name": "Iron Insights",
-            "description": "Powerlifting percentile calculator and lift comparison explorer.",
-            "url": "https://gregorycarnegie.github.io/iron_insights/",
-            "inLanguage": "en"
-          },
-          {
-            "@type": "WebApplication",
-            "name": "Iron Insights",
-            "applicationCategory": "SportsApplication",
-            "operatingSystem": "Web",
-            "url": "https://gregorycarnegie.github.io/iron_insights/",
-            "description": "Enter your lifts to see how you rank among lifters by percentile, tier, and comparison mode."
-          },
-          {
-            "@type": "FAQPage",
-            "mainEntity": [
-              {
-                "@type": "Question",
-                "name": "What does percentile mean?",
-                "acceptedAnswer": {
-                  "@type": "Answer",
-                  "text": "Percentile shows the share of comparable lifters you outperform. Higher percentile means stronger relative ranking."
-                }
-              },
-              {
-                "@type": "Question",
-                "name": "Where does the data come from?",
-                "acceptedAnswer": {
-                  "@type": "Answer",
-                  "text": "Data is loaded from the bundled competition dataset version shown in the app."
-                }
-              },
-              {
-                "@type": "Question",
-                "name": "Why does equipment matter?",
-                "acceptedAnswer": {
-                  "@type": "Answer",
-                  "text": "Different equipment changes performance, so equipment filters create fairer comparisons."
-                }
-              }
-            ]
-          }
-        ]
-      }
-    </script>
   </head>
   <body>
-    <main id="app-shell" class="page boot-shell" aria-busy="true">
-      <section class="panel boot-panel">
-        <p class="hero-tag">Loading</p>
-        <h1 class="boot-title">Iron Insights</h1>
-        <p class="boot-intro">
-          Loading the powerlifting percentile calculator, cohort data, and comparison tools.
-        </p>
-        <p class="boot-status">
-          <span class="boot-pulse" aria-hidden="true"></span>
-          <span>Preparing the app.</span>
-        </p>
-        <noscript>
-          <p class="boot-noscript">
-            JavaScript is required for the live calculator. You can still browse the
-            <a href="./landing/index.html">guides</a>,
-            <a href="./landing/faq.html">FAQ</a>,
-            and
-            <a href="./landing/methodology.html">methodology notes</a>.
-          </p>
-        </noscript>
-      </section>
-    </main>
+    <div id="app-shell" class="app boot-shell" aria-busy="true">
+      <aside class="nav">
+        <div class="brand">
+          <div class="brand-mark"><span class="bar"></span>IRONSCALE</div>
+          <div class="brand-sub">// WHERE YOU STAND</div>
+        </div>
+      </aside>
+      <main class="main">
+        <div class="topbar">
+          <div class="crumb"><span>SYSTEM</span><span class="sep">/</span><span class="cur">LOADING</span></div>
+        </div>
+        <div style="padding:80px 40px;text-align:center;color:#52504c;font-size:12px;letter-spacing:0.2em">
+          LOADING IRONSCALE
+        </div>
+      </main>
+    </div>
     <div id="app"></div>
   </body>
 </html>
