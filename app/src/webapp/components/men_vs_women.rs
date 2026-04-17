@@ -16,6 +16,7 @@ pub struct MenVsWomenCtx {
     pub male_heat: ReadSignal<Option<HeatmapBin>>,
     pub female_heat: ReadSignal<Option<HeatmapBin>>,
     pub hist_loading: ReadSignal<bool>,
+    pub hist_error: ReadSignal<Option<String>>,
     pub heat_loading: ReadSignal<bool>,
     pub heat_error: ReadSignal<Option<String>>,
     pub user_lift: Memo<f32>,
@@ -37,6 +38,7 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
         male_heat,
         female_heat,
         hist_loading,
+        hist_error,
         heat_loading,
         heat_error,
         user_lift,
@@ -125,7 +127,7 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                                     </div>
                                 </div>
                                 <div>
-                                    <div style="font-family:'Archivo Black',sans-serif;color:var(--brass);font-size:11px;letter-spacing:0.2em;margin-bottom:8px">
+                                    <div style="font-family:'Archivo Black',sans-serif;color:var(--women);font-size:11px;letter-spacing:0.2em;margin-bottom:8px">
                                         "AT YOUR FEMALE PERCENTILE"
                                     </div>
                                     <div>
@@ -165,9 +167,10 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                             ),
                             _ => view! {
                                 <div class="notice">
-                                    {if hist_loading.get() { "Loading distributions..." }
-                                    else if calculated.get() { "Awaiting cross-sex data..." }
-                                    else { "Compute on Ranking page first." }}
+                                    {if let Some(err) = hist_error.get() { err }
+                                    else if hist_loading.get() { "Loading distributions...".to_string() }
+                                    else if calculated.get() { "Awaiting cross-sex data...".to_string() }
+                                    else { "Compute on Ranking page first.".to_string() }}
                                 </div>
                             }.into_any(),
                         }}

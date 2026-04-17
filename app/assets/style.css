@@ -12,6 +12,7 @@
   --chalk: #e8e3d6;
   --steel: #6b7380;
   --brass: #c79a4a;
+  --women: #35d0ff;
   --ok: #8fb04a;
   --warn: #e8472b;
 }
@@ -365,10 +366,10 @@ select {
 
 .vs-col { padding: 24px; border: 1px solid var(--line); background: var(--bg-2); position: relative; }
 .vs-col.m { border-left: 3px solid var(--iron); }
-.vs-col.w { border-left: 3px solid var(--brass); }
+.vs-col.w { border-left: 3px solid var(--women); }
 .vs-col .sym { font-family: 'Archivo Black', sans-serif; font-size: 48px; line-height: 1; }
 .vs-col.m .sym { color: var(--iron); }
-.vs-col.w .sym { color: var(--brass); }
+.vs-col.w .sym { color: var(--women); }
 .vs-col .lbl { font-size: 11px; color: var(--ink-dim); letter-spacing: 0.2em; margin-top: 4px; }
 .vs-col .n { font-family: 'Archivo Black', sans-serif; font-size: 32px; margin-top: 12px; }
 .vs-vs { font-family: 'Archivo Black', sans-serif; font-size: 64px; color: var(--ink-mute); text-align: center; }
@@ -378,7 +379,7 @@ select {
 .ratio-strip { display: flex; height: 40px; border: 1px solid var(--line); }
 .ratio-strip .s { display: flex; align-items: center; justify-content: center; font-size: 11px; font-family: 'Archivo Black', sans-serif; letter-spacing: 0.1em; color: var(--bg); transition: all 0.4s; }
 .ratio-strip .s.m { background: var(--iron); }
-.ratio-strip .s.w { background: var(--brass); }
+.ratio-strip .s.w { background: var(--women); }
 
 /* ===== PAGE 4: 1RM ===== */
 .rm-grid { display: grid; grid-template-columns: 420px 1fr; gap: 32px; }

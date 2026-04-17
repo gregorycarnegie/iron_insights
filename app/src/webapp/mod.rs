@@ -689,9 +689,17 @@ fn App() -> impl IntoView {
                 pre_female = Some(h);
             }
         }
+        if let Some(h) = pre_male.clone() {
+            set_male_cross_hist.set(Some(h));
+        } else {
+            set_male_cross_hist.set(None);
+        }
+        if let Some(h) = pre_female.clone() {
+            set_female_cross_hist.set(Some(h));
+        } else {
+            set_female_cross_hist.set(None);
+        }
         if pre_male.is_some() && pre_female.is_some() {
-            set_male_cross_hist.set(pre_male);
-            set_female_cross_hist.set(pre_female);
             set_cross_sex_hist_loading.set(false);
             set_cross_sex_hist_error.set(None);
             return;
@@ -1261,6 +1269,7 @@ fn App() -> impl IntoView {
         male_heat: male_cross_heat,
         female_heat: female_cross_heat,
         hist_loading: cross_sex_hist_loading,
+        hist_error: cross_sex_hist_error,
         heat_loading: cross_sex_heat_loading,
         heat_error: cross_sex_heat_error,
         user_lift,

@@ -7,8 +7,8 @@ const DEFAULT_HEATMAP_WIDTH: f64 = 800.0;
 const DEFAULT_HEATMAP_HEIGHT: f64 = 380.0;
 const MEN_COLOR: &str = "#e8472b";
 const MEN_COLOR_RGB: &str = "232, 71, 43";
-const WOMEN_COLOR: &str = "#c79a4a";
-const WOMEN_COLOR_RGB: &str = "199, 154, 74";
+const WOMEN_COLOR: &str = "#35d0ff";
+const WOMEN_COLOR_RGB: &str = "53, 208, 255";
 const USER_MARKER_COLOR: &str = "#e8e3d6";
 const SURFACE_COLOR: &str = "#0b0b0d";
 const AXIS_COLOR: &str = "#2a2a30";
@@ -611,6 +611,7 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
         return;
     }
 
+    let _ = ctx.set_global_composite_operation("lighter");
     draw_overlay_heat_layer(
         &ctx,
         female_heat,
@@ -637,6 +638,7 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
         plot_h,
         MEN_COLOR_RGB,
     );
+    let _ = ctx.set_global_composite_operation("source-over");
 
     let x_span = (max_x - min_x).max(0.0001);
     let y_span = (max_y - min_y).max(0.0001);
