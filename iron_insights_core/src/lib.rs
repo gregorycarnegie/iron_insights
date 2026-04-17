@@ -745,12 +745,12 @@ mod tests {
         let mut b = Vec::new();
         b.extend_from_slice(&HISTOGRAM_MAGIC);
         b.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
-        push_f32(&mut b, 2.5);   // base
+        push_f32(&mut b, 2.5); // base
         push_f32(&mut b, 100.0); // min
         push_f32(&mut b, 105.0); // max
-        push_u32(&mut b, 2);     // bins count
-        push_u32(&mut b, 4);     // bin[0]
-        push_u32(&mut b, 1);     // bin[1]
+        push_u32(&mut b, 2); // bins count
+        push_u32(&mut b, 4); // bin[0]
+        push_u32(&mut b, 1); // bin[1]
         b
     }
 
@@ -760,8 +760,10 @@ mod tests {
         b.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
         push_f32(&mut b, 2.5); // base_x
         push_f32(&mut b, 1.0); // base_y
-        push_f32(&mut b, 80.0); push_f32(&mut b, 82.5); // min_x, max_x
-        push_f32(&mut b, 100.0); push_f32(&mut b, 101.0); // min_y, max_y
+        push_f32(&mut b, 80.0);
+        push_f32(&mut b, 82.5); // min_x, max_x
+        push_f32(&mut b, 100.0);
+        push_f32(&mut b, 101.0); // min_y, max_y
         push_u32(&mut b, 1); // width
         push_u32(&mut b, 1); // height
         push_u32(&mut b, 5); // grid[0]

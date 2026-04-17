@@ -1,9 +1,10 @@
 use super::shared::{Corners, InputForm, InputFormCtx};
 use crate::core::{HeatmapBin, HistogramBin};
-use crate::webapp::charts::render_histogram_svg;
-use crate::webapp::helpers::{kg_to_display, tier_for_percentile};
-use crate::webapp::ui::lift_label;
+use crate::webapp::charts::draw_ranking_distribution_canvas;
+use crate::webapp::helpers::kg_to_display;
+use leptos::ev;
 use leptos::html::Canvas;
+use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::prelude::*;
 
 #[derive(Clone)]
@@ -131,7 +132,7 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
         load_error,
         rebinned_hist,
         hist_x_label,
-        heat,
+        heat: _heat,
         rebinned_heat,
         canvas_ref,
         set_squat_delta,
@@ -148,6 +149,28 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
             .get()
             .map(|p| format!("{:.1}", p))
             .unwrap_or_else(|| "--".to_string())
+    });
+    let hist_canvas: NodeRef<Canvas> = NodeRef::new();
+    let (chart_resize_tick, set_chart_resize_tick) = signal(0u32);
+    let resize_handle = window_event_listener(ev::resize, move |_| {
+        set_chart_resize_tick.update(|tick| *tick = tick.wrapping_add(1));
+    });
+    on_cleanup(move || resize_handle.remove());
+
+    Effect::new(move |_| {
+        let _ = chart_resize_tick.get();
+        let Some(canvas) = hist_canvas.get() else {
+            return;
+        };
+        let Some(hist) = rebinned_hist.get() else {
+            return;
+        };
+        draw_ranking_distribution_canvas(
+            &canvas,
+            &hist,
+            calculated.get().then(|| user_lift.get()),
+            &hist_x_label.get(),
+        );
     });
 
     let form_ctx = InputFormCtx {
@@ -319,11 +342,14 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
                             <div class="hist-wrap">
                                 {move || {
                                     match rebinned_hist.get() {
-                                        Some(h) => render_histogram_svg(
-                                            &h,
-                                            calculated.get().then(|| user_lift.get()),
-                                            &hist_x_label.get(),
-                                        ),
+                                        Some(_) => view! {
+                                            <canvas
+                                                node_ref=hist_canvas.clone()
+                                                class="hist"
+                                                role="img"
+                                                aria-label="Distribution curve with your input marker"
+                                            ></canvas>
+                                        }.into_any(),
                                         None => view! {
                                             <div class="notice">
                                                 {if calculated.get() { "Loading distribution..." } else { "Compute to load distribution." }}

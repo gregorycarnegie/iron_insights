@@ -1,9 +1,10 @@
 use super::shared::Corners;
 use crate::core::{HeatmapBin, HistogramBin};
-use crate::webapp::charts::{draw_cross_sex_heatmap_overlay, render_dual_histogram_svg};
-use crate::webapp::helpers::kg_to_display;
+use crate::webapp::charts::{draw_cross_sex_heatmap_overlay, draw_dual_normal_curve_canvas};
 use crate::webapp::models::{CrossSexComparison, SliceSummary};
+use leptos::ev;
 use leptos::html::Canvas;
+use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::prelude::*;
 
 #[derive(Clone)]
@@ -30,7 +31,7 @@ pub struct MenVsWomenCtx {
 #[component]
 pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
     let MenVsWomenCtx {
-        dataset_blurb,
+        dataset_blurb: _dataset_blurb,
         calculated,
         cross_sex_comparison,
         male_hist,
@@ -44,14 +45,21 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
         user_lift,
         bodyweight,
         hist_x_label,
-        use_lbs,
-        unit_label,
-        slice_summary,
+        use_lbs: _use_lbs,
+        unit_label: _unit_label,
+        slice_summary: _slice_summary,
     } = ctx;
 
     let cross_canvas: NodeRef<Canvas> = NodeRef::new();
+    let curve_canvas: NodeRef<Canvas> = NodeRef::new();
+    let (chart_resize_tick, set_chart_resize_tick) = signal(0u32);
+    let resize_handle = window_event_listener(ev::resize, move |_| {
+        set_chart_resize_tick.update(|tick| *tick = tick.wrapping_add(1));
+    });
+    on_cleanup(move || resize_handle.remove());
 
     Effect::new(move |_| {
+        let _ = chart_resize_tick.get();
         let Some(canvas) = cross_canvas.get() else {
             return;
         };
@@ -64,6 +72,23 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
             &fh,
             calculated.get().then(|| user_lift.get()),
             bodyweight.get(),
+            &hist_x_label.get(),
+        );
+    });
+
+    Effect::new(move |_| {
+        let _ = chart_resize_tick.get();
+        let Some(canvas) = curve_canvas.get() else {
+            return;
+        };
+        let (Some(mh), Some(fh)) = (male_hist.get(), female_hist.get()) else {
+            return;
+        };
+        draw_dual_normal_curve_canvas(
+            &canvas,
+            &mh,
+            &fh,
+            calculated.get().then(|| user_lift.get()),
             &hist_x_label.get(),
         );
     });
@@ -155,16 +180,19 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                 <Corners />
                 <div class="panel-head">
                     <span><span class="tag">"Δ"</span>" OVERLAPPING DISTRIBUTIONS"</span>
-                    <span>"LIFTER COUNT"</span>
+                    <span>"KDE / SCALED"</span>
                 </div>
                 <div class="panel-body">
                     <div class="hist-wrap">
                         {move || match (male_hist.get(), female_hist.get()) {
-                            (Some(mh), Some(fh)) => render_dual_histogram_svg(
-                                &mh, &fh,
-                                calculated.get().then(|| user_lift.get()),
-                                &hist_x_label.get(),
-                            ),
+                            (Some(_), Some(_)) => view! {
+                                <canvas
+                                    node_ref=curve_canvas.clone()
+                                    class="hist"
+                                    role="img"
+                                    aria-label="Scaled normal distribution curves comparing men and women"
+                                ></canvas>
+                            }.into_any(),
                             _ => view! {
                                 <div class="notice">
                                     {if let Some(err) = hist_error.get() { err }

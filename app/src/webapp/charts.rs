@@ -7,8 +7,8 @@ const DEFAULT_HEATMAP_WIDTH: f64 = 800.0;
 const DEFAULT_HEATMAP_HEIGHT: f64 = 380.0;
 const MEN_COLOR: &str = "#e8472b";
 const MEN_COLOR_RGB: &str = "232, 71, 43";
-const WOMEN_COLOR: &str = "#35d0ff";
 const WOMEN_COLOR_RGB: &str = "53, 208, 255";
+const WOMEN_CURVE_COLOR: &str = "#c79a4a";
 const USER_MARKER_COLOR: &str = "#e8e3d6";
 const SURFACE_COLOR: &str = "#0b0b0d";
 const AXIS_COLOR: &str = "#2a2a30";
@@ -17,6 +17,106 @@ const LABEL_COLOR: &str = "#f4f1ea";
 const LEGEND_BG: &str = "#121215";
 const LEGEND_BORDER: &str = "#2a2a30";
 const HEAT_COLOR_RGB: &str = "232, 71, 43";
+const STEEL_BAR_COLOR: &str = "rgba(107,115,128,0.4)";
+
+fn setup_canvas(
+    canvas: &HtmlCanvasElement,
+    fallback_h: f64,
+) -> Option<(CanvasRenderingContext2d, f64, f64)> {
+    let Ok(Some(ctx)) = canvas.get_context("2d") else {
+        return None;
+    };
+    let Ok(ctx) = ctx.dyn_into::<CanvasRenderingContext2d>() else {
+        return None;
+    };
+
+    let css_w = canvas.client_width().max(1) as f64;
+    let css_h = match canvas.client_height() {
+        0 => fallback_h.max(1.0),
+        value => value as f64,
+    };
+    let dpr = web_sys::window()
+        .map(|window| window.device_pixel_ratio())
+        .unwrap_or(1.0)
+        .max(1.0);
+    let backing_w = (css_w * dpr).round().max(1.0) as u32;
+    let backing_h = (css_h * dpr).round().max(1.0) as u32;
+
+    if canvas.width() != backing_w {
+        canvas.set_width(backing_w);
+    }
+    if canvas.height() != backing_h {
+        canvas.set_height(backing_h);
+    }
+
+    let _ = ctx.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+    ctx.clear_rect(0.0, 0.0, backing_w as f64, backing_h as f64);
+    let _ = ctx.scale(dpr, dpr);
+
+    Some((ctx, css_w, css_h))
+}
+
+fn histogram_mean_stddev(hist: &HistogramBin) -> Option<(f64, f64)> {
+    if hist.counts.is_empty() || hist.base_bin <= 0.0 {
+        return None;
+    }
+
+    let center =
+        |idx: usize| -> f64 { hist.min as f64 + (idx as f64 + 0.5) * hist.base_bin as f64 };
+    let (total, sum_x, sum_x2) = hist.counts.iter().copied().enumerate().fold(
+        (0.0_f64, 0.0_f64, 0.0_f64),
+        |(total, sum_x, sum_x2), (idx, count)| {
+            let weight = count as f64;
+            let x = center(idx);
+            (total + weight, sum_x + weight * x, sum_x2 + weight * x * x)
+        },
+    );
+
+    if total <= 0.0 {
+        return None;
+    }
+
+    let mean = sum_x / total;
+    let variance = (sum_x2 / total - mean * mean).max(0.0);
+    let stddev = variance.sqrt();
+    if stddev.is_finite() && stddev > 0.0 {
+        Some((mean, stddev))
+    } else {
+        None
+    }
+}
+
+fn histogram_normal_params(hist: &HistogramBin) -> Option<(f64, f64)> {
+    histogram_mean_stddev(hist).or_else(|| {
+        let span = (hist.max - hist.min) as f64;
+        (span > 0.0).then_some(((hist.min + hist.max) as f64 * 0.5, span / 6.0))
+    })
+}
+
+fn normal_peak(value: f64, mean: f64, stddev: f64) -> f64 {
+    let z = (value - mean) / stddev.max(0.0001);
+    (-0.5 * z * z).exp()
+}
+
+fn axis_tick_label(x_label: &str, value: f64) -> String {
+    let prefix = if x_label.contains("DOTS") {
+        "DOTS"
+    } else if x_label.contains("Wilks") {
+        "WILKS"
+    } else if x_label.contains("GL") {
+        "GL"
+    } else if x_label.contains("kg") || x_label.contains("KG") {
+        "KG"
+    } else {
+        ""
+    };
+    let value = format_axis_tick(value as f32);
+    if prefix.is_empty() {
+        value
+    } else {
+        format!("{prefix} {value}")
+    }
+}
 
 fn format_axis_tick(value: f32) -> String {
     if (value - value.round()).abs() < 0.05 {
@@ -24,36 +124,6 @@ fn format_axis_tick(value: f32) -> String {
     } else {
         format!("{value:.1}")
     }
-}
-
-fn histogram_overlay_rects(
-    hist: &HistogramBin,
-    min_x: f32,
-    max_x: f32,
-    max_count: f32,
-    left: f32,
-    top: f32,
-    plot_w: f32,
-    plot_h: f32,
-) -> Vec<(f32, f32, f32, f32)> {
-    let x_span = (max_x - min_x).max(0.0001);
-    hist.counts
-        .iter()
-        .copied()
-        .enumerate()
-        .filter_map(|(idx, count)| {
-            if count == 0 {
-                return None;
-            }
-            let bin_start = hist.min + idx as f32 * hist.base_bin;
-            let bin_end = (bin_start + hist.base_bin).min(hist.max);
-            let x0 = left + ((bin_start - min_x) / x_span).clamp(0.0, 1.0) * plot_w;
-            let x1 = left + ((bin_end - min_x) / x_span).clamp(0.0, 1.0) * plot_w;
-            let bar_h = (count as f32 / max_count.max(1.0)) * plot_h;
-            let y = top + plot_h - bar_h;
-            Some((x0, y, (x1 - x0).max(0.8), bar_h))
-        })
-        .collect()
 }
 
 pub(super) fn render_histogram_svg(
@@ -169,148 +239,255 @@ pub(super) fn render_histogram_svg(
     .into_any()
 }
 
-pub(super) fn render_dual_histogram_svg(
+pub(super) fn draw_ranking_distribution_canvas(
+    canvas: &HtmlCanvasElement,
+    hist: &HistogramBin,
+    user_value: Option<f32>,
+    x_label: &str,
+) {
+    let Some((ctx, cw, ch)) = setup_canvas(canvas, 320.0) else {
+        return;
+    };
+    let Some((mean, stddev)) = histogram_normal_params(hist) else {
+        return;
+    };
+
+    ctx.set_fill_style_str(SURFACE_COLOR);
+    ctx.fill_rect(0.0, 0.0, cw, ch);
+
+    ctx.set_stroke_style_str("rgba(255,255,255,0.04)");
+    ctx.set_line_width(1.0);
+    for i in 0..=4 {
+        let y = ch * i as f64 / 4.0;
+        ctx.begin_path();
+        ctx.move_to(0.0, y);
+        ctx.line_to(cw, y);
+        ctx.stroke();
+    }
+
+    let x_min = mean - 3.0 * stddev;
+    let x_max = mean + 3.0 * stddev;
+    let x_span = (x_max - x_min).max(0.0001);
+    let bins = 60usize;
+    let bin_w = cw / bins as f64;
+    let baseline = ch - 20.0;
+    let plot_h = (ch - 40.0).max(1.0);
+    let your_x = user_value
+        .map(|value| ((value as f64 - x_min) / x_span).clamp(0.0, 1.0) * cw)
+        .unwrap_or(cw * 0.5);
+
+    let mut vals = Vec::with_capacity(bins);
+    let mut max_val = 0.0_f64;
+    for i in 0..bins {
+        let value = x_min + (i as f64 + 0.5) * x_span / bins as f64;
+        let density = normal_peak(value, mean, stddev);
+        max_val = max_val.max(density);
+        vals.push(density);
+    }
+
+    for (i, density) in vals.into_iter().enumerate() {
+        let h = density / max_val.max(0.0001) * plot_h;
+        let x = i as f64 * bin_w;
+        let center_x = (i as f64 + 0.5) * bin_w;
+        let fill = if user_value.is_some() && (center_x - your_x).abs() < bin_w {
+            MEN_COLOR
+        } else if user_value.is_some() && center_x < your_x {
+            "rgba(232,71,43,0.35)"
+        } else {
+            STEEL_BAR_COLOR
+        };
+        ctx.set_fill_style_str(fill);
+        ctx.fill_rect(x + 1.0, baseline - h, (bin_w - 2.0).max(0.5), h);
+    }
+
+    if user_value.is_some() {
+        ctx.set_stroke_style_str(MEN_COLOR);
+        ctx.set_line_width(2.0);
+        let dash: wasm_bindgen::JsValue = js_sys::Array::of2(&4.0.into(), &3.0.into()).into();
+        let _ = ctx.set_line_dash(&dash);
+        ctx.begin_path();
+        ctx.move_to(your_x, 0.0);
+        ctx.line_to(your_x, baseline);
+        ctx.stroke();
+        let empty_dash: wasm_bindgen::JsValue = js_sys::Array::new().into();
+        let _ = ctx.set_line_dash(&empty_dash);
+
+        ctx.set_fill_style_str(MEN_COLOR);
+        ctx.set_font("bold 11px 'Archivo Black', sans-serif");
+        ctx.set_text_baseline("alphabetic");
+        if your_x > cw - 48.0 {
+            ctx.set_text_align("right");
+            let _ = ctx.fill_text("YOU", your_x - 6.0, 14.0);
+        } else {
+            ctx.set_text_align("left");
+            let _ = ctx.fill_text("YOU", your_x + 6.0, 14.0);
+        }
+    }
+
+    ctx.set_fill_style_str(TICK_COLOR);
+    ctx.set_font("10px 'JetBrains Mono', monospace");
+    ctx.set_text_align("center");
+    ctx.set_text_baseline("alphabetic");
+    for t in [0.0, 0.25, 0.5, 0.75, 1.0] {
+        let x = t * cw;
+        let value = x_min + t * x_span;
+        let _ = ctx.fill_text(&axis_tick_label(x_label, value), x, ch - 4.0);
+    }
+}
+
+fn draw_curve_layer(
+    ctx: &CanvasRenderingContext2d,
+    cw: f64,
+    ch: f64,
+    x_min: f64,
+    x_max: f64,
+    mean: f64,
+    stddev: f64,
+    color: &str,
+    label: &str,
+) {
+    let baseline = ch - 40.0;
+    let plot_h = (ch - 70.0).max(1.0);
+    let x_span = (x_max - x_min).max(0.0001);
+    let step = 2.0_f64;
+    let mut pts = Vec::with_capacity((cw / step).ceil() as usize + 2);
+    let mut x = 0.0_f64;
+    while x <= cw {
+        let value = x_min + (x / cw) * x_span;
+        let y = baseline - normal_peak(value, mean, stddev) * plot_h;
+        pts.push((x, y));
+        x += step;
+    }
+    if pts.last().map(|(last_x, _)| *last_x < cw).unwrap_or(true) {
+        let value = x_max;
+        pts.push((cw, baseline - normal_peak(value, mean, stddev) * plot_h));
+    }
+
+    let gradient = ctx.create_linear_gradient(0.0, 40.0, 0.0, ch);
+    let _ = gradient.add_color_stop(0.0, &format!("{color}66"));
+    let _ = gradient.add_color_stop(1.0, &format!("{color}00"));
+    ctx.set_fill_style_canvas_gradient(&gradient);
+    ctx.begin_path();
+    ctx.move_to(0.0, baseline);
+    for (x, y) in &pts {
+        ctx.line_to(*x, *y);
+    }
+    ctx.line_to(cw, baseline);
+    ctx.close_path();
+    ctx.fill();
+
+    ctx.set_stroke_style_str(color);
+    ctx.set_line_width(2.0);
+    ctx.begin_path();
+    for (idx, (x, y)) in pts.iter().enumerate() {
+        if idx == 0 {
+            ctx.move_to(*x, *y);
+        } else {
+            ctx.line_to(*x, *y);
+        }
+    }
+    ctx.stroke();
+
+    let mean_x = ((mean - x_min) / x_span).clamp(0.0, 1.0) * cw;
+    let label_x = (mean_x - 20.0).clamp(4.0, cw - 76.0);
+    ctx.set_fill_style_str(color);
+    ctx.set_font("bold 12px 'Archivo Black', sans-serif");
+    ctx.set_text_align("left");
+    ctx.set_text_baseline("alphabetic");
+    let _ = ctx.fill_text(label, label_x, baseline - plot_h - 4.0);
+}
+
+pub(super) fn draw_dual_normal_curve_canvas(
+    canvas: &HtmlCanvasElement,
     male_hist: &HistogramBin,
     female_hist: &HistogramBin,
     user_value: Option<f32>,
     x_label: &str,
-) -> AnyView {
-    let aria_label =
-        format!("Overlayed histogram comparing male and female lifter count by {x_label}.");
-    let max_count = male_hist
-        .counts
-        .iter()
-        .chain(female_hist.counts.iter())
-        .copied()
-        .max()
-        .unwrap_or(1) as f32;
-    let w = 760.0f32;
-    let h = 240.0f32;
-    let left = 52.0f32;
-    let right = 18.0f32;
-    let top = 12.0f32;
-    let bottom = 34.0f32;
-    let plot_w = (w - left - right).max(1.0);
-    let plot_h = (h - top - bottom).max(1.0);
-    let min_x = male_hist.min.min(female_hist.min);
-    let max_x = male_hist.max.max(female_hist.max);
-    let x_span = (max_x - min_x).max(0.0001);
-    let user_marker_x =
-        user_value.map(|value| left + ((value - min_x) / x_span).clamp(0.0, 1.0) * plot_w);
-    let user_marker_view = if let Some(marker_x) = user_marker_x {
-        view! {
-            <line
-                x1={marker_x.to_string()}
-                y1={top.to_string()}
-                x2={marker_x.to_string()}
-                y2={(top + plot_h).to_string()}
-                stroke={USER_MARKER_COLOR}
-                stroke-width="2"
-            />
-        }
-        .into_any()
-    } else {
-        ().into_any()
+) {
+    let Some((ctx, cw, ch)) = setup_canvas(canvas, 320.0) else {
+        return;
     };
-    let user_marker_legend_view = if user_value.is_some() {
-        view! {
-            <>
-                <line
-                    x1={(w - 166.0).to_string()}
-                    y1="50"
-                    x2={(w - 152.0).to_string()}
-                    y2="50"
-                    stroke={USER_MARKER_COLOR}
-                    stroke-width="2"
-                />
-                <text x={(w - 146.0).to_string()} y="53" font-size="11" fill={LABEL_COLOR}>"Your input"</text>
-            </>
-        }
-        .into_any()
-    } else {
-        ().into_any()
+    let Some((male_mean, male_stddev)) = histogram_normal_params(male_hist) else {
+        return;
     };
-    let y_tick_mid = (max_count * 0.5).round() as u32;
-    let male_bars = histogram_overlay_rects(
-        male_hist, min_x, max_x, max_count, left, top, plot_w, plot_h,
-    );
-    let female_bars = histogram_overlay_rects(
-        female_hist,
-        min_x,
-        max_x,
-        max_count,
-        left,
-        top,
-        plot_w,
-        plot_h,
-    );
+    let Some((female_mean, female_stddev)) = histogram_normal_params(female_hist) else {
+        return;
+    };
 
-    view! {
-        <svg class="hist" viewBox="0 0 760 240" preserveAspectRatio="none" role="img" aria-label={aria_label}>
-            <rect x="0" y="0" width={w.to_string()} height={h.to_string()} fill={SURFACE_COLOR} />
-            <line x1={left.to_string()} y1={(top + plot_h).to_string()} x2={(left + plot_w).to_string()} y2={(top + plot_h).to_string()} stroke={AXIS_COLOR} stroke-width="1" />
-            <line x1={left.to_string()} y1={top.to_string()} x2={left.to_string()} y2={(top + plot_h).to_string()} stroke={AXIS_COLOR} stroke-width="1" />
-
-            {female_bars
-                .into_iter()
-                .map(|(x, y, width, height)| {
-                    view! {
-                        <rect
-                            x={x.to_string()}
-                            y={y.to_string()}
-                            width={width.to_string()}
-                            height={height.to_string()}
-                            fill={WOMEN_COLOR}
-                            fill-opacity="0.45"
-                        />
-                    }
-                })
-                .collect_view()}
-            {male_bars
-                .into_iter()
-                .map(|(x, y, width, height)| {
-                    view! {
-                        <rect
-                            x={x.to_string()}
-                            y={y.to_string()}
-                            width={width.to_string()}
-                            height={height.to_string()}
-                            fill={MEN_COLOR}
-                            fill-opacity="0.5"
-                        />
-                    }
-                })
-                .collect_view()}
-
-            {user_marker_view}
-
-            <text x={left.to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="middle">{format_axis_tick(min_x)}</text>
-            <text x={(left + plot_w * 0.5).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="middle">{format_axis_tick((min_x + max_x) * 0.5)}</text>
-            <text x={(left + plot_w).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="middle">{format_axis_tick(max_x)}</text>
-
-            <text x={(left - 8.0).to_string()} y={(top + plot_h).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="end">{ "0" }</text>
-            <text x={(left - 8.0).to_string()} y={(top + plot_h * 0.5 + 4.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="end">{y_tick_mid.to_string()}</text>
-            <text x={(left - 8.0).to_string()} y={(top + 4.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="end">{(max_count.round() as u32).to_string()}</text>
-
-            <text x={(left + plot_w * 0.5).to_string()} y={(h - 4.0).to_string()} font-size="12" fill={LABEL_COLOR} text-anchor="middle">{x_label.to_string()}</text>
-            <text x="14" y={(top + plot_h * 0.5).to_string()} font-size="12" fill={LABEL_COLOR} text-anchor="middle" transform={format!("rotate(-90,14,{})", top + plot_h * 0.5)}>"Count"</text>
-
-            <rect
-                x={(w - 176.0).to_string()}
-                y="10"
-                width="166"
-                height={if user_value.is_some() { "58" } else { "44" }}
-                fill={LEGEND_BG}
-                stroke={LEGEND_BORDER}
-            />
-            <rect x={(w - 166.0).to_string()} y="19" width="14" height="6" fill={MEN_COLOR} fill-opacity="0.5" />
-            <text x={(w - 146.0).to_string()} y="25" font-size="11" fill={LABEL_COLOR}>"Men"</text>
-            <rect x={(w - 166.0).to_string()} y="33" width="14" height="6" fill={WOMEN_COLOR} fill-opacity="0.45" />
-            <text x={(w - 146.0).to_string()} y="39" font-size="11" fill={LABEL_COLOR}>"Women"</text>
-            {user_marker_legend_view}
-        </svg>
+    let mut x_min = (male_mean - 3.0 * male_stddev).min(female_mean - 3.0 * female_stddev);
+    let mut x_max = (male_mean + 3.0 * male_stddev).max(female_mean + 3.0 * female_stddev);
+    if x_max <= x_min {
+        x_min = male_hist.min.min(female_hist.min) as f64;
+        x_max = male_hist.max.max(female_hist.max) as f64;
     }
-    .into_any()
+    if let Some(value) = user_value {
+        let value = value as f64;
+        x_min = x_min.min(value);
+        x_max = x_max.max(value);
+    }
+    let x_span = (x_max - x_min).max(0.0001);
+
+    ctx.set_fill_style_str(SURFACE_COLOR);
+    ctx.fill_rect(0.0, 0.0, cw, ch);
+
+    ctx.set_stroke_style_str("rgba(255,255,255,0.05)");
+    ctx.set_line_width(1.0);
+    for i in 0..=8 {
+        let x = cw * i as f64 / 8.0;
+        ctx.begin_path();
+        ctx.move_to(x, 20.0);
+        ctx.line_to(x, ch - 40.0);
+        ctx.stroke();
+    }
+
+    draw_curve_layer(
+        &ctx,
+        cw,
+        ch,
+        x_min,
+        x_max,
+        female_mean,
+        female_stddev,
+        WOMEN_CURVE_COLOR,
+        "FEMALE",
+    );
+    draw_curve_layer(
+        &ctx,
+        cw,
+        ch,
+        x_min,
+        x_max,
+        male_mean,
+        male_stddev,
+        MEN_COLOR,
+        "MALE",
+    );
+
+    if let Some(value) = user_value {
+        let marker_x = ((value as f64 - x_min) / x_span).clamp(0.0, 1.0) * cw;
+        ctx.set_stroke_style_str(USER_MARKER_COLOR);
+        ctx.set_line_width(1.5);
+        let dash: wasm_bindgen::JsValue = js_sys::Array::of2(&4.0.into(), &3.0.into()).into();
+        let _ = ctx.set_line_dash(&dash);
+        ctx.begin_path();
+        ctx.move_to(marker_x, 20.0);
+        ctx.line_to(marker_x, ch - 40.0);
+        ctx.stroke();
+        let empty_dash: wasm_bindgen::JsValue = js_sys::Array::new().into();
+        let _ = ctx.set_line_dash(&empty_dash);
+    }
+
+    ctx.set_fill_style_str(TICK_COLOR);
+    ctx.set_font("10px 'JetBrains Mono', monospace");
+    ctx.set_text_align("center");
+    ctx.set_text_baseline("alphabetic");
+    for i in 0..=8 {
+        let t = i as f64 / 8.0;
+        let x = t * cw;
+        let value = x_min + t * x_span;
+        let _ = ctx.fill_text(&format_axis_tick(value as f32), x, ch - 20.0);
+    }
+    let _ = ctx.fill_text(&x_label.to_uppercase(), cw * 0.5, ch - 4.0);
 }
 
 pub(super) fn draw_heatmap(

@@ -629,11 +629,7 @@ fn build_trends_shards(
             continue;
         }
         // Extract the `sex=X|equip=Y` shard prefix from the key.
-        let shard_key = key
-            .split('|')
-            .take(2)
-            .collect::<Vec<_>>()
-            .join("|");
+        let shard_key = key.split('|').take(2).collect::<Vec<_>>().join("|");
         by_shard
             .entry(shard_key)
             .or_default()
@@ -793,7 +789,12 @@ fn heat_bytes(heat: &HeatmapData, x_base: f32, y_base: f32) -> Vec<u8> {
 /// sparse cohorts.
 const INLINE_THRESHOLD: usize = 400;
 
-fn build_combined_bytes(hist: &HistogramData, heat: &HeatmapData, x_base: f32, y_base: f32) -> Vec<u8> {
+fn build_combined_bytes(
+    hist: &HistogramData,
+    heat: &HeatmapData,
+    x_base: f32,
+    y_base: f32,
+) -> Vec<u8> {
     let h = hist_bytes(hist, x_base);
     let m = heat_bytes(heat, x_base, y_base);
     let hist_len = h.len() as u32;

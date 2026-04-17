@@ -9,9 +9,7 @@ mod slices;
 mod state;
 mod ui;
 
-use self::charts::{
-    draw_cross_sex_heatmap_overlay, draw_heatmap, render_dual_histogram_svg, render_histogram_svg,
-};
+use self::charts::draw_heatmap;
 use self::data::{fetch_binary_first, fetch_json_first};
 use self::helpers::{
     ComparableLifter, build_share_url, comparable_lift_value, display_to_kg, format_input_bound,
