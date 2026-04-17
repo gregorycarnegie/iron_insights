@@ -1,288 +1,333 @@
 use super::shared::Corners;
+use crate::webapp::helpers::{display_to_kg, kg_to_display};
 use crate::webapp::ui::parse_f32_input;
 use leptos::prelude::*;
 
-const PLATES_KG: &[f32] = &[50.0, 25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25];
-const PLATES_LB: &[f32] = &[100.0, 55.0, 45.0, 35.0, 25.0, 10.0, 5.0, 2.5];
-
-const PLATE_COLORS_KG: &[&str] = &[
-    "#e8472b", "#c79a4a", "#3a7fd4", "#4caf50", "#ffffff", "#e8472b", "#3a7fd4", "#c79a4a",
-];
-const PLATE_COLORS_LB: &[&str] = &[
-    "#e8472b", "#e8e3d6", "#3a7fd4", "#4caf50", "#c79a4a", "#3a7fd4", "#e8e3d6", "#c79a4a",
-];
+const KG_PER_LB: f32 = 0.453_592_37;
+const PLATES_KG: &[f32] = &[25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25];
 
 #[derive(Clone, PartialEq)]
 struct PlateResult {
     plates_per_side: Vec<(f32, usize, &'static str)>,
-    loaded_weight: f32,
-    remainder: f32,
+    per_side_kg: f32,
+    achieved_kg: f32,
+    remainder_kg: f32,
+    below_bar: bool,
 }
 
-fn calc_plates(target: f32, bar: f32, use_lbs: bool) -> PlateResult {
-    let plates = if use_lbs { PLATES_LB } else { PLATES_KG };
-    let colors = if use_lbs {
-        PLATE_COLORS_LB
-    } else {
-        PLATE_COLORS_KG
-    };
-    let mut remaining = ((target - bar) / 2.0).max(0.0);
-    let mut result: Vec<(f32, usize, &'static str)> = Vec::new();
+fn calc_plates(
+    target_display: f32,
+    bar_kg: f32,
+    collar_kg_each: f32,
+    use_lbs: bool,
+) -> PlateResult {
+    let target_kg = display_to_kg(target_display, use_lbs);
+    let collar_total_kg = collar_kg_each * 2.0;
+    let per_side_kg = (target_kg - bar_kg - collar_total_kg) / 2.0;
+    let mut remaining = per_side_kg.max(0.0);
+    let mut plates_per_side = Vec::new();
 
-    for (i, &plate) in plates.iter().enumerate() {
-        if remaining >= plate {
-            let count = (remaining / plate) as usize;
-            remaining -= count as f32 * plate;
-            result.push((plate, count, colors[i]));
+    for &plate in PLATES_KG {
+        let count = (remaining / plate + 1e-6).floor() as usize;
+        if count > 0 {
+            remaining -= plate * count as f32;
+            plates_per_side.push((plate, count, plate_color(plate)));
         }
     }
 
-    let plates_total: f32 = result.iter().map(|(p, c, _)| p * (*c as f32) * 2.0).sum();
-    let loaded = bar + plates_total;
+    let plate_total_kg = plates_per_side
+        .iter()
+        .map(|(plate, count, _)| plate * *count as f32 * 2.0)
+        .sum::<f32>();
+
     PlateResult {
-        plates_per_side: result,
-        loaded_weight: loaded,
-        remainder: remaining,
+        plates_per_side,
+        per_side_kg,
+        achieved_kg: bar_kg + collar_total_kg + plate_total_kg,
+        remainder_kg: remaining,
+        below_bar: per_side_kg < 0.0,
     }
 }
 
 #[component]
 pub fn PlateCalcPage() -> impl IntoView {
-    let (target, set_target) = signal(100.0f32);
-    let (bar, set_bar) = signal(20.0f32);
+    let (target, set_target) = signal(180.0f32);
+    let (bar_kg, set_bar_kg) = signal(20.0f32);
+    let (collar_kg_each, set_collar_kg_each) = signal(0.0f32);
     let (use_lbs, set_use_lbs) = signal(false);
 
-    let result = Memo::new(move |_| calc_plates(target.get(), bar.get(), use_lbs.get()));
+    let result = Memo::new(move |_| {
+        calc_plates(
+            target.get(),
+            bar_kg.get(),
+            collar_kg_each.get(),
+            use_lbs.get(),
+        )
+    });
     let unit = Memo::new(move |_| if use_lbs.get() { "LB" } else { "KG" });
+
+    let set_unit = move |next_use_lbs: bool| {
+        let current_use_lbs = use_lbs.get_untracked();
+        if current_use_lbs != next_use_lbs {
+            let current = target.get_untracked();
+            let converted = if next_use_lbs {
+                current / KG_PER_LB
+            } else {
+                current * KG_PER_LB
+            };
+            set_target.set((converted * 2.0).round() / 2.0);
+        }
+        set_use_lbs.set(next_use_lbs);
+    };
 
     view! {
         <section class="page active" id="page-plate">
             <div class="page-head">
                 <h1 class="page-title">
-                    "Load the " <span class="accent">"bar."</span>
+                    "Load the " <span class="accent">"bar"</span>"."
                 </h1>
                 <p class="page-lede">
-                    <span class="serif">"No mental arithmetic."</span>
-                    " Enter the target weight — get the exact plates to load each side."
+                    <span class="serif">"Enter target weight."</span>
+                    " We'll tell you which plates to throw on - per side - optimised to use the fewest steel discs."
                 </p>
             </div>
 
             <div class="plate-grid">
-                // Input panel
-                <div class="panel">
-                    <Corners />
-                    <div class="panel-head">
-                        <span><span class="tag">"IN"</span>" TARGET LOAD"</span>
-                        <span>"BAR + PLATES"</span>
-                    </div>
-                    <div class="panel-body input-stack">
-                        // Units
-                        <div>
-                            <label>"Units"</label>
-                            <div class="toggle-group">
-                                <button
-                                    class:on=move || !use_lbs.get()
-                                    on:click=move |_| set_use_lbs.set(false)
-                                >"Kilograms"</button>
-                                <button
-                                    class:on=move || use_lbs.get()
-                                    on:click=move |_| set_use_lbs.set(true)
-                                >"Pounds"</button>
-                            </div>
+                <div>
+                    <div class="panel">
+                        <Corners />
+                        <div class="panel-head">
+                            <span><span class="tag">"01"</span>" CONFIG"</span>
+                            <span>"IPF STANDARD"</span>
                         </div>
-
-                        // Target weight
-                        <div>
-                            <label>"Target Weight"</label>
-                            <div class="lift-row">
-                                <input
-                                    type="number"
-                                    step="2.5"
-                                    min="0"
-                                    prop:value=move || target.get()
-                                    on:input=move |ev| {
-                                        let v = parse_f32_input(&ev);
-                                        if v >= 0.0 { set_target.set(v); }
-                                    }
-                                />
-                                <div class="hint">{move || unit.get()}</div>
-                            </div>
-                        </div>
-
-                        // Bar weight
-                        <div>
-                            <label>"Bar Weight"</label>
-                            <div class="toggle-group">
-                                {move || {
-                                    let bars: &[(f32, &str)] = if use_lbs.get() {
-                                        &[(45.0, "45 lb"), (35.0, "35 lb"), (15.0, "15 lb")]
-                                    } else {
-                                        &[(20.0, "20 kg"), (15.0, "15 kg"), (10.0, "10 kg")]
-                                    };
-                                    bars.iter().map(|(b, label)| {
-                                        let b_val = *b;
-                                        view! {
-                                            <button
-                                                class:on=move || (bar.get() - b_val).abs() < 0.1
-                                                on:click=move |_| set_bar.set(b_val)
-                                            >{*label}</button>
+                        <div class="panel-body input-stack">
+                            <div>
+                                <label>"Target Weight"</label>
+                                <div class="lift-row">
+                                    <input
+                                        type="number"
+                                        step=move || if use_lbs.get() { "0.5" } else { "2.5" }
+                                        min="0"
+                                        prop:value=move || format_display(target.get())
+                                        on:input=move |ev| {
+                                            let v = parse_f32_input(&ev);
+                                            if v >= 0.0 {
+                                                set_target.set(v);
+                                            }
                                         }
-                                    }).collect_view()
-                                }}
+                                    />
+                                    <div class="hint">{move || unit.get()}</div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label>"Units"</label>
+                                <div class="toggle-group">
+                                    <button
+                                        class:on=move || !use_lbs.get()
+                                        on:click=move |_| set_unit(false)
+                                    >"KG"</button>
+                                    <button
+                                        class:on=move || use_lbs.get()
+                                        on:click=move |_| set_unit(true)
+                                    >"LB"</button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label>"Bar Weight"</label>
+                                <select
+                                    prop:value=move || format_display(bar_kg.get())
+                                    on:change=move |ev| {
+                                        if let Ok(v) = event_target_value(&ev).parse::<f32>() {
+                                            set_bar_kg.set(v);
+                                        }
+                                    }
+                                >
+                                    <option value="20">"Standard 20kg (Men's)"</option>
+                                    <option value="15">"Women's 15kg"</option>
+                                    <option value="25">"Safety Squat / Deadlift 25kg"</option>
+                                    <option value="10">"Technique Bar 10kg"</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label>"Collars"</label>
+                                <div class="toggle-group">
+                                    <button
+                                        class:on=move || collar_kg_each.get().abs() < 0.01
+                                        on:click=move |_| set_collar_kg_each.set(0.0)
+                                    >"None"</button>
+                                    <button
+                                        class:on=move || (collar_kg_each.get() - 2.5).abs() < 0.01
+                                        on:click=move |_| set_collar_kg_each.set(2.5)
+                                    >"2.5kg pair"</button>
+                                    <button
+                                        class:on=move || (collar_kg_each.get() - 5.0).abs() < 0.01
+                                        on:click=move |_| set_collar_kg_each.set(5.0)
+                                    >"5kg pair"</button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                // Result column
                 <div>
-                    // Loaded weight display
-                    <div class="rm-display" style="margin-bottom:24px">
-                        <div class="content">
-                            <div style="font-size:10px;letter-spacing:0.3em;color:var(--ink-dim)">"LOADED WEIGHT"</div>
-                            <div class="rm-value">{move || format!("{:.2}", result.get().loaded_weight)}</div>
-                            <div class="rm-unit">{move || unit.get()}</div>
-                            {move || {
-                                let r = result.get().remainder;
-                                if r > 0.01 {
-                                    view! {
-                                        <div style="font-size:11px;color:var(--iron);margin-top:8px">
-                                            {format!("Cannot reach target — {:.2} {} short per side", r, unit.get())}
-                                        </div>
-                                    }.into_any()
-                                } else {
-                                    view! { <div></div> }.into_any()
-                                }
-                            }}
+                    <div class="bar-stage">
+                        <div class="bar-wrap">
+                            <div class="plates-stack" style="flex-direction:row-reverse">
+                                {move || plate_views(result.get().plates_per_side)}
+                            </div>
+                            <div class="bar-collar"></div>
+                            <div class="bar-sleeve"></div>
+                            <div class="bar-shaft"></div>
+                            <div class="bar-sleeve"></div>
+                            <div class="bar-collar"></div>
+                            <div class="plates-stack">
+                                {move || plate_views(result.get().plates_per_side)}
+                            </div>
                         </div>
+                        <div class="floor"></div>
                     </div>
 
-                    // Bar visualizer
-                    <div class="panel" style="margin-bottom:24px">
-                        <Corners />
-                        <div class="panel-head">
-                            <span><span class="tag">"VIZ"</span>" BAR VISUALIZER"</span>
-                            <span>"EACH SIDE"</span>
+                    <div class="plate-readout">
+                        <div class="kpi">
+                            <div class="l">"TARGET"</div>
+                            <div class="v">
+                                {move || format!("{:.1}", target.get())}
+                                <span>{move || format!(" {}", unit.get())}</span>
+                            </div>
                         </div>
-                        <div class="panel-body">
-                            <div class="plate-bar-wrap">
-                                <div class="bar-visual">
-                                    // Left sleeve (plates in reverse order for visual)
-                                    <div class="sleeve left">
-                                        {move || {
-                                            let r = result.get();
-                                            r.plates_per_side.iter().rev().flat_map(|(plate, count, color)| {
-                                                let color = *color;
-                                                let plate_label = *plate;
-                                                (0..*count).map(move |_| {
-                                                    let h = plate_height_px(plate_label);
-                                                    view! {
-                                                        <div
-                                                            class="plate"
-                                                            style=format!("height:{h}px;background:{color};")
-                                                        >
-                                                            <span>{format!("{}", plate_label)}</span>
-                                                        </div>
-                                                    }
-                                                }).collect::<Vec<_>>()
-                                            }).collect_view()
-                                        }}
-                                    </div>
-                                    // Bar collar
-                                    <div class="bar-center">
-                                        <div class="collar"></div>
-                                        <div class="shaft"></div>
-                                        <div class="collar"></div>
-                                    </div>
-                                    // Right sleeve
-                                    <div class="sleeve right">
-                                        {move || {
-                                            let r = result.get();
-                                            r.plates_per_side.iter().flat_map(|(plate, count, color)| {
-                                                let color = *color;
-                                                let plate_label = *plate;
-                                                (0..*count).map(move |_| {
-                                                    let h = plate_height_px(plate_label);
-                                                    view! {
-                                                        <div
-                                                            class="plate"
-                                                            style=format!("height:{h}px;background:{color};")
-                                                        >
-                                                            <span>{format!("{}", plate_label)}</span>
-                                                        </div>
-                                                    }
-                                                }).collect::<Vec<_>>()
-                                            }).collect_view()
-                                        }}
-                                    </div>
-                                </div>
+                        <div class="kpi">
+                            <div class="l">"PER SIDE"</div>
+                            <div class="v">
+                                {move || {
+                                    let r = result.get();
+                                    format!("{:.2}", kg_to_display(r.per_side_kg.max(0.0), use_lbs.get()))
+                                }}
+                                <span>{move || format!(" {}", unit.get())}</span>
+                            </div>
+                        </div>
+                        <div class="kpi">
+                            <div class="l">"ACHIEVED"</div>
+                            <div class="v">
+                                {move || format!("{:.1}", kg_to_display(result.get().achieved_kg, use_lbs.get()))}
+                                <span>{move || format!(" {}", unit.get())}</span>
                             </div>
                         </div>
                     </div>
 
-                    // Plate list
-                    <div class="panel">
-                        <Corners />
-                        <div class="panel-head">
-                            <span><span class="tag">"LST"</span>" PLATE LIST"</span>
-                            <span>"PER SIDE"</span>
-                        </div>
-                        <div class="panel-body" style="padding:0">
-                            {move || {
-                                let r = result.get();
-                                if r.plates_per_side.is_empty() {
-                                    view! {
-                                        <div class="notice">"No plates needed — bar weight equals or exceeds target."</div>
-                                    }.into_any()
-                                } else {
-                                    view! {
-                                        <table class="rm-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>"PLATE"</th>
-                                                    <th>"QTY"</th>
-                                                    <th>"SUBTOTAL"</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {r.plates_per_side.iter().map(|(plate, count, color)| {
-                                                    let subtotal = plate * (*count as f32);
-                                                    let color = *color;
-                                                    let plate = *plate;
-                                                    let count = *count;
-                                                    let u = unit.get();
-                                                    view! {
-                                                        <tr>
-                                                            <td class="pct" style=format!("color:{color}")>
-                                                                {format!("{} {}", plate, u)}
-                                                            </td>
-                                                            <td class="wt">{format!("× {}", count)}</td>
-                                                            <td class="pct">{format!("{:.2} {}", subtotal, u)}</td>
-                                                        </tr>
-                                                    }
-                                                }).collect_view()}
-                                            </tbody>
-                                        </table>
-                                    }.into_any()
-                                }
-                            }}
-                        </div>
-                    </div>
+                    {move || {
+                        let r = result.get();
+                        if r.plates_per_side.is_empty() {
+                            let message = if r.below_bar {
+                                "TARGET BELOW BAR WEIGHT"
+                            } else {
+                                "JUST THE BAR"
+                            };
+                            view! {
+                                <div class="plate-list">
+                                    <div class="plate-empty">{message}</div>
+                                </div>
+                            }.into_any()
+                        } else {
+                            view! {
+                                <div class="plate-list">
+                                    {r.plates_per_side.into_iter().map(move |(plate, count, color)| {
+                                        let display_plate = kg_to_display(plate, use_lbs.get());
+                                        view! {
+                                            <div class="row">
+                                                <div class="swatch" style=format!("background:{color}")></div>
+                                                <div>
+                                                    <span class="plate-name">{format_plate_value(display_plate)}</span>
+                                                    <span class="plate-unit">{format!(" {} PLATE", unit.get())}</span>
+                                                </div>
+                                                <div class="cnt">
+                                                    {format!("x {}", count * 2)}
+                                                    <span>{format!("({count}/SIDE)")}</span>
+                                                </div>
+                                            </div>
+                                        }
+                                    }).collect_view()}
+                                    {if r.remainder_kg > 0.01 {
+                                        view! {
+                                            <div class="notice error">
+                                                {format!(
+                                                    "{:.2} {} short per side",
+                                                    kg_to_display(r.remainder_kg, use_lbs.get()),
+                                                    unit.get()
+                                                )}
+                                            </div>
+                                        }.into_any()
+                                    } else {
+                                        view! { <div></div> }.into_any()
+                                    }}
+                                </div>
+                            }.into_any()
+                        }
+                    }}
                 </div>
             </div>
         </section>
     }
 }
 
-fn plate_height_px(plate: f32) -> u32 {
-    match plate as u32 {
-        50 | 100 => 120,
-        45 | 55 => 120,
-        25 => 100,
-        20 => 90,
-        15 | 35 => 80,
-        10 => 70,
-        5 => 55,
-        _ => 40,
+fn plate_views(plates: Vec<(f32, usize, &'static str)>) -> impl IntoView {
+    plates
+        .into_iter()
+        .flat_map(|(plate, count, _)| (0..count).map(move |_| plate).collect::<Vec<_>>())
+        .enumerate()
+        .map(|(i, plate)| {
+            view! {
+                <div
+                    class="plate"
+                    attr:data-w=format_plate_key(plate)
+                    style=format!("animation-delay:{}ms", i * 30)
+                ></div>
+            }
+        })
+        .collect_view()
+}
+
+fn plate_color(plate: f32) -> &'static str {
+    match plate_key(plate).as_str() {
+        "25" => "#e8472b",
+        "20" => "#1e4a8f",
+        "15" => "#e8b13a",
+        "10" => "#2a8f4e",
+        "5" => "#d8d8d8",
+        "2.5" => "#333",
+        "1.25" => "#555",
+        _ => "#e8472b",
+    }
+}
+
+fn format_plate_key(plate: f32) -> String {
+    plate_key(plate)
+}
+
+fn plate_key(plate: f32) -> String {
+    if (plate - plate.round()).abs() < 0.01 {
+        format!("{plate:.0}")
+    } else if (plate * 2.0 - (plate * 2.0).round()).abs() < 0.01 {
+        format!("{plate:.1}")
+    } else {
+        format!("{plate:.2}")
+    }
+}
+
+fn format_display(value: f32) -> String {
+    if (value - value.round()).abs() < 0.05 {
+        format!("{value:.0}")
+    } else {
+        format!("{value:.1}")
+    }
+}
+
+fn format_plate_value(value: f32) -> String {
+    if (value - value.round()).abs() < 0.05 {
+        format!("{value:.0}")
+    } else {
+        format!("{value:.1}")
     }
 }

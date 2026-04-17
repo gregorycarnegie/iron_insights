@@ -487,11 +487,16 @@ select {
 .plate-readout .kpi { padding: 16px; border: 1px solid var(--line); background: var(--bg-2); text-align: center; }
 .plate-readout .kpi .l { font-size: 9px; color: var(--ink-mute); letter-spacing: 0.2em; text-transform: uppercase; }
 .plate-readout .kpi .v { font-family: 'Archivo Black', sans-serif; font-size: 28px; color: var(--iron); margin-top: 4px; }
+.plate-readout .kpi .v span { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--ink-dim); }
 
 .plate-list { display: grid; gap: 6px; margin-top: 16px; }
 .plate-list .row { display: grid; grid-template-columns: 24px 1fr auto; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); background: var(--bg-2); font-size: 12px; align-items: center; }
 .plate-list .swatch { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.15); }
+.plate-list .plate-name { font-family: 'Archivo Black', sans-serif; }
+.plate-list .plate-unit { color: var(--ink-mute); font-size: 10px; letter-spacing: 0.15em; margin-left: 6px; }
 .plate-list .cnt { font-family: 'Archivo Black', sans-serif; color: var(--iron); }
+.plate-list .cnt span { color: var(--ink-mute); font-family: 'JetBrains Mono', monospace; font-size: 10px; margin-left: 6px; }
+.plate-empty { padding: 16px; text-align: center; color: var(--ink-mute); font-size: 11px; letter-spacing: 0.15em; border: 1px solid var(--line); background: var(--bg-2); }
 
 /* ===== PAGE 6: BODYFAT ===== */
 .bf-grid { display: grid; grid-template-columns: 440px 1fr; gap: 32px; }
