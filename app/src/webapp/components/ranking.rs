@@ -1,11 +1,90 @@
 use super::shared::{Corners, InputForm, InputFormCtx};
-use crate::core::{HeatmapBin, HistogramBin};
+use crate::core::{HeatmapBin, HistogramBin, value_for_percentile};
 use crate::webapp::charts::draw_ranking_distribution_canvas;
 use crate::webapp::helpers::kg_to_display;
+use crate::webapp::ui::metric_label;
 use leptos::ev;
 use leptos::html::Canvas;
 use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::prelude::*;
+
+const LADDER_DOTS: usize = 240;
+const LADDER_MARKS: [(f32, &str, &str); 5] = [
+    (0.50, "P50", "MEDIAN"),
+    (0.75, "P75", "TOP 25%"),
+    (0.90, "P90", "TOP 10%"),
+    (0.95, "P95", "ELITE"),
+    (0.99, "P99", "LEGEND"),
+];
+const RANK_UNLOCKS: [(f32, &str); 4] = [
+    (0.60, "INTERMEDIATE"),
+    (0.80, "ADVANCED"),
+    (0.95, "ELITE"),
+    (0.99, "LEGEND"),
+];
+
+fn format_count(value: u32) -> String {
+    let raw = value.to_string();
+    let mut out = String::with_capacity(raw.len() + raw.len() / 3);
+    for (idx, ch) in raw.chars().rev().enumerate() {
+        if idx > 0 && idx % 3 == 0 {
+            out.push(',');
+        }
+        out.push(ch);
+    }
+    out.chars().rev().collect()
+}
+
+fn score_unit(lift: &str, metric: &str, use_lbs: bool) -> String {
+    if lift != "T" || metric == "Kg" {
+        if use_lbs {
+            "LB".to_string()
+        } else {
+            "KG".to_string()
+        }
+    } else {
+        metric_label(metric).to_uppercase()
+    }
+}
+
+fn display_score(value: f32, lift: &str, metric: &str, use_lbs: bool) -> f32 {
+    if lift != "T" || metric == "Kg" {
+        kg_to_display(value, use_lbs)
+    } else {
+        value
+    }
+}
+
+fn format_score(value: f32, lift: &str, metric: &str, use_lbs: bool) -> String {
+    let shown = display_score(value, lift, metric, use_lbs);
+    if (shown - shown.round()).abs() < 0.05 {
+        format!("{shown:.0}")
+    } else {
+        format!("{shown:.1}")
+    }
+}
+
+fn sex_label(code: &str) -> &'static str {
+    match code {
+        "M" => "MALE",
+        "F" => "FEMALE",
+        _ => "ALL",
+    }
+}
+
+fn weight_class_label(wc: &str) -> String {
+    if wc == "All" {
+        "ALL CLASSES".to_string()
+    } else {
+        format!("{wc}KG")
+    }
+}
+
+fn next_unlock(current_pct: f32) -> Option<(f32, &'static str)> {
+    RANK_UNLOCKS
+        .into_iter()
+        .find(|(target_pct, _)| current_pct < target_pct - 0.0001)
+}
 
 #[derive(Clone)]
 pub struct RankingCtx {
@@ -133,8 +212,8 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
         rebinned_hist,
         hist_x_label,
         heat: _heat,
-        rebinned_heat,
-        canvas_ref,
+        rebinned_heat: _rebinned_heat,
+        canvas_ref: _canvas_ref,
         set_squat_delta,
         set_bench_delta,
         set_deadlift_delta,
@@ -144,12 +223,80 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
 
     let total_kg = Memo::new(move |_| squat.get() + bench.get() + deadlift.get());
     let pct_num = Memo::new(move |_| percentile.get().map(|(p, _, _)| p * 100.0));
+    let pct_fraction = Memo::new(move |_| percentile.get().map(|(p, _, _)| p));
     let pct_display = Memo::new(move |_| {
         pct_num
             .get()
             .map(|p| format!("{:.1}", p))
             .unwrap_or_else(|| "--".to_string())
     });
+    let beaten_lifters = Memo::new(move |_| {
+        percentile
+            .get()
+            .map(|(p, _, total)| ((p * total as f32).round() as u32).min(total))
+    });
+    let filled_dots = Memo::new(move |_| {
+        pct_fraction
+            .get()
+            .map(|p| (p * LADDER_DOTS as f32).round() as usize)
+            .unwrap_or(0)
+            .min(LADDER_DOTS)
+    });
+    let ladder_cohort = Memo::new(move |_| {
+        format!(
+            "{} / {} / {} / {}",
+            sex_label(&sex.get()),
+            weight_class_label(&wc.get()),
+            equip.get().to_uppercase(),
+            metric_label(&metric.get()).to_uppercase()
+        )
+    });
+    let current_score = Memo::new(move |_| {
+        let l = lift.get();
+        let m = metric.get();
+        format_score(user_lift.get(), &l, &m, use_lbs.get())
+    });
+    let current_score_unit =
+        Memo::new(move |_| score_unit(&lift.get(), &metric.get(), use_lbs.get()));
+    let next_unlock_copy = Memo::new(move |_| {
+        let Some(pct) = pct_fraction.get() else {
+            return "Compute to reveal your next tier.".to_string();
+        };
+        let Some((target_pct, label)) = next_unlock(pct) else {
+            return "Top tier reached.".to_string();
+        };
+        format!("P{:.0} / {}", target_pct * 100.0, label)
+    });
+    let next_unlock_delta = Memo::new(move |_| {
+        let Some(pct) = pct_fraction.get() else {
+            return "--".to_string();
+        };
+        let Some((target_pct, _)) = next_unlock(pct) else {
+            return "LOCKED IN".to_string();
+        };
+        let Some(hist) = rebinned_hist.get() else {
+            return "--".to_string();
+        };
+        let Some(target_value) = value_for_percentile(Some(&hist), target_pct) else {
+            return "--".to_string();
+        };
+        let l = lift.get();
+        let m = metric.get();
+        let needed = display_score(
+            (target_value - user_lift.get()).max(0.0),
+            &l,
+            &m,
+            use_lbs.get(),
+        );
+        if needed <= 0.05 {
+            "REACHED".to_string()
+        } else if (needed - needed.round()).abs() < 0.05 {
+            format!("+{needed:.0}")
+        } else {
+            format!("+{needed:.1}")
+        }
+    });
+
     let hist_canvas: NodeRef<Canvas> = NodeRef::new();
     let (chart_resize_tick, set_chart_resize_tick) = signal(0u32);
     let resize_handle = window_event_listener(ev::resize, move |_| {
@@ -245,7 +392,6 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
             </div>
 
             <div class="rank-grid">
-                // ---- INPUT PANEL ----
                 <div class="panel">
                     <Corners />
                     <div class="panel-head">
@@ -257,9 +403,7 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
                     </div>
                 </div>
 
-                // ---- RESULT COLUMN ----
                 <div>
-                    // Mini stats row
                     <div class="rank-stats">
                         <div class="mini-stat">
                             <div class="l">"TOTAL"</div>
@@ -291,14 +435,13 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
                         </div>
                     </div>
 
-                    // Big percentile stat
                     <div class="stat-big" style="margin-bottom:24px">
                         <div style="display:flex;justify-content:space-between;align-items:baseline">
                             <div>
-                                <div class="label">"OVERALL PERCENTILE · " {move || metric.get().to_uppercase()}</div>
+                                <div class="label">"OVERALL PERCENTILE / " {move || metric.get().to_uppercase()}</div>
                                 <div class="num">
                                     {move || pct_display.get()}
-                                    <span style="font-size:32px;color:var(--ink-dim)">"ᵗʰ"</span>
+                                    <span style="font-size:32px;color:var(--ink-dim)">"th"</span>
                                 </div>
                                 <div class="sub">
                                     {move || {
@@ -316,7 +459,7 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
                             <div style="text-align:right">
                                 <div class="label">"STRENGTH LEVEL"</div>
                                 <div class="serif" style="font-size:24px;color:var(--chalk);margin-top:4px">
-                                    {move || rank_tier.get().unwrap_or("—").to_uppercase()}
+                                    {move || rank_tier.get().unwrap_or("-").to_uppercase()}
                                 </div>
                                 <div style="font-size:11px;color:var(--ink-mute);margin-top:4px">
                                     {move || ranking_cohort_blurb.get()}
@@ -331,7 +474,6 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
                         </div>
                     </div>
 
-                    // Histogram panel
                     <div class="panel" style="margin-bottom:24px">
                         <Corners />
                         <div class="panel-head">
@@ -361,28 +503,137 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
                         </div>
                     </div>
 
-                    // Heatmap panel
                     <div class="panel">
                         <Corners />
                         <div class="panel-head">
-                            <span><span class="tag">"03"</span>" LIFT × BODYWEIGHT HEATMAP"</span>
-                            <span>"DENSITY · YOU = ●"</span>
+                            <span><span class="tag">"03"</span>" PERCENTILE CLIMB"</span>
+                            <span>{move || ladder_cohort.get()}</span>
                         </div>
                         <div class="panel-body">
-                            <div class="heat-wrap">
+                            <div
+                                class="tier-ladder"
+                                role="img"
+                                aria-label=move || {
+                                    match percentile.get() {
+                                        Some((p, _, total)) => format!(
+                                            "Tier ladder showing your percentile at {:.1}, ahead of {} of {} lifters.",
+                                            p * 100.0,
+                                            beaten_lifters.get().map(format_count).unwrap_or_else(|| "0".to_string()),
+                                            format_count(total)
+                                        ),
+                                        None => "Tier ladder waiting for calculation.".to_string(),
+                                    }
+                                }
+                            >
+                                <div class="tier-ladder-title">
+                                    "You're climbing the " <span>"tier ladder"</span> "."
+                                </div>
+                                <div class="tier-ladder-track-wrap">
+                                    <div class="tier-ladder-track">
+                                        <div
+                                            class="tier-ladder-fill"
+                                            style=move || format!("width:{:.1}%", pct_num.get().unwrap_or(0.0))
+                                        ></div>
+                                    </div>
+
+                                    {LADDER_MARKS
+                                        .into_iter()
+                                        .map(|(target_pct, tag, label)| {
+                                            view! {
+                                                <div class="tier-mark" style=format!("left:{:.1}%", target_pct * 100.0)>
+                                                    <div class="tier-mark-label">
+                                                        <span>{tag}</span>
+                                                        {label}
+                                                    </div>
+                                                    <div class="tier-mark-score">
+                                                        {move || {
+                                                            rebinned_hist
+                                                                .get()
+                                                                .and_then(|hist| value_for_percentile(Some(&hist), target_pct))
+                                                                .map(|value| {
+                                                                    let l = lift.get();
+                                                                    let m = metric.get();
+                                                                    format!(
+                                                                        "{} {}",
+                                                                        current_score_unit.get(),
+                                                                        format_score(value, &l, &m, use_lbs.get())
+                                                                    )
+                                                                })
+                                                                .unwrap_or_else(|| "--".to_string())
+                                                        }}
+                                                    </div>
+                                                </div>
+                                            }
+                                        })
+                                        .collect_view()}
+
+                                    <div
+                                        class="tier-you-marker"
+                                        class:active=move || calculated.get() && pct_num.get().is_some()
+                                        style=move || format!("left:{:.1}%", pct_num.get().unwrap_or(0.0).clamp(0.0, 100.0))
+                                    >
+                                        <div class="tier-you-plate">"YOU"</div>
+                                        <div class="tier-you-stem"></div>
+                                        <div class="tier-you-label">
+                                            <span>{move || format!("{}th", pct_display.get())}</span>
+                                            {move || format!("YOU / {} {}", current_score_unit.get(), current_score.get())}
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {move || {
-                                    if rebinned_heat.get().is_some() {
+                                    if !calculated.get() || percentile.get().is_none() {
                                         view! {
-                                            <canvas
-                                                node_ref=canvas_ref.clone()
-                                                style="width:100%;height:100%;display:block"
-                                            ></canvas>
+                                            <div class="notice">
+                                                "Compute to reveal the climb, lifters beaten, and next unlock."
+                                            </div>
                                         }.into_any()
                                     } else {
                                         view! {
-                                            <div class="notice">
-                                                {if calculated.get() { "Heatmap loads on Stats for Nerds page." } else { "Compute first to load data." }}
-                                            </div>
+                                            <>
+                                                <div class="beat-grid">
+                                                    <div>
+                                                        <div class="beat-label">
+                                                            "LIFTERS BENEATH YOU / SELECTED COHORT"
+                                                        </div>
+                                                        <div class="beat-dots">
+                                                            {(0..LADDER_DOTS)
+                                                                .map(|idx| {
+                                                                    view! {
+                                                                        <span
+                                                                            class="beat-dot"
+                                                                            class:on=move || idx < filled_dots.get()
+                                                                            style=format!("animation-delay:{}ms", idx * 3)
+                                                                        ></span>
+                                                                    }
+                                                                })
+                                                                .collect_view()}
+                                                        </div>
+                                                    </div>
+                                                    <div class="beat-readout">
+                                                        <div class="beat-num">
+                                                            {move || beaten_lifters.get().map(format_count).unwrap_or_else(|| "--".to_string())}
+                                                        </div>
+                                                        <div class="beat-caption">"LIFTERS BEATEN"</div>
+                                                        <div class="beat-sub">
+                                                            {move || percentile.get()
+                                                                .map(|(_, _, total)| format!("OF {} TOTAL", format_count(total)))
+                                                                .unwrap_or_else(|| "OF -- TOTAL".to_string())}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="unlock-row">
+                                                    <div class="unlock-copy">
+                                                        "NEXT UNLOCK"
+                                                        <span>{move || next_unlock_copy.get()}</span>
+                                                    </div>
+                                                    <div class="unlock-value">
+                                                        {move || next_unlock_delta.get()}
+                                                        <span>{move || current_score_unit.get()}</span>
+                                                    </div>
+                                                </div>
+                                            </>
                                         }.into_any()
                                     }
                                 }}
