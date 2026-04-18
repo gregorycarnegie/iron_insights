@@ -16,8 +16,8 @@ use self::helpers::{
     kg_to_display, parse_query_f32, tier_for_percentile,
 };
 use self::models::{
-    CrossSexComparison, LatestJson, RootIndex, SavedUiState, SliceIndex, SliceIndexEntries,
-    SliceRow, SliceSummary, TrendSeries,
+    CrossSexComparison, CrossSexLiftComparison, LatestJson, RootIndex, SavedUiState, SliceIndex,
+    SliceIndexEntries, SliceRow, SliceSummary, TrendSeries,
 };
 use self::selectors::{
     age_options, equip_options, lift_options, metric_options, sex_options, slice_selector_index,
@@ -100,6 +100,7 @@ impl AppPage {
 }
 
 const MIN_CROSS_SEX_COHORT_TOTAL: u32 = 50;
+const CROSS_SEX_LIFT_ROWS: [(&str, &str); 3] = [("S", "Squat"), ("B", "Bench"), ("D", "Deadlift")];
 
 #[derive(Clone, PartialEq)]
 struct CrossSexSliceChoice {
@@ -204,6 +205,54 @@ fn dataset_file_url(version: &str, path: &str) -> String {
     format!("data/{version}/{trimmed}")
 }
 
+fn histogram_weighted_mean(hist: &HistogramBin) -> Option<(f32, u32)> {
+    if hist.counts.is_empty() || hist.base_bin <= 0.0 {
+        return None;
+    }
+    let mut total = 0u32;
+    let mut weighted_sum = 0.0f64;
+    for (idx, count) in hist.counts.iter().copied().enumerate() {
+        if count == 0 {
+            continue;
+        }
+        let center = hist.min as f64 + (idx as f64 + 0.5) * hist.base_bin as f64;
+        total = total.saturating_add(count);
+        weighted_sum += center * count as f64;
+    }
+    (total > 0).then_some(((weighted_sum / total as f64) as f32, total))
+}
+
+fn heatmap_mean_lift_bodyweight_ratio(heat: &HeatmapBin) -> Option<f32> {
+    if heat.width == 0
+        || heat.height == 0
+        || heat.grid.len() != heat.width * heat.height
+        || heat.base_x <= 0.0
+        || heat.base_y <= 0.0
+    {
+        return None;
+    }
+
+    let mut total = 0u32;
+    let mut weighted_ratio = 0.0f64;
+    for y in 0..heat.height {
+        let bodyweight = heat.min_y as f64 + (y as f64 + 0.5) * heat.base_y as f64;
+        if bodyweight <= 0.0 {
+            continue;
+        }
+        for x in 0..heat.width {
+            let count = heat.grid[y * heat.width + x];
+            if count == 0 {
+                continue;
+            }
+            let lift = heat.min_x as f64 + (x as f64 + 0.5) * heat.base_x as f64;
+            total = total.saturating_add(count);
+            weighted_ratio += (lift / bodyweight) * count as f64;
+        }
+    }
+
+    (total > 0).then_some((weighted_ratio / total as f64) as f32)
+}
+
 fn kg_needed_for_percentile_step(
     hist: Option<&HistogramBin>,
     current_value: f32,
@@ -285,6 +334,13 @@ fn App() -> impl IntoView {
     let (cross_sex_heat_loading, set_cross_sex_heat_loading) = signal(false);
     let (cross_sex_heat_error, set_cross_sex_heat_error) = signal(None::<String>);
     let (cross_sex_heat_request_id, set_cross_sex_heat_request_id) = signal(0u64);
+    let (cross_sex_lift_comparisons, set_cross_sex_lift_comparisons) =
+        signal(Vec::<CrossSexLiftComparison>::new());
+    let (cross_sex_lift_comparison_loading, set_cross_sex_lift_comparison_loading) = signal(false);
+    let (cross_sex_lift_comparison_error, set_cross_sex_lift_comparison_error) =
+        signal(None::<String>);
+    let (cross_sex_lift_comparison_request_id, set_cross_sex_lift_comparison_request_id) =
+        signal(0u64);
     let (heatmap_resize_tick, set_heatmap_resize_tick) = signal(0u32);
 
     let canvas_ref: NodeRef<Canvas> = NodeRef::new();
@@ -806,6 +862,125 @@ fn App() -> impl IntoView {
         });
     });
 
+    Effect::new(move |_| {
+        let next_id = cross_sex_lift_comparison_request_id
+            .get_untracked()
+            .wrapping_add(1);
+        set_cross_sex_lift_comparison_request_id.set(next_id);
+
+        if !cross_sex_page_active.get() || !calculated.get() {
+            set_cross_sex_lift_comparisons.set(Vec::new());
+            set_cross_sex_lift_comparison_loading.set(false);
+            set_cross_sex_lift_comparison_error.set(None);
+            return;
+        }
+
+        let Some(latest_v) = latest.get() else {
+            set_cross_sex_lift_comparisons.set(Vec::new());
+            set_cross_sex_lift_comparison_loading.set(false);
+            set_cross_sex_lift_comparison_error.set(None);
+            return;
+        };
+
+        let male_rows = male_slice_rows.get();
+        let female_rows = female_slice_rows.get();
+        let e = equip.get();
+        let w = wc.get();
+        let a = age.get();
+        let t = tested.get();
+        let choices = CROSS_SEX_LIFT_ROWS
+            .iter()
+            .filter_map(|(lift_code, label)| {
+                let male = choose_cross_sex_slice(&male_rows, &e, &w, &a, &t, lift_code, "Kg")?;
+                let female = choose_cross_sex_slice(&female_rows, &e, &w, &a, &t, lift_code, "Kg")?;
+                Some(((*lift_code).to_string(), (*label).to_string(), male, female))
+            })
+            .collect::<Vec<_>>();
+
+        if choices.is_empty() {
+            set_cross_sex_lift_comparisons.set(Vec::new());
+            set_cross_sex_lift_comparison_loading.set(false);
+            set_cross_sex_lift_comparison_error.set(Some(
+                "No kg lift comparison slices for this cohort.".to_string(),
+            ));
+            return;
+        }
+
+        set_cross_sex_lift_comparisons.set(Vec::new());
+        set_cross_sex_lift_comparison_loading.set(true);
+        set_cross_sex_lift_comparison_error.set(None);
+
+        spawn_local(async move {
+            let mut comparisons = Vec::new();
+            let mut issues = Vec::new();
+
+            for (lift_code, label, male_c, female_c) in choices {
+                let male_url = dataset_file_url(&latest_v.version, &male_c.row.entry.bin);
+                let female_url = dataset_file_url(&latest_v.version, &female_c.row.entry.bin);
+
+                let male_payload = fetch_binary_first(&[&male_url]).await;
+                let female_payload = fetch_binary_first(&[&female_url]).await;
+                if cross_sex_lift_comparison_request_id.get_untracked() != next_id {
+                    return;
+                }
+
+                let Ok(male_bytes) = male_payload else {
+                    if let Err(err) = male_payload {
+                        issues.push(format!("{label} men's bin error: {err}"));
+                    }
+                    continue;
+                };
+                let Ok(female_bytes) = female_payload else {
+                    if let Err(err) = female_payload {
+                        issues.push(format!("{label} women's bin error: {err}"));
+                    }
+                    continue;
+                };
+
+                let Some((male_hist, male_heat)) = parse_combined_bin(&male_bytes) else {
+                    issues.push(format!("{label} men's payload was invalid."));
+                    continue;
+                };
+                let Some((female_hist, female_heat)) = parse_combined_bin(&female_bytes) else {
+                    issues.push(format!("{label} women's payload was invalid."));
+                    continue;
+                };
+
+                let Some((male_mean_kg, male_total)) = histogram_weighted_mean(&male_hist) else {
+                    issues.push(format!("{label} men's histogram was empty."));
+                    continue;
+                };
+                let Some((female_mean_kg, female_total)) = histogram_weighted_mean(&female_hist)
+                else {
+                    issues.push(format!("{label} women's histogram was empty."));
+                    continue;
+                };
+
+                comparisons.push(CrossSexLiftComparison {
+                    lift: lift_code,
+                    label,
+                    male_mean_kg,
+                    female_mean_kg,
+                    male_mean_bodyweight_ratio: heatmap_mean_lift_bodyweight_ratio(&male_heat),
+                    female_mean_bodyweight_ratio: heatmap_mean_lift_bodyweight_ratio(&female_heat),
+                    male_total,
+                    female_total,
+                });
+            }
+
+            if cross_sex_lift_comparison_request_id.get_untracked() != next_id {
+                return;
+            }
+            set_cross_sex_lift_comparisons.set(comparisons);
+            set_cross_sex_lift_comparison_loading.set(false);
+            set_cross_sex_lift_comparison_error.set(if issues.is_empty() {
+                None
+            } else {
+                Some(issues.join(" "))
+            });
+        });
+    });
+
     // Heatmap canvas drawing
     Effect::new(move |_| {
         let _ = heatmap_resize_tick.get();
@@ -1276,6 +1451,9 @@ fn App() -> impl IntoView {
         use_lbs,
         unit_label,
         slice_summary,
+        lift_comparisons: cross_sex_lift_comparisons,
+        lift_comparison_loading: cross_sex_lift_comparison_loading,
+        lift_comparison_error: cross_sex_lift_comparison_error,
     };
 
     view! {

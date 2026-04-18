@@ -1,3 +1,5 @@
+/.claude
+.claude/worktrees/xenodochial-cannon
 /target
 /app/target
 /app/dist

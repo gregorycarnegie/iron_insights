@@ -1,7 +1,7 @@
 use super::shared::Corners;
-use crate::core::{HeatmapBin, HistogramBin};
+use crate::core::{HeatmapBin, HistogramBin, percentile_for_value, value_for_percentile};
 use crate::webapp::charts::{draw_cross_sex_heatmap_overlay, draw_dual_normal_curve_canvas};
-use crate::webapp::models::{CrossSexComparison, SliceSummary};
+use crate::webapp::models::{CrossSexComparison, CrossSexLiftComparison, SliceSummary};
 use leptos::ev;
 use leptos::html::Canvas;
 use leptos::leptos_dom::helpers::window_event_listener;
@@ -26,6 +26,48 @@ pub struct MenVsWomenCtx {
     pub use_lbs: ReadSignal<bool>,
     pub unit_label: Memo<&'static str>,
     pub slice_summary: ReadSignal<Option<SliceSummary>>,
+    pub lift_comparisons: ReadSignal<Vec<CrossSexLiftComparison>>,
+    pub lift_comparison_loading: ReadSignal<bool>,
+    pub lift_comparison_error: ReadSignal<Option<String>>,
+}
+
+fn format_kg(value: f32) -> String {
+    if (value - value.round()).abs() < 0.05 {
+        format!("{:.0}", value)
+    } else {
+        format!("{value:.1}")
+    }
+}
+
+fn format_ratio(value: f32) -> String {
+    format!("{value:.2}")
+}
+
+fn comparison_style(value: f32) -> String {
+    format!("flex:{:.3}", value.max(0.01))
+}
+
+fn overlap_copy(
+    male_hist: &HistogramBin,
+    female_hist: &HistogramBin,
+    metric_label: &str,
+) -> Option<(String, String, String, String, String)> {
+    let female_p95 = value_for_percentile(Some(female_hist), 0.95)?;
+    let male_p95 = value_for_percentile(Some(male_hist), 0.95)?;
+    let male_pct_at_female_p95 = percentile_for_value(Some(male_hist), female_p95)?.0 * 100.0;
+    let female_as_male_p95 = if male_p95 > 0.0 {
+        female_p95 / male_p95 * 100.0
+    } else {
+        0.0
+    };
+    let gap = (100.0 - female_as_male_p95).abs();
+    Some((
+        format_kg(female_p95),
+        format!("{male_pct_at_female_p95:.0}%"),
+        format!("{female_as_male_p95:.0}%"),
+        format!("{gap:.0}%"),
+        metric_label.to_string(),
+    ))
 }
 
 #[component]
@@ -48,6 +90,9 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
         use_lbs: _use_lbs,
         unit_label: _unit_label,
         slice_summary: _slice_summary,
+        lift_comparisons,
+        lift_comparison_loading,
+        lift_comparison_error,
     } = ctx;
 
     let cross_canvas: NodeRef<Canvas> = NodeRef::new();
@@ -205,6 +250,160 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                     </div>
                 </div>
             </div>
+
+            {move || {
+                let rows = lift_comparisons.get();
+                if rows.is_empty() {
+                    let msg = if let Some(err) = lift_comparison_error.get() { err }
+                        else if lift_comparison_loading.get() { "Loading lift comparisons...".to_string() }
+                        else if calculated.get() { "Awaiting lift comparison data...".to_string() }
+                        else { "Compute on Ranking page first.".to_string() };
+                    view! {
+                        <div class="panel" style="margin-bottom:24px">
+                            <Corners />
+                            <div class="panel-head">
+                                <span><span class="tag">"▲"</span>" LIFT COMPARISONS"</span>
+                                <span>"MEAN · KG / × BW"</span>
+                            </div>
+                            <div class="panel-body"><div class="notice">{msg}</div></div>
+                        </div>
+                    }.into_any()
+                } else {
+                    let absolute_rows = rows.clone();
+                    let relative_rows = rows
+                        .iter()
+                        .filter(|row| {
+                            row.male_mean_bodyweight_ratio.is_some()
+                                && row.female_mean_bodyweight_ratio.is_some()
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    view! {
+                        <div class="vs-charts">
+                            <div class="panel">
+                                <Corners />
+                                <div class="panel-head">
+                                    <span><span class="tag">"▲"</span>" ABSOLUTE LIFTS"</span>
+                                    <span>"MEAN · KG"</span>
+                                </div>
+                                <div class="panel-body">
+                                    {absolute_rows.into_iter().map(|row| {
+                                        let male = format_kg(row.male_mean_kg);
+                                        let female = format_kg(row.female_mean_kg);
+                                        let male_style = comparison_style(row.male_mean_kg);
+                                        let female_style = comparison_style(row.female_mean_kg);
+                                        view! {
+                                            <div class="vs-bar-row">
+                                                <div class="vs-bar-label">
+                                                    <span>{row.label.to_uppercase()}</span>
+                                                    <span>{format!("{male} / {female} KG")}</span>
+                                                </div>
+                                                <div class="ratio-strip">
+                                                    <div class="s m" style=male_style>{format!("♂ {male}")}</div>
+                                                    <div class="s w" style=female_style>{format!("♀ {female}")}</div>
+                                                </div>
+                                            </div>
+                                        }
+                                    }).collect_view()}
+                                </div>
+                            </div>
+
+                            <div class="panel">
+                                <Corners />
+                                <div class="panel-head">
+                                    <span><span class="tag">"÷"</span>" RELATIVE TO BODYWEIGHT"</span>
+                                    <span>"MEAN · × BW"</span>
+                                </div>
+                                <div class="panel-body">
+                                    {if relative_rows.is_empty() {
+                                        view! { <div class="notice">"Relative comparisons unavailable for this cohort."</div> }.into_any()
+                                    } else {
+                                        view! {
+                                            <>
+                                                {relative_rows.into_iter().map(|row| {
+                                                    let male_value = row.male_mean_bodyweight_ratio.unwrap_or_default();
+                                                    let female_value = row.female_mean_bodyweight_ratio.unwrap_or_default();
+                                                    let male = format_ratio(male_value);
+                                                    let female = format_ratio(female_value);
+                                                    let male_style = comparison_style(male_value);
+                                                    let female_style = comparison_style(female_value);
+                                                    view! {
+                                                        <div class="vs-bar-row">
+                                                            <div class="vs-bar-label">
+                                                                <span>{format!("{}/BW", row.label.to_uppercase())}</span>
+                                                                <span>{format!("{male}× / {female}×")}</span>
+                                                            </div>
+                                                            <div class="ratio-strip">
+                                                                <div class="s m" style=male_style>{format!("♂ {male}")}</div>
+                                                                <div class="s w" style=female_style>{format!("♀ {female}")}</div>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                }).collect_view()}
+                                            </>
+                                        }.into_any()
+                                    }}
+                                </div>
+                            </div>
+                        </div>
+                    }.into_any()
+                }
+            }}
+
+            {move || match (male_hist.get(), female_hist.get()) {
+                (Some(mh), Some(fh)) => {
+                    let metric = hist_x_label.get();
+                    if let Some((female_p95, male_covered, female_ratio, gap, metric)) =
+                        overlap_copy(&mh, &fh, &metric)
+                    {
+                        view! {
+                            <div class="panel" style="margin-bottom:24px">
+                                <Corners />
+                                <div class="panel-head">
+                                    <span><span class="tag">"∩"</span>" OVERLAP ZONES"</span>
+                                    <span>"WHERE THE STRONG MEET"</span>
+                                </div>
+                                <div class="panel-body vs-overlap-copy">
+                                    "Top "
+                                    <span class="women-highlight">"5%"</span>
+                                    " of female lifters in this cohort clear "
+                                    <span class="women-highlight">{female_p95}</span>
+                                    " "
+                                    <span class="chalk-highlight">{metric.clone()}</span>
+                                    ", beating the bottom "
+                                    <span class="men-highlight">{male_covered}</span>
+                                    " of male lifters. At the 95th percentile, the female mark is "
+                                    <span class="chalk-highlight">{female_ratio}</span>
+                                    " of the male mark, a "
+                                    <span class="chalk-highlight">{gap}</span>
+                                    " gap."
+                                </div>
+                            </div>
+                        }.into_any()
+                    } else {
+                        view! {
+                            <div class="panel" style="margin-bottom:24px">
+                                <Corners />
+                                <div class="panel-head">
+                                    <span><span class="tag">"∩"</span>" OVERLAP ZONES"</span>
+                                    <span>"WHERE THE STRONG MEET"</span>
+                                </div>
+                                <div class="panel-body"><div class="notice">"Overlap statistics unavailable for this cohort."</div></div>
+                            </div>
+                        }.into_any()
+                    }
+                }
+                _ => view! {
+                    <div class="panel" style="margin-bottom:24px">
+                        <Corners />
+                        <div class="panel-head">
+                            <span><span class="tag">"∩"</span>" OVERLAP ZONES"</span>
+                            <span>"WHERE THE STRONG MEET"</span>
+                        </div>
+                        <div class="panel-body"><div class="notice">"Compute on Ranking page first."</div></div>
+                    </div>
+                }.into_any(),
+            }}
 
             // Overlay heatmap
             <div class="panel">

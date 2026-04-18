@@ -155,6 +155,18 @@ pub(super) struct CohortComparisonRow {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub(super) struct CrossSexLiftComparison {
+    pub(super) lift: String,
+    pub(super) label: String,
+    pub(super) male_mean_kg: f32,
+    pub(super) female_mean_kg: f32,
+    pub(super) male_mean_bodyweight_ratio: Option<f32>,
+    pub(super) female_mean_bodyweight_ratio: Option<f32>,
+    pub(super) male_total: u32,
+    pub(super) female_total: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub(super) struct CrossSexComparison {
     pub(super) male_percentile: f32,
     pub(super) female_percentile: f32,

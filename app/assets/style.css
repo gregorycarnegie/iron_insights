@@ -392,10 +392,39 @@ select {
 
 .vs-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
 
+.vs-bar-row { margin-bottom: 18px; }
+.vs-bar-row:last-child { margin-bottom: 0; }
+
+.vs-bar-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--ink-dim);
+  letter-spacing: 0.15em;
+  margin-bottom: 6px;
+}
+
 .ratio-strip { display: flex; height: 40px; border: 1px solid var(--line); }
 .ratio-strip .s { display: flex; align-items: center; justify-content: center; font-size: 11px; font-family: 'Archivo Black', sans-serif; letter-spacing: 0.1em; color: var(--bg); transition: all 0.4s; }
 .ratio-strip .s.m { background: var(--iron); }
 .ratio-strip .s.w { background: var(--women); }
+
+.vs-overlap-copy {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--ink-dim);
+}
+
+.vs-overlap-copy .women-highlight,
+.vs-overlap-copy .men-highlight,
+.vs-overlap-copy .chalk-highlight {
+  font-family: 'Archivo Black', sans-serif;
+}
+
+.vs-overlap-copy .women-highlight { color: var(--women); }
+.vs-overlap-copy .men-highlight { color: var(--iron); }
+.vs-overlap-copy .chalk-highlight { color: var(--chalk); }
 
 /* ===== PAGE 4: 1RM ===== */
 .rm-grid { display: grid; grid-template-columns: 420px 1fr; gap: 32px; }
