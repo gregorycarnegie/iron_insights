@@ -11,10 +11,7 @@ mod ui;
 
 use self::charts::draw_heatmap;
 use self::data::{fetch_binary_first, fetch_json_first};
-use self::helpers::{
-    ComparableLifter, build_share_url, comparable_lift_value, display_to_kg, format_input_bound,
-    kg_to_display, parse_query_f32, tier_for_percentile,
-};
+use self::helpers::{ComparableLifter, comparable_lift_value, parse_query_f32, tier_for_percentile};
 use self::models::{
     CrossSexComparison, CrossSexLiftComparison, LatestJson, RootIndex, SavedUiState, SliceIndex,
     SliceIndexEntries, SliceRow, SliceSummary, TrendSeries,
@@ -28,11 +25,10 @@ use self::state::{
     init_dataset_load, setup_default_selection_effects, setup_distribution_effect,
     setup_slice_rows_effect, setup_slice_summary_effect, setup_trends_effect,
 };
-use self::ui::{age_label, lift_label, metric_label};
+use self::ui::metric_label;
 use crate::core::{
-    HeatmapBin, HistogramBin, bodyweight_conditioned_percentile,
-    equivalent_value_for_same_percentile, histogram_density_for_value, parse_combined_bin,
-    percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
+    HeatmapBin, HistogramBin, parse_combined_bin,
+    percentile_for_value, rebin_1d, rebin_2d,
 };
 use leptos::ev;
 use leptos::html::Canvas;
@@ -40,7 +36,6 @@ use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::mount::mount_to;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use std::collections::BTreeMap;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
@@ -106,32 +101,6 @@ const CROSS_SEX_LIFT_ROWS: [(&str, &str); 3] = [("S", "Squat"), ("B", "Bench"), 
 struct CrossSexSliceChoice {
     row: SliceRow,
     weight_class_fallback: bool,
-}
-
-#[derive(Clone, Copy)]
-struct ComparisonSliceFilter<'a> {
-    sex: &'a str,
-    equip: &'a str,
-    wc: &'a str,
-    age: &'a str,
-    tested: &'a str,
-    lift: &'a str,
-    metric: &'a str,
-}
-
-fn find_comparison_slice<'a>(
-    rows: &'a [SliceRow],
-    filter: ComparisonSliceFilter<'_>,
-) -> Option<&'a SliceRow> {
-    rows.iter().find(|row| {
-        row.key.sex == filter.sex
-            && row.key.equip == filter.equip
-            && row.key.wc == filter.wc
-            && row.key.age == filter.age
-            && row.key.tested == filter.tested
-            && row.key.lift == filter.lift
-            && row.key.metric == filter.metric
-    })
 }
 
 fn rows_from_slice_index(index: SliceIndex) -> Vec<SliceRow> {
@@ -253,21 +222,6 @@ fn heatmap_mean_lift_bodyweight_ratio(heat: &HeatmapBin) -> Option<f32> {
     (total > 0).then_some((weighted_ratio / total as f64) as f32)
 }
 
-fn kg_needed_for_percentile_step(
-    hist: Option<&HistogramBin>,
-    current_value: f32,
-    current_pct: f32,
-    percentile_step: f32,
-) -> Option<f32> {
-    let hist = hist?;
-    let target_pct = (current_pct + percentile_step / 100.0).clamp(0.0, 0.999);
-    if target_pct <= current_pct {
-        return Some(0.0);
-    }
-    let target_value = value_for_percentile(Some(hist), target_pct)?;
-    Some((target_value - current_value).max(0.0))
-}
-
 #[component]
 fn App() -> impl IntoView {
     let (calculated, set_calculated) = signal(false);
@@ -315,9 +269,9 @@ fn App() -> impl IntoView {
     let (dist_request_id, set_dist_request_id) = signal(0u64);
     let (trends_request_id, set_trends_request_id) = signal(0u64);
     let (slice_summary, set_slice_summary) = signal(None::<SliceSummary>);
-    let (hist_load_ms, set_hist_load_ms) = signal(None::<u32>);
-    let (heat_load_ms, set_heat_load_ms) = signal(None::<u32>);
-    let (summary_load_ms, set_summary_load_ms) = signal(None::<u32>);
+    let (_hist_load_ms, set_hist_load_ms) = signal(None::<u32>);
+    let (_heat_load_ms, set_heat_load_ms) = signal(None::<u32>);
+    let (_summary_load_ms, set_summary_load_ms) = signal(None::<u32>);
 
     // Cross-sex
     let (male_slice_rows, set_male_slice_rows) = signal(Vec::<SliceRow>::new());

@@ -5,6 +5,7 @@ use crate::webapp::models::{SliceSummary, TrendSeries};
 use leptos::html::Canvas;
 use leptos::prelude::*;
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct NerdsCtx {
     pub dataset_blurb: Memo<String>,
@@ -127,10 +128,10 @@ pub fn NerdsPage(ctx: NerdsCtx) -> impl IntoView {
         percentile,
         rank_tier,
         user_lift,
-        load_error,
+        load_error: _,
         rebinned_hist,
         hist_x_label,
-        heat,
+        heat: _,
         rebinned_heat,
         canvas_ref,
         set_squat_delta,
@@ -139,7 +140,7 @@ pub fn NerdsPage(ctx: NerdsCtx) -> impl IntoView {
         set_lift_mult,
         set_bw_mult,
         slice_summary,
-        trend_series,
+        trend_series: _,
     } = ctx;
 
     let total_kg = Memo::new(move |_| squat.get() + bench.get() + deadlift.get());

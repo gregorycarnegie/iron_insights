@@ -2,15 +2,6 @@ use super::slices::SliceKey;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum CompareMode {
-    AllLifters,
-    SameBodyweightRange,
-    SameWeightClass,
-    SameAgeClass,
-    SameTestedStatus,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct SavedUiState {
     pub(super) sex: String,
@@ -33,25 +24,6 @@ pub(super) struct SavedUiState {
     pub(super) calculated: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub(super) struct SavedSnapshot {
-    pub(super) saved_at_secs: u64,
-    pub(super) percentile: f32,
-    pub(super) rank: usize,
-    pub(super) total_lifters: u32,
-    pub(super) sex: String,
-    pub(super) equip: String,
-    pub(super) wc: String,
-    pub(super) age: String,
-    pub(super) tested: String,
-    pub(super) lift: String,
-    pub(super) metric: String,
-    pub(super) squat: f32,
-    pub(super) bench: f32,
-    pub(super) deadlift: f32,
-    pub(super) bodyweight: f32,
-}
-
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct LatestJson {
     pub(super) version: String,
@@ -71,6 +43,7 @@ pub(super) struct TrendsJson {
     pub(super) series: Vec<TrendSeries>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct TrendSeries {
     pub(super) key: String,
@@ -134,24 +107,6 @@ pub(super) struct SliceSummary {
     pub(super) min_kg: f32,
     pub(super) max_kg: f32,
     pub(super) total: u32,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub(super) struct CohortComparisonRow {
-    pub(super) id: String,
-    pub(super) label: String,
-    pub(super) wc: String,
-    pub(super) age: String,
-    pub(super) tested: String,
-    pub(super) metric: String,
-    pub(super) total: Option<u32>,
-    pub(super) total_delta: Option<i64>,
-    pub(super) min_kg: Option<f32>,
-    pub(super) max_kg: Option<f32>,
-    pub(super) status: String,
-    pub(super) status_ok: bool,
-    pub(super) bin_path: Option<String>,
-    pub(super) is_current: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

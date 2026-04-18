@@ -1,4 +1,4 @@
-use crate::webapp::helpers::{display_to_kg, format_input_bound, kg_to_display};
+use crate::webapp::helpers::{display_to_kg, format_input_bound};
 use crate::webapp::ui::parse_f32_input;
 use leptos::prelude::*;
 
@@ -13,28 +13,8 @@ pub(super) fn Corners() -> impl IntoView {
     }
 }
 
-/// Standard panel wrapper
-#[component]
-pub(super) fn Panel(
-    #[prop(into)] tag: String,
-    #[prop(into)] label: String,
-    #[prop(into, optional)] right: Option<String>,
-    children: Children,
-) -> impl IntoView {
-    view! {
-        <div class="panel">
-            <Corners />
-            <div class="panel-head">
-                <span><span class="tag">{tag}</span>" "{label}</span>
-                {right.map(|r| view! { <span>{r}</span> })}
-            </div>
-            <div class="panel-body">
-                {children()}
-            </div>
-        </div>
-    }
-}
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub(super) struct InputFormCtx {
     pub(super) sex_opts: Memo<Vec<String>>,
@@ -134,7 +114,7 @@ pub(super) fn InputForm(ctx: InputFormCtx) -> impl IntoView {
         set_bodyweight,
         bodyweight_error,
         set_bodyweight_error,
-        calculated,
+        calculated: _,
         set_calculated,
         calculating,
         set_calculating,

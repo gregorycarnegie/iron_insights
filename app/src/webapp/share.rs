@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use wasm_bindgen::JsCast;
 
 pub(super) struct ShareImagePayload<'a> {

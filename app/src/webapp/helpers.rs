@@ -62,6 +62,7 @@ pub(super) fn format_input_bound(value_kg: f32, use_lbs: bool) -> String {
     }
 }
 
+#[allow(dead_code)]
 pub(super) fn build_share_url(params: &[(&str, String)]) -> Option<String> {
     let window = web_sys::window()?;
     let search = web_sys::UrlSearchParams::new().ok()?;

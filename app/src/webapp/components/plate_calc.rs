@@ -275,14 +275,22 @@ pub fn PlateCalcPage() -> impl IntoView {
 fn plate_views(plates: Vec<(f32, usize, &'static str)>) -> impl IntoView {
     plates
         .into_iter()
-        .flat_map(|(plate, count, _)| (0..count).map(move |_| plate).collect::<Vec<_>>())
+        .flat_map(|(plate, count, color)| {
+            (0..count).map(move |_| (plate, color)).collect::<Vec<_>>()
+        })
         .enumerate()
-        .map(|(i, plate)| {
+        .map(|(i, (plate, color))| {
             view! {
                 <div
                     class="plate"
                     attr:data-w=format_plate_key(plate)
-                    style=format!("animation-delay:{}ms", i * 30)
+                    style=format!(
+                        "animation-delay:{}ms; --plate-color:{}; height:{}%; width:{}px",
+                        i * 30,
+                        color,
+                        plate_height_pct(plate),
+                        plate_width_px(plate),
+                    )
                 ></div>
             }
         })
@@ -299,6 +307,27 @@ fn plate_color(plate: f32) -> &'static str {
         "2.5" => "#333",
         "1.25" => "#555",
         _ => "#e8472b",
+    }
+}
+
+fn plate_height_pct(plate: f32) -> u8 {
+    match plate_key(plate).as_str() {
+        "25" => 96,
+        "20" => 88,
+        "15" => 78,
+        "10" => 66,
+        "5" => 50,
+        "2.5" => 38,
+        "1.25" => 30,
+        _ => 96,
+    }
+}
+
+fn plate_width_px(plate: f32) -> u8 {
+    match plate_key(plate).as_str() {
+        "2.5" => 10,
+        "1.25" => 8,
+        _ => 14,
     }
 }
 
