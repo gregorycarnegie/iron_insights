@@ -1,3 +1,8 @@
 target/
 *.err.log
 *.out.log
+
+/target
+/dist
+/data
+/Cargo.lock
