@@ -656,6 +656,192 @@ select {
 .dist-bar .tr { height: 6px; background: var(--bg); border: 1px solid var(--line); }
 .dist-bar .fl { height: 100%; background: linear-gradient(90deg, var(--iron), var(--brass)); }
 
+.power-triangle {
+  background: var(--bg);
+  color: var(--ink);
+  position: relative;
+  overflow: hidden;
+  min-height: 380px;
+}
+
+.power-triangle::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 60px 60px;
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 85%);
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 85%);
+  pointer-events: none;
+}
+
+.power-triangle > * { position: relative; }
+
+.pt-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: baseline;
+  margin-bottom: 6px;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+
+.pt-tag { color: var(--iron); font-family: 'Archivo Black', sans-serif; margin-right: 8px; }
+
+.pt-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  margin-bottom: 24px;
+  color: var(--ink);
+}
+
+.pt-title span { color: var(--iron); }
+
+.pt-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.1fr) minmax(260px, 0.9fr);
+  gap: 28px;
+  align-items: center;
+}
+
+.pt-svg-wrap svg {
+  max-height: 380px;
+}
+
+.pt-right {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.pt-arch {
+  padding: 18px 20px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--iron);
+}
+
+.pt-arch-lbl {
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+}
+
+.pt-arch-name {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 6px 0 4px;
+}
+
+.pt-arch-name span { color: var(--iron); }
+
+.pt-arch-desc {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: 0.05em;
+  color: var(--ink-dim);
+}
+
+.pt-contrib {
+  display: grid;
+  gap: 12px;
+}
+
+.pt-contrib-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 64px;
+  gap: 12px;
+  align-items: center;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+
+.pt-ic {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  padding: 4px 0;
+  text-align: center;
+  color: var(--bg);
+}
+
+.pt-ic.sq { background: var(--iron); }
+.pt-ic.bp { background: var(--brass); }
+.pt-ic.dl { background: var(--steel); }
+
+.pt-bar {
+  height: 6px;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  position: relative;
+}
+
+.pt-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  animation: ptFillBar 1.2s cubic-bezier(.2,.7,.3,1) both;
+}
+
+.pt-fill.sq { background: var(--iron); }
+.pt-fill.bp { background: var(--brass); }
+.pt-fill.dl { background: var(--steel); }
+
+@keyframes ptFillBar {
+  from { width: 0; }
+}
+
+.pt-pct {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 14px;
+  color: var(--ink);
+  text-align: right;
+  letter-spacing: 0;
+}
+
+.pt-pct .delta {
+  display: block;
+  margin-top: 2px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  color: var(--ink-mute);
+}
+
+.pt-pct .delta.up { color: var(--iron); }
+.pt-pct .delta.dn { color: var(--ink-mute); }
+
+.pt-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+}
+
 /* ===== PAGE 3: MEN VS WOMEN ===== */
 .vs-head {
   display: grid;
@@ -896,6 +1082,10 @@ select {
   .beat-readout { min-width: 0; text-align: left; }
   .beat-num { font-size: 30px; }
   .unlock-row { align-items: flex-start; flex-direction: column; }
+  .pt-head, .pt-foot { flex-direction: column; align-items: flex-start; }
+  .pt-grid { grid-template-columns: 1fr; }
+  .pt-title { font-size: 24px; }
+  .pt-contrib-row { grid-template-columns: 40px 1fr 58px; gap: 10px; }
 }
 
 /* ===== SCROLLBAR ===== */

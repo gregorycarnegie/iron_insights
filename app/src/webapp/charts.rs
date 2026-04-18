@@ -1,5 +1,4 @@
 use crate::core::{HeatmapBin, HistogramBin};
-use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
@@ -14,7 +13,6 @@ const SURFACE_COLOR: &str = "#0b0b0d";
 const AXIS_COLOR: &str = "#2a2a30";
 const TICK_COLOR: &str = "#8a8680";
 const LABEL_COLOR: &str = "#f4f1ea";
-const LEGEND_BG: &str = "#121215";
 const LEGEND_BORDER: &str = "#2a2a30";
 const HEAT_COLOR_RGB: &str = "232, 71, 43";
 const STEEL_BAR_COLOR: &str = "rgba(107,115,128,0.4)";
@@ -124,119 +122,6 @@ fn format_axis_tick(value: f32) -> String {
     } else {
         format!("{value:.1}")
     }
-}
-
-pub(super) fn render_histogram_svg(
-    hist: &HistogramBin,
-    user_value: Option<f32>,
-    x_label: &str,
-) -> AnyView {
-    let aria_label = if user_value.is_some() {
-        format!("Histogram showing lifter count by {x_label}, with a marker for your input.")
-    } else {
-        format!("Histogram showing lifter count by {x_label}.")
-    };
-    let max_count = hist.counts.iter().copied().max().unwrap_or(1) as f32;
-    let w = 760.0f32;
-    let h = 240.0f32;
-    let left = 52.0f32;
-    let right = 16.0f32;
-    let top = 12.0f32;
-    let bottom = 34.0f32;
-    let plot_w = (w - left - right).max(1.0);
-    let plot_h = (h - top - bottom).max(1.0);
-    let bar_w = (plot_w / hist.counts.len().max(1) as f32).max(1.0);
-
-    let marker_x = user_value.map(|value| {
-        left + ((value - hist.min) / (hist.max - hist.min).max(0.0001)).clamp(0.0, 1.0) * plot_w
-    });
-    let marker_view = if let Some(marker_x) = marker_x {
-        view! {
-            <line
-                x1={marker_x.to_string()}
-                y1={top.to_string()}
-                x2={marker_x.to_string()}
-                y2={(top + plot_h).to_string()}
-                stroke={USER_MARKER_COLOR}
-                stroke-width="2"
-            />
-        }
-        .into_any()
-    } else {
-        ().into_any()
-    };
-    let marker_legend_view = if user_value.is_some() {
-        view! {
-            <>
-                <line
-                    x1={(w - 132.0).to_string()}
-                    y1="34"
-                    x2={(w - 118.0).to_string()}
-                    y2="34"
-                    stroke={USER_MARKER_COLOR}
-                    stroke-width="2"
-                />
-                <text x={(w - 112.0).to_string()} y="37" font-size="11" fill={LABEL_COLOR}>"Your value"</text>
-            </>
-        }
-        .into_any()
-    } else {
-        ().into_any()
-    };
-    let bars: Vec<(usize, u32)> = hist.counts.iter().copied().enumerate().collect();
-    let x_mid = (hist.min + hist.max) * 0.5;
-    let y_tick_mid = (max_count * 0.5).round() as u32;
-
-    view! {
-        <svg class="hist" viewBox="0 0 760 240" preserveAspectRatio="none" role="img" aria-label={aria_label}>
-            <rect x="0" y="0" width={w.to_string()} height={h.to_string()} fill={SURFACE_COLOR} />
-            <line x1={left.to_string()} y1={(top + plot_h).to_string()} x2={(left + plot_w).to_string()} y2={(top + plot_h).to_string()} stroke={AXIS_COLOR} stroke-width="1" />
-            <line x1={left.to_string()} y1={top.to_string()} x2={left.to_string()} y2={(top + plot_h).to_string()} stroke={AXIS_COLOR} stroke-width="1" />
-            {bars
-                .into_iter()
-                .map(|(i, c)| {
-                    let bh = (c as f32 / max_count) * plot_h;
-                    let x = left + i as f32 * bar_w;
-                    let y = top + plot_h - bh;
-                    view! {
-                        <rect
-                            x={x.to_string()}
-                            y={y.to_string()}
-                            width={(bar_w - 1.0).max(0.5).to_string()}
-                            height={bh.to_string()}
-                            fill={MEN_COLOR}
-                            fill-opacity="0.7"
-                        />
-                    }
-                })
-                .collect_view()}
-            {marker_view}
-
-            <text x={left.to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="middle">{format!("{:.0}", hist.min)}</text>
-            <text x={(left + plot_w * 0.5).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="middle">{format!("{:.0}", x_mid)}</text>
-            <text x={(left + plot_w).to_string()} y={(top + plot_h + 18.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="middle">{format!("{:.0}", hist.max)}</text>
-
-            <text x={(left - 8.0).to_string()} y={(top + plot_h).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="end">{ "0" }</text>
-            <text x={(left - 8.0).to_string()} y={(top + plot_h * 0.5 + 4.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="end">{y_tick_mid.to_string()}</text>
-            <text x={(left - 8.0).to_string()} y={(top + 4.0).to_string()} font-size="11" fill={TICK_COLOR} text-anchor="end">{(max_count.round() as u32).to_string()}</text>
-
-            <text x={(left + plot_w * 0.5).to_string()} y={(h - 4.0).to_string()} font-size="12" fill={LABEL_COLOR} text-anchor="middle">{x_label.to_string()}</text>
-            <text x="14" y={(top + plot_h * 0.5).to_string()} font-size="12" fill={LABEL_COLOR} text-anchor="middle" transform={format!("rotate(-90,14,{})", top + plot_h * 0.5)}>"Count"</text>
-
-            <rect
-                x={(w - 142.0).to_string()}
-                y="10"
-                width="132"
-                height={if user_value.is_some() { "34" } else { "20" }}
-                fill={LEGEND_BG}
-                stroke={LEGEND_BORDER}
-            />
-            <rect x={(w - 132.0).to_string()} y="19" width="14" height="6" fill={MEN_COLOR} />
-            <text x={(w - 112.0).to_string()} y="25" font-size="11" fill={LABEL_COLOR}>"Distribution"</text>
-            {marker_legend_view}
-        </svg>
-    }
-    .into_any()
 }
 
 pub(super) fn draw_ranking_distribution_canvas(
