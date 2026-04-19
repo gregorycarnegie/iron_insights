@@ -1,6 +1,6 @@
 # IRONSCALE app — improvement checklist
 
-Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarity, and verification.
+Current rating: **7.4/10**. Engineering is solid; the drag is structure, UX clarity, and verification.
 
 ## 1. Break up the god-file (`src/webapp/mod.rs`, 1498 lines)
 
@@ -43,9 +43,11 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 ## 7. Performance / correctness
 
 - [x] Memoize `rows_from_slice_index` output — it's re-sorted on every shard load even when inputs are identical.
-- [x] Cache already-fetched `.bin` payloads in a `HashMap<url, Bytes>` so switching filters doesn't re-download shards.
-<!-- - [ ] Debounce the number inputs; currently each keystroke triggers a histogram redraw via `user_lift` memo. -->
+- [x] Cache already-fetched `.bin` payloads in a `HashMap<url, Bytes>` so switching filters doesn't re-download shards. (defer this - I like how we can see the chart change in real time - this is a big visual dopamine hit!)
+- [ ] Debounce the number inputs; currently each keystroke triggers a histogram redraw via `user_lift` memo.
 - [x] Verify canvas `devicePixelRatio` handling in `draw_ranking_distribution_canvas` and `draw_heatmap` — the window resize listener redraws but may not re-scale for HiDPI.
+- [ ] Cancel in-flight shard fetches when selection changes rapidly — use `AbortController` to avoid stale responses landing after a newer request resolves.
+- [ ] Version the `SavedUiState` localStorage schema (add a `version` field + migration fn) so a schema change doesn't silently deserialize garbage or lose user state.
 
 ## 8. Accessibility
 
@@ -53,8 +55,17 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 - [x] Verify color contrast: `--ink-mute #52504c` on `--bg #0b0b0d` is ~4.3:1 — borderline for small text.
 - [x] Ensure tier ladder keyboard-navigates and announces via `aria-live` when the "YOU" marker moves.
 - [x] Give the canvas charts a visually-hidden text equivalent (current aria-label is generic).
+- [ ] Add a `<table>` text equivalent for the heatmap (min/max/mean per percentile band) — the 2D canvas is currently completely inaccessible to screen readers.
+- [ ] Supplement color-only sex encoding in the cross-sex comparison with a text/icon label alongside the cyan/copper distinction (`♀ Women`, `♂ Men`) so it's not color-dependent.
+- [ ] Wire explicit `<label for="...">` associations for all dynamically rendered number inputs (bodyweight, squat, bench, deadlift) — currently relying on DOM proximity only.
 
-## 9. Hygiene
+## 9. Secondary page depth
+
+- [ ] 1RM calculator: add multiple formula options (Epley, Brzycki, Mayhew, Lombardi) with a comparison table, and pipe the calculated max into the Plate Calc page automatically.
+- [ ] Bodyfat page: add method explanation (Navy, YMCA, skinfold), reference ranges by sex/age, and a note on measurement error — currently it's a bare form with no context.
+- [ ] Mobile drawer nav: the sidebar hides at 820px but there's no way to re-open it; add a hamburger toggle that slides the nav in as an overlay.
+
+## 10. Hygiene
 
 - [x] Enable `#![warn(clippy::pedantic)]` on the `webapp` module and fix the fallout.
 - [x] Scan for and remove any leftover `#[allow(dead_code)]` (at least `InputFormCtx`).
