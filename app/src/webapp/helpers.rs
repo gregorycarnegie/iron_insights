@@ -1,4 +1,7 @@
 use crate::core::{dots_points, goodlift_points, wilks_points};
+pub(super) use crate::core::{
+    BodyfatResult, bodyfat_category, calc_bodyfat_female, calc_bodyfat_male, tier_for_percentile,
+};
 
 #[derive(Clone, Copy)]
 pub(super) struct ComparableLifter<'a> {
@@ -21,20 +24,6 @@ pub(super) fn comparable_lift_value(lifter: ComparableLifter<'_>, lift: &str, me
         ("T", "GL") => goodlift_points(lifter.sex, lifter.equipment, lifter.bodyweight, total),
         ("T", _) => total,
         _ => 0.0,
-    }
-}
-
-pub(super) fn tier_for_percentile(pct: f32) -> &'static str {
-    if pct >= 0.99 {
-        "Legend"
-    } else if pct >= 0.95 {
-        "Elite"
-    } else if pct >= 0.8 {
-        "Advanced"
-    } else if pct >= 0.6 {
-        "Intermediate"
-    } else {
-        "Novice"
     }
 }
 
@@ -75,98 +64,3 @@ pub(super) fn build_share_url(params: &[(&str, String)]) -> Option<String> {
     Some(format!("{origin}{pathname}?{}{}", search.to_string(), hash))
 }
 
-// ===== BODYFAT (US NAVY METHOD) =====
-
-#[derive(Clone, Copy, PartialEq)]
-pub(super) struct BodyfatResult {
-    pub(super) body_fat_pct: f32,
-    pub(super) lean_mass_kg: f32,
-    pub(super) fat_mass_kg: f32,
-}
-
-pub(super) fn calc_bodyfat_male(
-    height_cm: f32,
-    weight_kg: f32,
-    neck_cm: f32,
-    waist_cm: f32,
-) -> Option<BodyfatResult> {
-    if height_cm <= 0.0 || neck_cm <= 0.0 || waist_cm <= neck_cm {
-        return None;
-    }
-    let diff = waist_cm - neck_cm;
-    if diff <= 0.0 {
-        return None;
-    }
-    let bf = 495.0
-        / (1.0324 - 0.19077 * (diff as f64).log10() as f32
-            + 0.15456 * (height_cm as f64).log10() as f32)
-        - 450.0;
-    let bf = bf.clamp(2.0, 60.0);
-    let fat_mass = weight_kg * bf / 100.0;
-    let lean_mass = weight_kg - fat_mass;
-    Some(BodyfatResult {
-        body_fat_pct: bf,
-        lean_mass_kg: lean_mass,
-        fat_mass_kg: fat_mass,
-    })
-}
-
-pub(super) fn calc_bodyfat_female(
-    height_cm: f32,
-    weight_kg: f32,
-    neck_cm: f32,
-    waist_cm: f32,
-    hip_cm: f32,
-) -> Option<BodyfatResult> {
-    if height_cm <= 0.0 || neck_cm <= 0.0 {
-        return None;
-    }
-    let diff = waist_cm + hip_cm - neck_cm;
-    if diff <= 0.0 {
-        return None;
-    }
-    let bf = 495.0
-        / (1.29579 - 0.35004 * (diff as f64).log10() as f32
-            + 0.22100 * (height_cm as f64).log10() as f32)
-        - 450.0;
-    let bf = bf.clamp(8.0, 60.0);
-    let fat_mass = weight_kg * bf / 100.0;
-    let lean_mass = weight_kg - fat_mass;
-    Some(BodyfatResult {
-        body_fat_pct: bf,
-        lean_mass_kg: lean_mass,
-        fat_mass_kg: fat_mass,
-    })
-}
-
-pub(super) fn bodyfat_category(pct: f32, is_male: bool) -> &'static str {
-    if is_male {
-        if pct < 6.0 {
-            "Essential"
-        } else if pct < 11.0 {
-            "Elite Athlete"
-        } else if pct < 15.0 {
-            "Athlete"
-        } else if pct < 20.0 {
-            "Fitness"
-        } else if pct < 25.0 {
-            "Average"
-        } else {
-            "Obese"
-        }
-    } else {
-        if pct < 14.0 {
-            "Essential"
-        } else if pct < 18.0 {
-            "Elite Athlete"
-        } else if pct < 22.0 {
-            "Athlete"
-        } else if pct < 26.0 {
-            "Fitness"
-        } else if pct < 32.0 {
-            "Average"
-        } else {
-            "Obese"
-        }
-    }
-}

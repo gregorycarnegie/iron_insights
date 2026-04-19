@@ -662,6 +662,163 @@ pub fn rebin_2d(
     (out, w2, h2)
 }
 
+// ===== UNIT CONVERSION =====
+
+pub const KG_PER_LB: f32 = 0.453_592_37;
+
+pub fn kg_to_lbs(kg: f32) -> f32 {
+    kg / KG_PER_LB
+}
+
+pub fn lbs_to_kg(lbs: f32) -> f32 {
+    lbs * KG_PER_LB
+}
+
+// ===== PERCENTILE TIER =====
+
+pub fn tier_for_percentile(pct: f32) -> &'static str {
+    if pct >= 0.99 {
+        "Legend"
+    } else if pct >= 0.95 {
+        "Elite"
+    } else if pct >= 0.8 {
+        "Advanced"
+    } else if pct >= 0.6 {
+        "Intermediate"
+    } else {
+        "Novice"
+    }
+}
+
+// ===== BODYFAT (US NAVY METHOD) =====
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BodyfatResult {
+    pub body_fat_pct: f32,
+    pub lean_mass_kg: f32,
+    pub fat_mass_kg: f32,
+}
+
+pub fn calc_bodyfat_male(
+    height_cm: f32,
+    weight_kg: f32,
+    neck_cm: f32,
+    waist_cm: f32,
+) -> Option<BodyfatResult> {
+    if height_cm <= 0.0 || neck_cm <= 0.0 || waist_cm <= neck_cm {
+        return None;
+    }
+    let diff = waist_cm - neck_cm;
+    let bf = 495.0
+        / (1.0324 - 0.19077 * (diff as f64).log10() as f32
+            + 0.15456 * (height_cm as f64).log10() as f32)
+        - 450.0;
+    let bf = bf.clamp(2.0, 60.0);
+    let fat_mass = weight_kg * bf / 100.0;
+    Some(BodyfatResult {
+        body_fat_pct: bf,
+        lean_mass_kg: weight_kg - fat_mass,
+        fat_mass_kg: fat_mass,
+    })
+}
+
+pub fn calc_bodyfat_female(
+    height_cm: f32,
+    weight_kg: f32,
+    neck_cm: f32,
+    waist_cm: f32,
+    hip_cm: f32,
+) -> Option<BodyfatResult> {
+    if height_cm <= 0.0 || neck_cm <= 0.0 {
+        return None;
+    }
+    let diff = waist_cm + hip_cm - neck_cm;
+    if diff <= 0.0 {
+        return None;
+    }
+    let bf = 495.0
+        / (1.29579 - 0.35004 * (diff as f64).log10() as f32
+            + 0.22100 * (height_cm as f64).log10() as f32)
+        - 450.0;
+    let bf = bf.clamp(8.0, 60.0);
+    let fat_mass = weight_kg * bf / 100.0;
+    Some(BodyfatResult {
+        body_fat_pct: bf,
+        lean_mass_kg: weight_kg - fat_mass,
+        fat_mass_kg: fat_mass,
+    })
+}
+
+pub fn bodyfat_category(pct: f32, is_male: bool) -> &'static str {
+    if is_male {
+        if pct < 6.0 {
+            "Essential"
+        } else if pct < 11.0 {
+            "Elite Athlete"
+        } else if pct < 15.0 {
+            "Athlete"
+        } else if pct < 20.0 {
+            "Fitness"
+        } else if pct < 25.0 {
+            "Average"
+        } else {
+            "Obese"
+        }
+    } else if pct < 14.0 {
+        "Essential"
+    } else if pct < 18.0 {
+        "Elite Athlete"
+    } else if pct < 22.0 {
+        "Athlete"
+    } else if pct < 26.0 {
+        "Fitness"
+    } else if pct < 32.0 {
+        "Average"
+    } else {
+        "Obese"
+    }
+}
+
+// ===== 1RM FORMULAS =====
+
+/// Estimates the one-rep max from a submaximal set.
+/// Returns `weight` unchanged for `reps <= 1.0`.
+/// Supported `formula` values: `"epley"` (default), `"brzycki"`, `"lander"`, `"lombardi"`, `"oconner"`.
+pub fn calc_1rm(weight: f32, reps: f32, formula: &str) -> f32 {
+    if reps <= 1.0 {
+        return weight;
+    }
+    match formula {
+        "brzycki" => weight / (1.0278 - 0.0278 * reps),
+        "lander" => (100.0 * weight) / (101.3 - 2.67123 * reps),
+        "lombardi" => weight * reps.powf(0.1),
+        "oconner" => weight * (1.0 + reps / 40.0),
+        _ => weight * (1.0 + reps / 30.0),
+    }
+}
+
+// ===== PLATE CALCULATOR =====
+
+/// Standard IPF competition plates (kg), largest first.
+pub const IPF_PLATES_KG: &[f32] = &[25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25];
+
+/// Greedily selects plates for one side of the bar.
+///
+/// Returns `(plates, remainder_kg)` where `plates` is a list of `(plate_weight_kg, count)`
+/// pairs and `remainder_kg` is the unloadable shortfall (ideally 0).
+pub fn plates_per_side(per_side_needed_kg: f32) -> (Vec<(f32, usize)>, f32) {
+    let mut remaining = per_side_needed_kg.max(0.0);
+    let mut plates = Vec::new();
+    for &plate in IPF_PLATES_KG {
+        let count = (remaining / plate + 1e-6).floor() as usize;
+        if count > 0 {
+            remaining -= plate * count as f32;
+            plates.push((plate, count));
+        }
+    }
+    (plates, remaining)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -1043,5 +1200,254 @@ mod tests {
 
         assert!(equivalent_value_for_same_percentile(None, Some(&source), 105.0).is_none());
         assert!(equivalent_value_for_same_percentile(Some(&source), None, 105.0).is_none());
+    }
+
+    // ===== UNIT CONVERSION =====
+
+    use super::{
+        bodyfat_category, calc_1rm, calc_bodyfat_female, calc_bodyfat_male,
+        ipf_weight_class, kg_to_lbs, lbs_to_kg, plates_per_side, tier_for_percentile,
+        KG_PER_LB, IPF_PLATES_KG,
+    };
+
+    #[test]
+    fn kg_lbs_round_trip() {
+        let kg = 100.0f32;
+        let converted = lbs_to_kg(kg_to_lbs(kg));
+        assert!((converted - kg).abs() < 1e-4);
+    }
+
+    #[test]
+    fn kg_to_lbs_known_value() {
+        let lbs = kg_to_lbs(100.0);
+        assert!((lbs - 100.0 / KG_PER_LB).abs() < 1e-4);
+    }
+
+    #[test]
+    fn lbs_to_kg_known_value() {
+        let kg = lbs_to_kg(220.0);
+        assert!((kg - 220.0 * KG_PER_LB).abs() < 1e-4);
+    }
+
+    // ===== PERCENTILE TIER =====
+
+    #[test]
+    fn tier_boundaries_are_correct() {
+        assert_eq!(tier_for_percentile(0.0), "Novice");
+        assert_eq!(tier_for_percentile(0.599), "Novice");
+        assert_eq!(tier_for_percentile(0.6), "Intermediate");
+        assert_eq!(tier_for_percentile(0.799), "Intermediate");
+        assert_eq!(tier_for_percentile(0.8), "Advanced");
+        assert_eq!(tier_for_percentile(0.949), "Advanced");
+        assert_eq!(tier_for_percentile(0.95), "Elite");
+        assert_eq!(tier_for_percentile(0.989), "Elite");
+        assert_eq!(tier_for_percentile(0.99), "Legend");
+        assert_eq!(tier_for_percentile(1.0), "Legend");
+    }
+
+    // ===== BODYFAT =====
+
+    #[test]
+    fn calc_bodyfat_male_typical_case() {
+        let result = calc_bodyfat_male(178.0, 80.0, 38.0, 90.0).expect("should compute");
+        assert!(result.body_fat_pct > 0.0 && result.body_fat_pct < 60.0);
+        assert!((result.lean_mass_kg + result.fat_mass_kg - 80.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calc_bodyfat_male_rejects_invalid_inputs() {
+        assert!(calc_bodyfat_male(0.0, 80.0, 38.0, 90.0).is_none(), "zero height");
+        assert!(calc_bodyfat_male(-5.0, 80.0, 38.0, 90.0).is_none(), "negative height");
+        assert!(calc_bodyfat_male(178.0, 80.0, 0.0, 90.0).is_none(), "zero neck");
+        assert!(calc_bodyfat_male(178.0, 80.0, 95.0, 90.0).is_none(), "waist <= neck");
+    }
+
+    #[test]
+    fn calc_bodyfat_male_mass_components_sum_to_weight() {
+        let result = calc_bodyfat_male(175.0, 90.0, 36.0, 85.0).expect("should compute");
+        assert!((result.lean_mass_kg + result.fat_mass_kg - 90.0).abs() < 1e-3);
+        assert!(result.body_fat_pct >= 2.0 && result.body_fat_pct <= 60.0);
+    }
+
+    #[test]
+    fn calc_bodyfat_female_typical_case() {
+        let result =
+            calc_bodyfat_female(165.0, 65.0, 33.0, 75.0, 95.0).expect("should compute");
+        assert!(result.body_fat_pct >= 8.0 && result.body_fat_pct <= 60.0);
+        assert!((result.lean_mass_kg + result.fat_mass_kg - 65.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calc_bodyfat_female_rejects_invalid_inputs() {
+        assert!(calc_bodyfat_female(0.0, 65.0, 33.0, 75.0, 95.0).is_none(), "zero height");
+        assert!(calc_bodyfat_female(165.0, 65.0, 0.0, 75.0, 95.0).is_none(), "zero neck");
+        assert!(
+            calc_bodyfat_female(165.0, 65.0, 200.0, 75.0, 95.0).is_none(),
+            "diff <= 0"
+        );
+    }
+
+    #[test]
+    fn bodyfat_category_male_boundaries() {
+        assert_eq!(bodyfat_category(5.9, true), "Essential");
+        assert_eq!(bodyfat_category(6.0, true), "Elite Athlete");
+        assert_eq!(bodyfat_category(10.9, true), "Elite Athlete");
+        assert_eq!(bodyfat_category(11.0, true), "Athlete");
+        assert_eq!(bodyfat_category(14.9, true), "Athlete");
+        assert_eq!(bodyfat_category(15.0, true), "Fitness");
+        assert_eq!(bodyfat_category(19.9, true), "Fitness");
+        assert_eq!(bodyfat_category(20.0, true), "Average");
+        assert_eq!(bodyfat_category(24.9, true), "Average");
+        assert_eq!(bodyfat_category(25.0, true), "Obese");
+    }
+
+    #[test]
+    fn bodyfat_category_female_boundaries() {
+        assert_eq!(bodyfat_category(13.9, false), "Essential");
+        assert_eq!(bodyfat_category(14.0, false), "Elite Athlete");
+        assert_eq!(bodyfat_category(17.9, false), "Elite Athlete");
+        assert_eq!(bodyfat_category(18.0, false), "Athlete");
+        assert_eq!(bodyfat_category(21.9, false), "Athlete");
+        assert_eq!(bodyfat_category(22.0, false), "Fitness");
+        assert_eq!(bodyfat_category(25.9, false), "Fitness");
+        assert_eq!(bodyfat_category(26.0, false), "Average");
+        assert_eq!(bodyfat_category(31.9, false), "Average");
+        assert_eq!(bodyfat_category(32.0, false), "Obese");
+    }
+
+    // ===== 1RM FORMULAS =====
+
+    #[test]
+    fn calc_1rm_returns_weight_for_one_rep() {
+        assert_eq!(calc_1rm(100.0, 1.0, "epley"), 100.0);
+        assert_eq!(calc_1rm(100.0, 0.5, "brzycki"), 100.0);
+        assert_eq!(calc_1rm(100.0, 1.0, "lander"), 100.0);
+    }
+
+    #[test]
+    fn calc_1rm_epley_formula() {
+        // w * (1 + r/30)
+        let expected = 100.0 * (1.0 + 5.0 / 30.0);
+        assert!((calc_1rm(100.0, 5.0, "epley") - expected).abs() < 1e-4);
+        assert!((calc_1rm(100.0, 5.0, "unknown") - expected).abs() < 1e-4, "defaults to epley");
+    }
+
+    #[test]
+    fn calc_1rm_brzycki_formula() {
+        // w / (1.0278 - 0.0278 * r)
+        let expected = 100.0 / (1.0278 - 0.0278 * 5.0);
+        assert!((calc_1rm(100.0, 5.0, "brzycki") - expected).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calc_1rm_lander_formula() {
+        // (100 * w) / (101.3 - 2.67123 * r)
+        let expected = (100.0 * 100.0) / (101.3 - 2.67123 * 5.0);
+        assert!((calc_1rm(100.0, 5.0, "lander") - expected).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calc_1rm_lombardi_formula() {
+        // w * r^0.1
+        let expected = 100.0f32 * 5.0f32.powf(0.1);
+        assert!((calc_1rm(100.0, 5.0, "lombardi") - expected).abs() < 1e-4);
+    }
+
+    #[test]
+    fn calc_1rm_oconner_formula() {
+        // w * (1 + r/40)
+        let expected = 100.0 * (1.0 + 5.0 / 40.0);
+        assert!((calc_1rm(100.0, 5.0, "oconner") - expected).abs() < 1e-4);
+    }
+
+    #[test]
+    fn calc_1rm_is_monotonic_with_reps() {
+        for formula in &["epley", "brzycki", "lander", "lombardi", "oconner"] {
+            let low = calc_1rm(100.0, 3.0, formula);
+            let high = calc_1rm(100.0, 10.0, formula);
+            assert!(high > low, "formula {formula} should increase with reps");
+        }
+    }
+
+    // ===== PLATE CALCULATOR =====
+
+    #[test]
+    fn plates_per_side_exact_fit() {
+        // 80 kg per side = 3×25 + 1×5
+        let (plates, remainder) = plates_per_side(80.0);
+        assert!(remainder < 1e-3);
+        let total: f32 = plates.iter().map(|(w, c)| w * *c as f32).sum();
+        assert!((total - 80.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn plates_per_side_zero_returns_empty() {
+        let (plates, remainder) = plates_per_side(0.0);
+        assert!(plates.is_empty());
+        assert!(remainder < 1e-4);
+    }
+
+    #[test]
+    fn plates_per_side_negative_treated_as_zero() {
+        let (plates, remainder) = plates_per_side(-10.0);
+        assert!(plates.is_empty());
+        assert!(remainder < 1e-4);
+    }
+
+    #[test]
+    fn plates_per_side_greedy_prefers_large_plates() {
+        let (plates, _) = plates_per_side(50.0);
+        assert!(!plates.is_empty());
+        assert_eq!(plates[0].0, 25.0, "largest plate should come first");
+    }
+
+    #[test]
+    fn plates_per_side_remainder_is_non_negative() {
+        for per_side in [1.0f32, 7.5, 12.3, 47.5, 100.0] {
+            let (_, remainder) = plates_per_side(per_side);
+            assert!(remainder >= 0.0, "remainder must be non-negative for {per_side}");
+        }
+    }
+
+    #[test]
+    fn plates_per_side_180kg_total_standard_bar() {
+        // 180 total, 20kg bar → 80kg per side → 3×25 + 1×5
+        let per_side = (180.0 - 20.0) / 2.0;
+        let (plates, remainder) = plates_per_side(per_side);
+        assert!(remainder < 1e-3);
+        let total: f32 = plates.iter().map(|(w, c)| w * *c as f32).sum();
+        assert!((total - 80.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn ipf_plates_kg_is_sorted_descending() {
+        for window in IPF_PLATES_KG.windows(2) {
+            assert!(window[0] > window[1], "plates should be descending");
+        }
+    }
+
+    // ===== IPF WEIGHT CLASS =====
+
+    #[test]
+    fn ipf_weight_class_male_boundaries() {
+        assert_eq!(ipf_weight_class(53.0, "M"), Some("53"));
+        assert_eq!(ipf_weight_class(53.1, "M"), Some("59"));
+        assert_eq!(ipf_weight_class(120.0, "M"), Some("120"));
+        assert_eq!(ipf_weight_class(120.1, "M"), Some("120+"));
+        assert_eq!(ipf_weight_class(200.0, "M"), Some("120+"));
+    }
+
+    #[test]
+    fn ipf_weight_class_female_boundaries() {
+        assert_eq!(ipf_weight_class(43.0, "F"), Some("43"));
+        assert_eq!(ipf_weight_class(43.1, "F"), Some("47"));
+        assert_eq!(ipf_weight_class(84.0, "F"), Some("84"));
+        assert_eq!(ipf_weight_class(84.1, "F"), Some("84+"));
+    }
+
+    #[test]
+    fn ipf_weight_class_invalid_sex_returns_none() {
+        assert!(ipf_weight_class(80.0, "X").is_none());
+        assert!(ipf_weight_class(80.0, "").is_none());
     }
 }

@@ -1,10 +1,8 @@
 use super::shared::Corners;
+use crate::core::{KG_PER_LB, plates_per_side};
 use crate::webapp::helpers::{display_to_kg, kg_to_display};
 use crate::webapp::ui::parse_f32_input;
 use leptos::prelude::*;
-
-const KG_PER_LB: f32 = 0.453_592_37;
-const PLATES_KG: &[f32] = &[25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25];
 
 #[derive(Clone, PartialEq)]
 struct PlateResult {
@@ -24,27 +22,20 @@ fn calc_plates(
     let target_kg = display_to_kg(target_display, use_lbs);
     let collar_total_kg = collar_kg_each * 2.0;
     let per_side_kg = (target_kg - bar_kg - collar_total_kg) / 2.0;
-    let mut remaining = per_side_kg.max(0.0);
-    let mut plates_per_side = Vec::new();
-
-    for &plate in PLATES_KG {
-        let count = (remaining / plate + 1e-6).floor() as usize;
-        if count > 0 {
-            remaining -= plate * count as f32;
-            plates_per_side.push((plate, count, plate_color(plate)));
-        }
-    }
-
+    let (raw_plates, remainder_kg) = plates_per_side(per_side_kg);
+    let plates_per_side: Vec<(f32, usize, &'static str)> = raw_plates
+        .into_iter()
+        .map(|(plate, count)| (plate, count, plate_color(plate)))
+        .collect();
     let plate_total_kg = plates_per_side
         .iter()
         .map(|(plate, count, _)| plate * *count as f32 * 2.0)
         .sum::<f32>();
-
     PlateResult {
         plates_per_side,
         per_side_kg,
         achieved_kg: bar_kg + collar_total_kg + plate_total_kg,
-        remainder_kg: remaining,
+        remainder_kg,
         below_bar: per_side_kg < 0.0,
     }
 }

@@ -1,38 +1,7 @@
 use super::shared::Corners;
+use crate::core::calc_1rm;
 use crate::webapp::ui::parse_f32_input;
 use leptos::prelude::*;
-
-fn epley(w: f32, r: f32) -> f32 {
-    w * (1.0 + r / 30.0)
-}
-fn brzycki(w: f32, r: f32) -> f32 {
-    w / (1.0278 - 0.0278 * r)
-}
-fn lander(w: f32, r: f32) -> f32 {
-    (100.0 * w) / (101.3 - 2.67123 * r)
-}
-fn lombardi(w: f32, r: f32) -> f32 {
-    w * r.powf(0.1)
-}
-fn oconner(w: f32, r: f32) -> f32 {
-    w * (1.0 + r / 40.0)
-}
-
-fn calc_1rm(weight: f32, reps: f32, formula: &str) -> f32 {
-    if reps < 1.0 {
-        return weight;
-    }
-    if reps == 1.0 {
-        return weight;
-    }
-    match formula {
-        "brzycki" => brzycki(weight, reps),
-        "lander" => lander(weight, reps),
-        "lombardi" => lombardi(weight, reps),
-        "oconner" => oconner(weight, reps),
-        _ => epley(weight, reps),
-    }
-}
 
 const PERCENTAGES: &[(&str, u32, &str)] = &[
     ("95%", 95, "1-2 reps · Max singles"),
