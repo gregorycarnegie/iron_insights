@@ -70,3 +70,4 @@ Current rating: **7.4/10**. Engineering is solid; the drag is structure, UX clar
 - [x] Enable `#![warn(clippy::pedantic)]` on the `webapp` module and fix the fallout.
 - [x] Scan for and remove any leftover `#[allow(dead_code)]` (at least `InputFormCtx`).
 - [x] Document the data-pipeline contract in `app/README.md`: `data/latest.json` → `root_index` → shard → slice → bin payload, so onboarding doesn't require reading all of `mod.rs`.
+- [x] Add Rust doc comments (`///`) to public structs, enums, and functions in `app`, `iron_insights_core`, and `pipeline` to improve maintainability.

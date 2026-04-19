@@ -4,8 +4,11 @@ pub use published_contract::{
     SliceEntryPaths, SliceKey, entry_paths_from_slice_key, parse_shard_key, parse_slice_key,
 };
 
+/// Current version of the binary payload format for histograms and heatmaps.
 pub const BINARY_FORMAT_VERSION: u16 = 1;
+/// Magic byte sequence identifying a standalone Iron Insights Histogram (`IIH1`).
 pub const HISTOGRAM_MAGIC: [u8; 4] = *b"IIH1";
+/// Magic byte sequence identifying a standalone Iron Insights Heatmap (`IIM1`).
 pub const HEATMAP_MAGIC: [u8; 4] = *b"IIM1";
 /// Magic for the combined histogram+heatmap binary (IIC1 = Iron Insights Combined v1).
 /// Layout: `[IIC1][version u16 LE][hist_len u32 LE][IIH1 blob][IIM1 blob]`
@@ -130,6 +133,7 @@ pub struct BodyweightConditionedStats {
     pub neighborhood_share: f32,
 }
 
+/// Minimum number of lifters in a cohort before a tiny sample warning is triggered.
 pub const TINY_COHORT_WARNING_THRESHOLD: u32 = 250;
 const DIAGNOSTIC_PERCENTILES: [f32; 9] = [0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99];
 
@@ -181,6 +185,7 @@ pub fn ipf_weight_class(bodyweight_kg: f32, sex: &str) -> Option<&'static str> {
 }
 
 impl HistogramBin {
+    /// Constructs a new [`HistogramBin`] and calculates the total lifter count.
     pub fn new(min: f32, max: f32, base_bin: f32, counts: Vec<u32>) -> Self {
         let total = counts.iter().copied().sum();
         Self {
@@ -193,6 +198,7 @@ impl HistogramBin {
     }
 }
 
+/// Parses a standalone `IIH1` histogram binary payload.
 pub fn parse_hist_bin(bytes: &[u8]) -> Option<HistogramBin> {
     if bytes.len() < 22 || bytes[0..4] != HISTOGRAM_MAGIC {
         return None;
@@ -220,6 +226,7 @@ pub fn parse_hist_bin(bytes: &[u8]) -> Option<HistogramBin> {
     Some(HistogramBin::new(min, max, base, counts))
 }
 
+/// Parses a standalone `IIM1` heatmap binary payload.
 pub fn parse_heat_bin(bytes: &[u8]) -> Option<HeatmapBin> {
     if bytes.len() < 38 || bytes[0..4] != HEATMAP_MAGIC {
         return None;
@@ -281,6 +288,7 @@ pub fn parse_combined_bin(bytes: &[u8]) -> Option<(HistogramBin, HeatmapBin)> {
     Some((hist, heat))
 }
 
+/// Computes the CDF percentile, 1-based rank, and total count for a given value in a histogram.
 pub fn percentile_for_value(hist: Option<&HistogramBin>, value: f32) -> Option<(f32, usize, u32)> {
     let hist = hist?;
     if hist.counts.is_empty() {
@@ -305,11 +313,13 @@ pub fn percentile_for_value(hist: Option<&HistogramBin>, value: f32) -> Option<(
     Some((pct, rank, total))
 }
 
+/// Computes the expected value for a given percentile (0.0 to 1.0) using linear interpolation.
 pub fn value_for_percentile(hist: Option<&HistogramBin>, target_pct: f32) -> Option<f32> {
     let hist = hist?;
     values_for_percentiles(hist, &[target_pct]).map(|[value]| value)
 }
 
+/// Maps a value from a source distribution to the equivalent value at the same percentile in a target distribution.
 pub fn equivalent_value_for_same_percentile(
     source_hist: Option<&HistogramBin>,
     target_hist: Option<&HistogramBin>,
@@ -320,6 +330,7 @@ pub fn equivalent_value_for_same_percentile(
     Some((source_percentile, target_value))
 }
 
+/// Calculates descriptive statistics (percentiles, IQR, mode, sparsity) for a histogram.
 pub fn histogram_diagnostics(hist: Option<&HistogramBin>) -> Option<HistogramDiagnostics> {
     let hist = hist?;
     if hist.counts.is_empty() || hist.base_bin <= 0.0 {
@@ -373,6 +384,7 @@ pub fn histogram_diagnostics(hist: Option<&HistogramBin>) -> Option<HistogramDia
 }
 
 #[cfg(target_arch = "wasm32")]
+/// Calculates the estimated mean and standard deviation of the histogram population.
 pub fn histogram_mean_stddev(hist: Option<&HistogramBin>) -> Option<(f32, f32)> {
     let hist = hist?;
 
@@ -402,6 +414,7 @@ pub fn histogram_mean_stddev(hist: Option<&HistogramBin>) -> Option<(f32, f32)> 
     Some((mean as f32, variance.sqrt() as f32))
 }
 
+/// Evaluates the local density around a specific value to determine how common it is.
 pub fn histogram_density_for_value(
     hist: Option<&HistogramBin>,
     value: f32,
@@ -491,6 +504,7 @@ fn values_for_percentiles<const N: usize>(
     Some(values)
 }
 
+/// Computes statistics for a lift within a narrowed bodyweight band using the 2D heatmap.
 pub fn bodyweight_conditioned_percentile(
     heat: Option<&HeatmapBin>,
     user_lift: f32,
@@ -566,6 +580,7 @@ pub fn bodyweight_conditioned_percentile(
     })
 }
 
+/// Calculates the DOTS score for a given sex, bodyweight (kg), and total (kg).
 #[allow(clippy::excessive_precision)]
 pub fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     let bw = match sex {
@@ -586,6 +601,7 @@ pub fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     }
 }
 
+/// Calculates the Wilks score for a given sex, bodyweight (kg), and total (kg).
 #[allow(clippy::excessive_precision)]
 pub fn wilks_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     let bw = match sex {
@@ -609,6 +625,7 @@ pub fn wilks_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     }
 }
 
+/// Calculates the IPF GL (Goodlift) points for a given sex, equipment, bodyweight (kg), and total (kg).
 #[allow(clippy::excessive_precision)]
 pub fn goodlift_points(sex: &str, equipment: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     let classic = matches!(equipment, "Raw" | "Wraps" | "Straps");
@@ -626,6 +643,7 @@ pub fn goodlift_points(sex: &str, equipment: &str, bodyweight_kg: f32, total_kg:
     }
 }
 
+/// Condenses a 1D counts array by summing adjacent `k` bins.
 pub fn rebin_1d(counts: Vec<u32>, k: usize) -> Vec<u32> {
     if k <= 1 {
         return counts;
@@ -636,6 +654,7 @@ pub fn rebin_1d(counts: Vec<u32>, k: usize) -> Vec<u32> {
         .collect()
 }
 
+/// Condenses a 2D heatmap grid by pooling cells into `kx` by `ky` blocks.
 pub fn rebin_2d(
     grid: Vec<u32>,
     width: usize,
@@ -664,18 +683,22 @@ pub fn rebin_2d(
 
 // ===== UNIT CONVERSION =====
 
+/// Conversion factor from pounds to kilograms.
 pub const KG_PER_LB: f32 = 0.453_592_37;
 
+/// Converts kilograms to pounds.
 pub fn kg_to_lbs(kg: f32) -> f32 {
     kg / KG_PER_LB
 }
 
+/// Converts pounds to kilograms.
 pub fn lbs_to_kg(lbs: f32) -> f32 {
     lbs * KG_PER_LB
 }
 
 // ===== PERCENTILE TIER =====
 
+/// Maps a percentile (0.0 to 1.0) to a descriptive performance tier label.
 pub fn tier_for_percentile(pct: f32) -> &'static str {
     if pct >= 0.99 {
         "Legend"
@@ -692,6 +715,7 @@ pub fn tier_for_percentile(pct: f32) -> &'static str {
 
 // ===== BODYFAT (US NAVY METHOD) =====
 
+/// Contains the calculated body fat percentage and the resulting fat and lean mass estimates.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BodyfatResult {
     pub body_fat_pct: f32,
@@ -699,6 +723,7 @@ pub struct BodyfatResult {
     pub fat_mass_kg: f32,
 }
 
+/// Estimates body fat percentage for males using the US Navy method.
 pub fn calc_bodyfat_male(
     height_cm: f32,
     weight_kg: f32,
@@ -722,6 +747,7 @@ pub fn calc_bodyfat_male(
     })
 }
 
+/// Estimates body fat percentage for females using the US Navy method.
 pub fn calc_bodyfat_female(
     height_cm: f32,
     weight_kg: f32,
@@ -749,6 +775,7 @@ pub fn calc_bodyfat_female(
     })
 }
 
+/// Returns a descriptive body fat category based on percentage and sex.
 pub fn bodyfat_category(pct: f32, is_male: bool) -> &'static str {
     if is_male {
         if pct < 6.0 {

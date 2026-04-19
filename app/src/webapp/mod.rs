@@ -33,6 +33,8 @@ use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
+/// Bootstraps and mounts the Leptos web application to the DOM.
+/// Also removes the static `#app-shell` element once the WASM app is mounted.
 pub fn run() {
     let Some(document) = web_sys::window().and_then(|w| w.document()) else {
         mount_to_body(|| view! { <App /> });
