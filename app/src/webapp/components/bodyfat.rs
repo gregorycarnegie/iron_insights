@@ -1,5 +1,8 @@
 use super::shared::Corners;
-use crate::webapp::helpers::{bodyfat_category, calc_bodyfat_female, calc_bodyfat_male};
+use crate::webapp::helpers::{
+    bodyfat_category, calc_bodyfat_female, calc_bodyfat_jp3, calc_bodyfat_jp7, calc_bodyfat_male,
+    calc_bodyfat_ymca,
+};
 use crate::webapp::ui::parse_f32_input;
 use leptos::prelude::*;
 
@@ -21,19 +24,56 @@ const FEMALE_BF_ROWS: [(&str, &str, &str); 6] = [
     ("Obese", "32%+", "#b5321d"),
 ];
 
-const METHOD_ROWS: [(&str, &str); 3] = [
-    (
-        "Navy",
-        "Tape estimate using height plus neck and waist, with hip added for women.",
-    ),
-    (
-        "YMCA",
-        "Scale-and-waist estimate; quick, but less useful when muscle mass is high.",
-    ),
-    (
-        "Skinfold",
-        "Caliper sites estimate subcutaneous fat; accuracy depends heavily on tester skill.",
-    ),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BodyfatMethod {
+    Navy,
+    Ymca,
+    Skinfold3,
+    Skinfold7,
+}
+
+impl BodyfatMethod {
+    fn label(self) -> &'static str {
+        match self {
+            BodyfatMethod::Navy => "Navy",
+            BodyfatMethod::Ymca => "YMCA",
+            BodyfatMethod::Skinfold3 => "Skinfold 3",
+            BodyfatMethod::Skinfold7 => "Skinfold 7",
+        }
+    }
+
+    fn description(self) -> &'static str {
+        match self {
+            BodyfatMethod::Navy => {
+                "Tape estimate using height plus neck and waist, with hip added for women."
+            }
+            BodyfatMethod::Ymca => {
+                "Scale-and-waist estimate; quick, but less useful when muscle mass is high."
+            }
+            BodyfatMethod::Skinfold3 => {
+                "Jackson-Pollock 3-site calipers - chest/abdomen/thigh for men, tricep/suprailiac/thigh for women."
+            }
+            BodyfatMethod::Skinfold7 => {
+                "Jackson-Pollock 7-site calipers - more sites means more tester-skill sensitivity, but typically tighter estimates."
+            }
+        }
+    }
+
+    fn subtitle(self) -> &'static str {
+        match self {
+            BodyfatMethod::Navy => "US Navy tape method",
+            BodyfatMethod::Ymca => "YMCA (Wallace-Ross) method",
+            BodyfatMethod::Skinfold3 => "Jackson-Pollock 3-site",
+            BodyfatMethod::Skinfold7 => "Jackson-Pollock 7-site",
+        }
+    }
+}
+
+const METHODS: [BodyfatMethod; 4] = [
+    BodyfatMethod::Navy,
+    BodyfatMethod::Ymca,
+    BodyfatMethod::Skinfold3,
+    BodyfatMethod::Skinfold7,
 ];
 
 const AGE_CONTEXT_ROWS: [(&str, &str, &str); 3] = [
@@ -55,30 +95,65 @@ fn category_color(category: &str) -> &'static str {
 
 #[component]
 pub fn BodyfatPage() -> impl IntoView {
+    let (method, set_method) = signal(BodyfatMethod::Navy);
     let (is_male, set_is_male) = signal(true);
     let (height_cm, set_height_cm) = signal(180.0f32);
     let (weight_kg, set_weight_kg) = signal(85.0f32);
     let (neck_cm, set_neck_cm) = signal(40.0f32);
     let (waist_cm, set_waist_cm) = signal(85.0f32);
     let (hip_cm, set_hip_cm) = signal(95.0f32);
+    let (age, set_age) = signal(30.0f32);
+    let (chest_mm, set_chest_mm) = signal(15.0f32);
+    let (abdomen_mm, set_abdomen_mm) = signal(20.0f32);
+    let (thigh_mm, set_thigh_mm) = signal(20.0f32);
+    let (tricep_mm, set_tricep_mm) = signal(15.0f32);
+    let (suprailiac_mm, set_suprailiac_mm) = signal(15.0f32);
+    let (subscapular_mm, set_subscapular_mm) = signal(15.0f32);
+    let (midaxillary_mm, set_midaxillary_mm) = signal(12.0f32);
 
-    let result = Memo::new(move |_| {
-        if is_male.get() {
-            calc_bodyfat_male(
-                height_cm.get(),
-                weight_kg.get(),
-                neck_cm.get(),
-                waist_cm.get(),
-            )
-        } else {
-            calc_bodyfat_female(
-                height_cm.get(),
-                weight_kg.get(),
-                neck_cm.get(),
-                waist_cm.get(),
-                hip_cm.get(),
-            )
+    let result = Memo::new(move |_| match method.get() {
+        BodyfatMethod::Navy => {
+            if is_male.get() {
+                calc_bodyfat_male(
+                    height_cm.get(),
+                    weight_kg.get(),
+                    neck_cm.get(),
+                    waist_cm.get(),
+                )
+            } else {
+                calc_bodyfat_female(
+                    height_cm.get(),
+                    weight_kg.get(),
+                    neck_cm.get(),
+                    waist_cm.get(),
+                    hip_cm.get(),
+                )
+            }
         }
+        BodyfatMethod::Ymca => {
+            calc_bodyfat_ymca(weight_kg.get(), waist_cm.get(), is_male.get())
+        }
+        BodyfatMethod::Skinfold3 => {
+            let male = is_male.get();
+            let (a, b, c) = if male {
+                (chest_mm.get(), abdomen_mm.get(), thigh_mm.get())
+            } else {
+                (tricep_mm.get(), suprailiac_mm.get(), thigh_mm.get())
+            };
+            calc_bodyfat_jp3(age.get(), weight_kg.get(), male, a, b, c)
+        }
+        BodyfatMethod::Skinfold7 => calc_bodyfat_jp7(
+            age.get(),
+            weight_kg.get(),
+            is_male.get(),
+            chest_mm.get(),
+            midaxillary_mm.get(),
+            tricep_mm.get(),
+            subscapular_mm.get(),
+            abdomen_mm.get(),
+            suprailiac_mm.get(),
+            thigh_mm.get(),
+        ),
     });
 
     let bf_pct = Memo::new(move |_| result.get().map(|r| r.body_fat_pct));
@@ -91,6 +166,11 @@ pub fn BodyfatPage() -> impl IntoView {
     });
     let gauge_color = Memo::new(move |_| category.get().map_or("var(--iron)", category_color));
 
+    let panel_units_label = move || match method.get() {
+        BodyfatMethod::Navy | BodyfatMethod::Ymca => "CENTIMETRES",
+        BodyfatMethod::Skinfold3 | BodyfatMethod::Skinfold7 => "CM + MM",
+    };
+
     view! {
         <section class="page active" id="page-bodyfat">
             <div class="page-head">
@@ -98,7 +178,7 @@ pub fn BodyfatPage() -> impl IntoView {
                     "Body " <span class="accent">"composition"</span> "."
                 </h1>
                 <p class="page-lede">
-                    <span class="serif">"US Navy tape method"</span>
+                    <span class="serif">{move || method.get().subtitle()}</span>
                     " - calibrated for powerlifters carrying more muscle than the average test subject."
                 </p>
             </div>
@@ -109,7 +189,7 @@ pub fn BodyfatPage() -> impl IntoView {
                         <Corners />
                         <div class="panel-head">
                             <span><span class="tag">"IN"</span>" MEASUREMENTS"</span>
-                            <span>"CENTIMETRES"</span>
+                            <span>{panel_units_label}</span>
                         </div>
                         <div class="panel-body bf-inputs">
                             <div>
@@ -130,103 +210,276 @@ pub fn BodyfatPage() -> impl IntoView {
                                 </div>
                             </div>
 
-                            <div class="bf-two-col">
-                                <div>
-                                    <label for="bodyfat-height">"Height"</label>
-                                    <input
-                                        id="bodyfat-height"
-                                        type="number"
-                                        step="0.5"
-                                        min="100"
-                                        max="250"
-                                        prop:value=move || height_cm.get()
-                                        on:input=move |ev| {
-                                            let v = parse_f32_input(&ev);
-                                            if (100.0..=250.0).contains(&v) {
-                                                set_height_cm.set(v);
-                                            }
+                            <div>
+                                <label>"Method"</label>
+                                <div class="toggle-group bf-method-toggle">
+                                    {METHODS.iter().map(|m| {
+                                        let m = *m;
+                                        view! {
+                                            <button
+                                                class:on=move || method.get() == m
+                                                on:click=move |_| set_method.set(m)
+                                            >
+                                                {m.label()}
+                                            </button>
                                         }
-                                    />
-                                </div>
-                                <div>
-                                    <label for="bodyfat-weight">"Weight - kg"</label>
-                                    <input
-                                        id="bodyfat-weight"
-                                        type="number"
-                                        step="0.5"
-                                        min="30"
-                                        max="300"
-                                        prop:value=move || weight_kg.get()
-                                        on:input=move |ev| {
-                                            let v = parse_f32_input(&ev);
-                                            if (30.0..=300.0).contains(&v) {
-                                                set_weight_kg.set(v);
-                                            }
-                                        }
-                                    />
+                                    }).collect_view()}
                                 </div>
                             </div>
 
                             <div>
-                                <label for="bodyfat-neck">"Neck (cm)"</label>
+                                <label for="bodyfat-weight">"Weight - kg"</label>
                                 <input
-                                    id="bodyfat-neck"
+                                    id="bodyfat-weight"
                                     type="number"
                                     step="0.5"
-                                    min="20"
-                                    max="80"
-                                    prop:value=move || neck_cm.get()
+                                    min="30"
+                                    max="300"
+                                    prop:value=move || weight_kg.get()
                                     on:input=move |ev| {
                                         let v = parse_f32_input(&ev);
-                                        if (20.0..=80.0).contains(&v) {
-                                            set_neck_cm.set(v);
+                                        if (30.0..=300.0).contains(&v) {
+                                            set_weight_kg.set(v);
                                         }
                                     }
                                 />
                             </div>
 
-                            <div>
-                                <label for="bodyfat-waist">"Waist (cm - navel)"</label>
-                                <input
-                                    id="bodyfat-waist"
-                                    type="number"
-                                    step="0.5"
-                                    min="40"
-                                    max="200"
-                                    prop:value=move || waist_cm.get()
-                                    on:input=move |ev| {
-                                        let v = parse_f32_input(&ev);
-                                        if (40.0..=200.0).contains(&v) {
-                                            set_waist_cm.set(v);
-                                        }
-                                    }
-                                />
-                            </div>
-
-                            {move || {
-                                if is_male.get() {
-                                    view! { <div class="visually-hidden">"Hip measurement is not used for the male Navy formula."</div> }.into_any()
-                                } else {
-                                    view! {
+                            {move || match method.get() {
+                                BodyfatMethod::Navy => view! {
+                                    <>
                                         <div>
-                                            <label for="bodyfat-hips">"Hips (cm)"</label>
+                                            <label for="bodyfat-height">"Height (cm)"</label>
                                             <input
-                                                id="bodyfat-hips"
+                                                id="bodyfat-height"
                                                 type="number"
                                                 step="0.5"
-                                                min="40"
-                                                max="200"
-                                                prop:value=move || hip_cm.get()
+                                                min="100"
+                                                max="250"
+                                                prop:value=move || height_cm.get()
                                                 on:input=move |ev| {
                                                     let v = parse_f32_input(&ev);
-                                                    if (40.0..=200.0).contains(&v) {
-                                                        set_hip_cm.set(v);
+                                                    if (100.0..=250.0).contains(&v) {
+                                                        set_height_cm.set(v);
                                                     }
                                                 }
                                             />
                                         </div>
-                                    }.into_any()
-                                }
+                                        <div>
+                                            <label for="bodyfat-neck">"Neck (cm)"</label>
+                                            <input
+                                                id="bodyfat-neck"
+                                                type="number"
+                                                step="0.5"
+                                                min="20"
+                                                max="80"
+                                                prop:value=move || neck_cm.get()
+                                                on:input=move |ev| {
+                                                    let v = parse_f32_input(&ev);
+                                                    if (20.0..=80.0).contains(&v) {
+                                                        set_neck_cm.set(v);
+                                                    }
+                                                }
+                                            />
+                                        </div>
+                                        <div>
+                                            <label for="bodyfat-waist">"Waist (cm - navel)"</label>
+                                            <input
+                                                id="bodyfat-waist"
+                                                type="number"
+                                                step="0.5"
+                                                min="40"
+                                                max="200"
+                                                prop:value=move || waist_cm.get()
+                                                on:input=move |ev| {
+                                                    let v = parse_f32_input(&ev);
+                                                    if (40.0..=200.0).contains(&v) {
+                                                        set_waist_cm.set(v);
+                                                    }
+                                                }
+                                            />
+                                        </div>
+                                        {move || {
+                                            if is_male.get() {
+                                                view! { <div class="visually-hidden">"Hip measurement is not used for the male Navy formula."</div> }.into_any()
+                                            } else {
+                                                view! {
+                                                    <div>
+                                                        <label for="bodyfat-hips">"Hips (cm)"</label>
+                                                        <input
+                                                            id="bodyfat-hips"
+                                                            type="number"
+                                                            step="0.5"
+                                                            min="40"
+                                                            max="200"
+                                                            prop:value=move || hip_cm.get()
+                                                            on:input=move |ev| {
+                                                                let v = parse_f32_input(&ev);
+                                                                if (40.0..=200.0).contains(&v) {
+                                                                    set_hip_cm.set(v);
+                                                                }
+                                                            }
+                                                        />
+                                                    </div>
+                                                }.into_any()
+                                            }
+                                        }}
+                                    </>
+                                }.into_any(),
+                                BodyfatMethod::Ymca => view! {
+                                    <div>
+                                        <label for="bodyfat-waist">"Waist (cm - navel)"</label>
+                                        <input
+                                            id="bodyfat-waist"
+                                            type="number"
+                                            step="0.5"
+                                            min="40"
+                                            max="200"
+                                            prop:value=move || waist_cm.get()
+                                            on:input=move |ev| {
+                                                let v = parse_f32_input(&ev);
+                                                if (40.0..=200.0).contains(&v) {
+                                                    set_waist_cm.set(v);
+                                                }
+                                            }
+                                        />
+                                    </div>
+                                }.into_any(),
+                                BodyfatMethod::Skinfold3 => view! {
+                                    <>
+                                        <div>
+                                            <label for="bodyfat-age">"Age (years)"</label>
+                                            <input
+                                                id="bodyfat-age"
+                                                type="number"
+                                                step="1"
+                                                min="10"
+                                                max="100"
+                                                prop:value=move || age.get()
+                                                on:input=move |ev| {
+                                                    let v = parse_f32_input(&ev);
+                                                    if (10.0..=100.0).contains(&v) {
+                                                        set_age.set(v);
+                                                    }
+                                                }
+                                            />
+                                        </div>
+                                        {move || {
+                                            if is_male.get() {
+                                                view! {
+                                                    <>
+                                                        <SkinfoldInput
+                                                            id="bodyfat-chest"
+                                                            label="Chest (mm)"
+                                                            value=chest_mm
+                                                            on_change=set_chest_mm
+                                                        />
+                                                        <SkinfoldInput
+                                                            id="bodyfat-abdomen"
+                                                            label="Abdomen (mm)"
+                                                            value=abdomen_mm
+                                                            on_change=set_abdomen_mm
+                                                        />
+                                                        <SkinfoldInput
+                                                            id="bodyfat-thigh"
+                                                            label="Thigh (mm)"
+                                                            value=thigh_mm
+                                                            on_change=set_thigh_mm
+                                                        />
+                                                    </>
+                                                }.into_any()
+                                            } else {
+                                                view! {
+                                                    <>
+                                                        <SkinfoldInput
+                                                            id="bodyfat-tricep"
+                                                            label="Tricep (mm)"
+                                                            value=tricep_mm
+                                                            on_change=set_tricep_mm
+                                                        />
+                                                        <SkinfoldInput
+                                                            id="bodyfat-suprailiac"
+                                                            label="Suprailiac (mm)"
+                                                            value=suprailiac_mm
+                                                            on_change=set_suprailiac_mm
+                                                        />
+                                                        <SkinfoldInput
+                                                            id="bodyfat-thigh"
+                                                            label="Thigh (mm)"
+                                                            value=thigh_mm
+                                                            on_change=set_thigh_mm
+                                                        />
+                                                    </>
+                                                }.into_any()
+                                            }
+                                        }}
+                                    </>
+                                }.into_any(),
+                                BodyfatMethod::Skinfold7 => view! {
+                                    <>
+                                        <div>
+                                            <label for="bodyfat-age">"Age (years)"</label>
+                                            <input
+                                                id="bodyfat-age"
+                                                type="number"
+                                                step="1"
+                                                min="10"
+                                                max="100"
+                                                prop:value=move || age.get()
+                                                on:input=move |ev| {
+                                                    let v = parse_f32_input(&ev);
+                                                    if (10.0..=100.0).contains(&v) {
+                                                        set_age.set(v);
+                                                    }
+                                                }
+                                            />
+                                        </div>
+                                        <div class="bf-two-col">
+                                            <SkinfoldInput
+                                                id="bodyfat-chest"
+                                                label="Chest (mm)"
+                                                value=chest_mm
+                                                on_change=set_chest_mm
+                                            />
+                                            <SkinfoldInput
+                                                id="bodyfat-midaxillary"
+                                                label="Midaxillary (mm)"
+                                                value=midaxillary_mm
+                                                on_change=set_midaxillary_mm
+                                            />
+                                            <SkinfoldInput
+                                                id="bodyfat-tricep"
+                                                label="Tricep (mm)"
+                                                value=tricep_mm
+                                                on_change=set_tricep_mm
+                                            />
+                                            <SkinfoldInput
+                                                id="bodyfat-subscapular"
+                                                label="Subscapular (mm)"
+                                                value=subscapular_mm
+                                                on_change=set_subscapular_mm
+                                            />
+                                            <SkinfoldInput
+                                                id="bodyfat-abdomen"
+                                                label="Abdomen (mm)"
+                                                value=abdomen_mm
+                                                on_change=set_abdomen_mm
+                                            />
+                                            <SkinfoldInput
+                                                id="bodyfat-suprailiac"
+                                                label="Suprailiac (mm)"
+                                                value=suprailiac_mm
+                                                on_change=set_suprailiac_mm
+                                            />
+                                            <SkinfoldInput
+                                                id="bodyfat-thigh"
+                                                label="Thigh (mm)"
+                                                value=thigh_mm
+                                                on_change=set_thigh_mm
+                                            />
+                                        </div>
+                                    </>
+                                }.into_any(),
                             }}
                         </div>
                     </div>
@@ -239,11 +492,15 @@ pub fn BodyfatPage() -> impl IntoView {
                         </div>
                         <div class="panel-body">
                             <div class="bf-method-list">
-                                {METHOD_ROWS.iter().map(|(name, copy)| {
+                                {METHODS.iter().map(|m| {
+                                    let m = *m;
                                     view! {
-                                        <div class="bf-method">
-                                            <div class="nm">{*name}</div>
-                                            <div class="tx">{*copy}</div>
+                                        <div
+                                            class="bf-method"
+                                            class:active=move || method.get() == m
+                                        >
+                                            <div class="nm">{m.label()}</div>
+                                            <div class="tx">{m.description()}</div>
                                         </div>
                                     }
                                 }).collect_view()}
@@ -265,7 +522,7 @@ pub fn BodyfatPage() -> impl IntoView {
                                     r.lean_mass_kg,
                                     r.fat_mass_kg,
                                 ),
-                                None => "Enter valid tape measurements to estimate body fat, lean mass, and fat mass.".to_string(),
+                                None => "Enter valid measurements to estimate body fat, lean mass, and fat mass.".to_string(),
                             }}
                         </p>
                         <div class="bf-gauge">
@@ -406,5 +663,33 @@ pub fn BodyfatPage() -> impl IntoView {
                 </div>
             </div>
         </section>
+    }
+}
+
+#[component]
+fn SkinfoldInput(
+    id: &'static str,
+    label: &'static str,
+    value: ReadSignal<f32>,
+    on_change: WriteSignal<f32>,
+) -> impl IntoView {
+    view! {
+        <div>
+            <label for=id>{label}</label>
+            <input
+                id=id
+                type="number"
+                step="0.5"
+                min="2"
+                max="60"
+                prop:value=move || value.get()
+                on:input=move |ev| {
+                    let v = parse_f32_input(&ev);
+                    if (2.0..=60.0).contains(&v) {
+                        on_change.set(v);
+                    }
+                }
+            />
+        </div>
     }
 }

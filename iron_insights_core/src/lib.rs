@@ -775,6 +775,121 @@ pub fn calc_bodyfat_female(
     })
 }
 
+// ===== BODYFAT (ADDITIONAL METHODS) =====
+
+/// Siri equation: converts body density (g/cc) to body fat percentage.
+fn siri_bf_from_density(bd: f32) -> f32 {
+    495.0 / bd - 450.0
+}
+
+fn bodyfat_min_for_sex(is_male: bool) -> f32 {
+    if is_male { 2.0 } else { 8.0 }
+}
+
+fn make_bodyfat_result(bf_pct: f32, weight_kg: f32, is_male: bool) -> BodyfatResult {
+    let bf = bf_pct.clamp(bodyfat_min_for_sex(is_male), 60.0);
+    let fat_mass = weight_kg * bf / 100.0;
+    BodyfatResult {
+        body_fat_pct: bf,
+        lean_mass_kg: weight_kg - fat_mass,
+        fat_mass_kg: fat_mass,
+    }
+}
+
+/// Estimates body fat percentage using the YMCA (Wallace-Ross) method.
+///
+/// The formula is imperial-native (waist in inches, weight in pounds); inputs
+/// are converted internally so callers can stay metric.
+pub fn calc_bodyfat_ymca(weight_kg: f32, waist_cm: f32, is_male: bool) -> Option<BodyfatResult> {
+    if weight_kg <= 0.0 || waist_cm <= 0.0 {
+        return None;
+    }
+    let weight_lb = weight_kg * 2.204_622_5;
+    let waist_in = waist_cm / 2.54;
+    let intercept = if is_male { -98.42 } else { -76.76 };
+    let bf = (intercept + 4.15 * waist_in - 0.082 * weight_lb) / weight_lb * 100.0;
+    Some(make_bodyfat_result(bf, weight_kg, is_male))
+}
+
+/// Estimates body fat percentage using the Jackson-Pollock 3-site skinfold method.
+///
+/// Site ordering is sex-specific:
+/// - Male: `site_a` = chest, `site_b` = abdomen, `site_c` = thigh
+/// - Female: `site_a` = tricep, `site_b` = suprailiac, `site_c` = thigh
+pub fn calc_bodyfat_jp3(
+    age_years: f32,
+    weight_kg: f32,
+    is_male: bool,
+    site_a_mm: f32,
+    site_b_mm: f32,
+    site_c_mm: f32,
+) -> Option<BodyfatResult> {
+    if age_years <= 0.0
+        || age_years > 120.0
+        || weight_kg <= 0.0
+        || site_a_mm <= 0.0
+        || site_b_mm <= 0.0
+        || site_c_mm <= 0.0
+    {
+        return None;
+    }
+    let sum = site_a_mm + site_b_mm + site_c_mm;
+    let bd = if is_male {
+        1.109_38 - 0.000_826_7 * sum + 0.000_001_6 * sum * sum - 0.000_257_4 * age_years
+    } else {
+        1.099_492_1 - 0.000_992_9 * sum + 0.000_002_3 * sum * sum - 0.000_139_2 * age_years
+    };
+    if bd <= 0.0 {
+        return None;
+    }
+    Some(make_bodyfat_result(siri_bf_from_density(bd), weight_kg, is_male))
+}
+
+/// Estimates body fat percentage using the Jackson-Pollock 7-site skinfold method.
+#[allow(clippy::too_many_arguments)]
+pub fn calc_bodyfat_jp7(
+    age_years: f32,
+    weight_kg: f32,
+    is_male: bool,
+    chest_mm: f32,
+    midaxillary_mm: f32,
+    tricep_mm: f32,
+    subscapular_mm: f32,
+    abdomen_mm: f32,
+    suprailiac_mm: f32,
+    thigh_mm: f32,
+) -> Option<BodyfatResult> {
+    if age_years <= 0.0
+        || age_years > 120.0
+        || weight_kg <= 0.0
+        || chest_mm <= 0.0
+        || midaxillary_mm <= 0.0
+        || tricep_mm <= 0.0
+        || subscapular_mm <= 0.0
+        || abdomen_mm <= 0.0
+        || suprailiac_mm <= 0.0
+        || thigh_mm <= 0.0
+    {
+        return None;
+    }
+    let sum = chest_mm
+        + midaxillary_mm
+        + tricep_mm
+        + subscapular_mm
+        + abdomen_mm
+        + suprailiac_mm
+        + thigh_mm;
+    let bd = if is_male {
+        1.112 - 0.000_434_99 * sum + 0.000_000_55 * sum * sum - 0.000_288_26 * age_years
+    } else {
+        1.097 - 0.000_469_71 * sum + 0.000_000_56 * sum * sum - 0.000_128_28 * age_years
+    };
+    if bd <= 0.0 {
+        return None;
+    }
+    Some(make_bodyfat_result(siri_bf_from_density(bd), weight_kg, is_male))
+}
+
 /// Returns a descriptive body fat category based on percentage and sex.
 pub fn bodyfat_category(pct: f32, is_male: bool) -> &'static str {
     if is_male {
@@ -1234,8 +1349,9 @@ mod tests {
     // ===== UNIT CONVERSION =====
 
     use super::{
-        bodyfat_category, calc_1rm, calc_bodyfat_female, calc_bodyfat_male,
-        ipf_weight_class, kg_to_lbs, lbs_to_kg, plates_per_side, tier_for_percentile,
+        bodyfat_category, calc_1rm, calc_bodyfat_female, calc_bodyfat_jp3, calc_bodyfat_jp7,
+        calc_bodyfat_male, calc_bodyfat_ymca, ipf_weight_class, kg_to_lbs, lbs_to_kg,
+        plates_per_side, siri_bf_from_density, tier_for_percentile,
         KG_PER_LB, IPF_PLATES_KG,
     };
 
@@ -1342,6 +1458,131 @@ mod tests {
         assert_eq!(bodyfat_category(26.0, false), "Average");
         assert_eq!(bodyfat_category(31.9, false), "Average");
         assert_eq!(bodyfat_category(32.0, false), "Obese");
+    }
+
+    // ===== BODYFAT: ADDITIONAL METHODS =====
+
+    #[test]
+    fn siri_bf_from_density_known_values() {
+        // Density 1.05 g/cc → ~21.43% body fat.
+        assert!((siri_bf_from_density(1.05) - 21.4286).abs() < 0.01);
+        // Density 1.10 g/cc → ~0% body fat (essentially fat-free).
+        assert!(siri_bf_from_density(1.10).abs() < 0.05);
+    }
+
+    #[test]
+    fn calc_bodyfat_ymca_typical_male() {
+        let r = calc_bodyfat_ymca(85.0, 85.0, true).expect("should compute");
+        // 85 kg ≈ 187.39 lb, 85 cm ≈ 33.46 in.
+        // BF = (-98.42 + 4.15*33.46 - 0.082*187.39) / 187.39 * 100 ≈ 13.5%
+        assert!((r.body_fat_pct - 13.5).abs() < 1.0, "got {}", r.body_fat_pct);
+        assert!((r.lean_mass_kg + r.fat_mass_kg - 85.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calc_bodyfat_ymca_typical_female() {
+        let r = calc_bodyfat_ymca(65.0, 75.0, false).expect("should compute");
+        // 65 kg ≈ 143.30 lb, 75 cm ≈ 29.527 in.
+        // BF = (-76.76 + 4.15*29.527 - 0.082*143.30) / 143.30 * 100 ≈ 23.75%
+        assert!((r.body_fat_pct - 23.75).abs() < 0.5, "got {}", r.body_fat_pct);
+        assert!((r.lean_mass_kg + r.fat_mass_kg - 65.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calc_bodyfat_ymca_rejects_invalid_inputs() {
+        assert!(calc_bodyfat_ymca(0.0, 85.0, true).is_none());
+        assert!(calc_bodyfat_ymca(-5.0, 85.0, true).is_none());
+        assert!(calc_bodyfat_ymca(85.0, 0.0, true).is_none());
+        assert!(calc_bodyfat_ymca(85.0, -1.0, false).is_none());
+    }
+
+    #[test]
+    fn calc_bodyfat_ymca_clamps_minimum_by_sex() {
+        // Very low waist → formula returns negative; clamp to sex-specific floor.
+        let lean_male = calc_bodyfat_ymca(100.0, 40.0, true).expect("should compute");
+        assert!((lean_male.body_fat_pct - 2.0).abs() < 1e-3);
+        let lean_female = calc_bodyfat_ymca(100.0, 40.0, false).expect("should compute");
+        assert!((lean_female.body_fat_pct - 8.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calc_bodyfat_jp3_typical_male() {
+        // chest 10, abdomen 20, thigh 15, age 30, weight 85 kg.
+        let r = calc_bodyfat_jp3(30.0, 85.0, true, 10.0, 20.0, 15.0).expect("should compute");
+        assert!(r.body_fat_pct >= 2.0 && r.body_fat_pct <= 60.0);
+        // Hand-computed: sum=45, BD ≈ 1.0677; Siri → ~13.6%
+        assert!((r.body_fat_pct - 13.6).abs() < 0.5, "got {}", r.body_fat_pct);
+        assert!((r.lean_mass_kg + r.fat_mass_kg - 85.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calc_bodyfat_jp3_typical_female() {
+        // tricep 15, suprailiac 12, thigh 20, age 30, weight 65 kg.
+        let r = calc_bodyfat_jp3(30.0, 65.0, false, 15.0, 12.0, 20.0).expect("should compute");
+        assert!(r.body_fat_pct >= 8.0 && r.body_fat_pct <= 60.0);
+        // Hand-computed: sum=47, BD≈1.056_39; Siri → ~20.7%
+        assert!((r.body_fat_pct - 20.7).abs() < 1.0, "got {}", r.body_fat_pct);
+        assert!((r.lean_mass_kg + r.fat_mass_kg - 65.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calc_bodyfat_jp3_rejects_invalid_inputs() {
+        assert!(calc_bodyfat_jp3(0.0, 85.0, true, 10.0, 20.0, 15.0).is_none(), "zero age");
+        assert!(calc_bodyfat_jp3(200.0, 85.0, true, 10.0, 20.0, 15.0).is_none(), "age too high");
+        assert!(calc_bodyfat_jp3(30.0, 0.0, true, 10.0, 20.0, 15.0).is_none(), "zero weight");
+        assert!(calc_bodyfat_jp3(30.0, 85.0, true, 0.0, 20.0, 15.0).is_none(), "zero site a");
+        assert!(calc_bodyfat_jp3(30.0, 85.0, true, 10.0, -1.0, 15.0).is_none(), "negative site b");
+        assert!(calc_bodyfat_jp3(30.0, 85.0, true, 10.0, 20.0, 0.0).is_none(), "zero site c");
+    }
+
+    #[test]
+    fn calc_bodyfat_jp3_clamps_lean_floor() {
+        // Tiny skinfolds → BF pinned to sex-specific floor.
+        let lean_male = calc_bodyfat_jp3(25.0, 80.0, true, 2.0, 2.0, 2.0).expect("should compute");
+        assert!((lean_male.body_fat_pct - 2.0).abs() < 1e-3);
+        let lean_female =
+            calc_bodyfat_jp3(25.0, 65.0, false, 2.0, 2.0, 2.0).expect("should compute");
+        assert!((lean_female.body_fat_pct - 8.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calc_bodyfat_jp7_typical_male() {
+        // 7 sites at 10 mm each, age 30, weight 85 kg.
+        let r =
+            calc_bodyfat_jp7(30.0, 85.0, true, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0)
+                .expect("should compute");
+        assert!(r.body_fat_pct >= 2.0 && r.body_fat_pct <= 60.0);
+        // Hand-computed: sum=70, BD≈1.073_25; Siri → ~11.2%
+        assert!((r.body_fat_pct - 11.2).abs() < 1.0, "got {}", r.body_fat_pct);
+        assert!((r.lean_mass_kg + r.fat_mass_kg - 85.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calc_bodyfat_jp7_typical_female() {
+        let r =
+            calc_bodyfat_jp7(30.0, 65.0, false, 12.0, 12.0, 15.0, 12.0, 15.0, 12.0, 20.0)
+                .expect("should compute");
+        assert!(r.body_fat_pct >= 8.0 && r.body_fat_pct <= 60.0);
+        assert!((r.lean_mass_kg + r.fat_mass_kg - 65.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calc_bodyfat_jp7_rejects_invalid_inputs() {
+        // age invalid
+        assert!(
+            calc_bodyfat_jp7(0.0, 85.0, true, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0).is_none()
+        );
+        // weight invalid
+        assert!(
+            calc_bodyfat_jp7(30.0, 0.0, true, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0).is_none()
+        );
+        // any site zero or negative
+        assert!(
+            calc_bodyfat_jp7(30.0, 85.0, true, 0.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0).is_none()
+        );
+        assert!(
+            calc_bodyfat_jp7(30.0, 85.0, true, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, -1.0).is_none()
+        );
     }
 
     // ===== 1RM FORMULAS =====

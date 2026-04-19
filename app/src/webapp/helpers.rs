@@ -1,6 +1,7 @@
 use crate::core::{dots_points, goodlift_points, wilks_points};
 pub(super) use crate::core::{
-    bodyfat_category, calc_bodyfat_female, calc_bodyfat_male, tier_for_percentile,
+    bodyfat_category, calc_bodyfat_female, calc_bodyfat_jp3, calc_bodyfat_jp7, calc_bodyfat_male,
+    calc_bodyfat_ymca, tier_for_percentile,
 };
 
 #[derive(Clone, Copy)]

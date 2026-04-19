@@ -818,6 +818,11 @@
   line-height: 1.6;
   color: var(--ink-dim);
 }
+.bf-method.active {
+  border-left: 3px solid var(--iron);
+  background: var(--bg-alt, var(--bg));
+}
+.bf-method-toggle { flex-wrap: wrap; }
 .bf-note { margin-top: 16px; }
 .bf-ref-table {
   width: 100%;
