@@ -674,8 +674,17 @@ pub(super) fn App() -> impl IntoView {
                         view! {
                             <li
                                 class="nav-item"
+                                role="button"
+                                tabindex="0"
                                 class:active=move || active_page.get() == page
                                 on:click=move |_| set_active_page.set(page)
+                                on:keydown=move |ev| {
+                                    let key = ev.key();
+                                    if key == "Enter" || key == " " {
+                                        ev.prevent_default();
+                                        set_active_page.set(page);
+                                    }
+                                }
                             >
                                 <span class="num">{num}</span>
                                 {label}
@@ -778,5 +787,71 @@ pub(super) fn App() -> impl IntoView {
                 </Show>
             </main>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{App, AppPage};
+    use leptos::mount::mount_to;
+    use leptos::prelude::*;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
+    use web_sys::HtmlElement;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    fn mount_route(page: AppPage) {
+        let window = web_sys::window().expect("browser window should exist");
+        let document = window.document().expect("browser document should exist");
+        window
+            .location()
+            .set_hash(page.hash())
+            .expect("hash should be writable");
+
+        let root = document
+            .create_element("div")
+            .expect("test root should be created")
+            .dyn_into::<HtmlElement>()
+            .expect("test root should be an HtmlElement");
+        root.set_class_name("app-smoke-test-root");
+        document
+            .body()
+            .expect("document body should exist")
+            .append_child(&root)
+            .expect("test root should attach");
+
+        let owner = mount_to(root, || view! { <App /> });
+        owner.forget();
+    }
+
+    #[wasm_bindgen_test]
+    fn renders_ranking_page_without_panicking() {
+        mount_route(AppPage::Ranking);
+    }
+
+    #[wasm_bindgen_test]
+    fn renders_stats_page_without_panicking() {
+        mount_route(AppPage::Nerds);
+    }
+
+    #[wasm_bindgen_test]
+    fn renders_sex_comparison_page_without_panicking() {
+        mount_route(AppPage::MenVsWomen);
+    }
+
+    #[wasm_bindgen_test]
+    fn renders_one_rm_page_without_panicking() {
+        mount_route(AppPage::OneRm);
+    }
+
+    #[wasm_bindgen_test]
+    fn renders_plate_calc_page_without_panicking() {
+        mount_route(AppPage::PlateCalc);
+    }
+
+    #[wasm_bindgen_test]
+    fn renders_bodyfat_page_without_panicking() {
+        mount_route(AppPage::Bodyfat);
     }
 }

@@ -237,6 +237,18 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                     <div class="hist-wrap">
                         {move || match (male_hist.get(), female_hist.get()) {
                             (Some(_), Some(_)) => view! {
+                                <p class="visually-hidden">
+                                    {move || match (male_hist.get(), female_hist.get()) {
+                                        (Some(mh), Some(fh)) => overlap_copy(&mh, &fh, &hist_x_label.get())
+                                            .map(|(female_p95, male_covered, _, _, metric)| {
+                                                format!(
+                                                    "Distribution comparison chart. The female P95 mark is {female_p95} {metric}, clearing the bottom {male_covered} of male lifters."
+                                                )
+                                            })
+                                            .unwrap_or_else(|| "Distribution comparison chart for male and female cohorts.".to_string()),
+                                        _ => "Distribution comparison chart loading.".to_string(),
+                                    }}
+                                </p>
                                 <canvas
                                     node_ref=curve_canvas.clone()
                                     class="hist"
@@ -442,9 +454,17 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                             let has_both = male_heat.get().is_some() && female_heat.get().is_some();
                             if has_both {
                                 view! {
+                                    <p class="visually-hidden">
+                                        {move || format!(
+                                            "Density overlay chart. Male and female lifters are plotted by {} and bodyweight, with your current inputs marked.",
+                                            hist_x_label.get(),
+                                        )}
+                                    </p>
                                     <canvas
                                         node_ref=cross_canvas.clone()
                                         style="width:100%;height:100%;display:block"
+                                        role="img"
+                                        aria-label="Male and female lift by bodyweight density overlay"
                                     ></canvas>
                                 }.into_any()
                             } else {

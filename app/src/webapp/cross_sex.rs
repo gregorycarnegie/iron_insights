@@ -6,13 +6,22 @@ use super::models::{
 };
 use super::slices::{entry_from_slice_key, parse_slice_key};
 use super::state::RequestTracker;
-use crate::core::{HeatmapBin, HistogramBin, equivalent_value_for_same_percentile, parse_combined_bin};
+use crate::core::{
+    HeatmapBin, HistogramBin, equivalent_value_for_same_percentile, parse_combined_bin,
+};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 pub(super) const MIN_CROSS_SEX_COHORT_TOTAL: u32 = 50;
 pub(super) const CROSS_SEX_LIFT_ROWS: [(&str, &str); 3] =
     [("S", "Squat"), ("B", "Bench"), ("D", "Deadlift")];
+
+thread_local! {
+    static ROWS_FROM_SLICE_INDEX_CACHE: RefCell<HashMap<String, Vec<SliceRow>>> =
+        RefCell::new(HashMap::new());
+}
 
 #[derive(Clone, PartialEq)]
 pub(super) struct CrossSexSliceChoice {
@@ -21,6 +30,13 @@ pub(super) struct CrossSexSliceChoice {
 }
 
 pub(super) fn rows_from_slice_index(index: SliceIndex) -> Vec<SliceRow> {
+    let cache_key = slice_index_cache_key(&index);
+    if let Some(rows) =
+        ROWS_FROM_SLICE_INDEX_CACHE.with(|cache| cache.borrow().get(&cache_key).cloned())
+    {
+        return rows;
+    }
+
     let mut rows = Vec::new();
     match index.slices {
         SliceIndexEntries::Map(entries) => {
@@ -41,7 +57,45 @@ pub(super) fn rows_from_slice_index(index: SliceIndex) -> Vec<SliceRow> {
         }
     }
     rows.sort_by(|a, b| a.key.cmp(&b.key));
+    ROWS_FROM_SLICE_INDEX_CACHE.with(|cache| {
+        cache.borrow_mut().insert(cache_key, rows.clone());
+    });
     rows
+}
+
+fn slice_index_cache_key(index: &SliceIndex) -> String {
+    match &index.slices {
+        SliceIndexEntries::Map(entries) => {
+            let mut key = String::from("map:");
+            for (raw_key, entry) in entries {
+                key.push_str(raw_key);
+                key.push('\u{1e}');
+                key.push_str(&entry.meta);
+                key.push('\u{1e}');
+                key.push_str(&entry.bin);
+                key.push('\u{1e}');
+                key.push_str(&entry.inline);
+                if let Some(summary) = &entry.summary {
+                    key.push('\u{1e}');
+                    key.push_str(&summary.min_kg.to_string());
+                    key.push('\u{1e}');
+                    key.push_str(&summary.max_kg.to_string());
+                    key.push('\u{1e}');
+                    key.push_str(&summary.total.to_string());
+                }
+                key.push('\u{1f}');
+            }
+            key
+        }
+        SliceIndexEntries::Keys(keys) => {
+            let mut key = String::from("keys:");
+            for raw_key in keys {
+                key.push_str(raw_key);
+                key.push('\u{1f}');
+            }
+            key
+        }
+    }
 }
 
 pub(super) fn choose_cross_sex_slice(

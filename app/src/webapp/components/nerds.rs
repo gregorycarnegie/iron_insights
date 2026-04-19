@@ -214,9 +214,21 @@ pub fn NerdsPage() -> impl IntoView {
                                 {move || {
                                     if rebinned_heat.get().is_some() {
                                         view! {
+                                            <p class="visually-hidden">
+                                                {move || {
+                                                    format!(
+                                                        "Heatmap chart. Your current marker is {} at {}{} bodyweight.",
+                                                        format_lift_value(user_lift.get(), use_lbs.get()),
+                                                        format_lift_value(bodyweight.get(), use_lbs.get()),
+                                                        unit_label.get(),
+                                                    )
+                                                }}
+                                            </p>
                                             <canvas
                                                 node_ref=canvas_ref.clone()
                                                 style="width:100%;height:100%;display:block"
+                                                role="img"
+                                                aria-label="Lift by bodyweight cohort heatmap"
                                             ></canvas>
                                         }.into_any()
                                     } else {

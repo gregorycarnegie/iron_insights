@@ -406,6 +406,17 @@ pub fn RankingPage() -> impl IntoView {
                                 {move || {
                                     match rebinned_hist.get() {
                                         Some(_) => view! {
+                                            <p class="visually-hidden">
+                                                {move || match pct_num.get() {
+                                                    Some(p) => format!(
+                                                        "Distribution chart. Your {} {} mark is ahead of {:.1} percent of lifters in this selected cohort.",
+                                                        current_score.get(),
+                                                        current_score_unit.get(),
+                                                        p,
+                                                    ),
+                                                    None => "Distribution chart loading for the selected cohort.".to_string(),
+                                                }}
+                                            </p>
                                             <canvas
                                                 node_ref=hist_canvas.clone()
                                                 class="hist"
@@ -450,7 +461,7 @@ pub fn RankingPage() -> impl IntoView {
                             </p>
                             <div
                                 class="tier-ladder"
-                                role="img"
+                                role="group"
                                 aria-label=move || {
                                     match percentile.get() {
                                         Some((p, _, total)) => format!(
@@ -466,6 +477,17 @@ pub fn RankingPage() -> impl IntoView {
                                 <div class="tier-ladder-title">
                                     "You're climbing the " <span>"tier ladder"</span> "."
                                 </div>
+                                <div class="visually-hidden" aria-live="polite">
+                                    {move || match percentile.get() {
+                                        Some((p, _, total)) => format!(
+                                            "You are now at percentile {:.1}, ahead of {} of {} lifters.",
+                                            p * 100.0,
+                                            beaten_lifters.get().map(format_count).unwrap_or_else(|| "0".to_string()),
+                                            format_count(total),
+                                        ),
+                                        None => "Percentile ladder waiting for calculation.".to_string(),
+                                    }}
+                                </div>
                                 <div class="tier-ladder-track-wrap">
                                     <div class="tier-ladder-track">
                                         <div
@@ -478,7 +500,12 @@ pub fn RankingPage() -> impl IntoView {
                                         .into_iter()
                                         .map(|(target_pct, tag, label)| {
                                             view! {
-                                                <div class="tier-mark" style=format!("left:{:.1}%", target_pct * 100.0)>
+                                                <div
+                                                    class="tier-mark"
+                                                    tabindex="0"
+                                                    aria-label=format!("{label} starts at {tag}")
+                                                    style=format!("left:{:.1}%", target_pct * 100.0)
+                                                >
                                                     <div class="tier-mark-label">
                                                         <span>{tag}</span>
                                                         {label}

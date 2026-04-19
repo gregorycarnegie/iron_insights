@@ -1,6 +1,6 @@
+use super::models::{RootIndex, SliceRow};
 use super::slices::parse_shard_key;
 use super::ui::{age_class_sort_key, ipf_class_sort_key, unique};
-use super::models::{RootIndex, SliceRow};
 use leptos::prelude::*;
 use std::collections::{BTreeSet, HashMap};
 
@@ -275,4 +275,69 @@ fn selector_key(parts: &[&str]) -> String {
         key.push_str(part);
     }
     key
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::webapp::models::SliceIndexEntry;
+    use crate::webapp::slices::SliceKey;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn row(wc: &str, age: &str, tested: &str, lift: &str, metric: &str) -> SliceRow {
+        SliceRow {
+            key: SliceKey {
+                sex: "M".to_string(),
+                equip: "Raw".to_string(),
+                wc: wc.to_string(),
+                age: age.to_string(),
+                tested: tested.to_string(),
+                lift: lift.to_string(),
+                metric: metric.to_string(),
+                metric_explicit: true,
+            },
+            entry: SliceIndexEntry {
+                meta: format!("{wc}-{age}-{tested}-{lift}-{metric}.json"),
+                bin: format!("{wc}-{age}-{tested}-{lift}-{metric}.bin"),
+                inline: String::new(),
+                summary: None,
+            },
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn selector_index_cascades_wc_age_tested_lift_metric() {
+        let index = SliceSelectorIndex::from_rows(vec![
+            row("All", "All Ages", "All", "T", "Kg"),
+            row("83", "All Ages", "All", "T", "Kg"),
+            row("83", "24-34", "All", "T", "Kg"),
+            row("83", "24-34", "Tested", "S", "Kg"),
+            row("83", "24-34", "Tested", "T", "Dots"),
+            row("93", "All Ages", "All", "T", "Kg"),
+        ]);
+
+        let snapshot = format!(
+            "wc={:?}; age83={:?}; tested83_24={:?}; lifts83_24_tested={:?}; metrics83_24_tested_t={:?}",
+            index.wc_options(),
+            index.age_options("83"),
+            index.tested_options("83", "24-34"),
+            index.lift_options("83", "24-34", "Tested"),
+            index.metric_options("83", "24-34", "Tested", "T"),
+        );
+
+        assert_eq!(
+            snapshot,
+            "wc=[\"All\", \"83\", \"93\"]; age83=[\"All Ages\", \"24-34\"]; tested83_24=[\"All\", \"Tested\"]; lifts83_24_tested=[\"S\", \"T\"]; metrics83_24_tested_t=[\"Dots\"]",
+        );
+
+        let exact = index
+            .current_row("83", "24-34", "Tested", "T", "Dots")
+            .expect("exact row should resolve");
+        assert_eq!(exact.entry.bin, "83-24-34-Tested-T-Dots.bin");
+
+        let fallback = index.candidate_rows("Tested", "T", "Kg");
+        assert_eq!(fallback.len(), 1);
+        assert_eq!(fallback[0].key.wc, "83");
+        assert_eq!(fallback[0].key.age, "24-34");
+    }
 }

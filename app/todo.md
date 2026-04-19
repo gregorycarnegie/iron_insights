@@ -37,25 +37,25 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 ## 6. Testing (currently none in `app/src`)
 
 - [x] Add `#[cfg(test)]` unit tests for pure helpers: `calc_plates`, `format_count`, `next_unlock`, `tier_for_percentile`, `comparable_lift_value`.
-- [ ] Add WASM-in-browser smoke tests via `wasm-bindgen-test` — one per page rendering without panicking.
-- [ ] Add a snapshot of the selector index transitions (sex→equip→wc→age) to lock in cascade behavior.
+- [x] Add WASM-in-browser smoke tests via `wasm-bindgen-test` — one per page rendering without panicking.
+- [x] Add a snapshot of the selector index transitions (sex→equip→wc→age) to lock in cascade behavior.
 
 ## 7. Performance / correctness
 
-- [ ] Memoize `rows_from_slice_index` output — it's re-sorted on every shard load even when inputs are identical.
-- [ ] Cache already-fetched `.bin` payloads in a `HashMap<url, Bytes>` so switching filters doesn't re-download shards.
+- [x] Memoize `rows_from_slice_index` output — it's re-sorted on every shard load even when inputs are identical.
+- [x] Cache already-fetched `.bin` payloads in a `HashMap<url, Bytes>` so switching filters doesn't re-download shards.
 <!-- - [ ] Debounce the number inputs; currently each keystroke triggers a histogram redraw via `user_lift` memo. -->
-- [ ] Verify canvas `devicePixelRatio` handling in `draw_ranking_distribution_canvas` and `draw_heatmap` — the window resize listener redraws but may not re-scale for HiDPI.
+- [x] Verify canvas `devicePixelRatio` handling in `draw_ranking_distribution_canvas` and `draw_heatmap` — the window resize listener redraws but may not re-scale for HiDPI.
 
 ## 8. Accessibility
 
-- [ ] Add visible focus styles for all `.nav-item`, tier-ladder marks, and custom toggles (unit switch).
-- [ ] Verify color contrast: `--ink-mute #52504c` on `--bg #0b0b0d` is ~4.3:1 — borderline for small text.
-- [ ] Ensure tier ladder keyboard-navigates and announces via `aria-live` when the "YOU" marker moves.
-- [ ] Give the canvas charts a visually-hidden text equivalent (current aria-label is generic).
+- [x] Add visible focus styles for all `.nav-item`, tier-ladder marks, and custom toggles (unit switch).
+- [x] Verify color contrast: `--ink-mute #52504c` on `--bg #0b0b0d` is ~4.3:1 — borderline for small text.
+- [x] Ensure tier ladder keyboard-navigates and announces via `aria-live` when the "YOU" marker moves.
+- [x] Give the canvas charts a visually-hidden text equivalent (current aria-label is generic).
 
 ## 9. Hygiene
 
 - [ ] Enable `#![warn(clippy::pedantic)]` on the `webapp` module and fix the fallout.
 - [x] Scan for and remove any leftover `#[allow(dead_code)]` (at least `InputFormCtx`).
-- [ ] Document the data-pipeline contract in `app/README.md`: `data/latest.json` → `root_index` → shard → slice → bin payload, so onboarding doesn't require reading all of `mod.rs`.
+- [x] Document the data-pipeline contract in `app/README.md`: `data/latest.json` → `root_index` → shard → slice → bin payload, so onboarding doesn't require reading all of `mod.rs`.
