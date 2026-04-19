@@ -1,4 +1,5 @@
 use super::shared::{Corners, InputForm};
+use crate::core::HeatmapBin;
 use crate::webapp::charts::draw_heatmap;
 use crate::webapp::helpers::kg_to_display;
 use crate::webapp::state::AppState;
@@ -10,6 +11,32 @@ use leptos::prelude::*;
 const REF_SQUAT_PCT: f32 = 35.0;
 const REF_BENCH_PCT: f32 = 25.0;
 const REF_DEADLIFT_PCT: f32 = 40.0;
+const HEATMAP_BANDS: [(&str, f64, f64); 5] = [
+    ("P0-P20", 0.0, 0.2),
+    ("P20-P40", 0.2, 0.4),
+    ("P40-P60", 0.4, 0.6),
+    ("P60-P80", 0.6, 0.8),
+    ("P80-P100", 0.8, 1.0),
+];
+
+struct HeatmapTextRow {
+    band: &'static str,
+    bodyweight_range: String,
+    lifters: u64,
+    min_lift: String,
+    mean_lift: String,
+    max_lift: String,
+}
+
+#[derive(Default, Clone)]
+struct HeatmapBandAccumulator {
+    lifters: u64,
+    weighted_lift: f64,
+    min_lift: Option<f32>,
+    max_lift: Option<f32>,
+    min_bodyweight: Option<f32>,
+    max_bodyweight: Option<f32>,
+}
 
 fn format_lift_value(value_kg: f32, use_lbs: bool) -> String {
     let shown = kg_to_display(value_kg, use_lbs);
@@ -18,6 +45,95 @@ fn format_lift_value(value_kg: f32, use_lbs: bool) -> String {
     } else {
         format!("{shown:.1}")
     }
+}
+
+fn format_range(min_kg: f32, max_kg: f32, use_lbs: bool, unit_label: &str) -> String {
+    format!(
+        "{}-{}{}",
+        format_lift_value(min_kg, use_lbs),
+        format_lift_value(max_kg, use_lbs),
+        unit_label,
+    )
+}
+
+fn heatmap_text_rows(heat: &HeatmapBin, use_lbs: bool, unit_label: &str) -> Vec<HeatmapTextRow> {
+    if heat.width == 0 || heat.height == 0 || heat.grid.is_empty() {
+        return Vec::new();
+    }
+
+    let total_lifters = heat.grid.iter().map(|count| u64::from(*count)).sum::<u64>();
+    if total_lifters == 0 {
+        return Vec::new();
+    }
+
+    let mut bands = vec![HeatmapBandAccumulator::default(); HEATMAP_BANDS.len()];
+    let mut cumulative_lifters = 0u64;
+
+    for y in 0..heat.height {
+        let row_start = y * heat.width;
+        let row_end = row_start + heat.width;
+        let row_lifters = heat.grid[row_start..row_end]
+            .iter()
+            .map(|count| u64::from(*count))
+            .sum::<u64>();
+        if row_lifters == 0 {
+            continue;
+        }
+
+        let row_midpoint =
+            (cumulative_lifters as f64 + row_lifters as f64 / 2.0) / total_lifters as f64;
+        cumulative_lifters = cumulative_lifters.saturating_add(row_lifters);
+        let band_idx = HEATMAP_BANDS
+            .iter()
+            .position(|(_, start, end)| row_midpoint >= *start && row_midpoint < *end)
+            .unwrap_or(HEATMAP_BANDS.len() - 1);
+        let bodyweight = heat.min_y + (y as f32 + 0.5) * heat.base_y;
+        let band = &mut bands[band_idx];
+
+        for x in 0..heat.width {
+            let count = heat.grid[row_start + x];
+            if count == 0 {
+                continue;
+            }
+            let lift = heat.min_x + (x as f32 + 0.5) * heat.base_x;
+            let count_u64 = u64::from(count);
+            band.lifters = band.lifters.saturating_add(count_u64);
+            band.weighted_lift += f64::from(lift) * f64::from(count);
+            band.min_lift = Some(band.min_lift.map_or(lift, |current| current.min(lift)));
+            band.max_lift = Some(band.max_lift.map_or(lift, |current| current.max(lift)));
+            band.min_bodyweight = Some(
+                band.min_bodyweight
+                    .map_or(bodyweight, |current| current.min(bodyweight)),
+            );
+            band.max_bodyweight = Some(
+                band.max_bodyweight
+                    .map_or(bodyweight, |current| current.max(bodyweight)),
+            );
+        }
+    }
+
+    HEATMAP_BANDS
+        .iter()
+        .zip(bands)
+        .filter_map(|((label, _, _), band)| {
+            if band.lifters == 0 {
+                return None;
+            }
+            let min_lift = band.min_lift?;
+            let max_lift = band.max_lift?;
+            let min_bodyweight = band.min_bodyweight?;
+            let max_bodyweight = band.max_bodyweight?;
+            let mean_lift = (band.weighted_lift / band.lifters as f64) as f32;
+            Some(HeatmapTextRow {
+                band: label,
+                bodyweight_range: format_range(min_bodyweight, max_bodyweight, use_lbs, unit_label),
+                lifters: band.lifters,
+                min_lift: format_lift_value(min_lift, use_lbs),
+                mean_lift: format_lift_value(mean_lift, use_lbs),
+                max_lift: format_lift_value(max_lift, use_lbs),
+            })
+        })
+        .collect()
 }
 
 fn delta_class(delta: f32) -> &'static str {
@@ -104,6 +220,7 @@ pub fn NerdsPage() -> impl IntoView {
     let percentile = cmp.percentile;
     let rank_tier = cmp.rank_tier;
     let user_lift = cmp.user_lift;
+    let chart_bodyweight = cmp.chart_bodyweight;
     let calculated = cmp.calculated;
     let rebinned_heat = cmp.rebinned_heat;
     let hist_x_label = cmp.hist_x_label;
@@ -134,7 +251,7 @@ pub fn NerdsPage() -> impl IntoView {
             &canvas,
             &h,
             calculated.get().then(|| user_lift.get()),
-            bodyweight.get(),
+            chart_bodyweight.get(),
             &hist_x_label.get(),
         );
     });
@@ -219,7 +336,7 @@ pub fn NerdsPage() -> impl IntoView {
                                                     format!(
                                                         "Heatmap chart. Your current marker is {} at {}{} bodyweight.",
                                                         format_lift_value(user_lift.get(), use_lbs.get()),
-                                                        format_lift_value(bodyweight.get(), use_lbs.get()),
+                                                        format_lift_value(chart_bodyweight.get(), use_lbs.get()),
                                                         unit_label.get(),
                                                     )
                                                 }}
@@ -230,6 +347,48 @@ pub fn NerdsPage() -> impl IntoView {
                                                 role="img"
                                                 aria-label="Lift by bodyweight cohort heatmap"
                                             ></canvas>
+                                            <table class="visually-hidden">
+                                                <caption>
+                                                    {move || format!("Heatmap text summary by bodyweight percentile band in {}.", unit_label.get())}
+                                                </caption>
+                                                <thead>
+                                                    <tr>
+                                                        <th scope="col">"Band"</th>
+                                                        <th scope="col">"Bodyweight range"</th>
+                                                        <th scope="col">"Lifters"</th>
+                                                        <th scope="col">"Minimum lift"</th>
+                                                        <th scope="col">"Mean lift"</th>
+                                                        <th scope="col">"Maximum lift"</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {move || {
+                                                        rebinned_heat
+                                                            .get()
+                                                            .map_or_else(
+                                                                || view! { <tr><td colspan="6">"Heatmap data unavailable."</td></tr> }.into_any(),
+                                                                |heat| {
+                                                                    heatmap_text_rows(&heat, use_lbs.get(), unit_label.get())
+                                                                    .into_iter()
+                                                                    .map(|row| {
+                                                                        view! {
+                                                                            <tr>
+                                                                                <th scope="row">{row.band}</th>
+                                                                                <td>{row.bodyweight_range}</td>
+                                                                                <td>{row.lifters.to_string()}</td>
+                                                                                <td>{format!("{}{}", row.min_lift, unit_label.get())}</td>
+                                                                                <td>{format!("{}{}", row.mean_lift, unit_label.get())}</td>
+                                                                                <td>{format!("{}{}", row.max_lift, unit_label.get())}</td>
+                                                                            </tr>
+                                                                        }
+                                                                    })
+                                                                    .collect_view()
+                                                                    .into_any()
+                                                                },
+                                                            )
+                                                    }}
+                                                </tbody>
+                                            </table>
                                         }.into_any()
                                     } else {
                                         view! {

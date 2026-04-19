@@ -69,7 +69,7 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
     let calculated = app.compute.calculated;
     let user_lift = app.compute.user_lift;
     let hist_x_label = app.compute.hist_x_label;
-    let bodyweight = app.input.bodyweight;
+    let chart_bodyweight = app.compute.chart_bodyweight;
     let MenVsWomenCtx {
         cross_sex_comparison,
         male_hist,
@@ -106,7 +106,7 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
             &mh,
             &fh,
             calculated.get().then(|| user_lift.get()),
-            bodyweight.get(),
+            chart_bodyweight.get(),
             &hist_x_label.get(),
         );
     });
@@ -235,6 +235,10 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                     <div class="hist-wrap">
                         {move || match (male_hist.get(), female_hist.get()) {
                             (Some(_), Some(_)) => view! {
+                                <div class="sex-legend" aria-hidden="true">
+                                    <span class="sex-legend-item men"><span class="dot"></span>"♂ Men"</span>
+                                    <span class="sex-legend-item women"><span class="dot"></span>"♀ Women"</span>
+                                </div>
                                 <p class="visually-hidden">
                                     {move || match (male_hist.get(), female_hist.get()) {
                                         (Some(mh), Some(fh)) => overlap_copy(&mh, &fh, &hist_x_label.get()).map_or_else(|| "Distribution comparison chart for male and female cohorts.".to_string(), |(female_p95, male_covered, _, _, metric)| {
@@ -450,6 +454,10 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                             let has_both = male_heat.get().is_some() && female_heat.get().is_some();
                             if has_both {
                                 view! {
+                                    <div class="sex-legend" aria-hidden="true">
+                                        <span class="sex-legend-item men"><span class="dot"></span>"♂ Men"</span>
+                                        <span class="sex-legend-item women"><span class="dot"></span>"♀ Women"</span>
+                                    </div>
                                     <p class="visually-hidden">
                                         {move || format!(
                                             "Density overlay chart. Male and female lifters are plotted by {} and bodyweight, with your current inputs marked.",

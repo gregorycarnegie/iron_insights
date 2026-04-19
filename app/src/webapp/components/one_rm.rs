@@ -15,6 +15,41 @@ const PERCENTAGES: &[(&str, u32, &str)] = &[
     ("50%", 50, "15+ reps · Conditioning"),
 ];
 
+#[derive(Clone, Copy)]
+struct FormulaOption {
+    id: &'static str,
+    name: &'static str,
+    equation: &'static str,
+    note: &'static str,
+}
+
+const FORMULAS: [FormulaOption; 4] = [
+    FormulaOption {
+        id: "epley",
+        name: "Epley",
+        equation: "w x (1 + r/30)",
+        note: "Simple strength-room default.",
+    },
+    FormulaOption {
+        id: "brzycki",
+        name: "Brzycki",
+        equation: "w / (1.0278 - 0.0278r)",
+        note: "Conservative near lower reps.",
+    },
+    FormulaOption {
+        id: "mayhew",
+        name: "Mayhew",
+        equation: "100w / (52.2 + 41.9e^-0.055r)",
+        note: "Curves reps non-linearly.",
+    },
+    FormulaOption {
+        id: "lombardi",
+        name: "Lombardi",
+        equation: "w x r^0.1",
+        note: "Smooth power relationship.",
+    },
+];
+
 #[component]
 pub fn OneRmPage() -> impl IntoView {
     let (weight, set_weight) = signal(140.0f32);
@@ -24,11 +59,19 @@ pub fn OneRmPage() -> impl IntoView {
     let rm = Memo::new(move |_| calc_1rm(weight.get(), reps.get(), &formula.get()));
     let formula_label = Memo::new(move |_| match formula.get().as_str() {
         "brzycki" => "w / (1.0278 − 0.0278r) · BRZYCKI",
-        "lander" => "100w / (101.3 − 2.67r) · LANDER",
+        "mayhew" => "100w / (52.2 + 41.9e^-0.055r) · MAYHEW",
         "lombardi" => "w × r^0.1 · LOMBARDI",
-        "oconner" => "w × (1 + r/40) · O'CONNER",
         _ => "w × (1 + r/30) · EPLEY",
     });
+    let send_to_plate_calc = move |_| {
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        if let Ok(Some(storage)) = window.local_storage() {
+            let _ = storage.set_item("ironscale_plate_target_kg", &format!("{:.2}", rm.get()));
+        }
+        let _ = window.location().set_hash("plate-calc");
+    };
 
     view! {
         <section class="page active" id="page-rm">
@@ -52,9 +95,10 @@ pub fn OneRmPage() -> impl IntoView {
                     </div>
                     <div class="panel-body input-stack">
                         <div>
-                            <label>"Weight Lifted"</label>
+                            <label for="one-rm-weight">"Weight Lifted"</label>
                             <div class="lift-row">
                                 <input
+                                    id="one-rm-weight"
                                     type="number"
                                     step="2.5"
                                     prop:value=move || weight.get()
@@ -67,8 +111,9 @@ pub fn OneRmPage() -> impl IntoView {
                             </div>
                         </div>
                         <div>
-                            <label>"Reps Completed"</label>
+                            <label for="one-rm-reps">"Reps Completed"</label>
                             <input
+                                id="one-rm-reps"
                                 type="number"
                                 min="1"
                                 max="30"
@@ -81,16 +126,20 @@ pub fn OneRmPage() -> impl IntoView {
                             />
                         </div>
                         <div>
-                            <label>"Formula"</label>
+                            <label for="one-rm-formula">"Formula"</label>
                             <select
+                                id="one-rm-formula"
                                 on:change=move |ev| set_formula.set(event_target_value(&ev))
                                 prop:value=move || formula.get()
                             >
-                                <option value="epley" prop:selected=move || formula.get() == "epley">"Epley (default)"</option>
-                                <option value="brzycki" prop:selected=move || formula.get() == "brzycki">"Brzycki"</option>
-                                <option value="lander" prop:selected=move || formula.get() == "lander">"Lander"</option>
-                                <option value="lombardi" prop:selected=move || formula.get() == "lombardi">"Lombardi"</option>
-                                <option value="oconner" prop:selected=move || formula.get() == "oconner">"O'Conner"</option>
+                                {FORMULAS.iter().map(|option| {
+                                    let id = option.id;
+                                    view! {
+                                        <option value=id prop:selected=move || formula.get() == id>
+                                            {if id == "epley" { "Epley (default)" } else { option.name }}
+                                        </option>
+                                    }
+                                }).collect_view()}
                             </select>
                         </div>
                     </div>
@@ -114,6 +163,49 @@ pub fn OneRmPage() -> impl IntoView {
                             <div class="rm-value">{move || format!("{:.0}", rm.get())}</div>
                             <div class="rm-unit">"KG"</div>
                             <div class="rm-formula">"≈ " {move || formula_label.get()}</div>
+                            <button
+                                type="button"
+                                class="btn rm-send-button"
+                                on:click=send_to_plate_calc
+                            >
+                                "LOAD THIS IN PLATE CALC"
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="panel" style="margin-top:24px">
+                        <Corners />
+                        <div class="panel-head">
+                            <span><span class="tag">"ƒ"</span>" FORMULA COMPARISON"</span>
+                            <span>"ESTIMATES"</span>
+                        </div>
+                        <div class="panel-body" style="padding:0">
+                            <p class="chart-summary rm-table-summary">
+                                "Different equations diverge as reps climb; compare the spread before choosing a training max."
+                            </p>
+                            <table class="rm-table rm-compare-table">
+                                <thead>
+                                    <tr>
+                                        <th>"Formula"</th>
+                                        <th>"Estimated 1RM"</th>
+                                        <th>"Equation"</th>
+                                        <th>"Use"</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {FORMULAS.iter().map(|option| {
+                                        let id = option.id;
+                                        view! {
+                                            <tr class:active=move || formula.get() == id>
+                                                <td class="pct">{option.name}</td>
+                                                <td class="wt">{move || format!("{:.1} kg", calc_1rm(weight.get(), reps.get(), id))}</td>
+                                                <td class="pct">{option.equation}</td>
+                                                <td class="pct">{option.note}</td>
+                                            </tr>
+                                        }
+                                    }).collect_view()}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 

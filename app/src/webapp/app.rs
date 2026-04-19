@@ -22,6 +22,7 @@ use super::state::{
 };
 use super::ui::metric_label;
 use crate::core::{HeatmapBin, HistogramBin, percentile_for_value, rebin_1d, rebin_2d};
+use gloo_timers::callback::Timeout;
 use leptos::prelude::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -65,6 +66,7 @@ pub(super) fn App() -> impl IntoView {
     let (use_lbs, set_use_lbs) = signal(false);
     let (calculating, set_calculating) = signal(false);
     let (active_page, set_active_page) = signal(AppPage::Ranking);
+    let (mobile_nav_open, set_mobile_nav_open) = signal(false);
     let (page_loaded, set_page_loaded) = signal(false);
     let (query_loaded, set_query_loaded) = signal(false);
     let (unit_pref_loaded, set_unit_pref_loaded) = signal(false);
@@ -86,6 +88,11 @@ pub(super) fn App() -> impl IntoView {
     let (bench, set_bench) = signal(120.0f32);
     let (deadlift, set_deadlift) = signal(220.0f32);
     let (bodyweight, set_bodyweight) = signal(90.0f32);
+    let (debounced_squat, set_debounced_squat) = signal(180.0f32);
+    let (debounced_bench, set_debounced_bench) = signal(120.0f32);
+    let (debounced_deadlift, set_debounced_deadlift) = signal(220.0f32);
+    let (debounced_bodyweight, set_debounced_bodyweight) = signal(90.0f32);
+    let (input_debounce_request_id, set_input_debounce_request_id) = signal(0u64);
     let (squat_error, set_squat_error) = signal(None::<String>);
     let (bench_error, set_bench_error) = signal(None::<String>);
     let (deadlift_error, set_deadlift_error) = signal(None::<String>);
@@ -130,6 +137,22 @@ pub(super) fn App() -> impl IntoView {
     let (cross_sex_lift_comparison_request_id, set_cross_sex_lift_comparison_request_id) =
         signal(0u64);
 
+    Effect::new(move |_| {
+        let snapshot = (squat.get(), bench.get(), deadlift.get(), bodyweight.get());
+        let next_id = input_debounce_request_id.get_untracked().wrapping_add(1);
+        set_input_debounce_request_id.set(next_id);
+        Timeout::new(180, move || {
+            if input_debounce_request_id.get_untracked() != next_id {
+                return;
+            }
+            set_debounced_squat.set(snapshot.0);
+            set_debounced_bench.set(snapshot.1);
+            set_debounced_deadlift.set(snapshot.2);
+            set_debounced_bodyweight.set(snapshot.3);
+        })
+        .forget();
+    });
+
     let nerds_page_active = Memo::new(move |_| active_page.get() == AppPage::Nerds);
     let cross_sex_page_active = Memo::new(move |_| active_page.get() == AppPage::MenVsWomen);
 
@@ -152,6 +175,7 @@ pub(super) fn App() -> impl IntoView {
         request: state::RequestTracker {
             current: slice_request_id,
             set: set_slice_request_id,
+            label: "slice_rows",
         },
     });
 
@@ -166,6 +190,7 @@ pub(super) fn App() -> impl IntoView {
         request: state::RequestTracker {
             current: cross_sex_rows_request_id,
             set: set_cross_sex_rows_request_id,
+            label: "cross_sex_rows",
         },
     });
 
@@ -176,9 +201,8 @@ pub(super) fn App() -> impl IntoView {
         let tested_now = tested.get();
         let lift_now = lift.get();
         let metric_now = metric.get();
-        selector_index.with(|index| {
-            index.current_row(&wc_now, &age_now, &tested_now, &lift_now, &metric_now)
-        })
+        selector_index
+            .with(|index| index.current_row(&wc_now, &age_now, &tested_now, &lift_now, &metric_now))
     });
 
     {
@@ -258,6 +282,7 @@ pub(super) fn App() -> impl IntoView {
         request: state::RequestTracker {
             current: dist_request_id,
             set: set_dist_request_id,
+            label: "distribution",
         },
     });
 
@@ -267,8 +292,11 @@ pub(super) fn App() -> impl IntoView {
         set_slice_summary,
         set_summary_load_ms,
         set_load_error,
-        summary_request_id,
-        set_summary_request_id,
+        state::RequestTracker {
+            current: summary_request_id,
+            set: set_summary_request_id,
+            label: "slice_summary",
+        },
     );
 
     let sex_opts = sex_options(root_index);
@@ -350,10 +378,10 @@ pub(super) fn App() -> impl IntoView {
             ComparableLifter {
                 sex: &s,
                 equipment: &e,
-                bodyweight: bodyweight.get(),
-                squat: squat.get(),
-                bench: bench.get(),
-                deadlift: deadlift.get(),
+                bodyweight: debounced_bodyweight.get(),
+                squat: debounced_squat.get(),
+                bench: debounced_bench.get(),
+                deadlift: debounced_deadlift.get(),
             },
             &l,
             &m,
@@ -432,6 +460,7 @@ pub(super) fn App() -> impl IntoView {
         request: state::RequestTracker {
             current: cross_sex_hist_request_id,
             set: set_cross_sex_hist_request_id,
+            label: "cross_sex_hist",
         },
     });
 
@@ -448,6 +477,7 @@ pub(super) fn App() -> impl IntoView {
         request: state::RequestTracker {
             current: cross_sex_heat_request_id,
             set: set_cross_sex_heat_request_id,
+            label: "cross_sex_heat",
         },
     });
 
@@ -467,6 +497,7 @@ pub(super) fn App() -> impl IntoView {
         request: state::RequestTracker {
             current: cross_sex_lift_comparison_request_id,
             set: set_cross_sex_lift_comparison_request_id,
+            label: "cross_sex_lift_comparison",
         },
     });
 
@@ -542,10 +573,10 @@ pub(super) fn App() -> impl IntoView {
         equip,
         lift,
         metric,
-        bodyweight,
-        squat,
-        bench,
-        deadlift,
+        bodyweight: debounced_bodyweight,
+        squat: debounced_squat,
+        bench: debounced_bench,
+        deadlift: debounced_deadlift,
     });
 
     // Provide grouped state via Leptos context - pages read it via use_context.
@@ -617,6 +648,7 @@ pub(super) fn App() -> impl IntoView {
             dataset_blurb,
             ranking_cohort_blurb,
             slice_summary,
+            chart_bodyweight: debounced_bodyweight,
         },
     };
     provide_context(app_state);
@@ -658,7 +690,7 @@ pub(super) fn App() -> impl IntoView {
     view! {
         <div class="app">
             // Sidebar
-            <aside class="nav">
+            <aside class="nav" class:mobile-open=move || mobile_nav_open.get()>
                 <div class="brand">
                     <div class="brand-mark"><span class="bar"></span>"IRONSCALE"</div>
                     <div class="brand-sub">"// WHERE YOU STAND · EST. 2026"</div>
@@ -680,12 +712,16 @@ pub(super) fn App() -> impl IntoView {
                                 role="button"
                                 tabindex="0"
                                 class:active=move || active_page.get() == page
-                                on:click=move |_| set_active_page.set(page)
+                                on:click=move |_| {
+                                    set_active_page.set(page);
+                                    set_mobile_nav_open.set(false);
+                                }
                                 on:keydown=move |ev| {
                                     let key = ev.key();
                                     if key == "Enter" || key == " " {
                                         ev.prevent_default();
                                         set_active_page.set(page);
+                                        set_mobile_nav_open.set(false);
                                     }
                                 }
                             >
@@ -703,9 +739,29 @@ pub(super) fn App() -> impl IntoView {
                 </div>
             </aside>
 
+            <Show when=move || mobile_nav_open.get()>
+                <button
+                    type="button"
+                    class="mobile-drawer-backdrop"
+                    aria-label="Close navigation"
+                    on:click=move |_| set_mobile_nav_open.set(false)
+                ></button>
+            </Show>
+
             // Main column
             <main class="main">
                 <nav class="mobile-nav" aria-label="Primary navigation">
+                    <button
+                        type="button"
+                        class="mobile-menu-button"
+                        aria-label="Open navigation"
+                        aria-expanded=move || mobile_nav_open.get().to_string()
+                        on:click=move |_| set_mobile_nav_open.update(|open| *open = !*open)
+                    >
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
                     <div class="mobile-brand">"IRONSCALE"</div>
                     <div class="mobile-tabs">
                         {[
@@ -723,7 +779,10 @@ pub(super) fn App() -> impl IntoView {
                                     type="button"
                                     class="mobile-nav-item"
                                     class:active=move || active_page.get() == page
-                                    on:click=move |_| set_active_page.set(page)
+                                    on:click=move |_| {
+                                        set_active_page.set(page);
+                                        set_mobile_nav_open.set(false);
+                                    }
                                 >
                                     {label}
                                 </button>

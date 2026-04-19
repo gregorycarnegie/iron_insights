@@ -1,4 +1,4 @@
-use super::data::{fetch_binary_first, fetch_json_first};
+use super::data::{fetch_binary_first_with_signal, fetch_json_first_with_signal};
 use super::helpers::{ComparableLifter, comparable_lift_value};
 use super::models::{
     CrossSexComparison, CrossSexLiftComparison, LatestJson, RootIndex, SliceIndex,
@@ -218,13 +218,14 @@ pub(super) fn setup_cross_sex_rows_effect(ctx: CrossSexRowsCtx) {
     } = ctx;
 
     Effect::new(move |_| {
-        let next_id = request.current.get_untracked().wrapping_add(1);
-        request.set.set(next_id);
+        let request_start = request.begin();
+        let next_id = request_start.id;
 
         if !page_active.get() {
             set_male_rows.set(Vec::new());
             set_female_rows.set(Vec::new());
             set_error.set(None);
+            request.finish(next_id);
             return;
         }
 
@@ -232,6 +233,7 @@ pub(super) fn setup_cross_sex_rows_effect(ctx: CrossSexRowsCtx) {
             set_male_rows.set(Vec::new());
             set_female_rows.set(Vec::new());
             set_error.set(None);
+            request.finish(next_id);
             return;
         };
 
@@ -240,6 +242,7 @@ pub(super) fn setup_cross_sex_rows_effect(ctx: CrossSexRowsCtx) {
             set_male_rows.set(Vec::new());
             set_female_rows.set(Vec::new());
             set_error.set(None);
+            request.finish(next_id);
             return;
         }
 
@@ -251,6 +254,7 @@ pub(super) fn setup_cross_sex_rows_effect(ctx: CrossSexRowsCtx) {
             .shards
             .get(&format!("sex=F|equip={equip_value}"))
             .cloned();
+        let signal = request_start.signal;
         set_error.set(None);
 
         spawn_local(async move {
@@ -260,7 +264,7 @@ pub(super) fn setup_cross_sex_rows_effect(ctx: CrossSexRowsCtx) {
 
             if let Some(rel) = male_shard_rel {
                 let url = dataset_file_url(&latest_v.version, &rel);
-                match fetch_json_first::<SliceIndex>(&[&url]).await {
+                match fetch_json_first_with_signal::<SliceIndex>(&[&url], Some(&signal)).await {
                     Ok(index) => {
                         if request.current.get_untracked() != next_id {
                             return;
@@ -275,7 +279,7 @@ pub(super) fn setup_cross_sex_rows_effect(ctx: CrossSexRowsCtx) {
 
             if let Some(rel) = female_shard_rel {
                 let url = dataset_file_url(&latest_v.version, &rel);
-                match fetch_json_first::<SliceIndex>(&[&url]).await {
+                match fetch_json_first_with_signal::<SliceIndex>(&[&url], Some(&signal)).await {
                     Ok(index) => {
                         if request.current.get_untracked() != next_id {
                             return;
@@ -296,6 +300,7 @@ pub(super) fn setup_cross_sex_rows_effect(ctx: CrossSexRowsCtx) {
             if !issues.is_empty() {
                 set_error.set(Some(issues.join(" ")));
             }
+            request.finish(next_id);
         });
     });
 }
@@ -335,14 +340,15 @@ pub(super) fn setup_cross_sex_hist_effect(ctx: CrossSexHistCtx) {
     } = ctx;
 
     Effect::new(move |_| {
-        let next_id = request.current.get_untracked().wrapping_add(1);
-        request.set.set(next_id);
+        let request_start = request.begin();
+        let next_id = request_start.id;
 
         if !page_active.get() || !calculated.get() {
             set_male_hist.set(None);
             set_female_hist.set(None);
             set_loading.set(false);
             set_error.set(None);
+            request.finish(next_id);
             return;
         }
 
@@ -353,6 +359,7 @@ pub(super) fn setup_cross_sex_hist_effect(ctx: CrossSexHistCtx) {
             set_female_hist.set(None);
             set_loading.set(false);
             set_error.set(None);
+            request.finish(next_id);
             return;
         };
 
@@ -374,18 +381,20 @@ pub(super) fn setup_cross_sex_hist_effect(ctx: CrossSexHistCtx) {
         if pre_male.is_some() && pre_female.is_some() {
             set_loading.set(false);
             set_error.set(None);
+            request.finish(next_id);
             return;
         }
 
         set_loading.set(true);
         set_error.set(None);
+        let signal = request_start.signal;
 
         spawn_local(async move {
             let mut issues = Vec::new();
 
             if pre_male.is_none() {
                 let url = dataset_file_url(&latest_v.version, &male_c.row.entry.bin);
-                match fetch_binary_first(&[&url]).await {
+                match fetch_binary_first_with_signal(&[&url], Some(&signal)).await {
                     Ok(bytes) => match parse_combined_bin(&bytes).map(|(h, _)| h) {
                         Some(h) => {
                             if request.current.get_untracked() != next_id {
@@ -401,7 +410,7 @@ pub(super) fn setup_cross_sex_hist_effect(ctx: CrossSexHistCtx) {
 
             if pre_female.is_none() {
                 let url = dataset_file_url(&latest_v.version, &female_c.row.entry.bin);
-                match fetch_binary_first(&[&url]).await {
+                match fetch_binary_first_with_signal(&[&url], Some(&signal)).await {
                     Ok(bytes) => match parse_combined_bin(&bytes).map(|(h, _)| h) {
                         Some(h) => {
                             if request.current.get_untracked() != next_id {
@@ -422,6 +431,7 @@ pub(super) fn setup_cross_sex_hist_effect(ctx: CrossSexHistCtx) {
             if !issues.is_empty() {
                 set_error.set(Some(issues.join(" ")));
             }
+            request.finish(next_id);
         });
     });
 }
@@ -457,14 +467,15 @@ pub(super) fn setup_cross_sex_heat_effect(ctx: CrossSexHeatCtx) {
     } = ctx;
 
     Effect::new(move |_| {
-        let next_id = request.current.get_untracked().wrapping_add(1);
-        request.set.set(next_id);
+        let request_start = request.begin();
+        let next_id = request_start.id;
 
         if !page_active.get() || !calculated.get() {
             set_male_heat.set(None);
             set_female_heat.set(None);
             set_loading.set(false);
             set_error.set(None);
+            request.finish(next_id);
             return;
         }
 
@@ -474,17 +485,19 @@ pub(super) fn setup_cross_sex_heat_effect(ctx: CrossSexHeatCtx) {
             set_male_heat.set(None);
             set_female_heat.set(None);
             set_loading.set(false);
+            request.finish(next_id);
             return;
         };
 
         set_loading.set(true);
         set_error.set(None);
+        let signal = request_start.signal;
 
         spawn_local(async move {
             let mut issues = Vec::new();
 
             let male_url = dataset_file_url(&latest_v.version, &male_c.row.entry.bin);
-            match fetch_binary_first(&[&male_url]).await {
+            match fetch_binary_first_with_signal(&[&male_url], Some(&signal)).await {
                 Ok(bytes) => match parse_combined_bin(&bytes).map(|(_, h)| h) {
                     Some(h) => {
                         if request.current.get_untracked() != next_id {
@@ -498,7 +511,7 @@ pub(super) fn setup_cross_sex_heat_effect(ctx: CrossSexHeatCtx) {
             }
 
             let female_url = dataset_file_url(&latest_v.version, &female_c.row.entry.bin);
-            match fetch_binary_first(&[&female_url]).await {
+            match fetch_binary_first_with_signal(&[&female_url], Some(&signal)).await {
                 Ok(bytes) => match parse_combined_bin(&bytes).map(|(_, h)| h) {
                     Some(h) => {
                         if request.current.get_untracked() != next_id {
@@ -518,6 +531,7 @@ pub(super) fn setup_cross_sex_heat_effect(ctx: CrossSexHeatCtx) {
             if !issues.is_empty() {
                 set_error.set(Some(issues.join(" ")));
             }
+            request.finish(next_id);
         });
     });
 }
@@ -559,13 +573,14 @@ pub(super) fn setup_cross_sex_lift_comparison_effect(ctx: CrossSexLiftComparison
     } = ctx;
 
     Effect::new(move |_| {
-        let next_id = request.current.get_untracked().wrapping_add(1);
-        request.set.set(next_id);
+        let request_start = request.begin();
+        let next_id = request_start.id;
 
         if !page_active.get() || !calculated.get() {
             set_comparisons.set(Vec::new());
             set_loading.set(false);
             set_error.set(None);
+            request.finish(next_id);
             return;
         }
 
@@ -573,6 +588,7 @@ pub(super) fn setup_cross_sex_lift_comparison_effect(ctx: CrossSexLiftComparison
             set_comparisons.set(Vec::new());
             set_loading.set(false);
             set_error.set(None);
+            request.finish(next_id);
             return;
         };
 
@@ -598,12 +614,14 @@ pub(super) fn setup_cross_sex_lift_comparison_effect(ctx: CrossSexLiftComparison
             set_error.set(Some(
                 "No kg lift comparison slices for this cohort.".to_string(),
             ));
+            request.finish(next_id);
             return;
         }
 
         set_comparisons.set(Vec::new());
         set_loading.set(true);
         set_error.set(None);
+        let signal = request_start.signal;
 
         spawn_local(async move {
             let mut comparisons = Vec::new();
@@ -613,8 +631,10 @@ pub(super) fn setup_cross_sex_lift_comparison_effect(ctx: CrossSexLiftComparison
                 let male_url = dataset_file_url(&latest_v.version, &male_c.row.entry.bin);
                 let female_url = dataset_file_url(&latest_v.version, &female_c.row.entry.bin);
 
-                let male_payload = fetch_binary_first(&[&male_url]).await;
-                let female_payload = fetch_binary_first(&[&female_url]).await;
+                let male_payload =
+                    fetch_binary_first_with_signal(&[&male_url], Some(&signal)).await;
+                let female_payload =
+                    fetch_binary_first_with_signal(&[&female_url], Some(&signal)).await;
                 if request.current.get_untracked() != next_id {
                     return;
                 }
@@ -673,6 +693,7 @@ pub(super) fn setup_cross_sex_lift_comparison_effect(ctx: CrossSexLiftComparison
             } else {
                 Some(issues.join(" "))
             });
+            request.finish(next_id);
         });
     });
 }

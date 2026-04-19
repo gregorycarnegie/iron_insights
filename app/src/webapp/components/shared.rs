@@ -67,9 +67,10 @@ pub(super) fn InputForm() -> impl IntoView {
 
             // Bodyweight
             <div>
-                <label>"Bodyweight"</label>
+                <label for="lifter-bodyweight">"Bodyweight"</label>
                 <div class="lift-row">
                     <input
+                        id="lifter-bodyweight"
                         type="number"
                         step="0.5"
                         prop:value=move || format_input_bound(inp.bodyweight.get(), inp.use_lbs.get())
@@ -91,9 +92,10 @@ pub(super) fn InputForm() -> impl IntoView {
 
             // Squat
             <div>
-                <label>"Squat"</label>
+                <label for="lifter-squat">"Squat"</label>
                 <div class="lift-row">
                     <input
+                        id="lifter-squat"
                         type="number"
                         step="2.5"
                         prop:value=move || format_input_bound(inp.squat.get(), inp.use_lbs.get())
@@ -115,9 +117,10 @@ pub(super) fn InputForm() -> impl IntoView {
 
             // Bench
             <div>
-                <label>"Bench Press"</label>
+                <label for="lifter-bench">"Bench Press"</label>
                 <div class="lift-row">
                     <input
+                        id="lifter-bench"
                         type="number"
                         step="2.5"
                         prop:value=move || format_input_bound(inp.bench.get(), inp.use_lbs.get())
@@ -139,9 +142,10 @@ pub(super) fn InputForm() -> impl IntoView {
 
             // Deadlift
             <div>
-                <label>"Deadlift"</label>
+                <label for="lifter-deadlift">"Deadlift"</label>
                 <div class="lift-row">
                     <input
+                        id="lifter-deadlift"
                         type="number"
                         step="2.5"
                         prop:value=move || format_input_bound(inp.deadlift.get(), inp.use_lbs.get())

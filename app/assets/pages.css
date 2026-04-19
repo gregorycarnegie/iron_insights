@@ -601,6 +601,34 @@
 .ratio-strip .s.m { background: var(--iron); }
 .ratio-strip .s.w { background: var(--women); }
 
+.sex-legend {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
+.sex-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.sex-legend-item .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.sex-legend-item.men .dot { background: var(--iron); }
+.sex-legend-item.women .dot { background: var(--women); }
+
 .vs-overlap-copy {
   font-size: 13px;
   line-height: 1.8;
@@ -654,6 +682,12 @@
 .rm-table td.pct { color: var(--ink-dim); font-size: 11px; }
 .rm-table td.wt { font-family: 'Archivo Black', sans-serif; font-size: 16px; color: var(--chalk); }
 .rm-table tr:hover td { background: rgba(232,71,43,0.04); }
+.rm-compare-table tr.active td,
+.rm-compare-table tr.active th {
+  background: rgba(232,71,43,0.08);
+  color: var(--ink);
+}
+.rm-send-button { margin-top: 24px; }
 
 /* ===== PAGE 5: PLATE ===== */
 .plate-grid { display: grid; grid-template-columns: 380px 1fr; gap: 32px; }
@@ -762,6 +796,48 @@
 .bf-cat .rn { font-family: 'JetBrains Mono', monospace; color: var(--ink-mute); font-size: 10px; }
 
 .bf-inputs { display: grid; gap: 16px; }
+.bf-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.bf-context-panel,
+.bf-reference-panel { margin-top: 24px; }
+.bf-method-list { display: grid; gap: 10px; }
+.bf-method {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+.bf-method .nm {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 12px;
+  color: var(--chalk);
+}
+.bf-method .tx,
+.bf-note {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+.bf-note { margin-top: 16px; }
+.bf-ref-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+}
+.bf-ref-table th,
+.bf-ref-table td {
+  padding: 11px 12px;
+  border-bottom: 1px dashed var(--line);
+  text-align: left;
+  font-size: 12px;
+}
+.bf-ref-table th {
+  color: var(--ink-dim);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.bf-ref-table td { color: var(--chalk); }
 
 /* ===== RANKING PAGE UTILITIES ===== */
 .blurb-meta { font-size: 11px; color: var(--ink-mute); }

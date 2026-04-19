@@ -783,13 +783,15 @@ pub fn bodyfat_category(pct: f32, is_male: bool) -> &'static str {
 
 /// Estimates the one-rep max from a submaximal set.
 /// Returns `weight` unchanged for `reps <= 1.0`.
-/// Supported `formula` values: `"epley"` (default), `"brzycki"`, `"lander"`, `"lombardi"`, `"oconner"`.
+/// Supported `formula` values: `"epley"` (default), `"brzycki"`, `"mayhew"`, `"lander"`,
+/// `"lombardi"`, `"oconner"`.
 pub fn calc_1rm(weight: f32, reps: f32, formula: &str) -> f32 {
     if reps <= 1.0 {
         return weight;
     }
     match formula {
         "brzycki" => weight / (1.0278 - 0.0278 * reps),
+        "mayhew" => (100.0 * weight) / (52.2 + 41.9 * (-0.055 * reps).exp()),
         "lander" => (100.0 * weight) / (101.3 - 2.67123 * reps),
         "lombardi" => weight * reps.powf(0.1),
         "oconner" => weight * (1.0 + reps / 40.0),
@@ -1347,6 +1349,13 @@ mod tests {
     }
 
     #[test]
+    fn calc_1rm_mayhew_formula() {
+        // (100 * w) / (52.2 + 41.9 * e^(-0.055 * r))
+        let expected = (100.0 * 100.0) / (52.2 + 41.9 * (-0.055_f32 * 5.0).exp());
+        assert!((calc_1rm(100.0, 5.0, "mayhew") - expected).abs() < 1e-3);
+    }
+
+    #[test]
     fn calc_1rm_lombardi_formula() {
         // w * r^0.1
         let expected = 100.0f32 * 5.0f32.powf(0.1);
@@ -1362,7 +1371,9 @@ mod tests {
 
     #[test]
     fn calc_1rm_is_monotonic_with_reps() {
-        for formula in &["epley", "brzycki", "lander", "lombardi", "oconner"] {
+        for formula in &[
+            "epley", "brzycki", "mayhew", "lander", "lombardi", "oconner",
+        ] {
             let low = calc_1rm(100.0, 3.0, formula);
             let high = calc_1rm(100.0, 10.0, formula);
             assert!(high > low, "formula {formula} should increase with reps");

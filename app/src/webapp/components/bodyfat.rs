@@ -21,6 +21,27 @@ const FEMALE_BF_ROWS: [(&str, &str, &str); 6] = [
     ("Obese", "32%+", "#b5321d"),
 ];
 
+const METHOD_ROWS: [(&str, &str); 3] = [
+    (
+        "Navy",
+        "Tape estimate using height plus neck and waist, with hip added for women.",
+    ),
+    (
+        "YMCA",
+        "Scale-and-waist estimate; quick, but less useful when muscle mass is high.",
+    ),
+    (
+        "Skinfold",
+        "Caliper sites estimate subcutaneous fat; accuracy depends heavily on tester skill.",
+    ),
+];
+
+const AGE_CONTEXT_ROWS: [(&str, &str, &str); 3] = [
+    ("20-39", "8-20%", "21-33%"),
+    ("40-59", "11-22%", "23-34%"),
+    ("60+", "13-25%", "24-36%"),
+];
+
 fn category_color(category: &str) -> &'static str {
     match category {
         "Essential" => "#6b7380",
@@ -68,8 +89,7 @@ pub fn BodyfatPage() -> impl IntoView {
             386.2 - (386.2 - 96.5) * t
         })
     });
-    let gauge_color =
-        Memo::new(move |_| category.get().map_or("var(--iron)", category_color));
+    let gauge_color = Memo::new(move |_| category.get().map_or("var(--iron)", category_color));
 
     view! {
         <section class="page active" id="page-bodyfat">
@@ -84,124 +104,154 @@ pub fn BodyfatPage() -> impl IntoView {
             </div>
 
             <div class="bf-grid">
-                <div class="panel">
-                    <Corners />
-                    <div class="panel-head">
-                        <span><span class="tag">"IN"</span>" MEASUREMENTS"</span>
-                        <span>"CENTIMETRES"</span>
-                    </div>
-                    <div class="panel-body bf-inputs">
-                        <div>
-                            <label>"Sex"</label>
-                            <div class="toggle-group">
-                                <button
-                                    class:on=move || is_male.get()
-                                    on:click=move |_| set_is_male.set(true)
-                                >
-                                    "Male"
-                                </button>
-                                <button
-                                    class:on=move || !is_male.get()
-                                    on:click=move |_| set_is_male.set(false)
-                                >
-                                    "Female"
-                                </button>
-                            </div>
+                <div>
+                    <div class="panel">
+                        <Corners />
+                        <div class="panel-head">
+                            <span><span class="tag">"IN"</span>" MEASUREMENTS"</span>
+                            <span>"CENTIMETRES"</span>
                         </div>
-
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                        <div class="panel-body bf-inputs">
                             <div>
-                                <label>"Height"</label>
-                                <input
-                                    type="number"
-                                    step="0.5"
-                                    min="100"
-                                    max="250"
-                                    prop:value=move || height_cm.get()
-                                    on:input=move |ev| {
-                                        let v = parse_f32_input(&ev);
-                                        if (100.0..=250.0).contains(&v) {
-                                            set_height_cm.set(v);
-                                        }
-                                    }
-                                />
+                                <label>"Sex"</label>
+                                <div class="toggle-group">
+                                    <button
+                                        class:on=move || is_male.get()
+                                        on:click=move |_| set_is_male.set(true)
+                                    >
+                                        "Male"
+                                    </button>
+                                    <button
+                                        class:on=move || !is_male.get()
+                                        on:click=move |_| set_is_male.set(false)
+                                    >
+                                        "Female"
+                                    </button>
+                                </div>
                             </div>
-                            <div>
-                                <label>"Weight - kg"</label>
-                                <input
-                                    type="number"
-                                    step="0.5"
-                                    min="30"
-                                    max="300"
-                                    prop:value=move || weight_kg.get()
-                                    on:input=move |ev| {
-                                        let v = parse_f32_input(&ev);
-                                        if (30.0..=300.0).contains(&v) {
-                                            set_weight_kg.set(v);
-                                        }
-                                    }
-                                />
-                            </div>
-                        </div>
 
-                        <div>
-                            <label>"Neck (cm)"</label>
-                            <input
-                                type="number"
-                                step="0.5"
-                                min="20"
-                                max="80"
-                                prop:value=move || neck_cm.get()
-                                on:input=move |ev| {
-                                    let v = parse_f32_input(&ev);
-                                    if (20.0..=80.0).contains(&v) {
-                                        set_neck_cm.set(v);
-                                    }
-                                }
-                            />
-                        </div>
-
-                        <div>
-                            <label>"Waist (cm - navel)"</label>
-                            <input
-                                type="number"
-                                step="0.5"
-                                min="40"
-                                max="200"
-                                prop:value=move || waist_cm.get()
-                                on:input=move |ev| {
-                                    let v = parse_f32_input(&ev);
-                                    if (40.0..=200.0).contains(&v) {
-                                        set_waist_cm.set(v);
-                                    }
-                                }
-                            />
-                        </div>
-
-                        {move || {
-                            if is_male.get() {
-                                view! { <div style="display:none"></div> }.into_any()
-                            } else {
-                                view! {
-                                    <div>
-                                        <label>"Hips (cm)"</label>
-                                        <input
-                                            type="number"
-                                            step="0.5"
-                                            min="40"
-                                            max="200"
-                                            prop:value=move || hip_cm.get()
-                                            on:input=move |ev| {
-                                                let v = parse_f32_input(&ev);
-                                                if (40.0..=200.0).contains(&v) {
-                                                    set_hip_cm.set(v);
-                                                }
+                            <div class="bf-two-col">
+                                <div>
+                                    <label for="bodyfat-height">"Height"</label>
+                                    <input
+                                        id="bodyfat-height"
+                                        type="number"
+                                        step="0.5"
+                                        min="100"
+                                        max="250"
+                                        prop:value=move || height_cm.get()
+                                        on:input=move |ev| {
+                                            let v = parse_f32_input(&ev);
+                                            if (100.0..=250.0).contains(&v) {
+                                                set_height_cm.set(v);
                                             }
-                                        />
-                                    </div>
-                                }.into_any()
-                            }
-                        }}
+                                        }
+                                    />
+                                </div>
+                                <div>
+                                    <label for="bodyfat-weight">"Weight - kg"</label>
+                                    <input
+                                        id="bodyfat-weight"
+                                        type="number"
+                                        step="0.5"
+                                        min="30"
+                                        max="300"
+                                        prop:value=move || weight_kg.get()
+                                        on:input=move |ev| {
+                                            let v = parse_f32_input(&ev);
+                                            if (30.0..=300.0).contains(&v) {
+                                                set_weight_kg.set(v);
+                                            }
+                                        }
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label for="bodyfat-neck">"Neck (cm)"</label>
+                                <input
+                                    id="bodyfat-neck"
+                                    type="number"
+                                    step="0.5"
+                                    min="20"
+                                    max="80"
+                                    prop:value=move || neck_cm.get()
+                                    on:input=move |ev| {
+                                        let v = parse_f32_input(&ev);
+                                        if (20.0..=80.0).contains(&v) {
+                                            set_neck_cm.set(v);
+                                        }
+                                    }
+                                />
+                            </div>
+
+                            <div>
+                                <label for="bodyfat-waist">"Waist (cm - navel)"</label>
+                                <input
+                                    id="bodyfat-waist"
+                                    type="number"
+                                    step="0.5"
+                                    min="40"
+                                    max="200"
+                                    prop:value=move || waist_cm.get()
+                                    on:input=move |ev| {
+                                        let v = parse_f32_input(&ev);
+                                        if (40.0..=200.0).contains(&v) {
+                                            set_waist_cm.set(v);
+                                        }
+                                    }
+                                />
+                            </div>
+
+                            {move || {
+                                if is_male.get() {
+                                    view! { <div class="visually-hidden">"Hip measurement is not used for the male Navy formula."</div> }.into_any()
+                                } else {
+                                    view! {
+                                        <div>
+                                            <label for="bodyfat-hips">"Hips (cm)"</label>
+                                            <input
+                                                id="bodyfat-hips"
+                                                type="number"
+                                                step="0.5"
+                                                min="40"
+                                                max="200"
+                                                prop:value=move || hip_cm.get()
+                                                on:input=move |ev| {
+                                                    let v = parse_f32_input(&ev);
+                                                    if (40.0..=200.0).contains(&v) {
+                                                        set_hip_cm.set(v);
+                                                    }
+                                                }
+                                            />
+                                        </div>
+                                    }.into_any()
+                                }
+                            }}
+                        </div>
+                    </div>
+
+                    <div class="panel bf-context-panel">
+                        <Corners />
+                        <div class="panel-head">
+                            <span><span class="tag">"?"</span>" METHODS"</span>
+                            <span>"CONTEXT"</span>
+                        </div>
+                        <div class="panel-body">
+                            <div class="bf-method-list">
+                                {METHOD_ROWS.iter().map(|(name, copy)| {
+                                    view! {
+                                        <div class="bf-method">
+                                            <div class="nm">{*name}</div>
+                                            <div class="tx">{*copy}</div>
+                                        </div>
+                                    }
+                                }).collect_view()}
+                            </div>
+                            <p class="bf-note">
+                                "Tape estimates are best used as a trend. Measure at the same time of day, keep tape tension consistent, and expect normal error from hydration, posture, and site placement."
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -319,6 +369,39 @@ pub fn BodyfatPage() -> impl IntoView {
                                 })
                                 .collect_view()
                         }}
+                    </div>
+
+                    <div class="panel bf-reference-panel">
+                        <Corners />
+                        <div class="panel-head">
+                            <span><span class="tag">"REF"</span>" AGE CONTEXT"</span>
+                            <span>"BROAD RANGES"</span>
+                        </div>
+                        <div class="panel-body">
+                            <p class="chart-summary">
+                                "These ranges are broad training context, not a diagnosis. Strength athletes can sit outside them while performing well."
+                            </p>
+                            <table class="bf-ref-table">
+                                <thead>
+                                    <tr>
+                                        <th>"Age"</th>
+                                        <th>"Men"</th>
+                                        <th>"Women"</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {AGE_CONTEXT_ROWS.iter().map(|(age, men, women)| {
+                                        view! {
+                                            <tr>
+                                                <th scope="row">{*age}</th>
+                                                <td>{*men}</td>
+                                                <td>{*women}</td>
+                                            </tr>
+                                        }
+                                    }).collect_view()}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>

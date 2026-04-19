@@ -1,6 +1,8 @@
 use super::AppPage;
 use super::helpers::parse_query_f32;
-use super::models::SavedUiState;
+use super::models::{SAVED_UI_STATE_VERSION, SavedUiState};
+use leptos::ev;
+use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -121,7 +123,7 @@ pub(super) fn setup_query_load_effect(ctx: &QueryLoadCtx) {
             let mut restored_saved_state = false;
             if let Ok(Some(storage)) = window.local_storage()
                 && let Ok(Some(raw)) = storage.get_item("ironscale_last_state")
-                && let Ok(saved) = serde_json::from_str::<SavedUiState>(&raw)
+                && let Some(saved) = SavedUiState::from_storage_json(&raw)
             {
                 restored_saved_state = true;
                 set_sex.set(saved.sex);
@@ -231,23 +233,20 @@ pub(super) fn setup_hash_nav_effects(ctx: HashNavCtx) {
             return;
         };
         if let Ok(hash) = window.location().hash() {
-            let p = if hash.eq_ignore_ascii_case("#nerds") {
-                AppPage::Nerds
-            } else if hash.eq_ignore_ascii_case("#men-vs-women") {
-                AppPage::MenVsWomen
-            } else if hash.eq_ignore_ascii_case("#1rm") {
-                AppPage::OneRm
-            } else if hash.eq_ignore_ascii_case("#plate-calc") {
-                AppPage::PlateCalc
-            } else if hash.eq_ignore_ascii_case("#bodyfat") {
-                AppPage::Bodyfat
-            } else {
-                AppPage::Ranking
-            };
-            set_active_page.set(p);
+            set_active_page.set(page_from_hash(&hash));
         }
         set_page_loaded.set(true);
     });
+
+    let hash_nav_handle = window_event_listener(ev::hashchange, move |_| {
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        if let Ok(hash) = window.location().hash() {
+            set_active_page.set(page_from_hash(&hash));
+        }
+    });
+    on_cleanup(move || hash_nav_handle.remove());
 
     Effect::new(move |_| {
         if !page_loaded.get() {
@@ -315,6 +314,7 @@ pub(super) fn setup_state_persist_effect(ctx: StatePersistCtx) {
             return;
         };
         let snapshot = SavedUiState {
+            version: SAVED_UI_STATE_VERSION,
             sex: sex.get(),
             equip: equip.get(),
             wc: wc.get(),
@@ -338,4 +338,20 @@ pub(super) fn setup_state_persist_effect(ctx: StatePersistCtx) {
             let _ = storage.set_item("ironscale_last_state", &raw);
         }
     });
+}
+
+fn page_from_hash(hash: &str) -> AppPage {
+    if hash.eq_ignore_ascii_case("#nerds") {
+        AppPage::Nerds
+    } else if hash.eq_ignore_ascii_case("#men-vs-women") {
+        AppPage::MenVsWomen
+    } else if hash.eq_ignore_ascii_case("#1rm") {
+        AppPage::OneRm
+    } else if hash.eq_ignore_ascii_case("#plate-calc") {
+        AppPage::PlateCalc
+    } else if hash.eq_ignore_ascii_case("#bodyfat") {
+        AppPage::Bodyfat
+    } else {
+        AppPage::Ranking
+    }
 }

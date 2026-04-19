@@ -47,6 +47,21 @@ pub fn PlateCalcPage() -> impl IntoView {
     let (collar_kg_each, set_collar_kg_each) = signal(0.0f32);
     let (use_lbs, set_use_lbs) = signal(false);
 
+    Effect::new(move |_| {
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let Ok(Some(storage)) = window.local_storage() else {
+            return;
+        };
+        if let Ok(Some(raw)) = storage.get_item("ironscale_plate_target_kg") {
+            if let Ok(value_kg) = raw.parse::<f32>() {
+                set_target.set(value_kg.max(0.0));
+            }
+            let _ = storage.remove_item("ironscale_plate_target_kg");
+        }
+    });
+
     let result = Memo::new(move |_| {
         calc_plates(
             target.get(),
@@ -93,9 +108,10 @@ pub fn PlateCalcPage() -> impl IntoView {
                         </div>
                         <div class="panel-body input-stack">
                             <div>
-                                <label>"Target Weight"</label>
+                                <label for="plate-target-weight">"Target Weight"</label>
                                 <div class="lift-row">
                                     <input
+                                        id="plate-target-weight"
                                         type="number"
                                         step=move || if use_lbs.get() { "0.5" } else { "2.5" }
                                         min="0"
@@ -126,8 +142,9 @@ pub fn PlateCalcPage() -> impl IntoView {
                             </div>
 
                             <div>
-                                <label>"Bar Weight"</label>
+                                <label for="plate-bar-weight">"Bar Weight"</label>
                                 <select
+                                    id="plate-bar-weight"
                                     prop:value=move || format_display(bar_kg.get())
                                     on:change=move |ev| {
                                         if let Ok(v) = event_target_value(&ev).parse::<f32>() {
@@ -383,7 +400,11 @@ mod tests {
     use wasm_bindgen_test::wasm_bindgen_test;
 
     fn plate_weights(result: &super::PlateResult) -> Vec<f32> {
-        result.plates_per_side.iter().map(|(kg, _, _)| *kg).collect()
+        result
+            .plates_per_side
+            .iter()
+            .map(|(kg, _, _)| *kg)
+            .collect()
     }
 
     fn plate_counts(result: &super::PlateResult) -> Vec<usize> {
@@ -432,8 +453,12 @@ mod tests {
         // Both should not be below bar
         assert!(!r_lb.below_bar);
         // Achieved weights should be close (within 1 kg) despite lbs round-trip
-        assert!((r_lb.achieved_kg - r_kg.achieved_kg).abs() < 1.0,
-            "kg={}, lbs-mode={}", r_kg.achieved_kg, r_lb.achieved_kg);
+        assert!(
+            (r_lb.achieved_kg - r_kg.achieved_kg).abs() < 1.0,
+            "kg={}, lbs-mode={}",
+            r_kg.achieved_kg,
+            r_lb.achieved_kg
+        );
     }
 
     #[wasm_bindgen_test]

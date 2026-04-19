@@ -1,4 +1,4 @@
-use super::data::{fetch_binary_first, fetch_json_first};
+use super::data::{fetch_binary_first_with_signal, fetch_json_first, fetch_json_first_with_signal};
 use super::logging::debug_log;
 use super::models::{
     LatestJson, RootIndex, SliceIndex, SliceIndexEntries, SliceMetaJson, SliceRow, SliceSummary,
@@ -10,6 +10,9 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use web_sys::{AbortController, AbortSignal};
 
 /// Grouped cohort selection signals + their option memos.
 #[derive(Clone, Copy)]
@@ -82,6 +85,7 @@ pub(super) struct ComputeState {
     pub rebinned_hist: Memo<Option<HistogramBin>>,
     pub rebinned_heat: Memo<Option<HeatmapBin>>,
     pub hist_x_label: Memo<String>,
+    pub chart_bodyweight: ReadSignal<f32>,
     pub load_error: ReadSignal<Option<String>>,
     pub dataset_blurb: Memo<String>,
     pub ranking_cohort_blurb: Memo<String>,
@@ -130,6 +134,47 @@ pub(super) struct DefaultSelectionSetters {
 pub(super) struct RequestTracker {
     pub(super) current: ReadSignal<u64>,
     pub(super) set: WriteSignal<u64>,
+    pub(super) label: &'static str,
+}
+
+pub(super) struct RequestStart {
+    pub(super) id: u64,
+    pub(super) signal: AbortSignal,
+}
+
+thread_local! {
+    static REQUEST_ABORT_CONTROLLERS: RefCell<HashMap<&'static str, AbortController>> =
+        RefCell::new(HashMap::new());
+}
+
+impl RequestTracker {
+    pub(super) fn begin(self) -> RequestStart {
+        let next_id = self.current.get_untracked().wrapping_add(1);
+        self.set.set(next_id);
+
+        let controller = AbortController::new().expect("AbortController should exist in browsers");
+        let signal = controller.signal();
+        REQUEST_ABORT_CONTROLLERS.with(|controllers| {
+            let mut controllers = controllers.borrow_mut();
+            if let Some(previous) = controllers.insert(self.label, controller) {
+                previous.abort();
+            }
+        });
+
+        RequestStart {
+            id: next_id,
+            signal,
+        }
+    }
+
+    pub(super) fn finish(self, id: u64) {
+        if self.current.get_untracked() != id {
+            return;
+        }
+        REQUEST_ABORT_CONTROLLERS.with(|controllers| {
+            controllers.borrow_mut().remove(self.label);
+        });
+    }
 }
 
 pub(super) struct SliceRowsSelection {
@@ -241,8 +286,8 @@ pub(super) fn setup_slice_rows_effect(context: SliceRowsEffectContext) {
         request,
     } = context;
     Effect::new(move |_| {
-        let next_request_id = request.current.get_untracked().wrapping_add(1);
-        request.set.set(next_request_id);
+        let request_start = request.begin();
+        let next_request_id = request_start.id;
 
         let latest_v = latest.get();
         let root = root_index.get();
@@ -251,21 +296,25 @@ pub(super) fn setup_slice_rows_effect(context: SliceRowsEffectContext) {
 
         let (Some(latest_v), Some(root)) = (latest_v, root) else {
             outputs.set_slice_rows.set(Vec::new());
+            request.finish(next_request_id);
             return;
         };
 
         let shard_key = format!("sex={s}|equip={e}");
         let Some(shard_rel) = root.shards.get(&shard_key).cloned() else {
             outputs.set_slice_rows.set(Vec::new());
+            request.finish(next_request_id);
             return;
         };
 
         let set_slice_rows = outputs.set_slice_rows;
         let set_load_error = outputs.set_load_error;
         let slice_request_id = request.current;
+        let signal = request_start.signal;
         spawn_local(async move {
             let shard_url = data_url(&format!("{}/{}", latest_v.version, shard_rel));
-            let shard = fetch_json_first::<SliceIndex>(&[&shard_url]).await;
+            let shard =
+                fetch_json_first_with_signal::<SliceIndex>(&[&shard_url], Some(&signal)).await;
             if slice_request_id.get_untracked() != next_request_id {
                 debug_log(&format!(
                     "Ignored stale shard response for request {next_request_id}"
@@ -277,6 +326,7 @@ pub(super) fn setup_slice_rows_effect(context: SliceRowsEffectContext) {
                     set_load_error.set(Some(format!("Failed to load shard {shard_key}: {err}")));
                 }
                 set_slice_rows.set(Vec::new());
+                request.finish(next_request_id);
                 return;
             };
             let mut rows = Vec::new();
@@ -301,6 +351,7 @@ pub(super) fn setup_slice_rows_effect(context: SliceRowsEffectContext) {
             rows.sort_by(|a, b| a.key.cmp(&b.key));
             set_load_error.set(None);
             set_slice_rows.set(rows);
+            request.finish(next_request_id);
         });
     });
 }
@@ -315,8 +366,8 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
         request,
     } = context;
     Effect::new(move |_| {
-        let next_request_id = request.current.get_untracked().wrapping_add(1);
-        request.set.set(next_request_id);
+        let request_start = request.begin();
+        let next_request_id = request_start.id;
 
         let row = current_row.get();
         let latest_v = latest.get();
@@ -328,6 +379,7 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
             outputs.set_heat.set(None);
             outputs.set_hist_load_ms.set(None);
             outputs.set_heat_load_ms.set(None);
+            request.finish(next_request_id);
             return;
         }
 
@@ -343,6 +395,7 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
             let set_heat_load_ms = outputs.set_heat_load_ms;
             let set_load_error = outputs.set_load_error;
             let dist_request_id = request.current;
+            let signal = request_start.signal;
             set_hist.set(None);
             set_hist_load_ms.set(None);
             if should_load_heat {
@@ -361,7 +414,9 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
                         return;
                     }
 
-                    if let Ok(bytes) = fetch_binary_first(&[&bin_url]).await {
+                    if let Ok(bytes) =
+                        fetch_binary_first_with_signal(&[&bin_url], Some(&signal)).await
+                    {
                         if dist_request_id.get_untracked() != next_request_id {
                             debug_log(&format!(
                                 "Ignored stale combined payload for request {next_request_id}"
@@ -383,6 +438,7 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
                                 )));
                             }
                         }
+                        request.finish(next_request_id);
                     } else {
                         if dist_request_id.get_untracked() != next_request_id {
                             debug_log(&format!(
@@ -392,6 +448,7 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
                         }
                         set_hist.set(None);
                         set_load_error.set(Some(format!("Failed to fetch data: {bin_url}")));
+                        request.finish(next_request_id);
                     }
                 });
             } else {
@@ -412,12 +469,14 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
                     Err(_) => set_load_error
                         .set(Some("Failed to decode inlined binary payload.".to_string())),
                 }
+                request.finish(next_request_id);
             }
         } else {
             outputs.set_hist.set(None);
             outputs.set_heat.set(None);
             outputs.set_hist_load_ms.set(None);
             outputs.set_heat_load_ms.set(None);
+            request.finish(next_request_id);
         }
     });
 }
@@ -428,44 +487,48 @@ pub(super) fn setup_slice_summary_effect(
     set_summary: WriteSignal<Option<SliceSummary>>,
     set_summary_load_ms: WriteSignal<Option<u32>>,
     set_load_error: WriteSignal<Option<String>>,
-    summary_request_id: ReadSignal<u64>,
-    set_summary_request_id: WriteSignal<u64>,
+    request: RequestTracker,
 ) {
     Effect::new(move |_| {
-        let next_request_id = summary_request_id.get_untracked().wrapping_add(1);
-        set_summary_request_id.set(next_request_id);
+        let request_start = request.begin();
+        let next_request_id = request_start.id;
 
         let row = current_row.get();
         let latest_v = latest.get();
         let (Some(row), Some(latest_v)) = (row, latest_v) else {
             set_summary.set(None);
             set_summary_load_ms.set(None);
+            request.finish(next_request_id);
             return;
         };
 
         if let Some(summary) = row.entry.summary.clone() {
             set_summary.set(Some(summary));
             set_summary_load_ms.set(Some(0));
+            request.finish(next_request_id);
             return;
         }
 
         if row.entry.meta.trim().is_empty() {
             set_summary.set(None);
             set_summary_load_ms.set(None);
+            request.finish(next_request_id);
             return;
         }
 
         let meta_url = data_url(&format!("{}/{}", latest_v.version, row.entry.meta));
         let meta_err = meta_url.clone();
-        let summary_request_id = summary_request_id;
+        let summary_request_id = request.current;
         let set_summary = set_summary;
         let set_summary_load_ms = set_summary_load_ms;
         let set_load_error = set_load_error;
+        let signal = request_start.signal;
         set_summary.set(None);
         set_summary_load_ms.set(None);
 
         spawn_local(async move {
-            let meta = fetch_json_first::<SliceMetaJson>(&[&meta_url]).await;
+            let meta =
+                fetch_json_first_with_signal::<SliceMetaJson>(&[&meta_url], Some(&signal)).await;
             if summary_request_id.get_untracked() != next_request_id {
                 debug_log(&format!(
                     "Ignored stale summary response for request {next_request_id}"
@@ -488,6 +551,7 @@ pub(super) fn setup_slice_summary_effect(
                     )));
                 }
             }
+            request.finish(next_request_id);
         });
     });
 }

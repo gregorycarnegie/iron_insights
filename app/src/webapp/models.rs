@@ -2,8 +2,12 @@ use super::slices::SliceKey;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+pub(super) const SAVED_UI_STATE_VERSION: u8 = 1;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct SavedUiState {
+    #[serde(default)]
+    pub(super) version: u8,
     pub(super) sex: String,
     pub(super) equip: String,
     pub(super) wc: String,
@@ -22,6 +26,20 @@ pub(super) struct SavedUiState {
     pub(super) bw_mult: usize,
     pub(super) share_handle: String,
     pub(super) calculated: bool,
+}
+
+impl SavedUiState {
+    pub(super) fn from_storage_json(raw: &str) -> Option<Self> {
+        let mut saved = serde_json::from_str::<Self>(raw).ok()?;
+        match saved.version {
+            0 => {
+                saved.version = SAVED_UI_STATE_VERSION;
+                Some(saved)
+            }
+            SAVED_UI_STATE_VERSION => Some(saved),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
