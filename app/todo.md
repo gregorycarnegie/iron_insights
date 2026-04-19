@@ -6,13 +6,13 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 
 - [x] Extract cross-sex loading (rows, hist, heat, lift comparisons — 4 effects) into `webapp/cross_sex.rs`.
 - [x] Extract URL query / hash sync and `localStorage` unit persistence into `webapp/persistence.rs`.
-- [ ] Move the `App` component's 60+ signal declarations into a typed `AppState` struct with grouped sub-states (`UserInput`, `Selection`, `CrossSexState`, `UiFlags`).
+- [x] Move the `App` component's 60+ signal declarations into a typed `AppState` struct with grouped sub-states (`UserInput`, `Selection`, `CrossSexState`, `UiFlags`).
 - [ ] Keep `mod.rs` to wiring + `run()` only — target under 300 lines.
 
 ## 2. Kill the 45-field context structs
 
-- [ ] Replace `RankingCtx`, `InputFormCtx`, etc. with a single `AppState` passed via Leptos context (`provide_context` / `use_context`).
-- [ ] Delete the `#[allow(dead_code)]` on `InputFormCtx` by actually removing unused fields (`_heat`, `_rebinned_heat`, `_canvas_ref` in `RankingPage`).
+- [x] Replace `RankingCtx`, `InputFormCtx`, etc. with a single `AppState` passed via Leptos context (`provide_context` / `use_context`).
+- [x] Delete the `#[allow(dead_code)]` on `InputFormCtx` by actually removing unused fields (`_heat`, `_rebinned_heat`, `_canvas_ref` in `RankingPage`).
 
 ## 3. Product UX (from memory: "feels like a data viewer, not a product")
 

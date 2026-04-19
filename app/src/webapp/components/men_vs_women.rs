@@ -1,16 +1,15 @@
 use super::shared::Corners;
 use crate::core::{HeatmapBin, HistogramBin, percentile_for_value, value_for_percentile};
 use crate::webapp::charts::{draw_cross_sex_heatmap_overlay, draw_dual_normal_curve_canvas};
-use crate::webapp::models::{CrossSexComparison, CrossSexLiftComparison, SliceSummary};
+use crate::webapp::models::{CrossSexComparison, CrossSexLiftComparison};
+use crate::webapp::state::AppState;
 use leptos::ev;
 use leptos::html::Canvas;
 use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::prelude::*;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct MenVsWomenCtx {
-    pub dataset_blurb: Memo<String>,
-    pub calculated: ReadSignal<bool>,
     pub cross_sex_comparison: Memo<Result<CrossSexComparison, String>>,
     pub male_hist: ReadSignal<Option<HistogramBin>>,
     pub female_hist: ReadSignal<Option<HistogramBin>>,
@@ -20,12 +19,6 @@ pub struct MenVsWomenCtx {
     pub hist_error: ReadSignal<Option<String>>,
     pub heat_loading: ReadSignal<bool>,
     pub heat_error: ReadSignal<Option<String>>,
-    pub user_lift: Memo<f32>,
-    pub bodyweight: ReadSignal<f32>,
-    pub hist_x_label: Memo<String>,
-    pub use_lbs: ReadSignal<bool>,
-    pub unit_label: Memo<&'static str>,
-    pub slice_summary: ReadSignal<Option<SliceSummary>>,
     pub lift_comparisons: ReadSignal<Vec<CrossSexLiftComparison>>,
     pub lift_comparison_loading: ReadSignal<bool>,
     pub lift_comparison_error: ReadSignal<Option<String>>,
@@ -72,9 +65,12 @@ fn overlap_copy(
 
 #[component]
 pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
+    let app = use_context::<AppState>().expect("AppState must be provided by App");
+    let calculated = app.compute.calculated;
+    let user_lift = app.compute.user_lift;
+    let hist_x_label = app.compute.hist_x_label;
+    let bodyweight = app.input.bodyweight;
     let MenVsWomenCtx {
-        dataset_blurb: _dataset_blurb,
-        calculated,
         cross_sex_comparison,
         male_hist,
         female_hist,
@@ -84,12 +80,6 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
         hist_error,
         heat_loading,
         heat_error,
-        user_lift,
-        bodyweight,
-        hist_x_label,
-        use_lbs: _use_lbs,
-        unit_label: _unit_label,
-        slice_summary: _slice_summary,
         lift_comparisons,
         lift_comparison_loading,
         lift_comparison_error,

@@ -1,7 +1,8 @@
-use super::shared::{Corners, InputForm, InputFormCtx};
-use crate::core::{HeatmapBin, HistogramBin, value_for_percentile};
+use super::shared::{Corners, InputForm};
+use crate::core::value_for_percentile;
 use crate::webapp::charts::draw_ranking_distribution_canvas;
 use crate::webapp::helpers::kg_to_display;
+use crate::webapp::state::AppState;
 use crate::webapp::ui::metric_label;
 use leptos::ev;
 use leptos::html::Canvas;
@@ -143,140 +144,31 @@ mod tests {
     }
 }
 
-#[derive(Clone)]
-pub struct RankingCtx {
-    pub dataset_blurb: Memo<String>,
-    pub ranking_cohort_blurb: Memo<String>,
-    pub sex_opts: Memo<Vec<String>>,
-    pub sex: ReadSignal<String>,
-    pub set_sex: WriteSignal<String>,
-    pub equip_opts: Memo<Vec<String>>,
-    pub equip: ReadSignal<String>,
-    pub set_equip: WriteSignal<String>,
-    pub unit_label: Memo<&'static str>,
-    pub use_lbs: ReadSignal<bool>,
-    pub set_use_lbs: WriteSignal<bool>,
-    pub wc_opts: Memo<Vec<String>>,
-    pub wc: ReadSignal<String>,
-    pub set_wc: WriteSignal<String>,
-    pub age_opts: Memo<Vec<String>>,
-    pub age: ReadSignal<String>,
-    pub set_age: WriteSignal<String>,
-    pub tested_opts: Memo<Vec<String>>,
-    pub tested: ReadSignal<String>,
-    pub set_tested: WriteSignal<String>,
-    pub lift_opts: Memo<Vec<String>>,
-    pub lift: ReadSignal<String>,
-    pub set_lift: WriteSignal<String>,
-    pub metric_opts: Memo<Vec<String>>,
-    pub metric: ReadSignal<String>,
-    pub set_metric: WriteSignal<String>,
-    pub squat: ReadSignal<f32>,
-    pub set_squat: WriteSignal<f32>,
-    pub squat_error: ReadSignal<Option<String>>,
-    pub set_squat_error: WriteSignal<Option<String>>,
-    pub bench: ReadSignal<f32>,
-    pub set_bench: WriteSignal<f32>,
-    pub bench_error: ReadSignal<Option<String>>,
-    pub set_bench_error: WriteSignal<Option<String>>,
-    pub deadlift: ReadSignal<f32>,
-    pub set_deadlift: WriteSignal<f32>,
-    pub deadlift_error: ReadSignal<Option<String>>,
-    pub set_deadlift_error: WriteSignal<Option<String>>,
-    pub bodyweight: ReadSignal<f32>,
-    pub set_bodyweight: WriteSignal<f32>,
-    pub bodyweight_error: ReadSignal<Option<String>>,
-    pub set_bodyweight_error: WriteSignal<Option<String>>,
-    pub calculated: ReadSignal<bool>,
-    pub set_calculated: WriteSignal<bool>,
-    pub calculating: ReadSignal<bool>,
-    pub set_calculating: WriteSignal<bool>,
-    pub has_input_error: Memo<bool>,
-    pub reveal_tick: ReadSignal<u64>,
-    pub set_reveal_tick: WriteSignal<u64>,
-    pub percentile: Memo<Option<(f32, usize, u32)>>,
-    pub rank_tier: Memo<Option<&'static str>>,
-    pub user_lift: Memo<f32>,
-    pub load_error: ReadSignal<Option<String>>,
-    pub rebinned_hist: Memo<Option<HistogramBin>>,
-    pub hist_x_label: Memo<String>,
-    pub heat: ReadSignal<Option<HeatmapBin>>,
-    pub rebinned_heat: Memo<Option<HeatmapBin>>,
-    pub canvas_ref: NodeRef<Canvas>,
-    pub set_squat_delta: WriteSignal<f32>,
-    pub set_bench_delta: WriteSignal<f32>,
-    pub set_deadlift_delta: WriteSignal<f32>,
-    pub set_lift_mult: WriteSignal<usize>,
-    pub set_bw_mult: WriteSignal<usize>,
-}
-
 #[component]
-pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
-    let RankingCtx {
-        dataset_blurb,
-        ranking_cohort_blurb,
-        sex_opts,
-        sex,
-        set_sex,
-        equip_opts,
-        equip,
-        set_equip,
-        unit_label,
-        use_lbs,
-        set_use_lbs,
-        wc_opts,
-        wc,
-        set_wc,
-        age_opts,
-        age,
-        set_age,
-        tested_opts,
-        tested,
-        set_tested,
-        lift_opts,
-        lift,
-        set_lift,
-        metric_opts,
-        metric,
-        set_metric,
-        squat,
-        set_squat,
-        squat_error,
-        set_squat_error,
-        bench,
-        set_bench,
-        bench_error,
-        set_bench_error,
-        deadlift,
-        set_deadlift,
-        deadlift_error,
-        set_deadlift_error,
-        bodyweight,
-        set_bodyweight,
-        bodyweight_error,
-        set_bodyweight_error,
-        calculated,
-        set_calculated,
-        calculating,
-        set_calculating,
-        has_input_error,
-        reveal_tick,
-        set_reveal_tick,
-        percentile,
-        rank_tier,
-        user_lift,
-        load_error,
-        rebinned_hist,
-        hist_x_label,
-        heat: _heat,
-        rebinned_heat: _rebinned_heat,
-        canvas_ref: _canvas_ref,
-        set_squat_delta,
-        set_bench_delta,
-        set_deadlift_delta,
-        set_lift_mult,
-        set_bw_mult,
-    } = ctx;
+pub fn RankingPage() -> impl IntoView {
+    let app = use_context::<AppState>().expect("AppState must be provided by App");
+    let sel = app.selection;
+    let inp = app.input;
+    let cmp = app.compute;
+    let dataset_blurb = cmp.dataset_blurb;
+    let ranking_cohort_blurb = cmp.ranking_cohort_blurb;
+    let percentile = cmp.percentile;
+    let rank_tier = cmp.rank_tier;
+    let user_lift = cmp.user_lift;
+    let load_error = cmp.load_error;
+    let rebinned_hist = cmp.rebinned_hist;
+    let hist_x_label = cmp.hist_x_label;
+    let calculated = cmp.calculated;
+    let use_lbs = inp.use_lbs;
+    let unit_label = inp.unit_label;
+    let lift = sel.lift;
+    let metric = sel.metric;
+    let wc = sel.wc;
+    let sex = sel.sex;
+    let equip = sel.equip;
+    let squat = inp.squat;
+    let bench = inp.bench;
+    let deadlift = inp.deadlift;
 
     let total_kg = Memo::new(move |_| squat.get() + bench.get() + deadlift.get());
     let pct_num = Memo::new(move |_| percentile.get().map(|(p, _, _)| p * 100.0));
@@ -377,61 +269,6 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
         );
     });
 
-    let form_ctx = InputFormCtx {
-        sex_opts,
-        sex,
-        set_sex,
-        equip_opts,
-        equip,
-        set_equip,
-        unit_label,
-        use_lbs,
-        set_use_lbs,
-        wc_opts,
-        wc,
-        set_wc,
-        age_opts,
-        age,
-        set_age,
-        tested_opts,
-        tested,
-        set_tested,
-        lift_opts,
-        lift,
-        set_lift,
-        metric_opts,
-        metric,
-        set_metric,
-        squat,
-        set_squat,
-        squat_error,
-        set_squat_error,
-        bench,
-        set_bench,
-        bench_error,
-        set_bench_error,
-        deadlift,
-        set_deadlift,
-        deadlift_error,
-        set_deadlift_error,
-        bodyweight,
-        set_bodyweight,
-        bodyweight_error,
-        set_bodyweight_error,
-        calculated,
-        set_calculated,
-        calculating,
-        set_calculating,
-        has_input_error,
-        reveal_tick,
-        set_reveal_tick,
-        set_squat_delta,
-        set_bench_delta,
-        set_deadlift_delta,
-        set_lift_mult,
-        set_bw_mult,
-    };
-
     view! {
         <section class="page active" id="page-ranking">
             <div class="page-head">
@@ -456,7 +293,7 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
                         <span>"INPUT"</span>
                     </div>
                     <div class="panel-body">
-                        <InputForm ctx=form_ctx />
+                        <InputForm />
                     </div>
                 </div>
 

@@ -11,7 +11,6 @@ mod slices;
 mod state;
 mod ui;
 
-use self::charts::draw_heatmap;
 use self::cross_sex::{
     CrossSexComparisonCtx, CrossSexHeatCtx, CrossSexHistCtx, CrossSexLiftComparisonCtx,
     CrossSexRowsCtx, choose_cross_sex_slice, make_cross_sex_comparison,
@@ -23,22 +22,18 @@ use self::persistence::{
     HashNavCtx, QueryLoadCtx, StatePersistCtx, UnitPrefCtx, setup_hash_nav_effects,
     setup_query_load_effect, setup_state_persist_effect, setup_unit_pref_effects,
 };
-use self::models::{
-    CrossSexLiftComparison, LatestJson, RootIndex, SliceRow, SliceSummary, TrendSeries,
-};
+use self::models::{CrossSexLiftComparison, LatestJson, RootIndex, SliceRow, SliceSummary};
 use self::selectors::{
     age_options, equip_options, lift_options, metric_options, sex_options, slice_selector_index,
     tested_options, wc_options,
 };
 use self::state::{
-    init_dataset_load, setup_default_selection_effects, setup_distribution_effect,
-    setup_slice_rows_effect, setup_slice_summary_effect, setup_trends_effect,
+    AppState, ComputeState, LifterInputState, SelectionState, init_dataset_load,
+    setup_default_selection_effects, setup_distribution_effect, setup_slice_rows_effect,
+    setup_slice_summary_effect,
 };
 use self::ui::metric_label;
 use crate::core::{HeatmapBin, HistogramBin, percentile_for_value, rebin_1d, rebin_2d};
-use leptos::ev;
-use leptos::html::Canvas;
-use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::mount::mount_to;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
@@ -114,7 +109,6 @@ fn App() -> impl IntoView {
     let (latest, set_latest) = signal(None::<LatestJson>);
     let (root_index, set_root_index) = signal(None::<RootIndex>);
     let (slice_rows, set_slice_rows) = signal(Vec::<SliceRow>::new());
-    let (trend_series, set_trend_series) = signal(Vec::<TrendSeries>::new());
     let (load_error, set_load_error) = signal(None::<String>);
 
     let (sex, set_sex) = signal(String::new());
@@ -145,7 +139,6 @@ fn App() -> impl IntoView {
     let (slice_request_id, set_slice_request_id) = signal(0u64);
     let (summary_request_id, set_summary_request_id) = signal(0u64);
     let (dist_request_id, set_dist_request_id) = signal(0u64);
-    let (trends_request_id, set_trends_request_id) = signal(0u64);
     let (slice_summary, set_slice_summary) = signal(None::<SliceSummary>);
     let (_hist_load_ms, set_hist_load_ms) = signal(None::<u32>);
     let (_heat_load_ms, set_heat_load_ms) = signal(None::<u32>);
@@ -173,16 +166,9 @@ fn App() -> impl IntoView {
         signal(None::<String>);
     let (cross_sex_lift_comparison_request_id, set_cross_sex_lift_comparison_request_id) =
         signal(0u64);
-    let (heatmap_resize_tick, set_heatmap_resize_tick) = signal(0u32);
 
-    let canvas_ref: NodeRef<Canvas> = NodeRef::new();
     let nerds_page_active = Memo::new(move |_| active_page.get() == AppPage::Nerds);
     let cross_sex_page_active = Memo::new(move |_| active_page.get() == AppPage::MenVsWomen);
-
-    let heatmap_resize_handle = window_event_listener(ev::resize, move |_| {
-        set_heatmap_resize_tick.update(|tick| *tick = tick.wrapping_add(1));
-    });
-    on_cleanup(move || heatmap_resize_handle.remove());
 
     init_dataset_load(
         set_latest,
@@ -205,17 +191,6 @@ fn App() -> impl IntoView {
             set: set_slice_request_id,
         },
     });
-
-    setup_trends_effect(
-        latest,
-        root_index,
-        sex,
-        equip,
-        nerds_page_active,
-        set_trend_series,
-        trends_request_id,
-        set_trends_request_id,
-    );
 
     setup_cross_sex_rows_effect(CrossSexRowsCtx {
         page_active: cross_sex_page_active,
@@ -529,24 +504,6 @@ fn App() -> impl IntoView {
         },
     });
 
-    // Heatmap canvas drawing
-    Effect::new(move |_| {
-        let _ = heatmap_resize_tick.get();
-        let Some(canvas) = canvas_ref.get() else {
-            return;
-        };
-        let Some(h) = rebinned_heat.get() else {
-            return;
-        };
-        draw_heatmap(
-            &canvas,
-            &h,
-            nerds_page_active.get().then(|| user_lift.get()),
-            bodyweight.get(),
-            &hist_x_label.get(),
-        );
-    });
-
     setup_unit_pref_effects(UnitPrefCtx {
         loaded: unit_pref_loaded,
         set_loaded: set_unit_pref_loaded,
@@ -625,143 +582,80 @@ fn App() -> impl IntoView {
         deadlift,
     });
 
-    // Build context structs for page components
-    let ranking_ctx = components::RankingCtx {
-        dataset_blurb,
-        ranking_cohort_blurb,
-        sex_opts,
-        sex,
-        set_sex,
-        equip_opts,
-        equip,
-        set_equip,
-        unit_label,
-        use_lbs,
-        set_use_lbs,
-        wc_opts,
-        wc,
-        set_wc,
-        age_opts,
-        age,
-        set_age,
-        tested_opts,
-        tested,
-        set_tested,
-        lift_opts,
-        lift,
-        set_lift,
-        metric_opts,
-        metric,
-        set_metric,
-        squat,
-        set_squat,
-        squat_error,
-        set_squat_error,
-        bench,
-        set_bench,
-        bench_error,
-        set_bench_error,
-        deadlift,
-        set_deadlift,
-        deadlift_error,
-        set_deadlift_error,
-        bodyweight,
-        set_bodyweight,
-        bodyweight_error,
-        set_bodyweight_error,
-        calculated,
-        set_calculated,
-        calculating,
-        set_calculating,
-        has_input_error,
-        reveal_tick,
-        set_reveal_tick,
-        percentile,
-        rank_tier,
-        user_lift,
-        load_error,
-        rebinned_hist,
-        hist_x_label,
-        heat,
-        rebinned_heat,
-        canvas_ref: canvas_ref.clone(),
-        set_squat_delta,
-        set_bench_delta,
-        set_deadlift_delta,
-        set_lift_mult,
-        set_bw_mult,
+    // Provide grouped state via Leptos context — pages read it via use_context.
+    let app_state = AppState {
+        selection: SelectionState {
+            sex,
+            set_sex,
+            equip,
+            set_equip,
+            wc,
+            set_wc,
+            age,
+            set_age,
+            tested,
+            set_tested,
+            lift,
+            set_lift,
+            metric,
+            set_metric,
+            sex_opts,
+            equip_opts,
+            wc_opts,
+            age_opts,
+            tested_opts,
+            lift_opts,
+            metric_opts,
+        },
+        input: LifterInputState {
+            squat,
+            set_squat,
+            squat_error,
+            set_squat_error,
+            bench,
+            set_bench,
+            bench_error,
+            set_bench_error,
+            deadlift,
+            set_deadlift,
+            deadlift_error,
+            set_deadlift_error,
+            bodyweight,
+            set_bodyweight,
+            bodyweight_error,
+            set_bodyweight_error,
+            use_lbs,
+            set_use_lbs,
+            set_squat_delta,
+            set_bench_delta,
+            set_deadlift_delta,
+            set_lift_mult,
+            set_bw_mult,
+            has_input_error,
+            unit_label,
+        },
+        compute: ComputeState {
+            calculated,
+            set_calculated,
+            calculating,
+            set_calculating,
+            reveal_tick,
+            set_reveal_tick,
+            user_lift,
+            percentile,
+            rank_tier,
+            rebinned_hist,
+            rebinned_heat,
+            hist_x_label,
+            load_error,
+            dataset_blurb,
+            ranking_cohort_blurb,
+            slice_summary,
+        },
     };
-
-    let nerds_ctx = components::NerdsCtx {
-        dataset_blurb,
-        sex_opts: sex_options(root_index),
-        sex,
-        set_sex,
-        equip_opts: equip_options(root_index, sex),
-        equip,
-        set_equip,
-        unit_label,
-        use_lbs,
-        set_use_lbs,
-        wc_opts: wc_options(selector_index),
-        wc,
-        set_wc,
-        age_opts: age_options(selector_index, wc),
-        age,
-        set_age,
-        tested_opts: tested_options(selector_index, wc, age),
-        tested,
-        set_tested,
-        lift_opts: lift_options(selector_index, wc, age, tested),
-        lift,
-        set_lift,
-        metric_opts: metric_options(selector_index, wc, age, tested, lift),
-        metric,
-        set_metric,
-        squat,
-        set_squat,
-        squat_error,
-        set_squat_error,
-        bench,
-        set_bench,
-        bench_error,
-        set_bench_error,
-        deadlift,
-        set_deadlift,
-        deadlift_error,
-        set_deadlift_error,
-        bodyweight,
-        set_bodyweight,
-        bodyweight_error,
-        set_bodyweight_error,
-        calculated,
-        set_calculated,
-        calculating,
-        set_calculating,
-        has_input_error,
-        reveal_tick,
-        set_reveal_tick,
-        percentile,
-        rank_tier,
-        user_lift,
-        load_error,
-        rebinned_hist,
-        hist_x_label,
-        heat,
-        rebinned_heat,
-        canvas_ref,
-        set_squat_delta,
-        set_bench_delta,
-        set_deadlift_delta,
-        set_lift_mult,
-        set_bw_mult,
-        slice_summary,
-        trend_series,
-    };
+    provide_context(app_state);
 
     let mvw_ctx = components::MenVsWomenCtx {
-        dataset_blurb,
-        calculated,
         cross_sex_comparison,
         male_hist: male_cross_hist,
         female_hist: female_cross_hist,
@@ -771,12 +665,6 @@ fn App() -> impl IntoView {
         hist_error: cross_sex_hist_error,
         heat_loading: cross_sex_heat_loading,
         heat_error: cross_sex_heat_error,
-        user_lift,
-        bodyweight,
-        hist_x_label,
-        use_lbs,
-        unit_label,
-        slice_summary,
         lift_comparisons: cross_sex_lift_comparisons,
         lift_comparison_loading: cross_sex_lift_comparison_loading,
         lift_comparison_error: cross_sex_lift_comparison_error,
@@ -839,10 +727,10 @@ fn App() -> impl IntoView {
                 </div>
 
                 <Show when=move || active_page.get() == AppPage::Ranking>
-                    <components::RankingPage ctx=ranking_ctx.clone() />
+                    <components::RankingPage />
                 </Show>
                 <Show when=move || active_page.get() == AppPage::Nerds>
-                    <components::NerdsPage ctx=nerds_ctx.clone() />
+                    <components::NerdsPage />
                 </Show>
                 <Show when=move || active_page.get() == AppPage::MenVsWomen>
                     <components::MenVsWomenPage ctx=mvw_ctx.clone() />

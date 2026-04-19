@@ -2,7 +2,6 @@ use super::data::{fetch_binary_first, fetch_json_first};
 use super::debug_log;
 use super::models::{
     LatestJson, RootIndex, SliceIndex, SliceIndexEntries, SliceMetaJson, SliceRow, SliceSummary,
-    TrendSeries, TrendsJson,
 };
 use super::slices::{entry_from_slice_key, parse_shard_key, parse_slice_key};
 use super::ui::{pick_preferred, unique};
@@ -11,6 +10,91 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+
+/// Grouped cohort selection signals + their option memos.
+#[derive(Clone, Copy)]
+pub(super) struct SelectionState {
+    pub sex: ReadSignal<String>,
+    pub set_sex: WriteSignal<String>,
+    pub equip: ReadSignal<String>,
+    pub set_equip: WriteSignal<String>,
+    pub wc: ReadSignal<String>,
+    pub set_wc: WriteSignal<String>,
+    pub age: ReadSignal<String>,
+    pub set_age: WriteSignal<String>,
+    pub tested: ReadSignal<String>,
+    pub set_tested: WriteSignal<String>,
+    pub lift: ReadSignal<String>,
+    pub set_lift: WriteSignal<String>,
+    pub metric: ReadSignal<String>,
+    pub set_metric: WriteSignal<String>,
+    pub sex_opts: Memo<Vec<String>>,
+    pub equip_opts: Memo<Vec<String>>,
+    pub wc_opts: Memo<Vec<String>>,
+    pub age_opts: Memo<Vec<String>>,
+    pub tested_opts: Memo<Vec<String>>,
+    pub lift_opts: Memo<Vec<String>>,
+    pub metric_opts: Memo<Vec<String>>,
+}
+
+/// Grouped lifter inputs (squat/bench/deadlift/bw + units + errors + chart multipliers).
+#[derive(Clone, Copy)]
+pub(super) struct LifterInputState {
+    pub squat: ReadSignal<f32>,
+    pub set_squat: WriteSignal<f32>,
+    pub squat_error: ReadSignal<Option<String>>,
+    pub set_squat_error: WriteSignal<Option<String>>,
+    pub bench: ReadSignal<f32>,
+    pub set_bench: WriteSignal<f32>,
+    pub bench_error: ReadSignal<Option<String>>,
+    pub set_bench_error: WriteSignal<Option<String>>,
+    pub deadlift: ReadSignal<f32>,
+    pub set_deadlift: WriteSignal<f32>,
+    pub deadlift_error: ReadSignal<Option<String>>,
+    pub set_deadlift_error: WriteSignal<Option<String>>,
+    pub bodyweight: ReadSignal<f32>,
+    pub set_bodyweight: WriteSignal<f32>,
+    pub bodyweight_error: ReadSignal<Option<String>>,
+    pub set_bodyweight_error: WriteSignal<Option<String>>,
+    pub use_lbs: ReadSignal<bool>,
+    pub set_use_lbs: WriteSignal<bool>,
+    pub set_squat_delta: WriteSignal<f32>,
+    pub set_bench_delta: WriteSignal<f32>,
+    pub set_deadlift_delta: WriteSignal<f32>,
+    pub set_lift_mult: WriteSignal<usize>,
+    pub set_bw_mult: WriteSignal<usize>,
+    pub has_input_error: Memo<bool>,
+    pub unit_label: Memo<&'static str>,
+}
+
+/// Compute / derived state shared across pages (percentile, hist, blurbs).
+#[derive(Clone, Copy)]
+pub(super) struct ComputeState {
+    pub calculated: ReadSignal<bool>,
+    pub set_calculated: WriteSignal<bool>,
+    pub calculating: ReadSignal<bool>,
+    pub set_calculating: WriteSignal<bool>,
+    pub reveal_tick: ReadSignal<u64>,
+    pub set_reveal_tick: WriteSignal<u64>,
+    pub user_lift: Memo<f32>,
+    pub percentile: Memo<Option<(f32, usize, u32)>>,
+    pub rank_tier: Memo<Option<&'static str>>,
+    pub rebinned_hist: Memo<Option<HistogramBin>>,
+    pub rebinned_heat: Memo<Option<HeatmapBin>>,
+    pub hist_x_label: Memo<String>,
+    pub load_error: ReadSignal<Option<String>>,
+    pub dataset_blurb: Memo<String>,
+    pub ranking_cohort_blurb: Memo<String>,
+    pub slice_summary: ReadSignal<Option<SliceSummary>>,
+}
+
+/// Single shared application state distributed via `provide_context`.
+#[derive(Clone, Copy)]
+pub(super) struct AppState {
+    pub selection: SelectionState,
+    pub input: LifterInputState,
+    pub compute: ComputeState,
+}
 
 pub(super) struct DefaultSelectionOptions {
     pub(super) equip: Memo<Vec<String>>,
@@ -213,69 +297,6 @@ pub(super) fn setup_slice_rows_effect(context: SliceRowsEffectContext) {
             rows.sort_by(|a, b| a.key.cmp(&b.key));
             set_load_error.set(None);
             set_slice_rows.set(rows);
-        });
-    });
-}
-
-pub(super) fn setup_trends_effect(
-    latest: ReadSignal<Option<LatestJson>>,
-    root_index: ReadSignal<Option<RootIndex>>,
-    sex: ReadSignal<String>,
-    equip: ReadSignal<String>,
-    should_load_trends: Memo<bool>,
-    set_trends: WriteSignal<Vec<TrendSeries>>,
-    trends_request_id: ReadSignal<u64>,
-    set_trends_request_id: WriteSignal<u64>,
-) {
-    Effect::new(move |_| {
-        let next_request_id = trends_request_id.get_untracked().wrapping_add(1);
-        set_trends_request_id.set(next_request_id);
-
-        let latest_v = latest.get();
-        let root = root_index.get();
-        let load_trends = should_load_trends.get();
-        let shard_key = format!("sex={}|equip={}", sex.get(), equip.get());
-
-        if !load_trends {
-            set_trends.set(Vec::new());
-            return;
-        }
-
-        let (Some(latest_v), Some(root)) = (latest_v, root) else {
-            set_trends.set(Vec::new());
-            return;
-        };
-
-        let Some(shard_rel) = root.trends_shards.get(&shard_key).cloned() else {
-            set_trends.set(Vec::new());
-            return;
-        };
-
-        let set_trends = set_trends;
-        let trends_request_id = trends_request_id;
-        spawn_local(async move {
-            let trends_url = data_url(&format!("{}/{}", latest_v.version, shard_rel));
-            match fetch_json_first::<TrendsJson>(&[&trends_url]).await {
-                Ok(payload) => {
-                    if trends_request_id.get_untracked() != next_request_id {
-                        debug_log(&format!(
-                            "Ignored stale trends response for request {next_request_id}"
-                        ));
-                        return;
-                    }
-                    if payload.bucket == "year" {
-                        set_trends.set(payload.series);
-                    } else {
-                        set_trends.set(Vec::new());
-                    }
-                }
-                Err(_err) => {
-                    if trends_request_id.get_untracked() != next_request_id {
-                        return;
-                    }
-                    set_trends.set(Vec::new());
-                }
-            }
         });
     });
 }

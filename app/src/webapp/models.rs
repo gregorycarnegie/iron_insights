@@ -33,29 +33,6 @@ pub(super) struct LatestJson {
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct RootIndex {
     pub(super) shards: BTreeMap<String, String>,
-    #[serde(default)]
-    pub(super) trends_shards: BTreeMap<String, String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub(super) struct TrendsJson {
-    pub(super) bucket: String,
-    pub(super) series: Vec<TrendSeries>,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Deserialize)]
-pub(super) struct TrendSeries {
-    pub(super) key: String,
-    pub(super) points: Vec<TrendPoint>,
-}
-
-#[derive(Debug, Clone, Deserialize, PartialEq)]
-pub(super) struct TrendPoint {
-    pub(super) year: i32,
-    pub(super) total: u32,
-    pub(super) p50: f32,
-    pub(super) p90: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -8,8 +8,8 @@ mod shared;
 
 pub(super) use bodyfat::BodyfatPage;
 pub(super) use men_vs_women::{MenVsWomenCtx, MenVsWomenPage};
-pub(super) use nerds::{NerdsCtx, NerdsPage};
+pub(super) use nerds::NerdsPage;
 pub(super) use one_rm::OneRmPage;
 pub(super) use plate_calc::PlateCalcPage;
-pub(super) use ranking::{RankingCtx, RankingPage};
+pub(super) use ranking::RankingPage;
 

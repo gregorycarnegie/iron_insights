@@ -1,8 +1,10 @@
-use super::shared::{Corners, InputForm, InputFormCtx};
-use crate::core::{HeatmapBin, HistogramBin};
+use super::shared::{Corners, InputForm};
+use crate::webapp::charts::draw_heatmap;
 use crate::webapp::helpers::kg_to_display;
-use crate::webapp::models::{SliceSummary, TrendSeries};
+use crate::webapp::state::AppState;
+use leptos::ev;
 use leptos::html::Canvas;
+use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::prelude::*;
 
 const REF_SQUAT_PCT: f32 = 35.0;
@@ -93,143 +95,49 @@ fn archetype(squat_pct: f32, bench_pct: f32, deadlift_pct: f32) -> (&'static str
     }
 }
 
-#[allow(dead_code)]
-#[derive(Clone)]
-pub struct NerdsCtx {
-    pub dataset_blurb: Memo<String>,
-    pub sex_opts: Memo<Vec<String>>,
-    pub sex: ReadSignal<String>,
-    pub set_sex: WriteSignal<String>,
-    pub equip_opts: Memo<Vec<String>>,
-    pub equip: ReadSignal<String>,
-    pub set_equip: WriteSignal<String>,
-    pub unit_label: Memo<&'static str>,
-    pub use_lbs: ReadSignal<bool>,
-    pub set_use_lbs: WriteSignal<bool>,
-    pub wc_opts: Memo<Vec<String>>,
-    pub wc: ReadSignal<String>,
-    pub set_wc: WriteSignal<String>,
-    pub age_opts: Memo<Vec<String>>,
-    pub age: ReadSignal<String>,
-    pub set_age: WriteSignal<String>,
-    pub tested_opts: Memo<Vec<String>>,
-    pub tested: ReadSignal<String>,
-    pub set_tested: WriteSignal<String>,
-    pub lift_opts: Memo<Vec<String>>,
-    pub lift: ReadSignal<String>,
-    pub set_lift: WriteSignal<String>,
-    pub metric_opts: Memo<Vec<String>>,
-    pub metric: ReadSignal<String>,
-    pub set_metric: WriteSignal<String>,
-    pub squat: ReadSignal<f32>,
-    pub set_squat: WriteSignal<f32>,
-    pub squat_error: ReadSignal<Option<String>>,
-    pub set_squat_error: WriteSignal<Option<String>>,
-    pub bench: ReadSignal<f32>,
-    pub set_bench: WriteSignal<f32>,
-    pub bench_error: ReadSignal<Option<String>>,
-    pub set_bench_error: WriteSignal<Option<String>>,
-    pub deadlift: ReadSignal<f32>,
-    pub set_deadlift: WriteSignal<f32>,
-    pub deadlift_error: ReadSignal<Option<String>>,
-    pub set_deadlift_error: WriteSignal<Option<String>>,
-    pub bodyweight: ReadSignal<f32>,
-    pub set_bodyweight: WriteSignal<f32>,
-    pub bodyweight_error: ReadSignal<Option<String>>,
-    pub set_bodyweight_error: WriteSignal<Option<String>>,
-    pub calculated: ReadSignal<bool>,
-    pub set_calculated: WriteSignal<bool>,
-    pub calculating: ReadSignal<bool>,
-    pub set_calculating: WriteSignal<bool>,
-    pub has_input_error: Memo<bool>,
-    pub reveal_tick: ReadSignal<u64>,
-    pub set_reveal_tick: WriteSignal<u64>,
-    pub percentile: Memo<Option<(f32, usize, u32)>>,
-    pub rank_tier: Memo<Option<&'static str>>,
-    pub user_lift: Memo<f32>,
-    pub load_error: ReadSignal<Option<String>>,
-    pub rebinned_hist: Memo<Option<HistogramBin>>,
-    pub hist_x_label: Memo<String>,
-    pub heat: ReadSignal<Option<HeatmapBin>>,
-    pub rebinned_heat: Memo<Option<HeatmapBin>>,
-    pub canvas_ref: NodeRef<Canvas>,
-    pub set_squat_delta: WriteSignal<f32>,
-    pub set_bench_delta: WriteSignal<f32>,
-    pub set_deadlift_delta: WriteSignal<f32>,
-    pub set_lift_mult: WriteSignal<usize>,
-    pub set_bw_mult: WriteSignal<usize>,
-    pub slice_summary: ReadSignal<Option<SliceSummary>>,
-    pub trend_series: ReadSignal<Vec<TrendSeries>>,
-}
-
 #[component]
-pub fn NerdsPage(ctx: NerdsCtx) -> impl IntoView {
-    let NerdsCtx {
-        dataset_blurb,
-        sex_opts,
-        sex,
-        set_sex,
-        equip_opts,
-        equip,
-        set_equip,
-        unit_label,
-        use_lbs,
-        set_use_lbs,
-        wc_opts,
-        wc,
-        set_wc,
-        age_opts,
-        age,
-        set_age,
-        tested_opts,
-        tested,
-        set_tested,
-        lift_opts,
-        lift,
-        set_lift,
-        metric_opts,
-        metric,
-        set_metric,
-        squat,
-        set_squat,
-        squat_error,
-        set_squat_error,
-        bench,
-        set_bench,
-        bench_error,
-        set_bench_error,
-        deadlift,
-        set_deadlift,
-        deadlift_error,
-        set_deadlift_error,
-        bodyweight,
-        set_bodyweight,
-        bodyweight_error,
-        set_bodyweight_error,
-        calculated,
-        set_calculated,
-        calculating,
-        set_calculating,
-        has_input_error,
-        reveal_tick,
-        set_reveal_tick,
-        percentile,
-        rank_tier,
-        user_lift: _,
-        load_error: _,
-        rebinned_hist: _,
-        hist_x_label: _,
-        heat: _,
-        rebinned_heat,
-        canvas_ref,
-        set_squat_delta,
-        set_bench_delta,
-        set_deadlift_delta,
-        set_lift_mult,
-        set_bw_mult,
-        slice_summary,
-        trend_series: _,
-    } = ctx;
+pub fn NerdsPage() -> impl IntoView {
+    let app = use_context::<AppState>().expect("AppState must be provided by App");
+    let inp = app.input;
+    let cmp = app.compute;
+    let dataset_blurb = cmp.dataset_blurb;
+    let percentile = cmp.percentile;
+    let rank_tier = cmp.rank_tier;
+    let user_lift = cmp.user_lift;
+    let calculated = cmp.calculated;
+    let rebinned_heat = cmp.rebinned_heat;
+    let hist_x_label = cmp.hist_x_label;
+    let slice_summary = cmp.slice_summary;
+    let use_lbs = inp.use_lbs;
+    let unit_label = inp.unit_label;
+    let bodyweight = inp.bodyweight;
+    let squat = inp.squat;
+    let bench = inp.bench;
+    let deadlift = inp.deadlift;
+
+    let canvas_ref: NodeRef<Canvas> = NodeRef::new();
+    let (heatmap_resize_tick, set_heatmap_resize_tick) = signal(0u32);
+    let resize_handle = window_event_listener(ev::resize, move |_| {
+        set_heatmap_resize_tick.update(|tick| *tick = tick.wrapping_add(1));
+    });
+    on_cleanup(move || resize_handle.remove());
+
+    Effect::new(move |_| {
+        let _ = heatmap_resize_tick.get();
+        let Some(canvas) = canvas_ref.get() else {
+            return;
+        };
+        let Some(h) = rebinned_heat.get() else {
+            return;
+        };
+        draw_heatmap(
+            &canvas,
+            &h,
+            calculated.get().then(|| user_lift.get()),
+            bodyweight.get(),
+            &hist_x_label.get(),
+        );
+    });
 
     let total_kg = Memo::new(move |_| squat.get() + bench.get() + deadlift.get());
     let squat_pct = Memo::new(move |_| {
@@ -265,61 +173,6 @@ pub fn NerdsPage(ctx: NerdsCtx) -> impl IntoView {
     let archetype = Memo::new(move |_| archetype(squat_pct.get(), bench_pct.get(), dl_pct.get()));
     let balance_index =
         Memo::new(move |_| balance_index(squat_pct.get(), bench_pct.get(), dl_pct.get()));
-
-    let form_ctx = InputFormCtx {
-        sex_opts,
-        sex,
-        set_sex,
-        equip_opts,
-        equip,
-        set_equip,
-        unit_label,
-        use_lbs,
-        set_use_lbs,
-        wc_opts,
-        wc,
-        set_wc,
-        age_opts,
-        age,
-        set_age,
-        tested_opts,
-        tested,
-        set_tested,
-        lift_opts,
-        lift,
-        set_lift,
-        metric_opts,
-        metric,
-        set_metric,
-        squat,
-        set_squat,
-        squat_error,
-        set_squat_error,
-        bench,
-        set_bench,
-        bench_error,
-        set_bench_error,
-        deadlift,
-        set_deadlift,
-        deadlift_error,
-        set_deadlift_error,
-        bodyweight,
-        set_bodyweight,
-        bodyweight_error,
-        set_bodyweight_error,
-        calculated,
-        set_calculated,
-        calculating,
-        set_calculating,
-        has_input_error,
-        reveal_tick,
-        set_reveal_tick,
-        set_squat_delta,
-        set_bench_delta,
-        set_deadlift_delta,
-        set_lift_mult,
-        set_bw_mult,
-    };
 
     view! {
         <section class="page active" id="page-nerds">
@@ -620,7 +473,7 @@ pub fn NerdsPage(ctx: NerdsCtx) -> impl IntoView {
                             <span>"FILTER"</span>
                         </div>
                         <div class="panel-body">
-                            <InputForm ctx=form_ctx />
+                            <InputForm />
                         </div>
                     </div>
                 </div>
