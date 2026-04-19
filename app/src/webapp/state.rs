@@ -96,6 +96,7 @@ pub(super) struct AppState {
     pub compute: ComputeState,
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct DefaultSelectionOptions {
     pub(super) equip: Memo<Vec<String>>,
     pub(super) wc: Memo<Vec<String>>,
@@ -105,6 +106,7 @@ pub(super) struct DefaultSelectionOptions {
     pub(super) metric: Memo<Vec<String>>,
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct DefaultSelectionSignals {
     pub(super) equip: ReadSignal<String>,
     pub(super) wc: ReadSignal<String>,
@@ -114,6 +116,7 @@ pub(super) struct DefaultSelectionSignals {
     pub(super) metric: ReadSignal<String>,
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct DefaultSelectionSetters {
     pub(super) equip: WriteSignal<String>,
     pub(super) wc: WriteSignal<String>,
@@ -147,6 +150,7 @@ pub(super) struct SliceRowsEffectContext {
     pub(super) request: RequestTracker,
 }
 
+#[allow(clippy::struct_field_names)]
 pub(super) struct DistributionOutputs {
     pub(super) set_hist: WriteSignal<Option<HistogramBin>>,
     pub(super) set_heat: WriteSignal<Option<HeatmapBin>>,
@@ -211,7 +215,7 @@ pub(super) fn init_dataset_load(
                     .iter()
                     .filter_map(|k| parse_shard_key(k).map(|(s, _)| s.to_string())),
             );
-            let sex_default = pick_preferred(sexes, "M");
+            let sex_default = pick_preferred(&sexes, "M");
             let equips = unique(shard_keys.iter().filter_map(|k| {
                 parse_shard_key(k).and_then(|(s, e)| {
                     if s == sex_default {
@@ -221,7 +225,7 @@ pub(super) fn init_dataset_load(
                     }
                 })
             }));
-            let equip_default = pick_preferred(equips, "Raw");
+            let equip_default = pick_preferred(&equips, "Raw");
             set_sex.set(sex_default);
             set_equip.set(equip_default);
         }
@@ -347,7 +351,50 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
             }
 
             // Fast path: payload is inlined as base64 — no network fetch needed.
-            if !row.entry.inline.is_empty() {
+            if row.entry.inline.is_empty() {
+                let bin_url = data_url(&format!("{}/{}", latest_v.version, row.entry.bin));
+                spawn_local(async move {
+                    if dist_request_id.get_untracked() != next_request_id {
+                        debug_log(&format!(
+                            "Ignored stale distribution response for request {next_request_id}"
+                        ));
+                        return;
+                    }
+
+                    if let Ok(bytes) = fetch_binary_first(&[&bin_url]).await {
+                        if dist_request_id.get_untracked() != next_request_id {
+                            debug_log(&format!(
+                                "Ignored stale combined payload for request {next_request_id}"
+                            ));
+                            return;
+                        }
+                        match parse_combined_bin(&bytes) {
+                            Some((hist, heat)) => {
+                                set_hist.set(Some(hist));
+                                set_hist_load_ms.set(Some(0));
+                                if should_load_heat {
+                                    set_heat.set(Some(heat));
+                                    set_heat_load_ms.set(Some(0));
+                                }
+                            }
+                            None => {
+                                set_load_error.set(Some(format!(
+                                    "Invalid or unsupported combined binary format: {bin_url}"
+                                )));
+                            }
+                        }
+                    } else {
+                        if dist_request_id.get_untracked() != next_request_id {
+                            debug_log(&format!(
+                                "Ignored stale combined error for request {next_request_id}"
+                            ));
+                            return;
+                        }
+                        set_hist.set(None);
+                        set_load_error.set(Some(format!("Failed to fetch data: {bin_url}")));
+                    }
+                });
+            } else {
                 match BASE64.decode(&row.entry.inline) {
                     Ok(bytes) => match parse_combined_bin(&bytes) {
                         Some((hist, heat)) => {
@@ -359,58 +406,12 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
                             }
                         }
                         None => {
-                            set_load_error.set(Some("Invalid inlined binary payload.".to_string()))
+                            set_load_error.set(Some("Invalid inlined binary payload.".to_string()));
                         }
                     },
                     Err(_) => set_load_error
                         .set(Some("Failed to decode inlined binary payload.".to_string())),
                 }
-            } else {
-                let bin_url = data_url(&format!("{}/{}", latest_v.version, row.entry.bin));
-                spawn_local(async move {
-                    if dist_request_id.get_untracked() != next_request_id {
-                        debug_log(&format!(
-                            "Ignored stale distribution response for request {next_request_id}"
-                        ));
-                        return;
-                    }
-
-                    match fetch_binary_first(&[&bin_url]).await {
-                        Ok(bytes) => {
-                            if dist_request_id.get_untracked() != next_request_id {
-                                debug_log(&format!(
-                                    "Ignored stale combined payload for request {next_request_id}"
-                                ));
-                                return;
-                            }
-                            match parse_combined_bin(&bytes) {
-                                Some((hist, heat)) => {
-                                    set_hist.set(Some(hist));
-                                    set_hist_load_ms.set(Some(0));
-                                    if should_load_heat {
-                                        set_heat.set(Some(heat));
-                                        set_heat_load_ms.set(Some(0));
-                                    }
-                                }
-                                None => {
-                                    set_load_error.set(Some(format!(
-                                        "Invalid or unsupported combined binary format: {bin_url}"
-                                    )));
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            if dist_request_id.get_untracked() != next_request_id {
-                                debug_log(&format!(
-                                    "Ignored stale combined error for request {next_request_id}"
-                                ));
-                                return;
-                            }
-                            set_hist.set(None);
-                            set_load_error.set(Some(format!("Failed to fetch data: {bin_url}")));
-                        }
-                    }
-                });
             }
         } else {
             outputs.set_hist.set(None);
@@ -505,7 +506,7 @@ fn setup_preferred_selection_effect(
 
         let selected = current.get();
         if !values.iter().any(|value| value == &selected) {
-            set_current.set(pick_preferred(values, preferred));
+            set_current.set(pick_preferred(&values, preferred));
         }
     });
 }

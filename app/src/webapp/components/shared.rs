@@ -76,11 +76,11 @@ pub(super) fn InputForm() -> impl IntoView {
                         on:input=move |ev| {
                             let raw = parse_f32_input(&ev);
                             let kg = display_to_kg(raw, inp.use_lbs.get());
-                            if !(35.0..=300.0).contains(&kg) {
-                                inp.set_bodyweight_error.set(Some("Enter 35–300 kg.".to_string()));
-                            } else {
+                            if (35.0..=300.0).contains(&kg) {
                                 inp.set_bodyweight_error.set(None);
                                 inp.set_bodyweight.set(kg);
+                            } else {
+                                inp.set_bodyweight_error.set(Some("Enter 35–300 kg.".to_string()));
                             }
                         }
                     />
@@ -100,11 +100,11 @@ pub(super) fn InputForm() -> impl IntoView {
                         on:input=move |ev| {
                             let raw = parse_f32_input(&ev);
                             let kg = display_to_kg(raw, inp.use_lbs.get());
-                            if !(0.0..=600.0).contains(&kg) {
-                                inp.set_squat_error.set(Some("Enter 0–600 kg.".to_string()));
-                            } else {
+                            if (0.0..=600.0).contains(&kg) {
                                 inp.set_squat_error.set(None);
                                 inp.set_squat.set(kg);
+                            } else {
+                                inp.set_squat_error.set(Some("Enter 0–600 kg.".to_string()));
                             }
                         }
                     />
@@ -124,11 +124,11 @@ pub(super) fn InputForm() -> impl IntoView {
                         on:input=move |ev| {
                             let raw = parse_f32_input(&ev);
                             let kg = display_to_kg(raw, inp.use_lbs.get());
-                            if !(0.0..=600.0).contains(&kg) {
-                                inp.set_bench_error.set(Some("Enter 0–600 kg.".to_string()));
-                            } else {
+                            if (0.0..=600.0).contains(&kg) {
                                 inp.set_bench_error.set(None);
                                 inp.set_bench.set(kg);
+                            } else {
+                                inp.set_bench_error.set(Some("Enter 0–600 kg.".to_string()));
                             }
                         }
                     />
@@ -148,11 +148,11 @@ pub(super) fn InputForm() -> impl IntoView {
                         on:input=move |ev| {
                             let raw = parse_f32_input(&ev);
                             let kg = display_to_kg(raw, inp.use_lbs.get());
-                            if !(0.0..=600.0).contains(&kg) {
-                                inp.set_deadlift_error.set(Some("Enter 0–600 kg.".to_string()));
-                            } else {
+                            if (0.0..=600.0).contains(&kg) {
                                 inp.set_deadlift_error.set(None);
                                 inp.set_deadlift.set(kg);
+                            } else {
+                                inp.set_deadlift_error.set(Some("Enter 0–600 kg.".to_string()));
                             }
                         }
                     />

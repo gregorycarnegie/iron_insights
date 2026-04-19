@@ -45,9 +45,9 @@ pub(super) fn display_to_kg(value: f32, use_lbs: bool) -> f32 {
 pub(super) fn format_input_bound(value_kg: f32, use_lbs: bool) -> String {
     let value = kg_to_display(value_kg, use_lbs);
     if (value - value.round()).abs() < 0.05 {
-        format!("{:.0}", value)
+        format!("{value:.0}")
     } else {
-        format!("{:.1}", value)
+        format!("{value:.1}")
     }
 }
 

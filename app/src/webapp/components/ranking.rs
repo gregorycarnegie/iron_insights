@@ -176,9 +176,7 @@ pub fn RankingPage() -> impl IntoView {
     let pct_fraction = Memo::new(move |_| percentile.get().map(|(p, _, _)| p));
     let pct_display = Memo::new(move |_| {
         pct_num
-            .get()
-            .map(|p| format!("{:.1}", p))
-            .unwrap_or_else(|| "--".to_string())
+            .get().map_or_else(|| "--".to_string(), |p| format!("{p:.1}"))
     });
     let showing_sample_result = Memo::new(move |_| {
         calculated.get()
@@ -195,8 +193,7 @@ pub fn RankingPage() -> impl IntoView {
     let filled_dots = Memo::new(move |_| {
         pct_fraction
             .get()
-            .map(|p| (p * LADDER_DOTS as f32).round() as usize)
-            .unwrap_or(0)
+            .map_or(0, |p| (p * LADDER_DOTS as f32).round() as usize)
             .min(LADDER_DOTS)
     });
     let ladder_cohort = Memo::new(move |_| {
@@ -353,7 +350,7 @@ pub fn RankingPage() -> impl IntoView {
                                             "Sample result loaded. Change any number to see your own rank.".to_string()
                                         } else {
                                             match pct_num.get() {
-                                                Some(p) => format!("Ahead of {:.1}% of lifters in this cohort", p),
+                                                Some(p) => format!("Ahead of {p:.1}% of lifters in this cohort"),
                                                 None => load_error.get().unwrap_or_else(|| "Awaiting data...".to_string()),
                                             }
                                         }
@@ -387,9 +384,7 @@ pub fn RankingPage() -> impl IntoView {
                         <div class="panel-body">
                             <p class="chart-summary">
                                 {move || {
-                                    if !calculated.get() {
-                                        "Compute your lifts to see where your mark sits in the cohort distribution.".to_string()
-                                    } else {
+                                    if calculated.get() {
                                         match pct_num.get() {
                                             Some(p) => format!(
                                                 "Your {} {} mark out-lifts {:.1}% of lifters in this selected cohort.",
@@ -399,6 +394,8 @@ pub fn RankingPage() -> impl IntoView {
                                             ),
                                             None => "Loading the cohort distribution for your selected lift.".to_string(),
                                         }
+                                    } else {
+                                        "Compute your lifts to see where your mark sits in the cohort distribution.".to_string()
                                     }
                                 }}
                             </p>
@@ -418,7 +415,7 @@ pub fn RankingPage() -> impl IntoView {
                                                 }}
                                             </p>
                                             <canvas
-                                                node_ref=hist_canvas.clone()
+                                                node_ref=hist_canvas
                                                 class="hist"
                                                 role="img"
                                                 aria-label="Distribution curve with your input marker"
@@ -444,18 +441,18 @@ pub fn RankingPage() -> impl IntoView {
                         <div class="panel-body">
                             <p class="chart-summary">
                                 {move || {
-                                    if !calculated.get() {
-                                        "Compute to see how far you have climbed through the percentile tiers.".to_string()
-                                    } else {
+                                    if calculated.get() {
                                         match percentile.get() {
                                             Some((p, _, total)) => format!(
                                                 "You are at P{:.1}, ahead of {} of {} lifters in this selected cohort.",
                                                 p * 100.0,
-                                                beaten_lifters.get().map(format_count).unwrap_or_else(|| "0".to_string()),
+                                                beaten_lifters.get().map_or_else(|| "0".to_string(), format_count),
                                                 format_count(total),
                                             ),
                                             None => "Loading the percentile ladder for your selected cohort.".to_string(),
                                         }
+                                    } else {
+                                        "Compute to see how far you have climbed through the percentile tiers.".to_string()
                                     }
                                 }}
                             </p>
@@ -467,7 +464,7 @@ pub fn RankingPage() -> impl IntoView {
                                         Some((p, _, total)) => format!(
                                             "Tier ladder showing your percentile at {:.1}, ahead of {} of {} lifters.",
                                             p * 100.0,
-                                            beaten_lifters.get().map(format_count).unwrap_or_else(|| "0".to_string()),
+                                            beaten_lifters.get().map_or_else(|| "0".to_string(), format_count),
                                             format_count(total)
                                         ),
                                         None => "Tier ladder waiting for calculation.".to_string(),
@@ -482,7 +479,7 @@ pub fn RankingPage() -> impl IntoView {
                                         Some((p, _, total)) => format!(
                                             "You are now at percentile {:.1}, ahead of {} of {} lifters.",
                                             p * 100.0,
-                                            beaten_lifters.get().map(format_count).unwrap_or_else(|| "0".to_string()),
+                                            beaten_lifters.get().map_or_else(|| "0".to_string(), format_count),
                                             format_count(total),
                                         ),
                                         None => "Percentile ladder waiting for calculation.".to_string(),
@@ -514,8 +511,7 @@ pub fn RankingPage() -> impl IntoView {
                                                         {move || {
                                                             rebinned_hist
                                                                 .get()
-                                                                .and_then(|hist| value_for_percentile(Some(&hist), target_pct))
-                                                                .map(|value| {
+                                                                .and_then(|hist| value_for_percentile(Some(&hist), target_pct)).map_or_else(|| "--".to_string(), |value| {
                                                                     let l = lift.get();
                                                                     let m = metric.get();
                                                                     format!(
@@ -524,7 +520,6 @@ pub fn RankingPage() -> impl IntoView {
                                                                         format_score(value, &l, &m, use_lbs.get())
                                                                     )
                                                                 })
-                                                                .unwrap_or_else(|| "--".to_string())
                                                         }}
                                                     </div>
                                                 </div>
@@ -577,13 +572,11 @@ pub fn RankingPage() -> impl IntoView {
                                                     </div>
                                                     <div class="beat-readout">
                                                         <div class="beat-num">
-                                                            {move || beaten_lifters.get().map(format_count).unwrap_or_else(|| "--".to_string())}
+                                                            {move || beaten_lifters.get().map_or_else(|| "--".to_string(), format_count)}
                                                         </div>
                                                         <div class="beat-caption">"LIFTERS BEATEN"</div>
                                                         <div class="beat-sub">
-                                                            {move || percentile.get()
-                                                                .map(|(_, _, total)| format!("OF {} TOTAL", format_count(total)))
-                                                                .unwrap_or_else(|| "OF -- TOTAL".to_string())}
+                                                            {move || percentile.get().map_or_else(|| "OF -- TOTAL".to_string(), |(_, _, total)| format!("OF {} TOTAL", format_count(total)))}
                                                         </div>
                                                     </div>
                                                 </div>

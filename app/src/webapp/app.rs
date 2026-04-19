@@ -171,12 +171,14 @@ pub(super) fn App() -> impl IntoView {
 
     let selector_index = slice_selector_index(slice_rows);
     let current_row = Memo::new(move |_| {
-        let w = wc.get();
-        let a = age.get();
-        let t = tested.get();
-        let l = lift.get();
-        let m = metric.get();
-        selector_index.with(|index| index.current_row(&w, &a, &t, &l, &m))
+        let wc_now = wc.get();
+        let age_now = age.get();
+        let tested_now = tested.get();
+        let lift_now = lift.get();
+        let metric_now = metric.get();
+        selector_index.with(|index| {
+            index.current_row(&wc_now, &age_now, &tested_now, &lift_now, &metric_now)
+        })
     });
 
     {
@@ -185,55 +187,56 @@ pub(super) fn App() -> impl IntoView {
             if !calculated.get() || current_row.get().is_some() {
                 return;
             }
-            let t = tested.get();
-            let l = lift.get();
-            let m = metric.get();
-            let w = wc.get();
-            let a = age.get();
-            let candidates = fallback_index.with(|index| index.candidate_rows(&t, &l, &m));
+            let tested_now = tested.get();
+            let lift_now = lift.get();
+            let metric_now = metric.get();
+            let wc_now = wc.get();
+            let age_now = age.get();
+            let candidates = fallback_index
+                .with(|index| index.candidate_rows(&tested_now, &lift_now, &metric_now));
             if candidates.is_empty() {
                 return;
             }
             let best = candidates.into_iter().min_by_key(|row| {
                 (
-                    if row.key.wc == w {
+                    if row.key.wc == wc_now {
                         0
                     } else if row.key.wc == "All" {
                         1
                     } else {
                         2
                     },
-                    if row.key.age == a {
+                    if row.key.age == age_now {
                         0
                     } else if row.key.age == "All Ages" {
                         1
                     } else {
                         2
                     },
-                    if row.key.tested == t {
+                    if row.key.tested == tested_now {
                         0
                     } else if row.key.tested == "All" {
                         1
                     } else {
                         2
                     },
-                    if row.key.metric == m { 0 } else { 1 },
+                    i32::from(row.key.metric != metric_now),
                 )
             });
             if let Some(row) = best {
-                if row.key.wc != w {
+                if row.key.wc != wc_now {
                     set_wc.set(row.key.wc.clone());
                 }
-                if row.key.age != a {
+                if row.key.age != age_now {
                     set_age.set(row.key.age.clone());
                 }
-                if row.key.tested != t {
+                if row.key.tested != tested_now {
                     set_tested.set(row.key.tested.clone());
                 }
-                if row.key.lift != l {
+                if row.key.lift != lift_now {
                     set_lift.set(row.key.lift.clone());
                 }
-                if row.key.metric != m {
+                if row.key.metric != metric_now {
                     set_metric.set(row.key.metric.clone());
                 }
             }
@@ -474,7 +477,7 @@ pub(super) fn App() -> impl IntoView {
         set_use_lbs,
     });
 
-    setup_query_load_effect(QueryLoadCtx {
+    setup_query_load_effect(&QueryLoadCtx {
         query_loaded,
         set_query_loaded,
         set_sex,
@@ -774,7 +777,7 @@ pub(super) fn App() -> impl IntoView {
                     <components::NerdsPage />
                 </Show>
                 <Show when=move || active_page.get() == AppPage::MenVsWomen>
-                    <components::MenVsWomenPage ctx=mvw_ctx.clone() />
+                    <components::MenVsWomenPage ctx=mvw_ctx />
                 </Show>
                 <Show when=move || active_page.get() == AppPage::OneRm>
                     <components::OneRmPage />

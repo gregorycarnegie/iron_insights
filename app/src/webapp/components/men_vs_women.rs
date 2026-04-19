@@ -26,7 +26,7 @@ pub struct MenVsWomenCtx {
 
 fn format_kg(value: f32) -> String {
     if (value - value.round()).abs() < 0.05 {
-        format!("{:.0}", value)
+        format!("{value:.0}")
     } else {
         format!("{value:.1}")
     }
@@ -221,14 +221,12 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                     <p class="chart-summary">
                         {move || match (male_hist.get(), female_hist.get()) {
                             (Some(mh), Some(fh)) => {
-                                overlap_copy(&mh, &fh, &hist_x_label.get())
-                                    .map(|(female_p95, male_covered, _, _, metric)| {
+                                overlap_copy(&mh, &fh, &hist_x_label.get()).map_or_else(|| {
+                                        "The curves show how male and female lift distributions overlap in this cohort.".to_string()
+                                    }, |(female_p95, male_covered, _, _, metric)| {
                                         format!(
                                             "The female P95 mark is {female_p95} {metric}, which clears the bottom {male_covered} of male lifters in this cohort."
                                         )
-                                    })
-                                    .unwrap_or_else(|| {
-                                        "The curves show how male and female lift distributions overlap in this cohort.".to_string()
                                     })
                             }
                             _ => "Compute on Ranking first to compare the male and female distribution curves.".to_string(),
@@ -239,18 +237,16 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                             (Some(_), Some(_)) => view! {
                                 <p class="visually-hidden">
                                     {move || match (male_hist.get(), female_hist.get()) {
-                                        (Some(mh), Some(fh)) => overlap_copy(&mh, &fh, &hist_x_label.get())
-                                            .map(|(female_p95, male_covered, _, _, metric)| {
+                                        (Some(mh), Some(fh)) => overlap_copy(&mh, &fh, &hist_x_label.get()).map_or_else(|| "Distribution comparison chart for male and female cohorts.".to_string(), |(female_p95, male_covered, _, _, metric)| {
                                                 format!(
                                                     "Distribution comparison chart. The female P95 mark is {female_p95} {metric}, clearing the bottom {male_covered} of male lifters."
                                                 )
-                                            })
-                                            .unwrap_or_else(|| "Distribution comparison chart for male and female cohorts.".to_string()),
+                                            }),
                                         _ => "Distribution comparison chart loading.".to_string(),
                                     }}
                                 </p>
                                 <canvas
-                                    node_ref=curve_canvas.clone()
+                                    node_ref=curve_canvas
                                     class="hist"
                                     role="img"
                                     aria-label="Scaled normal distribution curves comparing men and women"
@@ -461,7 +457,7 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                                         )}
                                     </p>
                                     <canvas
-                                        node_ref=cross_canvas.clone()
+                                        node_ref=cross_canvas
                                         style="width:100%;height:100%;display:block"
                                         role="img"
                                         aria-label="Male and female lift by bodyweight density overlay"

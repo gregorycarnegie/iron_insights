@@ -9,7 +9,7 @@ pub(super) fn unique(items: impl Iterator<Item = String>) -> Vec<String> {
     set.into_iter().collect()
 }
 
-pub(super) fn pick_preferred(options: Vec<String>, preferred: &str) -> String {
+pub(super) fn pick_preferred(options: &[String], preferred: &str) -> String {
     if options.is_empty() {
         return String::new();
     }
@@ -33,7 +33,6 @@ pub(super) fn ipf_class_sort_key(class: &str) -> (u8, i32) {
 
 pub(super) fn metric_label(code: &str) -> &'static str {
     match code {
-        "Kg" => "Kg",
         "Dots" => "DOTS",
         "Wilks" => "Wilks",
         "GL" => "GL",

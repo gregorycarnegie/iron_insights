@@ -56,6 +56,6 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 
 ## 9. Hygiene
 
-- [ ] Enable `#![warn(clippy::pedantic)]` on the `webapp` module and fix the fallout.
+- [x] Enable `#![warn(clippy::pedantic)]` on the `webapp` module and fix the fallout.
 - [x] Scan for and remove any leftover `#[allow(dead_code)]` (at least `InputFormCtx`).
 - [x] Document the data-pipeline contract in `app/README.md`: `data/latest.json` → `root_index` → shard → slice → bin payload, so onboarding doesn't require reading all of `mod.rs`.

@@ -150,11 +150,11 @@ fn histogram_weighted_mean(hist: &HistogramBin) -> Option<(f32, u32)> {
         if count == 0 {
             continue;
         }
-        let center = hist.min as f64 + (idx as f64 + 0.5) * hist.base_bin as f64;
+        let center = f64::from(hist.min) + (idx as f64 + 0.5) * f64::from(hist.base_bin);
         total = total.saturating_add(count);
-        weighted_sum += center * count as f64;
+        weighted_sum += center * f64::from(count);
     }
-    (total > 0).then_some(((weighted_sum / total as f64) as f32, total))
+    (total > 0).then_some(((weighted_sum / f64::from(total)) as f32, total))
 }
 
 fn heatmap_mean_lift_bodyweight_ratio(heat: &HeatmapBin) -> Option<f32> {
@@ -169,7 +169,7 @@ fn heatmap_mean_lift_bodyweight_ratio(heat: &HeatmapBin) -> Option<f32> {
     let mut total = 0u32;
     let mut weighted_ratio = 0.0f64;
     for y in 0..heat.height {
-        let bodyweight = heat.min_y as f64 + (y as f64 + 0.5) * heat.base_y as f64;
+        let bodyweight = f64::from(heat.min_y) + (y as f64 + 0.5) * f64::from(heat.base_y);
         if bodyweight <= 0.0 {
             continue;
         }
@@ -178,12 +178,12 @@ fn heatmap_mean_lift_bodyweight_ratio(heat: &HeatmapBin) -> Option<f32> {
             if count == 0 {
                 continue;
             }
-            let lift = heat.min_x as f64 + (x as f64 + 0.5) * heat.base_x as f64;
+            let lift = f64::from(heat.min_x) + (x as f64 + 0.5) * f64::from(heat.base_x);
             total = total.saturating_add(count);
-            weighted_ratio += (lift / bodyweight) * count as f64;
+            weighted_ratio += (lift / bodyweight) * f64::from(count);
         }
     }
-    (total > 0).then_some((weighted_ratio / total as f64) as f32)
+    (total > 0).then_some((weighted_ratio / f64::from(total)) as f32)
 }
 
 fn dataset_file_url(version: &str, path: &str) -> String {
@@ -193,6 +193,7 @@ fn dataset_file_url(version: &str, path: &str) -> String {
 
 // ── Cross-sex rows loading ────────────────────────────────────────────────────
 
+#[derive(Clone, Copy)]
 pub(super) struct CrossSexRowsCtx {
     pub(super) page_active: Memo<bool>,
     pub(super) latest: ReadSignal<Option<LatestJson>>,
@@ -301,6 +302,7 @@ pub(super) fn setup_cross_sex_rows_effect(ctx: CrossSexRowsCtx) {
 
 // ── Cross-sex histogram loading ───────────────────────────────────────────────
 
+#[derive(Clone, Copy)]
 pub(super) struct CrossSexHistCtx {
     pub(super) page_active: Memo<bool>,
     pub(super) calculated: ReadSignal<bool>,
@@ -426,6 +428,7 @@ pub(super) fn setup_cross_sex_hist_effect(ctx: CrossSexHistCtx) {
 
 // ── Cross-sex heatmap loading ─────────────────────────────────────────────────
 
+#[derive(Clone, Copy)]
 pub(super) struct CrossSexHeatCtx {
     pub(super) page_active: Memo<bool>,
     pub(super) calculated: ReadSignal<bool>,
@@ -521,6 +524,7 @@ pub(super) fn setup_cross_sex_heat_effect(ctx: CrossSexHeatCtx) {
 
 // ── Cross-sex lift comparison loading ────────────────────────────────────────
 
+#[derive(Clone, Copy)]
 pub(super) struct CrossSexLiftComparisonCtx {
     pub(super) page_active: Memo<bool>,
     pub(super) calculated: ReadSignal<bool>,
@@ -675,6 +679,7 @@ pub(super) fn setup_cross_sex_lift_comparison_effect(ctx: CrossSexLiftComparison
 
 // ── Cross-sex comparison derivation ──────────────────────────────────────────
 
+#[derive(Clone, Copy)]
 pub(super) struct CrossSexComparisonCtx {
     pub(super) calculated: ReadSignal<bool>,
     pub(super) rows_error: ReadSignal<Option<String>>,
@@ -739,8 +744,7 @@ pub(super) fn make_cross_sex_comparison(
             .ok_or("Women's summary missing.".to_string())?;
         if ms.total < MIN_CROSS_SEX_COHORT_TOTAL || fs.total < MIN_CROSS_SEX_COHORT_TOTAL {
             return Err(format!(
-                "Cohort too small (<{} lifters).",
-                MIN_CROSS_SEX_COHORT_TOTAL
+                "Cohort too small (<{MIN_CROSS_SEX_COHORT_TOTAL} lifters)."
             ));
         }
         if let Some(err) = hist_error.get() {

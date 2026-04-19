@@ -1,3 +1,15 @@
+#![warn(clippy::pedantic)]
+// Canvas rendering and pixel math inherently cross numeric types; the values are
+// always small non-negative (CSS pixels, bin counts, histogram indices). Silencing
+// these here beats dotting #[allow(...)] over every draw call.
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::too_many_lines,
+    clippy::too_many_arguments
+)]
+
 mod app;
 mod charts;
 mod components;

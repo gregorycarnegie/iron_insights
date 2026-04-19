@@ -317,7 +317,6 @@ fn plate_views(plates: Vec<(f32, usize, &'static str)>) -> impl IntoView {
 
 fn plate_color(plate: f32) -> &'static str {
     match plate_key(plate).as_str() {
-        "25" => "#e8472b",
         "20" => "#1e4a8f",
         "15" => "#e8b13a",
         "10" => "#2a8f4e",
@@ -330,7 +329,6 @@ fn plate_color(plate: f32) -> &'static str {
 
 fn plate_height_pct(plate: f32) -> u8 {
     match plate_key(plate).as_str() {
-        "25" => 96,
         "20" => 88,
         "15" => 78,
         "10" => 66,

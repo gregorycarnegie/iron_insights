@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use wasm_bindgen::JsCast;
 
+#[derive(Clone, Copy)]
 pub(super) struct ShareImagePayload<'a> {
     pub(super) handle: &'a str,
     pub(super) bodyweight: f32,
@@ -150,7 +151,7 @@ pub(super) fn download_share_png(payload: ShareImagePayload<'_>) -> Result<(), S
     context.fill_rect(
         800.0,
         152.0,
-        (payload.percentile * 280.0).clamp(0.0, 280.0) as f64,
+        f64::from((payload.percentile * 280.0).clamp(0.0, 280.0)),
         12.0,
     );
 

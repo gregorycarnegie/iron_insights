@@ -28,14 +28,13 @@ fn setup_canvas(
         return None;
     };
 
-    let css_w = canvas.client_width().max(1) as f64;
+    let css_w = f64::from(canvas.client_width().max(1));
     let css_h = match canvas.client_height() {
         0 => fallback_h.max(1.0),
-        value => value as f64,
+        value => f64::from(value),
     };
     let dpr = web_sys::window()
-        .map(|window| window.device_pixel_ratio())
-        .unwrap_or(1.0)
+        .map_or(1.0, |window| window.device_pixel_ratio())
         .max(1.0);
     let backing_w = (css_w * dpr).round().max(1.0) as u32;
     let backing_h = (css_h * dpr).round().max(1.0) as u32;
@@ -48,7 +47,7 @@ fn setup_canvas(
     }
 
     let _ = ctx.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-    ctx.clear_rect(0.0, 0.0, backing_w as f64, backing_h as f64);
+    ctx.clear_rect(0.0, 0.0, f64::from(backing_w), f64::from(backing_h));
     let _ = ctx.scale(dpr, dpr);
 
     Some((ctx, css_w, css_h))
@@ -60,11 +59,11 @@ fn histogram_mean_stddev(hist: &HistogramBin) -> Option<(f64, f64)> {
     }
 
     let center =
-        |idx: usize| -> f64 { hist.min as f64 + (idx as f64 + 0.5) * hist.base_bin as f64 };
+        |idx: usize| -> f64 { f64::from(hist.min) + (idx as f64 + 0.5) * f64::from(hist.base_bin) };
     let (total, sum_x, sum_x2) = hist.counts.iter().copied().enumerate().fold(
         (0.0_f64, 0.0_f64, 0.0_f64),
         |(total, sum_x, sum_x2), (idx, count)| {
-            let weight = count as f64;
+            let weight = f64::from(count);
             let x = center(idx);
             (total + weight, sum_x + weight * x, sum_x2 + weight * x * x)
         },
@@ -86,8 +85,8 @@ fn histogram_mean_stddev(hist: &HistogramBin) -> Option<(f64, f64)> {
 
 fn histogram_normal_params(hist: &HistogramBin) -> Option<(f64, f64)> {
     histogram_mean_stddev(hist).or_else(|| {
-        let span = (hist.max - hist.min) as f64;
-        (span > 0.0).then_some(((hist.min + hist.max) as f64 * 0.5, span / 6.0))
+        let span = f64::from(hist.max - hist.min);
+        (span > 0.0).then_some((f64::from(hist.min + hist.max) * 0.5, span / 6.0))
     })
 }
 
@@ -118,7 +117,7 @@ fn axis_tick_label(x_label: &str, value: f64) -> String {
 
 fn format_axis_tick(value: f32) -> String {
     if (value - value.round()).abs() < 0.05 {
-        format!("{:.0}", value)
+        format!("{value:.0}")
     } else {
         format!("{value:.1}")
     }
@@ -143,7 +142,7 @@ pub(super) fn draw_ranking_distribution_canvas(
     ctx.set_stroke_style_str("rgba(255,255,255,0.04)");
     ctx.set_line_width(1.0);
     for i in 0..=4 {
-        let y = ch * i as f64 / 4.0;
+        let y = ch * f64::from(i) / 4.0;
         ctx.begin_path();
         ctx.move_to(0.0, y);
         ctx.line_to(cw, y);
@@ -158,8 +157,7 @@ pub(super) fn draw_ranking_distribution_canvas(
     let baseline = ch - 20.0;
     let plot_h = (ch - 40.0).max(1.0);
     let your_x = user_value
-        .map(|value| ((value as f64 - x_min) / x_span).clamp(0.0, 1.0) * cw)
-        .unwrap_or(cw * 0.5);
+        .map_or(cw * 0.5, |value| ((f64::from(value) - x_min) / x_span).clamp(0.0, 1.0) * cw);
 
     let mut vals = Vec::with_capacity(bins);
     let mut max_val = 0.0_f64;
@@ -243,7 +241,7 @@ fn draw_curve_layer(
         pts.push((x, y));
         x += step;
     }
-    if pts.last().map(|(last_x, _)| *last_x < cw).unwrap_or(true) {
+    if pts.last().is_none_or(|(last_x, _)| *last_x < cw) {
         let value = x_max;
         pts.push((cw, baseline - normal_peak(value, mean, stddev) * plot_h));
     }
@@ -302,11 +300,11 @@ pub(super) fn draw_dual_normal_curve_canvas(
     let mut x_min = (male_mean - 3.0 * male_stddev).min(female_mean - 3.0 * female_stddev);
     let mut x_max = (male_mean + 3.0 * male_stddev).max(female_mean + 3.0 * female_stddev);
     if x_max <= x_min {
-        x_min = male_hist.min.min(female_hist.min) as f64;
-        x_max = male_hist.max.max(female_hist.max) as f64;
+        x_min = f64::from(male_hist.min.min(female_hist.min));
+        x_max = f64::from(male_hist.max.max(female_hist.max));
     }
     if let Some(value) = user_value {
-        let value = value as f64;
+        let value = f64::from(value);
         x_min = x_min.min(value);
         x_max = x_max.max(value);
     }
@@ -318,7 +316,7 @@ pub(super) fn draw_dual_normal_curve_canvas(
     ctx.set_stroke_style_str("rgba(255,255,255,0.05)");
     ctx.set_line_width(1.0);
     for i in 0..=8 {
-        let x = cw * i as f64 / 8.0;
+        let x = cw * f64::from(i) / 8.0;
         ctx.begin_path();
         ctx.move_to(x, 20.0);
         ctx.line_to(x, ch - 40.0);
@@ -349,7 +347,7 @@ pub(super) fn draw_dual_normal_curve_canvas(
     );
 
     if let Some(value) = user_value {
-        let marker_x = ((value as f64 - x_min) / x_span).clamp(0.0, 1.0) * cw;
+        let marker_x = ((f64::from(value) - x_min) / x_span).clamp(0.0, 1.0) * cw;
         ctx.set_stroke_style_str(USER_MARKER_COLOR);
         ctx.set_line_width(1.5);
         let dash: wasm_bindgen::JsValue = js_sys::Array::of2(&4.0.into(), &3.0.into()).into();
@@ -367,7 +365,7 @@ pub(super) fn draw_dual_normal_curve_canvas(
     ctx.set_text_align("center");
     ctx.set_text_baseline("alphabetic");
     for i in 0..=8 {
-        let t = i as f64 / 8.0;
+        let t = f64::from(i) / 8.0;
         let x = t * cw;
         let value = x_min + t * x_span;
         let _ = ctx.fill_text(&format_axis_tick(value as f32), x, ch - 20.0);
@@ -389,16 +387,15 @@ pub(super) fn draw_heatmap(
         return;
     };
 
-    let css_w = canvas.client_width().max(1) as f64;
+    let css_w = f64::from(canvas.client_width().max(1));
     let css_h = match canvas.client_height() {
         0 => (css_w * (DEFAULT_HEATMAP_HEIGHT / DEFAULT_HEATMAP_WIDTH))
             .round()
             .max(1.0),
-        value => value as f64,
+        value => f64::from(value),
     };
     let dpr = web_sys::window()
-        .map(|window| window.device_pixel_ratio())
-        .unwrap_or(1.0)
+        .map_or(1.0, |window| window.device_pixel_ratio())
         .max(1.0);
     let backing_w = (css_w * dpr).round().max(1.0) as u32;
     let backing_h = (css_h * dpr).round().max(1.0) as u32;
@@ -411,7 +408,7 @@ pub(super) fn draw_heatmap(
     }
 
     let _ = ctx.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-    ctx.clear_rect(0.0, 0.0, backing_w as f64, backing_h as f64);
+    ctx.clear_rect(0.0, 0.0, f64::from(backing_w), f64::from(backing_h));
     let _ = ctx.scale(dpr, dpr);
 
     let cw = css_w;
@@ -430,14 +427,14 @@ pub(super) fn draw_heatmap(
         return;
     }
 
-    let max_cell = heat.grid.iter().copied().max().unwrap_or(1) as f64;
+    let max_cell = f64::from(heat.grid.iter().copied().max().unwrap_or(1));
     let cell_w = plot_w / heat.width as f64;
     let cell_h = plot_h / heat.height as f64;
 
     for y in 0..heat.height {
         for x in 0..heat.width {
             let idx = y * heat.width + x;
-            let v = heat.grid[idx] as f64;
+            let v = f64::from(heat.grid[idx]);
             if v <= 0.0 {
                 continue;
             }
@@ -455,12 +452,10 @@ pub(super) fn draw_heatmap(
 
     if let Some(user_lift) = user_lift {
         let x = left
-            + ((user_lift - heat.min_x) / (heat.max_x - heat.min_x).max(0.0001)).clamp(0.0, 1.0)
-                as f64
+            + f64::from(((user_lift - heat.min_x) / (heat.max_x - heat.min_x).max(0.0001)).clamp(0.0, 1.0))
                 * plot_w;
         let y = top + plot_h
-            - (((user_bw - heat.min_y) / (heat.max_y - heat.min_y).max(0.0001)).clamp(0.0, 1.0)
-                as f64
+            - (f64::from(((user_bw - heat.min_y) / (heat.max_y - heat.min_y).max(0.0001)).clamp(0.0, 1.0))
                 * plot_h);
 
         ctx.begin_path();
@@ -575,22 +570,22 @@ fn draw_overlay_heat_layer(
         return;
     }
 
-    let max_cell = heat.grid.iter().copied().max().unwrap_or(1) as f64;
+    let max_cell = f64::from(heat.grid.iter().copied().max().unwrap_or(1));
     let x_span = (max_x - min_x).max(0.0001);
     let y_span = (max_y - min_y).max(0.0001);
 
     for y in 0..heat.height {
         for x in 0..heat.width {
             let idx = y * heat.width + x;
-            let value = heat.grid[idx] as f64;
+            let value = f64::from(heat.grid[idx]);
             if value <= 0.0 {
                 continue;
             }
 
-            let cell_min_x = heat.min_x as f64 + x as f64 * heat.base_x as f64;
-            let cell_max_x = (cell_min_x + heat.base_x as f64).min(heat.max_x as f64);
-            let cell_min_y = heat.min_y as f64 + y as f64 * heat.base_y as f64;
-            let cell_max_y = (cell_min_y + heat.base_y as f64).min(heat.max_y as f64);
+            let cell_min_x = f64::from(heat.min_x) + x as f64 * f64::from(heat.base_x);
+            let cell_max_x = (cell_min_x + f64::from(heat.base_x)).min(f64::from(heat.max_x));
+            let cell_min_y = f64::from(heat.min_y) + y as f64 * f64::from(heat.base_y);
+            let cell_max_y = (cell_min_y + f64::from(heat.base_y)).min(f64::from(heat.max_y));
 
             let x0 = left + ((cell_min_x - min_x) / x_span).clamp(0.0, 1.0) * plot_w;
             let x1 = left + ((cell_max_x - min_x) / x_span).clamp(0.0, 1.0) * plot_w;
@@ -628,16 +623,15 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
         return;
     };
 
-    let css_w = canvas.client_width().max(1) as f64;
+    let css_w = f64::from(canvas.client_width().max(1));
     let css_h = match canvas.client_height() {
         0 => (css_w * (DEFAULT_HEATMAP_HEIGHT / DEFAULT_HEATMAP_WIDTH))
             .round()
             .max(1.0),
-        value => value as f64,
+        value => f64::from(value),
     };
     let dpr = web_sys::window()
-        .map(|window| window.device_pixel_ratio())
-        .unwrap_or(1.0)
+        .map_or(1.0, |window| window.device_pixel_ratio())
         .max(1.0);
     let backing_w = (css_w * dpr).round().max(1.0) as u32;
     let backing_h = (css_h * dpr).round().max(1.0) as u32;
@@ -650,7 +644,7 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
     }
 
     let _ = ctx.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-    ctx.clear_rect(0.0, 0.0, backing_w as f64, backing_h as f64);
+    ctx.clear_rect(0.0, 0.0, f64::from(backing_w), f64::from(backing_h));
     let _ = ctx.scale(dpr, dpr);
 
     let cw = css_w;
@@ -665,10 +659,10 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
     ctx.set_fill_style_str(SURFACE_COLOR);
     ctx.fill_rect(0.0, 0.0, cw, ch);
 
-    let min_x = male_heat.min_x.min(female_heat.min_x) as f64;
-    let max_x = male_heat.max_x.max(female_heat.max_x) as f64;
-    let min_y = male_heat.min_y.min(female_heat.min_y) as f64;
-    let max_y = male_heat.max_y.max(female_heat.max_y) as f64;
+    let min_x = f64::from(male_heat.min_x.min(female_heat.min_x));
+    let max_x = f64::from(male_heat.max_x.max(female_heat.max_x));
+    let min_y = f64::from(male_heat.min_y.min(female_heat.min_y));
+    let max_y = f64::from(male_heat.max_y.max(female_heat.max_y));
     if max_x <= min_x || max_y <= min_y {
         return;
     }
@@ -706,8 +700,8 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
     let y_span = (max_y - min_y).max(0.0001);
     if let Some(value) = user_value {
         let marker_y =
-            top + plot_h - (((user_bw as f64 - min_y) / y_span).clamp(0.0, 1.0) * plot_h);
-        let marker_x = left + (((value as f64 - min_x) / x_span).clamp(0.0, 1.0) * plot_w);
+            top + plot_h - (((f64::from(user_bw) - min_y) / y_span).clamp(0.0, 1.0) * plot_h);
+        let marker_x = left + (((f64::from(value) - min_x) / x_span).clamp(0.0, 1.0) * plot_w);
         draw_circle_marker(&ctx, marker_x, marker_y, USER_MARKER_COLOR);
     }
 

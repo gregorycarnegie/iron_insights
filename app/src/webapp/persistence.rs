@@ -3,6 +3,7 @@ use super::helpers::parse_query_f32;
 use super::models::SavedUiState;
 use leptos::prelude::*;
 
+#[derive(Clone, Copy)]
 pub(super) struct UnitPrefCtx {
     pub(super) loaded: ReadSignal<bool>,
     pub(super) set_loaded: WriteSignal<bool>,
@@ -52,6 +53,7 @@ pub(super) fn setup_unit_pref_effects(ctx: UnitPrefCtx) {
     });
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct QueryLoadCtx {
     pub(super) query_loaded: ReadSignal<bool>,
     pub(super) set_query_loaded: WriteSignal<bool>,
@@ -78,7 +80,7 @@ pub(super) struct QueryLoadCtx {
     pub(super) set_calculated: WriteSignal<bool>,
 }
 
-pub(super) fn setup_query_load_effect(ctx: QueryLoadCtx) {
+pub(super) fn setup_query_load_effect(ctx: &QueryLoadCtx) {
     let QueryLoadCtx {
         query_loaded,
         set_query_loaded,
@@ -103,7 +105,7 @@ pub(super) fn setup_query_load_effect(ctx: QueryLoadCtx) {
         set_lift_mult,
         set_bw_mult,
         set_calculated,
-    } = ctx;
+    } = *ctx;
 
     Effect::new(move |_| {
         if query_loaded.get() {
@@ -205,6 +207,7 @@ pub(super) fn setup_query_load_effect(ctx: QueryLoadCtx) {
     });
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct HashNavCtx {
     pub(super) page_loaded: ReadSignal<bool>,
     pub(super) set_page_loaded: WriteSignal<bool>,
@@ -257,6 +260,7 @@ pub(super) fn setup_hash_nav_effects(ctx: HashNavCtx) {
     });
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct StatePersistCtx {
     pub(super) query_loaded: ReadSignal<bool>,
     pub(super) sex: ReadSignal<String>,

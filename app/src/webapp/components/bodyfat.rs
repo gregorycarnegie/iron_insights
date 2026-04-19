@@ -69,7 +69,7 @@ pub fn BodyfatPage() -> impl IntoView {
         })
     });
     let gauge_color =
-        Memo::new(move |_| category.get().map(category_color).unwrap_or("var(--iron)"));
+        Memo::new(move |_| category.get().map_or("var(--iron)", category_color));
 
     view! {
         <section class="page active" id="page-bodyfat">
@@ -120,7 +120,7 @@ pub fn BodyfatPage() -> impl IntoView {
                                     prop:value=move || height_cm.get()
                                     on:input=move |ev| {
                                         let v = parse_f32_input(&ev);
-                                        if v >= 100.0 && v <= 250.0 {
+                                        if (100.0..=250.0).contains(&v) {
                                             set_height_cm.set(v);
                                         }
                                     }
@@ -136,7 +136,7 @@ pub fn BodyfatPage() -> impl IntoView {
                                     prop:value=move || weight_kg.get()
                                     on:input=move |ev| {
                                         let v = parse_f32_input(&ev);
-                                        if v >= 30.0 && v <= 300.0 {
+                                        if (30.0..=300.0).contains(&v) {
                                             set_weight_kg.set(v);
                                         }
                                     }
@@ -154,7 +154,7 @@ pub fn BodyfatPage() -> impl IntoView {
                                 prop:value=move || neck_cm.get()
                                 on:input=move |ev| {
                                     let v = parse_f32_input(&ev);
-                                    if v >= 20.0 && v <= 80.0 {
+                                    if (20.0..=80.0).contains(&v) {
                                         set_neck_cm.set(v);
                                     }
                                 }
@@ -171,7 +171,7 @@ pub fn BodyfatPage() -> impl IntoView {
                                 prop:value=move || waist_cm.get()
                                 on:input=move |ev| {
                                     let v = parse_f32_input(&ev);
-                                    if v >= 40.0 && v <= 200.0 {
+                                    if (40.0..=200.0).contains(&v) {
                                         set_waist_cm.set(v);
                                     }
                                 }
@@ -179,7 +179,9 @@ pub fn BodyfatPage() -> impl IntoView {
                         </div>
 
                         {move || {
-                            if !is_male.get() {
+                            if is_male.get() {
+                                view! { <div style="display:none"></div> }.into_any()
+                            } else {
                                 view! {
                                     <div>
                                         <label>"Hips (cm)"</label>
@@ -191,15 +193,13 @@ pub fn BodyfatPage() -> impl IntoView {
                                             prop:value=move || hip_cm.get()
                                             on:input=move |ev| {
                                                 let v = parse_f32_input(&ev);
-                                                if v >= 40.0 && v <= 200.0 {
+                                                if (40.0..=200.0).contains(&v) {
                                                     set_hip_cm.set(v);
                                                 }
                                             }
                                         />
                                     </div>
                                 }.into_any()
-                            } else {
-                                view! { <div style="display:none"></div> }.into_any()
                             }
                         }}
                     </div>
@@ -236,9 +236,7 @@ pub fn BodyfatPage() -> impl IntoView {
                                     stroke-dasharray="386.2"
                                     stroke-dashoffset=move || {
                                         gauge_offset
-                                            .get()
-                                            .map(|offset| format!("{offset:.1}"))
-                                            .unwrap_or_else(|| "386.2".to_string())
+                                            .get().map_or_else(|| "386.2".to_string(), |offset| format!("{offset:.1}"))
                                     }
                                     style=move || format!("stroke: {}", gauge_color.get())
                                 />
