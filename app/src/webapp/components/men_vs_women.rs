@@ -218,6 +218,22 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                     <span>"KDE / SCALED"</span>
                 </div>
                 <div class="panel-body">
+                    <p class="chart-summary">
+                        {move || match (male_hist.get(), female_hist.get()) {
+                            (Some(mh), Some(fh)) => {
+                                overlap_copy(&mh, &fh, &hist_x_label.get())
+                                    .map(|(female_p95, male_covered, _, _, metric)| {
+                                        format!(
+                                            "The female P95 mark is {female_p95} {metric}, which clears the bottom {male_covered} of male lifters in this cohort."
+                                        )
+                                    })
+                                    .unwrap_or_else(|| {
+                                        "The curves show how male and female lift distributions overlap in this cohort.".to_string()
+                                    })
+                            }
+                            _ => "Compute on Ranking first to compare the male and female distribution curves.".to_string(),
+                        }}
+                    </p>
                     <div class="hist-wrap">
                         {move || match (male_hist.get(), female_hist.get()) {
                             (Some(_), Some(_)) => view! {
@@ -277,6 +293,9 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                                     <span>"MEAN · KG"</span>
                                 </div>
                                 <div class="panel-body">
+                                    <p class="chart-summary">
+                                        "Male and female average lifts are compared directly in kilograms for squat, bench, and deadlift."
+                                    </p>
                                     {absolute_rows.into_iter().map(|row| {
                                         let male = format_kg(row.male_mean_kg);
                                         let female = format_kg(row.female_mean_kg);
@@ -305,6 +324,9 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                                     <span>"MEAN · × BW"</span>
                                 </div>
                                 <div class="panel-body">
+                                    <p class="chart-summary">
+                                        "Relative strength compares each average lift to average bodyweight for the same sex and cohort."
+                                    </p>
                                     {if relative_rows.is_empty() {
                                         view! { <div class="notice">"Relative comparisons unavailable for this cohort."</div> }.into_any()
                                     } else {
@@ -403,6 +425,18 @@ pub fn MenVsWomenPage(ctx: MenVsWomenCtx) -> impl IntoView {
                     <span>"LIFT × BODYWEIGHT"</span>
                 </div>
                 <div class="panel-body">
+                    <p class="chart-summary">
+                        {move || {
+                            if male_heat.get().is_some() && female_heat.get().is_some() {
+                                format!(
+                                    "The overlay shows where male and female lifters cluster by {} and bodyweight; your marker uses your current inputs.",
+                                    hist_x_label.get(),
+                                )
+                            } else {
+                                "Compute on Ranking first to load the male and female lift-by-bodyweight density overlay.".to_string()
+                            }
+                        }}
+                    </p>
                     <div class="heat-wrap">
                         {move || {
                             let has_both = male_heat.get().is_some() && female_heat.get().is_some();

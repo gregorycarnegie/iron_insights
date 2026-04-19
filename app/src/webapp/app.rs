@@ -633,6 +633,25 @@ pub(super) fn App() -> impl IntoView {
         lift_comparison_error: cross_sex_lift_comparison_error,
     };
 
+    let error_banners = Memo::new(move |_| {
+        let mut messages = Vec::<String>::new();
+        for message in [
+            load_error.get(),
+            cross_sex_rows_error.get(),
+            cross_sex_hist_error.get(),
+            cross_sex_heat_error.get(),
+            cross_sex_lift_comparison_error.get(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if !messages.iter().any(|existing| existing == &message) {
+                messages.push(message);
+            }
+        }
+        messages
+    });
+
     view! {
         <div class="app">
             // Sidebar
@@ -674,6 +693,34 @@ pub(super) fn App() -> impl IntoView {
 
             // Main column
             <main class="main">
+                <nav class="mobile-nav" aria-label="Primary navigation">
+                    <div class="mobile-brand">"IRONSCALE"</div>
+                    <div class="mobile-tabs">
+                        {[
+                            (AppPage::Ranking, "Ranking"),
+                            (AppPage::Nerds, "Stats"),
+                            (AppPage::MenVsWomen, "Sex Comparison"),
+                            (AppPage::OneRm, "1RM"),
+                            (AppPage::PlateCalc, "Plates"),
+                            (AppPage::Bodyfat, "Bodyfat"),
+                        ]
+                        .into_iter()
+                        .map(|(page, label)| {
+                            view! {
+                                <button
+                                    type="button"
+                                    class="mobile-nav-item"
+                                    class:active=move || active_page.get() == page
+                                    on:click=move |_| set_active_page.set(page)
+                                >
+                                    {label}
+                                </button>
+                            }
+                        })
+                        .collect_view()}
+                    </div>
+                </nav>
+
                 <div class="topbar">
                     <div class="crumb">
                         <span>"IRONSCALE"</span>
@@ -688,6 +735,28 @@ pub(super) fn App() -> impl IntoView {
                         <span style="color:var(--ink-mute)">"v1.0"</span>
                     </div>
                 </div>
+
+                <Show when=move || !error_banners.get().is_empty()>
+                    <div class="app-banners" role="alert">
+                        {move || error_banners.get().into_iter().map(|message| {
+                            view! {
+                                <div class="app-banner">
+                                    <span>{message}</span>
+                                    <button
+                                        type="button"
+                                        on:click=move |_| {
+                                            if let Some(window) = web_sys::window() {
+                                                let _ = window.location().reload();
+                                            }
+                                        }
+                                    >
+                                        "Retry"
+                                    </button>
+                                </div>
+                            }
+                        }).collect_view()}
+                    </div>
+                </Show>
 
                 <Show when=move || active_page.get() == AppPage::Ranking>
                     <components::RankingPage />

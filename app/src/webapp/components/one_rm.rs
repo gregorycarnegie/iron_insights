@@ -100,6 +100,16 @@ pub fn OneRmPage() -> impl IntoView {
                 <div>
                     <div class="rm-display">
                         <div class="content">
+                            <p class="chart-summary">
+                                {move || {
+                                    format!(
+                                        "{:.0}kg for {:.0} reps estimates a {:.0}kg one-rep max with the selected formula.",
+                                        weight.get(),
+                                        reps.get(),
+                                        rm.get(),
+                                    )
+                                }}
+                            </p>
                             <div style="font-size:10px;letter-spacing:0.3em;color:var(--ink-dim)">"ESTIMATED ONE REP MAX"</div>
                             <div class="rm-value">{move || format!("{:.0}", rm.get())}</div>
                             <div class="rm-unit">"KG"</div>
@@ -114,6 +124,14 @@ pub fn OneRmPage() -> impl IntoView {
                             <span>"TRAINING TABLE"</span>
                         </div>
                         <div class="panel-body" style="padding:0">
+                            <p class="chart-summary rm-table-summary">
+                                {move || {
+                                    format!(
+                                        "Training weights are scaled from your estimated {:.0}kg max.",
+                                        rm.get(),
+                                    )
+                                }}
+                            </p>
                             <table class="rm-table">
                                 <thead>
                                     <tr>

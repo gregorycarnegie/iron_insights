@@ -207,6 +207,17 @@ pub fn BodyfatPage() -> impl IntoView {
 
                 <div>
                     <div class="bf-display">
+                        <p class="chart-summary">
+                            {move || match result.get() {
+                                Some(r) => format!(
+                                    "Your estimate is {:.1}% body fat, with {:.1}kg lean mass and {:.1}kg fat mass.",
+                                    r.body_fat_pct,
+                                    r.lean_mass_kg,
+                                    r.fat_mass_kg,
+                                ),
+                                None => "Enter valid tape measurements to estimate body fat, lean mass, and fat mass.".to_string(),
+                            }}
+                        </p>
                         <div class="bf-gauge">
                             <svg viewBox="0 0 200 200">
                                 <circle

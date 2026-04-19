@@ -196,6 +196,20 @@ pub fn NerdsPage() -> impl IntoView {
                             <span>"DENSITY"</span>
                         </div>
                         <div class="panel-body">
+                            <p class="chart-summary">
+                                {move || {
+                                    if calculated.get() {
+                                        format!(
+                                            "Your marker plots {} at {}{} bodyweight against the densest parts of this cohort.",
+                                            format_lift_value(user_lift.get(), use_lbs.get()),
+                                            format_lift_value(bodyweight.get(), use_lbs.get()),
+                                            unit_label.get(),
+                                        )
+                                    } else {
+                                        "Compute first to plot your lift and bodyweight against the cohort heatmap.".to_string()
+                                    }
+                                }}
+                            </p>
                             <div class="heat-wrap">
                                 {move || {
                                     if rebinned_heat.get().is_some() {
@@ -225,6 +239,17 @@ pub fn NerdsPage() -> impl IntoView {
                             <span>"LIFT COMPOSITION"</span>
                         </div>
                         <div class="panel-body">
+                            <p class="chart-summary">
+                                {move || {
+                                    format!(
+                                        "{}: squat is {:.1}%, bench is {:.1}%, and deadlift is {:.1}% of your total.",
+                                        archetype.get().0,
+                                        squat_pct.get(),
+                                        bench_pct.get(),
+                                        dl_pct.get(),
+                                    )
+                                }}
+                            </p>
                             <div
                                 class="power-triangle"
                                 role="img"
@@ -371,6 +396,16 @@ pub fn NerdsPage() -> impl IntoView {
                             <span>"OF YOUR TOTAL"</span>
                         </div>
                         <div class="panel-body">
+                            <p class="chart-summary">
+                                {move || {
+                                    format!(
+                                        "Your total is split {:.1}% squat, {:.1}% bench, and {:.1}% deadlift.",
+                                        squat_pct.get(),
+                                        bench_pct.get(),
+                                        dl_pct.get(),
+                                    )
+                                }}
+                            </p>
                             <div class="dist-bar">
                                 <div class="lb">
                                     <span>"SQUAT"</span>

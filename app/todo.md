@@ -19,20 +19,20 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 - [x] First-run empty state: show a *sample* percentile result before the user types anything, so the payoff is visible.
 - [x] Hide filter controls (equip, age, tested, metric) behind an "Advanced" disclosure; pick smart defaults.
 - [x] Replace `STATS FOR NERDS` / `MEN VS WOMEN` uppercase jargon tabs with plain titles in the main nav; keep the typographic style for headings only.
-- [ ] Add a one-sentence plain-English summary above every chart ("You out-lift 73% of 120kg male raw lifters").
-- [ ] Mobile layout pass — the 240px sticky sidebar will break below ~720px; add a top-nav fallback.
+- [x] Add a one-sentence plain-English summary above every chart ("You out-lift 73% of 120kg male raw lifters").
+- [x] Mobile layout pass — the 240px sticky sidebar will break below ~720px; add a top-nav fallback.
 
 ## 4. Styling debt
 
 - [x] Purge inline `style="..."` strings in `ranking.rs` (25+ instances) — move to CSS classes in `assets/style.css`.
-- [ ] Split `style.css` (1098 lines) into `base.css`, `layout.css`, `pages.css`, `components.css` via `@import` or a trunk pipeline.
-- [ ] Define a spacing/size token scale (`--space-1` … `--space-8`) so magic pixel values (`padding:80px 40px`) stop multiplying.
+- [x] Split `style.css` (1098 lines) into `base.css`, `layout.css`, `pages.css`, `components.css` via `@import` or a trunk pipeline.
+- [x] Define a spacing/size token scale (`--space-1` … `--space-8`) so magic pixel values (`padding:80px 40px`) stop multiplying.
 
 ## 5. Loading / error UX
 
-- [ ] Replace the single plain `LOADING IRONSCALE` shell in `index.html` with skeleton panels that match the real layout (less layout shift).
-- [ ] Consolidate the 8 separate `load_error`, `cross_sex_*_error` signals behind a toast/banner system; today they fight for the same real estate.
-- [ ] Show a retry button when a shard fetch fails (currently silent after the first error string is set).
+- [x] Replace the single plain `LOADING IRONSCALE` shell in `index.html` with skeleton panels that match the real layout (less layout shift).
+- [x] Consolidate the 8 separate `load_error`, `cross_sex_*_error` signals behind a toast/banner system; today they fight for the same real estate.
+- [x] Show a retry button when a shard fetch fails (currently silent after the first error string is set).
 
 ## 6. Testing (currently none in `app/src`)
 
@@ -44,7 +44,7 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 
 - [ ] Memoize `rows_from_slice_index` output — it's re-sorted on every shard load even when inputs are identical.
 - [ ] Cache already-fetched `.bin` payloads in a `HashMap<url, Bytes>` so switching filters doesn't re-download shards.
-- [ ] Debounce the number inputs; currently each keystroke triggers a histogram redraw via `user_lift` memo.
+<!-- - [ ] Debounce the number inputs; currently each keystroke triggers a histogram redraw via `user_lift` memo. -->
 - [ ] Verify canvas `devicePixelRatio` handling in `draw_ranking_distribution_canvas` and `draw_heatmap` — the window resize listener redraws but may not re-scale for HiDPI.
 
 ## 8. Accessibility

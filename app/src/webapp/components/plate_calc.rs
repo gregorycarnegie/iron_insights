@@ -164,6 +164,33 @@ pub fn PlateCalcPage() -> impl IntoView {
                 </div>
 
                 <div>
+                    <p class="chart-summary chart-summary-standalone">
+                        {move || {
+                            let r = result.get();
+                            if r.plates_per_side.is_empty() {
+                                if r.below_bar {
+                                    "The target is below the selected bar and collar weight.".to_string()
+                                } else {
+                                    "The target is just the selected bar and collars.".to_string()
+                                }
+                            } else {
+                                let plates = r
+                                    .plates_per_side
+                                    .iter()
+                                    .map(|(plate, count, _)| {
+                                        format!(
+                                            "{} x {}{}",
+                                            count,
+                                            format_plate_value(kg_to_display(*plate, use_lbs.get())),
+                                            unit.get(),
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                format!("Per side, load {plates} to reach {:.1}{}.", kg_to_display(r.achieved_kg, use_lbs.get()), unit.get())
+                            }
+                        }}
+                    </p>
                     <div class="bar-stage">
                         <div class="bar-wrap">
                             <div class="plates-stack" style="flex-direction:row-reverse">

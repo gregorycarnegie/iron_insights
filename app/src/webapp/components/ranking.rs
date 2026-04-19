@@ -385,6 +385,23 @@ pub fn RankingPage() -> impl IntoView {
                             <span>"LIFTER COUNT BY LIFT VALUE"</span>
                         </div>
                         <div class="panel-body">
+                            <p class="chart-summary">
+                                {move || {
+                                    if !calculated.get() {
+                                        "Compute your lifts to see where your mark sits in the cohort distribution.".to_string()
+                                    } else {
+                                        match pct_num.get() {
+                                            Some(p) => format!(
+                                                "Your {} {} mark out-lifts {:.1}% of lifters in this selected cohort.",
+                                                current_score.get(),
+                                                current_score_unit.get(),
+                                                p,
+                                            ),
+                                            None => "Loading the cohort distribution for your selected lift.".to_string(),
+                                        }
+                                    }
+                                }}
+                            </p>
                             <div class="hist-wrap">
                                 {move || {
                                     match rebinned_hist.get() {
@@ -414,6 +431,23 @@ pub fn RankingPage() -> impl IntoView {
                             <span>{move || ladder_cohort.get()}</span>
                         </div>
                         <div class="panel-body">
+                            <p class="chart-summary">
+                                {move || {
+                                    if !calculated.get() {
+                                        "Compute to see how far you have climbed through the percentile tiers.".to_string()
+                                    } else {
+                                        match percentile.get() {
+                                            Some((p, _, total)) => format!(
+                                                "You are at P{:.1}, ahead of {} of {} lifters in this selected cohort.",
+                                                p * 100.0,
+                                                beaten_lifters.get().map(format_count).unwrap_or_else(|| "0".to_string()),
+                                                format_count(total),
+                                            ),
+                                            None => "Loading the percentile ladder for your selected cohort.".to_string(),
+                                        }
+                                    }
+                                }}
+                            </p>
                             <div
                                 class="tier-ladder"
                                 role="img"
