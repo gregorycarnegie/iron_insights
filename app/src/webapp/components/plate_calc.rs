@@ -351,3 +351,74 @@ fn format_plate_value(value: f32) -> String {
         format!("{value:.1}")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::calc_plates;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn plate_weights(result: &super::PlateResult) -> Vec<f32> {
+        result.plates_per_side.iter().map(|(kg, _, _)| *kg).collect()
+    }
+
+    fn plate_counts(result: &super::PlateResult) -> Vec<usize> {
+        result.plates_per_side.iter().map(|(_, n, _)| *n).collect()
+    }
+
+    #[wasm_bindgen_test]
+    fn just_the_bar_no_plates() {
+        let r = calc_plates(20.0, 20.0, 0.0, false);
+        assert!(r.plates_per_side.is_empty());
+        assert!(!r.below_bar);
+        assert!((r.achieved_kg - 20.0).abs() < 0.01);
+        assert!(r.remainder_kg < 0.01);
+    }
+
+    #[wasm_bindgen_test]
+    fn below_bar_weight_flags_below_bar() {
+        let r = calc_plates(15.0, 20.0, 0.0, false);
+        assert!(r.below_bar);
+        assert!(r.plates_per_side.is_empty());
+    }
+
+    #[wasm_bindgen_test]
+    fn standard_60kg_produces_one_20kg_plate_per_side() {
+        let r = calc_plates(60.0, 20.0, 0.0, false);
+        assert_eq!(plate_weights(&r), vec![20.0]);
+        assert_eq!(plate_counts(&r), vec![1]);
+        assert!((r.achieved_kg - 60.0).abs() < 0.01);
+        assert!(r.remainder_kg < 0.01);
+    }
+
+    #[wasm_bindgen_test]
+    fn collars_reduce_plates() {
+        // 60kg target - 20kg bar - 5kg collars (2*2.5) = 35kg on plates → 17.5 per side
+        // 17.5kg: 1×15 + 1×2.5 = 17.5
+        let r = calc_plates(60.0, 20.0, 2.5, false);
+        assert!((r.per_side_kg - 17.5).abs() < 0.01);
+    }
+
+    #[wasm_bindgen_test]
+    fn lbs_target_is_converted_before_plate_selection() {
+        // 396.83 lbs = exactly 180 kg (180 * 2.204622). Use the flag and check
+        // the achieved weight is in the right ballpark, confirming kg conversion ran.
+        let r_kg = calc_plates(180.0, 20.0, 0.0, false);
+        let r_lb = calc_plates(396.832_5, 20.0, 0.0, true);
+        // Both should not be below bar
+        assert!(!r_lb.below_bar);
+        // Achieved weights should be close (within 1 kg) despite lbs round-trip
+        assert!((r_lb.achieved_kg - r_kg.achieved_kg).abs() < 1.0,
+            "kg={}, lbs-mode={}", r_kg.achieved_kg, r_lb.achieved_kg);
+    }
+
+    #[wasm_bindgen_test]
+    fn achieved_equals_bar_plus_plates() {
+        let r = calc_plates(180.0, 20.0, 0.0, false);
+        let plate_total: f32 = r
+            .plates_per_side
+            .iter()
+            .map(|(kg, count, _)| kg * *count as f32 * 2.0)
+            .sum();
+        assert!((r.achieved_kg - (20.0 + plate_total)).abs() < 0.01);
+    }
+}

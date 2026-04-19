@@ -1096,3 +1096,13 @@ select {
 
 /* ===== BOOT SHELL ===== */
 .boot-shell .page { display: block !important; }
+
+/* ===== RANKING PAGE UTILITIES ===== */
+.blurb-meta { font-size: 11px; color: var(--ink-mute); }
+.stat-row { display: flex; justify-content: space-between; align-items: baseline; }
+.stat-big-wrap { margin-bottom: 24px; }
+.panel-mb { margin-bottom: 24px; }
+.stat-ordinal { font-size: 32px; color: var(--ink-dim); }
+.stat-right { text-align: right; }
+.stat-tier { font-size: 24px; color: var(--chalk); margin-top: 4px; }
+.stat-cohort { font-size: 11px; color: var(--ink-mute); margin-top: 4px; }

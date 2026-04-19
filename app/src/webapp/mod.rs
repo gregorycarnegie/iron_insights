@@ -1,8 +1,10 @@
 mod charts;
 mod components;
+mod cross_sex;
 mod data;
 mod helpers;
 mod models;
+mod persistence;
 mod selectors;
 mod share;
 mod slices;
@@ -10,32 +12,35 @@ mod state;
 mod ui;
 
 use self::charts::draw_heatmap;
-use self::data::{fetch_binary_first, fetch_json_first};
-use self::helpers::{ComparableLifter, comparable_lift_value, parse_query_f32, tier_for_percentile};
+use self::cross_sex::{
+    CrossSexComparisonCtx, CrossSexHeatCtx, CrossSexHistCtx, CrossSexLiftComparisonCtx,
+    CrossSexRowsCtx, choose_cross_sex_slice, make_cross_sex_comparison,
+    setup_cross_sex_heat_effect, setup_cross_sex_hist_effect,
+    setup_cross_sex_lift_comparison_effect, setup_cross_sex_rows_effect,
+};
+use self::helpers::{ComparableLifter, comparable_lift_value, tier_for_percentile};
+use self::persistence::{
+    HashNavCtx, QueryLoadCtx, StatePersistCtx, UnitPrefCtx, setup_hash_nav_effects,
+    setup_query_load_effect, setup_state_persist_effect, setup_unit_pref_effects,
+};
 use self::models::{
-    CrossSexComparison, CrossSexLiftComparison, LatestJson, RootIndex, SavedUiState, SliceIndex,
-    SliceIndexEntries, SliceRow, SliceSummary, TrendSeries,
+    CrossSexLiftComparison, LatestJson, RootIndex, SliceRow, SliceSummary, TrendSeries,
 };
 use self::selectors::{
     age_options, equip_options, lift_options, metric_options, sex_options, slice_selector_index,
     tested_options, wc_options,
 };
-use self::slices::{entry_from_slice_key, parse_slice_key};
 use self::state::{
     init_dataset_load, setup_default_selection_effects, setup_distribution_effect,
     setup_slice_rows_effect, setup_slice_summary_effect, setup_trends_effect,
 };
 use self::ui::metric_label;
-use crate::core::{
-    HeatmapBin, HistogramBin, parse_combined_bin,
-    percentile_for_value, rebin_1d, rebin_2d,
-};
+use crate::core::{HeatmapBin, HistogramBin, percentile_for_value, rebin_1d, rebin_2d};
 use leptos::ev;
 use leptos::html::Canvas;
 use leptos::leptos_dom::helpers::window_event_listener;
 use leptos::mount::mount_to;
 use leptos::prelude::*;
-use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
@@ -61,7 +66,7 @@ pub fn run() {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum AppPage {
+pub(super) enum AppPage {
     Ranking,
     Nerds,
     MenVsWomen,
@@ -94,133 +99,6 @@ impl AppPage {
     }
 }
 
-const MIN_CROSS_SEX_COHORT_TOTAL: u32 = 50;
-const CROSS_SEX_LIFT_ROWS: [(&str, &str); 3] = [("S", "Squat"), ("B", "Bench"), ("D", "Deadlift")];
-
-#[derive(Clone, PartialEq)]
-struct CrossSexSliceChoice {
-    row: SliceRow,
-    weight_class_fallback: bool,
-}
-
-fn rows_from_slice_index(index: SliceIndex) -> Vec<SliceRow> {
-    let mut rows = Vec::new();
-    match index.slices {
-        SliceIndexEntries::Map(entries) => {
-            rows.reserve(entries.len());
-            for (raw_key, entry) in entries {
-                if let Some(key) = parse_slice_key(&raw_key) {
-                    rows.push(SliceRow { key, entry });
-                }
-            }
-        }
-        SliceIndexEntries::Keys(keys) => {
-            rows.reserve(keys.len());
-            for raw_key in keys {
-                if let Some((key, entry)) = entry_from_slice_key(&raw_key) {
-                    rows.push(SliceRow { key, entry });
-                }
-            }
-        }
-    }
-    rows.sort_by(|a, b| a.key.cmp(&b.key));
-    rows
-}
-
-fn choose_cross_sex_slice(
-    rows: &[SliceRow],
-    equip: &str,
-    wc: &str,
-    age: &str,
-    tested: &str,
-    lift: &str,
-    metric: &str,
-) -> Option<CrossSexSliceChoice> {
-    let exact = rows
-        .iter()
-        .find(|row| {
-            row.key.equip == equip
-                && row.key.wc == wc
-                && row.key.age == age
-                && row.key.tested == tested
-                && row.key.lift == lift
-                && row.key.metric == metric
-        })
-        .cloned();
-    if let Some(row) = exact {
-        return Some(CrossSexSliceChoice {
-            row,
-            weight_class_fallback: false,
-        });
-    }
-    rows.iter()
-        .find(|row| {
-            row.key.equip == equip
-                && row.key.wc == "All"
-                && row.key.age == age
-                && row.key.tested == tested
-                && row.key.lift == lift
-                && row.key.metric == metric
-        })
-        .cloned()
-        .map(|row| CrossSexSliceChoice {
-            row,
-            weight_class_fallback: true,
-        })
-}
-
-fn dataset_file_url(version: &str, path: &str) -> String {
-    let trimmed = path.trim_start_matches('/');
-    format!("data/{version}/{trimmed}")
-}
-
-fn histogram_weighted_mean(hist: &HistogramBin) -> Option<(f32, u32)> {
-    if hist.counts.is_empty() || hist.base_bin <= 0.0 {
-        return None;
-    }
-    let mut total = 0u32;
-    let mut weighted_sum = 0.0f64;
-    for (idx, count) in hist.counts.iter().copied().enumerate() {
-        if count == 0 {
-            continue;
-        }
-        let center = hist.min as f64 + (idx as f64 + 0.5) * hist.base_bin as f64;
-        total = total.saturating_add(count);
-        weighted_sum += center * count as f64;
-    }
-    (total > 0).then_some(((weighted_sum / total as f64) as f32, total))
-}
-
-fn heatmap_mean_lift_bodyweight_ratio(heat: &HeatmapBin) -> Option<f32> {
-    if heat.width == 0
-        || heat.height == 0
-        || heat.grid.len() != heat.width * heat.height
-        || heat.base_x <= 0.0
-        || heat.base_y <= 0.0
-    {
-        return None;
-    }
-
-    let mut total = 0u32;
-    let mut weighted_ratio = 0.0f64;
-    for y in 0..heat.height {
-        let bodyweight = heat.min_y as f64 + (y as f64 + 0.5) * heat.base_y as f64;
-        if bodyweight <= 0.0 {
-            continue;
-        }
-        for x in 0..heat.width {
-            let count = heat.grid[y * heat.width + x];
-            if count == 0 {
-                continue;
-            }
-            let lift = heat.min_x as f64 + (x as f64 + 0.5) * heat.base_x as f64;
-            total = total.saturating_add(count);
-            weighted_ratio += (lift / bodyweight) * count as f64;
-        }
-    }
-
-    (total > 0).then_some((weighted_ratio / total as f64) as f32)
-}
 
 #[component]
 fn App() -> impl IntoView {
@@ -339,86 +217,18 @@ fn App() -> impl IntoView {
         set_trends_request_id,
     );
 
-    // Cross-sex shard loading
-    Effect::new(move |_| {
-        let next_request_id = cross_sex_rows_request_id.get_untracked().wrapping_add(1);
-        set_cross_sex_rows_request_id.set(next_request_id);
-
-        if !cross_sex_page_active.get() {
-            set_male_slice_rows.set(Vec::new());
-            set_female_slice_rows.set(Vec::new());
-            set_cross_sex_rows_error.set(None);
-            return;
-        }
-
-        let (Some(latest_v), Some(root)) = (latest.get(), root_index.get()) else {
-            set_male_slice_rows.set(Vec::new());
-            set_female_slice_rows.set(Vec::new());
-            set_cross_sex_rows_error.set(None);
-            return;
-        };
-        let equip_value = equip.get();
-        if equip_value.is_empty() {
-            set_male_slice_rows.set(Vec::new());
-            set_female_slice_rows.set(Vec::new());
-            set_cross_sex_rows_error.set(None);
-            return;
-        }
-
-        let male_shard_rel = root
-            .shards
-            .get(&format!("sex=M|equip={equip_value}"))
-            .cloned();
-        let female_shard_rel = root
-            .shards
-            .get(&format!("sex=F|equip={equip_value}"))
-            .cloned();
-        set_cross_sex_rows_error.set(None);
-
-        spawn_local(async move {
-            let mut male_rows = Vec::new();
-            let mut female_rows = Vec::new();
-            let mut issues = Vec::new();
-
-            if let Some(rel) = male_shard_rel {
-                let url = dataset_file_url(&latest_v.version, &rel);
-                match fetch_json_first::<SliceIndex>(&[&url]).await {
-                    Ok(index) => {
-                        if cross_sex_rows_request_id.get_untracked() != next_request_id {
-                            return;
-                        }
-                        male_rows = rows_from_slice_index(index);
-                    }
-                    Err(err) => issues.push(format!("Failed male shard: {err}")),
-                }
-            } else {
-                issues.push("Missing male shard for selected equipment.".to_string());
-            }
-
-            if let Some(rel) = female_shard_rel {
-                let url = dataset_file_url(&latest_v.version, &rel);
-                match fetch_json_first::<SliceIndex>(&[&url]).await {
-                    Ok(index) => {
-                        if cross_sex_rows_request_id.get_untracked() != next_request_id {
-                            return;
-                        }
-                        female_rows = rows_from_slice_index(index);
-                    }
-                    Err(err) => issues.push(format!("Failed female shard: {err}")),
-                }
-            } else {
-                issues.push("Missing female shard for selected equipment.".to_string());
-            }
-
-            if cross_sex_rows_request_id.get_untracked() != next_request_id {
-                return;
-            }
-            set_male_slice_rows.set(male_rows);
-            set_female_slice_rows.set(female_rows);
-            if !issues.is_empty() {
-                set_cross_sex_rows_error.set(Some(issues.join(" ")));
-            }
-        });
+    setup_cross_sex_rows_effect(CrossSexRowsCtx {
+        page_active: cross_sex_page_active,
+        latest,
+        root_index,
+        equip,
+        set_male_rows: set_male_slice_rows,
+        set_female_rows: set_female_slice_rows,
+        set_error: set_cross_sex_rows_error,
+        request: state::RequestTracker {
+            current: cross_sex_rows_request_id,
+            set: set_cross_sex_rows_request_id,
+        },
     });
 
     let selector_index = slice_selector_index(slice_rows);
@@ -664,275 +474,59 @@ fn App() -> impl IntoView {
         )
     });
 
-    Effect::new(move |_| {
-        let next_id = cross_sex_hist_request_id.get_untracked().wrapping_add(1);
-        set_cross_sex_hist_request_id.set(next_id);
-        if !cross_sex_page_active.get() || !calculated.get() {
-            set_male_cross_hist.set(None);
-            set_female_cross_hist.set(None);
-            set_cross_sex_hist_loading.set(false);
-            set_cross_sex_hist_error.set(None);
-            return;
-        }
-        let (Some(latest_v), Some(male_c), Some(female_c)) = (
-            latest.get(),
-            male_cross_choice.get(),
-            female_cross_choice.get(),
-        ) else {
-            set_male_cross_hist.set(None);
-            set_female_cross_hist.set(None);
-            set_cross_sex_hist_loading.set(false);
-            set_cross_sex_hist_error.set(None);
-            return;
-        };
-        let selected_bin = current_row.get().map(|r| r.entry.bin);
-        let current_hist = hist.get();
-        let mut pre_male = None;
-        let mut pre_female = None;
-        if let (Some(bin), Some(h)) = (selected_bin, current_hist) {
-            if bin == male_c.row.entry.bin {
-                pre_male = Some(h.clone());
-            }
-            if bin == female_c.row.entry.bin {
-                pre_female = Some(h);
-            }
-        }
-        if let Some(h) = pre_male.clone() {
-            set_male_cross_hist.set(Some(h));
-        } else {
-            set_male_cross_hist.set(None);
-        }
-        if let Some(h) = pre_female.clone() {
-            set_female_cross_hist.set(Some(h));
-        } else {
-            set_female_cross_hist.set(None);
-        }
-        if pre_male.is_some() && pre_female.is_some() {
-            set_cross_sex_hist_loading.set(false);
-            set_cross_sex_hist_error.set(None);
-            return;
-        }
-        set_cross_sex_hist_loading.set(true);
-        set_cross_sex_hist_error.set(None);
-        spawn_local(async move {
-            let mut issues = Vec::new();
-            if pre_male.is_none() {
-                let url = dataset_file_url(&latest_v.version, &male_c.row.entry.bin);
-                match fetch_binary_first(&[&url]).await {
-                    Ok(bytes) => match parse_combined_bin(&bytes).map(|(h, _)| h) {
-                        Some(h) => {
-                            if cross_sex_hist_request_id.get_untracked() != next_id {
-                                return;
-                            }
-                            set_male_cross_hist.set(Some(h));
-                        }
-                        None => issues.push("Invalid men's payload.".to_string()),
-                    },
-                    Err(e) => issues.push(format!("Men's bin error: {e}")),
-                }
-            }
-            if pre_female.is_none() {
-                let url = dataset_file_url(&latest_v.version, &female_c.row.entry.bin);
-                match fetch_binary_first(&[&url]).await {
-                    Ok(bytes) => match parse_combined_bin(&bytes).map(|(h, _)| h) {
-                        Some(h) => {
-                            if cross_sex_hist_request_id.get_untracked() != next_id {
-                                return;
-                            }
-                            set_female_cross_hist.set(Some(h));
-                        }
-                        None => issues.push("Invalid women's payload.".to_string()),
-                    },
-                    Err(e) => issues.push(format!("Women's bin error: {e}")),
-                }
-            }
-            if cross_sex_hist_request_id.get_untracked() != next_id {
-                return;
-            }
-            set_cross_sex_hist_loading.set(false);
-            if !issues.is_empty() {
-                set_cross_sex_hist_error.set(Some(issues.join(" ")));
-            }
-        });
+    let current_bin = Memo::new(move |_| current_row.get().map(|r| r.entry.bin));
+
+    setup_cross_sex_hist_effect(CrossSexHistCtx {
+        page_active: cross_sex_page_active,
+        calculated,
+        latest,
+        male_choice: male_cross_choice,
+        female_choice: female_cross_choice,
+        current_bin,
+        current_hist: hist,
+        set_male_hist: set_male_cross_hist,
+        set_female_hist: set_female_cross_hist,
+        set_loading: set_cross_sex_hist_loading,
+        set_error: set_cross_sex_hist_error,
+        request: state::RequestTracker {
+            current: cross_sex_hist_request_id,
+            set: set_cross_sex_hist_request_id,
+        },
     });
 
-    Effect::new(move |_| {
-        let next_id = cross_sex_heat_request_id.get_untracked().wrapping_add(1);
-        set_cross_sex_heat_request_id.set(next_id);
-        if !cross_sex_page_active.get() || !calculated.get() {
-            set_male_cross_heat.set(None);
-            set_female_cross_heat.set(None);
-            set_cross_sex_heat_loading.set(false);
-            set_cross_sex_heat_error.set(None);
-            return;
-        }
-        let (Some(latest_v), Some(male_c), Some(female_c)) = (
-            latest.get(),
-            male_cross_choice.get(),
-            female_cross_choice.get(),
-        ) else {
-            set_male_cross_heat.set(None);
-            set_female_cross_heat.set(None);
-            set_cross_sex_heat_loading.set(false);
-            return;
-        };
-        set_cross_sex_heat_loading.set(true);
-        set_cross_sex_heat_error.set(None);
-        spawn_local(async move {
-            let mut issues = Vec::new();
-            let male_url = dataset_file_url(&latest_v.version, &male_c.row.entry.bin);
-            match fetch_binary_first(&[&male_url]).await {
-                Ok(bytes) => match parse_combined_bin(&bytes).map(|(_, h)| h) {
-                    Some(h) => {
-                        if cross_sex_heat_request_id.get_untracked() != next_id {
-                            return;
-                        }
-                        set_male_cross_heat.set(Some(h));
-                    }
-                    None => issues.push("Invalid men's payload.".to_string()),
-                },
-                Err(e) => issues.push(e),
-            }
-            let female_url = dataset_file_url(&latest_v.version, &female_c.row.entry.bin);
-            match fetch_binary_first(&[&female_url]).await {
-                Ok(bytes) => match parse_combined_bin(&bytes).map(|(_, h)| h) {
-                    Some(h) => {
-                        if cross_sex_heat_request_id.get_untracked() != next_id {
-                            return;
-                        }
-                        set_female_cross_heat.set(Some(h));
-                    }
-                    None => issues.push("Invalid women's payload.".to_string()),
-                },
-                Err(e) => issues.push(e),
-            }
-            if cross_sex_heat_request_id.get_untracked() != next_id {
-                return;
-            }
-            set_cross_sex_heat_loading.set(false);
-            if !issues.is_empty() {
-                set_cross_sex_heat_error.set(Some(issues.join(" ")));
-            }
-        });
+    setup_cross_sex_heat_effect(CrossSexHeatCtx {
+        page_active: cross_sex_page_active,
+        calculated,
+        latest,
+        male_choice: male_cross_choice,
+        female_choice: female_cross_choice,
+        set_male_heat: set_male_cross_heat,
+        set_female_heat: set_female_cross_heat,
+        set_loading: set_cross_sex_heat_loading,
+        set_error: set_cross_sex_heat_error,
+        request: state::RequestTracker {
+            current: cross_sex_heat_request_id,
+            set: set_cross_sex_heat_request_id,
+        },
     });
 
-    Effect::new(move |_| {
-        let next_id = cross_sex_lift_comparison_request_id
-            .get_untracked()
-            .wrapping_add(1);
-        set_cross_sex_lift_comparison_request_id.set(next_id);
-
-        if !cross_sex_page_active.get() || !calculated.get() {
-            set_cross_sex_lift_comparisons.set(Vec::new());
-            set_cross_sex_lift_comparison_loading.set(false);
-            set_cross_sex_lift_comparison_error.set(None);
-            return;
-        }
-
-        let Some(latest_v) = latest.get() else {
-            set_cross_sex_lift_comparisons.set(Vec::new());
-            set_cross_sex_lift_comparison_loading.set(false);
-            set_cross_sex_lift_comparison_error.set(None);
-            return;
-        };
-
-        let male_rows = male_slice_rows.get();
-        let female_rows = female_slice_rows.get();
-        let e = equip.get();
-        let w = wc.get();
-        let a = age.get();
-        let t = tested.get();
-        let choices = CROSS_SEX_LIFT_ROWS
-            .iter()
-            .filter_map(|(lift_code, label)| {
-                let male = choose_cross_sex_slice(&male_rows, &e, &w, &a, &t, lift_code, "Kg")?;
-                let female = choose_cross_sex_slice(&female_rows, &e, &w, &a, &t, lift_code, "Kg")?;
-                Some(((*lift_code).to_string(), (*label).to_string(), male, female))
-            })
-            .collect::<Vec<_>>();
-
-        if choices.is_empty() {
-            set_cross_sex_lift_comparisons.set(Vec::new());
-            set_cross_sex_lift_comparison_loading.set(false);
-            set_cross_sex_lift_comparison_error.set(Some(
-                "No kg lift comparison slices for this cohort.".to_string(),
-            ));
-            return;
-        }
-
-        set_cross_sex_lift_comparisons.set(Vec::new());
-        set_cross_sex_lift_comparison_loading.set(true);
-        set_cross_sex_lift_comparison_error.set(None);
-
-        spawn_local(async move {
-            let mut comparisons = Vec::new();
-            let mut issues = Vec::new();
-
-            for (lift_code, label, male_c, female_c) in choices {
-                let male_url = dataset_file_url(&latest_v.version, &male_c.row.entry.bin);
-                let female_url = dataset_file_url(&latest_v.version, &female_c.row.entry.bin);
-
-                let male_payload = fetch_binary_first(&[&male_url]).await;
-                let female_payload = fetch_binary_first(&[&female_url]).await;
-                if cross_sex_lift_comparison_request_id.get_untracked() != next_id {
-                    return;
-                }
-
-                let Ok(male_bytes) = male_payload else {
-                    if let Err(err) = male_payload {
-                        issues.push(format!("{label} men's bin error: {err}"));
-                    }
-                    continue;
-                };
-                let Ok(female_bytes) = female_payload else {
-                    if let Err(err) = female_payload {
-                        issues.push(format!("{label} women's bin error: {err}"));
-                    }
-                    continue;
-                };
-
-                let Some((male_hist, male_heat)) = parse_combined_bin(&male_bytes) else {
-                    issues.push(format!("{label} men's payload was invalid."));
-                    continue;
-                };
-                let Some((female_hist, female_heat)) = parse_combined_bin(&female_bytes) else {
-                    issues.push(format!("{label} women's payload was invalid."));
-                    continue;
-                };
-
-                let Some((male_mean_kg, male_total)) = histogram_weighted_mean(&male_hist) else {
-                    issues.push(format!("{label} men's histogram was empty."));
-                    continue;
-                };
-                let Some((female_mean_kg, female_total)) = histogram_weighted_mean(&female_hist)
-                else {
-                    issues.push(format!("{label} women's histogram was empty."));
-                    continue;
-                };
-
-                comparisons.push(CrossSexLiftComparison {
-                    lift: lift_code,
-                    label,
-                    male_mean_kg,
-                    female_mean_kg,
-                    male_mean_bodyweight_ratio: heatmap_mean_lift_bodyweight_ratio(&male_heat),
-                    female_mean_bodyweight_ratio: heatmap_mean_lift_bodyweight_ratio(&female_heat),
-                    male_total,
-                    female_total,
-                });
-            }
-
-            if cross_sex_lift_comparison_request_id.get_untracked() != next_id {
-                return;
-            }
-            set_cross_sex_lift_comparisons.set(comparisons);
-            set_cross_sex_lift_comparison_loading.set(false);
-            set_cross_sex_lift_comparison_error.set(if issues.is_empty() {
-                None
-            } else {
-                Some(issues.join(" "))
-            });
-        });
+    setup_cross_sex_lift_comparison_effect(CrossSexLiftComparisonCtx {
+        page_active: cross_sex_page_active,
+        calculated,
+        latest,
+        male_rows: male_slice_rows,
+        female_rows: female_slice_rows,
+        equip,
+        wc,
+        age,
+        tested,
+        set_comparisons: set_cross_sex_lift_comparisons,
+        set_loading: set_cross_sex_lift_comparison_loading,
+        set_error: set_cross_sex_lift_comparison_error,
+        request: state::RequestTracker {
+            current: cross_sex_lift_comparison_request_id,
+            set: set_cross_sex_lift_comparison_request_id,
+        },
     });
 
     // Heatmap canvas drawing
@@ -953,304 +547,82 @@ fn App() -> impl IntoView {
         );
     });
 
-    // Unit pref persistence
-    Effect::new(move |_| {
-        if unit_pref_loaded.get() {
-            return;
-        }
-        let Some(w) = web_sys::window() else {
-            return;
-        };
-        let Ok(Some(storage)) = w.local_storage() else {
-            set_unit_pref_loaded.set(true);
-            return;
-        };
-        if let Ok(Some(saved)) = storage.get_item("ironscale_units")
-            && saved == "lb"
-        {
-            set_use_lbs.set(true);
-        }
-        set_unit_pref_loaded.set(true);
+    setup_unit_pref_effects(UnitPrefCtx {
+        loaded: unit_pref_loaded,
+        set_loaded: set_unit_pref_loaded,
+        use_lbs,
+        set_use_lbs,
     });
 
-    Effect::new(move |_| {
-        if !unit_pref_loaded.get() {
-            return;
-        }
-        let Some(w) = web_sys::window() else {
-            return;
-        };
-        let Ok(Some(storage)) = w.local_storage() else {
-            return;
-        };
-        let units = if use_lbs.get() { "lb" } else { "kg" };
-        let _ = storage.set_item("ironscale_units", units);
+    setup_query_load_effect(QueryLoadCtx {
+        query_loaded,
+        set_query_loaded,
+        set_sex,
+        set_equip,
+        set_wc,
+        set_age,
+        set_tested,
+        set_lift,
+        set_metric,
+        squat,
+        set_squat,
+        bench,
+        set_bench,
+        deadlift,
+        set_deadlift,
+        bodyweight,
+        set_bodyweight,
+        set_squat_delta,
+        set_bench_delta,
+        set_deadlift_delta,
+        set_lift_mult,
+        set_bw_mult,
+        set_calculated,
     });
 
-    // Query/hash load
-    Effect::new(move |_| {
-        if query_loaded.get() {
-            return;
-        }
-        let Some(window) = web_sys::window() else {
-            return;
-        };
-        let Ok(search) = window.location().search() else {
-            return;
-        };
-        if search.is_empty() {
-            if let Ok(Some(storage)) = window.local_storage()
-                && let Ok(Some(raw)) = storage.get_item("ironscale_last_state")
-                && let Ok(saved) = serde_json::from_str::<SavedUiState>(&raw)
-            {
-                set_sex.set(saved.sex);
-                set_equip.set(saved.equip);
-                set_wc.set(saved.wc);
-                set_age.set(saved.age);
-                set_tested.set(saved.tested);
-                set_lift.set(saved.lift);
-                set_metric.set(saved.metric);
-                set_squat.set(saved.squat.clamp(0.0, 600.0));
-                set_bench.set(saved.bench.clamp(0.0, 600.0));
-                set_deadlift.set(saved.deadlift.clamp(0.0, 600.0));
-                set_bodyweight.set(saved.bodyweight.clamp(35.0, 300.0));
-                set_squat_delta.set(saved.squat_delta.clamp(-50.0, 50.0));
-                set_bench_delta.set(saved.bench_delta.clamp(-50.0, 50.0));
-                set_deadlift_delta.set(saved.deadlift_delta.clamp(-50.0, 50.0));
-                set_lift_mult.set(saved.lift_mult.clamp(1, 4));
-                set_bw_mult.set(saved.bw_mult.clamp(1, 5));
-                set_calculated.set(saved.calculated);
-            }
-            set_query_loaded.set(true);
-            return;
-        }
-        let Ok(params) = web_sys::UrlSearchParams::new_with_str(&search) else {
-            set_query_loaded.set(true);
-            return;
-        };
-        if let Some(v) = params.get("sex") {
-            set_sex.set(v);
-        }
-        if let Some(v) = params.get("equip") {
-            set_equip.set(v);
-        }
-        if let Some(v) = params.get("wc") {
-            set_wc.set(v);
-        }
-        if let Some(v) = params.get("age") {
-            set_age.set(v);
-        }
-        if let Some(v) = params.get("tested") {
-            set_tested.set(v);
-        }
-        if let Some(v) = params.get("lift") {
-            set_lift.set(v);
-        }
-        if let Some(v) = params.get("metric") {
-            set_metric.set(v);
-        }
-        set_squat.set(parse_query_f32(
-            params.get("s"),
-            squat.get_untracked(),
-            0.0,
-            600.0,
-        ));
-        set_bench.set(parse_query_f32(
-            params.get("b"),
-            bench.get_untracked(),
-            0.0,
-            600.0,
-        ));
-        set_deadlift.set(parse_query_f32(
-            params.get("d"),
-            deadlift.get_untracked(),
-            0.0,
-            600.0,
-        ));
-        set_bodyweight.set(parse_query_f32(
-            params.get("bw"),
-            bodyweight.get_untracked(),
-            35.0,
-            300.0,
-        ));
-        set_squat_delta.set(parse_query_f32(params.get("sd"), 0.0, -50.0, 50.0));
-        set_bench_delta.set(parse_query_f32(params.get("bd"), 0.0, -50.0, 50.0));
-        set_deadlift_delta.set(parse_query_f32(params.get("dd"), 0.0, -50.0, 50.0));
-        if params.get("calc").as_deref() == Some("1") {
-            set_calculated.set(true);
-        }
-        set_query_loaded.set(true);
+    setup_hash_nav_effects(HashNavCtx {
+        page_loaded,
+        set_page_loaded,
+        active_page,
+        set_active_page,
     });
 
-    Effect::new(move |_| {
-        if page_loaded.get() {
-            return;
-        }
-        let Some(window) = web_sys::window() else {
-            return;
-        };
-        if let Ok(hash) = window.location().hash() {
-            let p = if hash.eq_ignore_ascii_case("#nerds") {
-                AppPage::Nerds
-            } else if hash.eq_ignore_ascii_case("#men-vs-women") {
-                AppPage::MenVsWomen
-            } else if hash.eq_ignore_ascii_case("#1rm") {
-                AppPage::OneRm
-            } else if hash.eq_ignore_ascii_case("#plate-calc") {
-                AppPage::PlateCalc
-            } else if hash.eq_ignore_ascii_case("#bodyfat") {
-                AppPage::Bodyfat
-            } else {
-                AppPage::Ranking
-            };
-            set_active_page.set(p);
-        }
-        set_page_loaded.set(true);
+    setup_state_persist_effect(StatePersistCtx {
+        query_loaded,
+        sex,
+        equip,
+        wc,
+        age,
+        tested,
+        lift,
+        metric,
+        squat,
+        bench,
+        deadlift,
+        bodyweight,
+        squat_delta,
+        bench_delta,
+        deadlift_delta,
+        lift_mult,
+        bw_mult,
+        calculated,
     });
 
-    Effect::new(move |_| {
-        if !page_loaded.get() {
-            return;
-        }
-        let Some(window) = web_sys::window() else {
-            return;
-        };
-        let _ = window.location().set_hash(active_page.get().hash());
-    });
-
-    Effect::new(move |_| {
-        if !query_loaded.get() {
-            return;
-        }
-        let Some(window) = web_sys::window() else {
-            return;
-        };
-        let Ok(Some(storage)) = window.local_storage() else {
-            return;
-        };
-        let snapshot = SavedUiState {
-            sex: sex.get(),
-            equip: equip.get(),
-            wc: wc.get(),
-            age: age.get(),
-            tested: tested.get(),
-            lift: lift.get(),
-            metric: metric.get(),
-            squat: squat.get(),
-            bench: bench.get(),
-            deadlift: deadlift.get(),
-            bodyweight: bodyweight.get(),
-            squat_delta: squat_delta.get(),
-            bench_delta: bench_delta.get(),
-            deadlift_delta: deadlift_delta.get(),
-            lift_mult: lift_mult.get(),
-            bw_mult: bw_mult.get(),
-            share_handle: String::new(),
-            calculated: calculated.get(),
-        };
-        if let Ok(raw) = serde_json::to_string(&snapshot) {
-            let _ = storage.set_item("ironscale_last_state", &raw);
-        }
-    });
-
-    // Cross-sex comparison derivation
-    let cross_sex_comparison = Memo::new(move |_| -> Result<CrossSexComparison, String> {
-        if !calculated.get() {
-            return Err("Calculate first.".to_string());
-        }
-        if let Some(err) = cross_sex_rows_error.get() {
-            return Err(err);
-        }
-        let mc = male_cross_choice
-            .get()
-            .ok_or("No matching men's cohort.".to_string())?;
-        let fc = female_cross_choice
-            .get()
-            .ok_or("No matching women's cohort.".to_string())?;
-        let ms = mc
-            .row
-            .entry
-            .summary
-            .as_ref()
-            .ok_or("Men's summary missing.".to_string())?;
-        let fs = fc
-            .row
-            .entry
-            .summary
-            .as_ref()
-            .ok_or("Women's summary missing.".to_string())?;
-        if ms.total < MIN_CROSS_SEX_COHORT_TOTAL || fs.total < MIN_CROSS_SEX_COHORT_TOTAL {
-            return Err(format!(
-                "Cohort too small (<{} lifters).",
-                MIN_CROSS_SEX_COHORT_TOTAL
-            ));
-        }
-        if let Some(err) = cross_sex_hist_error.get() {
-            return Err(err);
-        }
-        let mh = male_cross_hist
-            .get()
-            .ok_or("Men's distribution not loaded.".to_string())?;
-        let fh = female_cross_hist
-            .get()
-            .ok_or("Women's distribution not loaded.".to_string())?;
-        let e = equip.get();
-        let l = lift.get();
-        let m = metric.get();
-        let male_val = comparable_lift_value(
-            ComparableLifter {
-                sex: "M",
-                equipment: &e,
-                bodyweight: bodyweight.get(),
-                squat: squat.get(),
-                bench: bench.get(),
-                deadlift: deadlift.get(),
-            },
-            &l,
-            &m,
-        );
-        let female_val = comparable_lift_value(
-            ComparableLifter {
-                sex: "F",
-                equipment: &e,
-                bodyweight: bodyweight.get(),
-                squat: squat.get(),
-                bench: bench.get(),
-                deadlift: deadlift.get(),
-            },
-            &l,
-            &m,
-        );
-        let (male_pct, female_at_male_pct) =
-            crate::core::equivalent_value_for_same_percentile(Some(&mh), Some(&fh), male_val)
-                .ok_or("Could not compute women's equivalent.".to_string())?;
-        let (female_pct, male_at_female_pct) =
-            crate::core::equivalent_value_for_same_percentile(Some(&fh), Some(&mh), female_val)
-                .ok_or("Could not compute men's equivalent.".to_string())?;
-        let caveat = if m == "Kg" {
-            Some(
-                "Raw kg cross-sex comparisons are descriptive. Prefer Dots, Wilks, or Goodlift."
-                    .to_string(),
-            )
-        } else {
-            None
-        };
-        Ok(CrossSexComparison {
-            male_percentile: male_pct,
-            female_percentile: female_pct,
-            male_total: ms.total,
-            female_total: fs.total,
-            male_input_value: male_val,
-            female_input_value: female_val,
-            female_value_at_male_percentile: female_at_male_pct,
-            male_value_at_female_percentile: male_at_female_pct,
-            metric: m,
-            male_weight_class: mc.row.key.wc,
-            female_weight_class: fc.row.key.wc,
-            male_wc_fallback: mc.weight_class_fallback,
-            female_wc_fallback: fc.weight_class_fallback,
-            caveat,
-        })
+    let cross_sex_comparison = make_cross_sex_comparison(CrossSexComparisonCtx {
+        calculated,
+        rows_error: cross_sex_rows_error,
+        male_choice: male_cross_choice,
+        female_choice: female_cross_choice,
+        hist_error: cross_sex_hist_error,
+        male_hist: male_cross_hist,
+        female_hist: female_cross_hist,
+        equip,
+        lift,
+        metric,
+        bodyweight,
+        squat,
+        bench,
+        deadlift,
     });
 
     // Build context structs for page components

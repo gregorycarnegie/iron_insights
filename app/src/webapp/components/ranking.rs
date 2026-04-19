@@ -86,6 +86,63 @@ fn next_unlock(current_pct: f32) -> Option<(f32, &'static str)> {
         .find(|(target_pct, _)| current_pct < target_pct - 0.0001)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{format_count, next_unlock};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn format_count_zero() {
+        assert_eq!(format_count(0), "0");
+    }
+
+    #[wasm_bindgen_test]
+    fn format_count_below_thousand() {
+        assert_eq!(format_count(999), "999");
+    }
+
+    #[wasm_bindgen_test]
+    fn format_count_thousands() {
+        assert_eq!(format_count(1_000), "1,000");
+        assert_eq!(format_count(12_345), "12,345");
+    }
+
+    #[wasm_bindgen_test]
+    fn format_count_millions() {
+        assert_eq!(format_count(1_234_567), "1,234,567");
+    }
+
+    #[wasm_bindgen_test]
+    fn next_unlock_at_zero_is_intermediate() {
+        let (pct, label) = next_unlock(0.0).expect("should have a next unlock");
+        assert!((pct - 0.60).abs() < 0.001);
+        assert_eq!(label, "INTERMEDIATE");
+    }
+
+    #[wasm_bindgen_test]
+    fn next_unlock_past_intermediate_is_advanced() {
+        let (_, label) = next_unlock(0.61).expect("should have a next unlock");
+        assert_eq!(label, "ADVANCED");
+    }
+
+    #[wasm_bindgen_test]
+    fn next_unlock_past_advanced_is_elite() {
+        let (_, label) = next_unlock(0.81).expect("should have a next unlock");
+        assert_eq!(label, "ELITE");
+    }
+
+    #[wasm_bindgen_test]
+    fn next_unlock_past_elite_is_legend() {
+        let (_, label) = next_unlock(0.96).expect("should have a next unlock");
+        assert_eq!(label, "LEGEND");
+    }
+
+    #[wasm_bindgen_test]
+    fn next_unlock_at_legend_is_none() {
+        assert!(next_unlock(0.99).is_none());
+    }
+}
+
 #[derive(Clone)]
 pub struct RankingCtx {
     pub dataset_blurb: Memo<String>,
@@ -387,7 +444,7 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
                     <span class="serif">"Enter your numbers."</span>
                     " We place you against 2M+ lifters from federated meets."
                     <br />
-                    <span style="font-size:11px;color:var(--ink-mute)">{move || dataset_blurb.get()}</span>
+                    <span class="blurb-meta">{move || dataset_blurb.get()}</span>
                 </p>
             </div>
 
@@ -435,13 +492,13 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
                         </div>
                     </div>
 
-                    <div class="stat-big" style="margin-bottom:24px">
-                        <div style="display:flex;justify-content:space-between;align-items:baseline">
+                    <div class="stat-big stat-big-wrap">
+                        <div class="stat-row">
                             <div>
                                 <div class="label">"OVERALL PERCENTILE / " {move || metric.get().to_uppercase()}</div>
                                 <div class="num">
                                     {move || pct_display.get()}
-                                    <span style="font-size:32px;color:var(--ink-dim)">"th"</span>
+                                    <span class="stat-ordinal">"th"</span>
                                 </div>
                                 <div class="sub">
                                     {move || {
@@ -456,12 +513,12 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
                                     }}
                                 </div>
                             </div>
-                            <div style="text-align:right">
+                            <div class="stat-right">
                                 <div class="label">"STRENGTH LEVEL"</div>
-                                <div class="serif" style="font-size:24px;color:var(--chalk);margin-top:4px">
+                                <div class="serif stat-tier">
                                     {move || rank_tier.get().unwrap_or("-").to_uppercase()}
                                 </div>
-                                <div style="font-size:11px;color:var(--ink-mute);margin-top:4px">
+                                <div class="stat-cohort">
                                     {move || ranking_cohort_blurb.get()}
                                 </div>
                             </div>
@@ -474,7 +531,7 @@ pub fn RankingPage(ctx: RankingCtx) -> impl IntoView {
                         </div>
                     </div>
 
-                    <div class="panel" style="margin-bottom:24px">
+                    <div class="panel panel-mb">
                         <Corners />
                         <div class="panel-head">
                             <span><span class="tag">"02"</span>" DISTRIBUTION CURVE"</span>

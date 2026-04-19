@@ -4,8 +4,8 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 
 ## 1. Break up the god-file (`src/webapp/mod.rs`, 1498 lines)
 
-- [ ] Extract cross-sex loading (rows, hist, heat, lift comparisons — 4 effects) into `webapp/cross_sex.rs`.
-- [ ] Extract URL query / hash sync and `localStorage` unit persistence into `webapp/persistence.rs`.
+- [x] Extract cross-sex loading (rows, hist, heat, lift comparisons — 4 effects) into `webapp/cross_sex.rs`.
+- [x] Extract URL query / hash sync and `localStorage` unit persistence into `webapp/persistence.rs`.
 - [ ] Move the `App` component's 60+ signal declarations into a typed `AppState` struct with grouped sub-states (`UserInput`, `Selection`, `CrossSexState`, `UiFlags`).
 - [ ] Keep `mod.rs` to wiring + `run()` only — target under 300 lines.
 
@@ -24,7 +24,7 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 
 ## 4. Styling debt
 
-- [ ] Purge inline `style="..."` strings in `ranking.rs` (25+ instances) — move to CSS classes in `assets/style.css`.
+- [x] Purge inline `style="..."` strings in `ranking.rs` (25+ instances) — move to CSS classes in `assets/style.css`.
 - [ ] Split `style.css` (1098 lines) into `base.css`, `layout.css`, `pages.css`, `components.css` via `@import` or a trunk pipeline.
 - [ ] Define a spacing/size token scale (`--space-1` … `--space-8`) so magic pixel values (`padding:80px 40px`) stop multiplying.
 
@@ -36,7 +36,7 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 
 ## 6. Testing (currently none in `app/src`)
 
-- [ ] Add `#[cfg(test)]` unit tests for pure helpers: `calc_plates`, `format_count`, `next_unlock`, `tier_for_percentile`, `comparable_lift_value`.
+- [x] Add `#[cfg(test)]` unit tests for pure helpers: `calc_plates`, `format_count`, `next_unlock`, `tier_for_percentile`, `comparable_lift_value`.
 - [ ] Add WASM-in-browser smoke tests via `wasm-bindgen-test` — one per page rendering without panicking.
 - [ ] Add a snapshot of the selector index transitions (sex→equip→wc→age) to lock in cascade behavior.
 
@@ -57,5 +57,5 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 ## 9. Hygiene
 
 - [ ] Enable `#![warn(clippy::pedantic)]` on the `webapp` module and fix the fallout.
-- [ ] Scan for and remove any leftover `#[allow(dead_code)]` (at least `InputFormCtx`).
+- [x] Scan for and remove any leftover `#[allow(dead_code)]` (at least `InputFormCtx`).
 - [ ] Document the data-pipeline contract in `app/README.md`: `data/latest.json` → `root_index` → shard → slice → bin payload, so onboarding doesn't require reading all of `mod.rs`.
