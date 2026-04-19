@@ -1,5 +1,5 @@
 use super::data::{fetch_binary_first, fetch_json_first};
-use super::debug_log;
+use super::logging::debug_log;
 use super::models::{
     LatestJson, RootIndex, SliceIndex, SliceIndexEntries, SliceMetaJson, SliceRow, SliceSummary,
 };

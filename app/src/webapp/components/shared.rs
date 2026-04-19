@@ -56,22 +56,6 @@ pub(super) fn InputForm() -> impl IntoView {
                 </div>
             </div>
 
-            // Equipment
-            <div>
-                <label>"Equipment"</label>
-                <select
-                    on:change=move |ev| {
-                        sel.set_equip.set(event_target_value(&ev));
-                    }
-                    prop:value=move || sel.equip.get()
-                >
-                    {move || sel.equip_opts.get().into_iter().map(|opt| {
-                        let opt_clone = opt.clone();
-                        view! { <option value={opt_clone.clone()} prop:selected=move || sel.equip.get() == opt_clone>{opt}</option> }
-                    }).collect_view()}
-                </select>
-            </div>
-
             // Units
             <div>
                 <label>"Units"</label>
@@ -177,60 +161,83 @@ pub(super) fn InputForm() -> impl IntoView {
                 {move || inp.deadlift_error.get().map(|e| view! { <p class="notice error">{e}</p> })}
             </div>
 
-            // Filters
-            <div>
-                <label>"Weight Class"</label>
-                <select on:change=move |ev| sel.set_wc.set(event_target_value(&ev)) prop:value=move || sel.wc.get()>
-                    {move || sel.wc_opts.get().into_iter().map(|opt| {
-                        let opt_c = opt.clone();
-                        view! { <option value={opt_c.clone()} prop:selected=move || sel.wc.get() == opt_c>{opt}</option> }
-                    }).collect_view()}
-                </select>
-            </div>
+            <details class="advanced-fields">
+                <summary>
+                    <span>"Advanced"</span>
+                    <small>{move || format!("{} / {} / {}", sel.equip.get(), sel.age.get(), sel.metric.get())}</small>
+                </summary>
 
-            <div>
-                <label>"Age Class"</label>
-                <select on:change=move |ev| sel.set_age.set(event_target_value(&ev)) prop:value=move || sel.age.get()>
-                    {move || sel.age_opts.get().into_iter().map(|opt| {
-                        let opt_c = opt.clone();
-                        view! { <option value={opt_c.clone()} prop:selected=move || sel.age.get() == opt_c>{opt}</option> }
-                    }).collect_view()}
-                </select>
-            </div>
+                <div class="advanced-grid">
+                    <div>
+                        <label>"Equipment"</label>
+                        <select
+                            on:change=move |ev| {
+                                sel.set_equip.set(event_target_value(&ev));
+                            }
+                            prop:value=move || sel.equip.get()
+                        >
+                            {move || sel.equip_opts.get().into_iter().map(|opt| {
+                                let opt_clone = opt.clone();
+                                view! { <option value={opt_clone.clone()} prop:selected=move || sel.equip.get() == opt_clone>{opt}</option> }
+                            }).collect_view()}
+                        </select>
+                    </div>
 
-            <div>
-                <label>"Tested Status"</label>
-                <select on:change=move |ev| sel.set_tested.set(event_target_value(&ev)) prop:value=move || sel.tested.get()>
-                    {move || sel.tested_opts.get().into_iter().map(|opt| {
-                        let opt_c = opt.clone();
-                        view! { <option value={opt_c.clone()} prop:selected=move || sel.tested.get() == opt_c>{opt}</option> }
-                    }).collect_view()}
-                </select>
-            </div>
+                    <div>
+                        <label>"Weight Class"</label>
+                        <select on:change=move |ev| sel.set_wc.set(event_target_value(&ev)) prop:value=move || sel.wc.get()>
+                            {move || sel.wc_opts.get().into_iter().map(|opt| {
+                                let opt_c = opt.clone();
+                                view! { <option value={opt_c.clone()} prop:selected=move || sel.wc.get() == opt_c>{opt}</option> }
+                            }).collect_view()}
+                        </select>
+                    </div>
 
-            <div>
-                <label>"Lift"</label>
-                <select on:change=move |ev| sel.set_lift.set(event_target_value(&ev)) prop:value=move || sel.lift.get()>
-                    {move || sel.lift_opts.get().into_iter().map(|opt| {
-                        let label = match opt.as_str() {
-                            "S" => "Squat", "B" => "Bench", "D" => "Deadlift",
-                            "T" => "Total", _ => "Unknown",
-                        };
-                        let opt_c = opt.clone();
-                        view! { <option value={opt_c.clone()} prop:selected=move || sel.lift.get() == opt_c>{label}</option> }
-                    }).collect_view()}
-                </select>
-            </div>
+                    <div>
+                        <label>"Age Class"</label>
+                        <select on:change=move |ev| sel.set_age.set(event_target_value(&ev)) prop:value=move || sel.age.get()>
+                            {move || sel.age_opts.get().into_iter().map(|opt| {
+                                let opt_c = opt.clone();
+                                view! { <option value={opt_c.clone()} prop:selected=move || sel.age.get() == opt_c>{opt}</option> }
+                            }).collect_view()}
+                        </select>
+                    </div>
 
-            <div>
-                <label>"Metric"</label>
-                <select on:change=move |ev| sel.set_metric.set(event_target_value(&ev)) prop:value=move || sel.metric.get()>
-                    {move || sel.metric_opts.get().into_iter().map(|opt| {
-                        let opt_c = opt.clone();
-                        view! { <option value={opt_c.clone()} prop:selected=move || sel.metric.get() == opt_c>{opt}</option> }
-                    }).collect_view()}
-                </select>
-            </div>
+                    <div>
+                        <label>"Tested Status"</label>
+                        <select on:change=move |ev| sel.set_tested.set(event_target_value(&ev)) prop:value=move || sel.tested.get()>
+                            {move || sel.tested_opts.get().into_iter().map(|opt| {
+                                let opt_c = opt.clone();
+                                view! { <option value={opt_c.clone()} prop:selected=move || sel.tested.get() == opt_c>{opt}</option> }
+                            }).collect_view()}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>"Lift"</label>
+                        <select on:change=move |ev| sel.set_lift.set(event_target_value(&ev)) prop:value=move || sel.lift.get()>
+                            {move || sel.lift_opts.get().into_iter().map(|opt| {
+                                let label = match opt.as_str() {
+                                    "S" => "Squat", "B" => "Bench", "D" => "Deadlift",
+                                    "T" => "Total", _ => "Unknown",
+                                };
+                                let opt_c = opt.clone();
+                                view! { <option value={opt_c.clone()} prop:selected=move || sel.lift.get() == opt_c>{label}</option> }
+                            }).collect_view()}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>"Metric"</label>
+                        <select on:change=move |ev| sel.set_metric.set(event_target_value(&ev)) prop:value=move || sel.metric.get()>
+                            {move || sel.metric_opts.get().into_iter().map(|opt| {
+                                let opt_c = opt.clone();
+                                view! { <option value={opt_c.clone()} prop:selected=move || sel.metric.get() == opt_c>{opt}</option> }
+                            }).collect_view()}
+                        </select>
+                    </div>
+                </div>
+            </details>
 
             <button
                 class="btn"

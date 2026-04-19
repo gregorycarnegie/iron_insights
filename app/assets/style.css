@@ -127,7 +127,6 @@ h1, h2, h3, h4 {
   font-size: 12px;
   letter-spacing: 0.05em;
   color: var(--ink-dim);
-  text-transform: uppercase;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -321,6 +320,35 @@ select {
 /* ===== PAGE 1: RANKING ===== */
 .rank-grid { display: grid; grid-template-columns: 380px 1fr; gap: 24px; }
 .input-stack { display: grid; gap: 16px; }
+.advanced-fields {
+  border-top: 1px dashed var(--line);
+  border-bottom: 1px dashed var(--line);
+  padding: 12px 0;
+}
+.advanced-fields summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  cursor: pointer;
+  color: var(--ink-dim);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.advanced-fields summary::marker { color: var(--iron); }
+.advanced-fields summary small {
+  color: var(--ink-mute);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-align: right;
+  text-transform: uppercase;
+}
+.advanced-grid {
+  display: grid;
+  gap: 16px;
+  padding-top: 16px;
+}
 .lift-row { display: grid; grid-template-columns: 1fr 70px; gap: 8px; align-items: end; }
 .lift-row .hint { font-size: 10px; color: var(--ink-mute); text-align: center; padding-bottom: 14px; letter-spacing: 0.1em; }
 

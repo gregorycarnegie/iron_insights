@@ -7,7 +7,7 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 - [x] Extract cross-sex loading (rows, hist, heat, lift comparisons — 4 effects) into `webapp/cross_sex.rs`.
 - [x] Extract URL query / hash sync and `localStorage` unit persistence into `webapp/persistence.rs`.
 - [x] Move the `App` component's 60+ signal declarations into a typed `AppState` struct with grouped sub-states (`UserInput`, `Selection`, `CrossSexState`, `UiFlags`).
-- [ ] Keep `mod.rs` to wiring + `run()` only — target under 300 lines.
+- [x] Keep `mod.rs` to wiring + `run()` only — target under 300 lines.
 
 ## 2. Kill the 45-field context structs
 
@@ -16,9 +16,9 @@ Current rating: **7/10**. Engineering is solid; the drag is structure, UX clarit
 
 ## 3. Product UX (from memory: "feels like a data viewer, not a product")
 
-- [ ] First-run empty state: show a *sample* percentile result before the user types anything, so the payoff is visible.
-- [ ] Hide filter controls (equip, age, tested, metric) behind an "Advanced" disclosure; pick smart defaults.
-- [ ] Replace `STATS FOR NERDS` / `MEN VS WOMEN` uppercase jargon tabs with plain titles in the main nav; keep the typographic style for headings only.
+- [x] First-run empty state: show a *sample* percentile result before the user types anything, so the payoff is visible.
+- [x] Hide filter controls (equip, age, tested, metric) behind an "Advanced" disclosure; pick smart defaults.
+- [x] Replace `STATS FOR NERDS` / `MEN VS WOMEN` uppercase jargon tabs with plain titles in the main nav; keep the typographic style for headings only.
 - [ ] Add a one-sentence plain-English summary above every chart ("You out-lift 73% of 120kg male raw lifters").
 - [ ] Mobile layout pass — the 240px sticky sidebar will break below ~720px; add a top-nav fallback.
 

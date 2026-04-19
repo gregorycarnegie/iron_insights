@@ -116,10 +116,12 @@ pub(super) fn setup_query_load_effect(ctx: QueryLoadCtx) {
             return;
         };
         if search.is_empty() {
+            let mut restored_saved_state = false;
             if let Ok(Some(storage)) = window.local_storage()
                 && let Ok(Some(raw)) = storage.get_item("ironscale_last_state")
                 && let Ok(saved) = serde_json::from_str::<SavedUiState>(&raw)
             {
+                restored_saved_state = true;
                 set_sex.set(saved.sex);
                 set_equip.set(saved.equip);
                 set_wc.set(saved.wc);
@@ -137,6 +139,9 @@ pub(super) fn setup_query_load_effect(ctx: QueryLoadCtx) {
                 set_lift_mult.set(saved.lift_mult.clamp(1, 4));
                 set_bw_mult.set(saved.bw_mult.clamp(1, 5));
                 set_calculated.set(saved.calculated);
+            }
+            if !restored_saved_state {
+                set_calculated.set(true);
             }
             set_query_loaded.set(true);
             return;

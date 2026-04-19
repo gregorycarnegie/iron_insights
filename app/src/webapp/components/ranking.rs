@@ -169,6 +169,7 @@ pub fn RankingPage() -> impl IntoView {
     let squat = inp.squat;
     let bench = inp.bench;
     let deadlift = inp.deadlift;
+    let bodyweight = inp.bodyweight;
 
     let total_kg = Memo::new(move |_| squat.get() + bench.get() + deadlift.get());
     let pct_num = Memo::new(move |_| percentile.get().map(|(p, _, _)| p * 100.0));
@@ -178,6 +179,13 @@ pub fn RankingPage() -> impl IntoView {
             .get()
             .map(|p| format!("{:.1}", p))
             .unwrap_or_else(|| "--".to_string())
+    });
+    let showing_sample_result = Memo::new(move |_| {
+        calculated.get()
+            && (bodyweight.get() - 90.0).abs() < 0.001
+            && (squat.get() - 180.0).abs() < 0.001
+            && (bench.get() - 120.0).abs() < 0.001
+            && (deadlift.get() - 220.0).abs() < 0.001
     });
     let beaten_lifters = Memo::new(move |_| {
         percentile
@@ -341,6 +349,8 @@ pub fn RankingPage() -> impl IntoView {
                                     {move || {
                                         if !calculated.get() {
                                             "Enter numbers and compute to see your rank.".to_string()
+                                        } else if showing_sample_result.get() {
+                                            "Sample result loaded. Change any number to see your own rank.".to_string()
                                         } else {
                                             match pct_num.get() {
                                                 Some(p) => format!("Ahead of {:.1}% of lifters in this cohort", p),

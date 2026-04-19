@@ -1,6 +1,6 @@
 use super::slices::parse_shard_key;
 use super::ui::{age_class_sort_key, ipf_class_sort_key, unique};
-use super::{RootIndex, SliceRow};
+use super::models::{RootIndex, SliceRow};
 use leptos::prelude::*;
 use std::collections::{BTreeSet, HashMap};
 
