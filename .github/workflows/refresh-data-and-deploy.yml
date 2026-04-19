@@ -65,7 +65,7 @@ jobs:
           cargo test --manifest-path app/Cargo.toml
           cargo clippy --workspace --all-targets -- -D warnings
           cargo clippy --manifest-path pipeline/Cargo.toml --all-targets -- -D warnings
-          cargo clippy --manifest-path app/Cargo.toml --all-targets -- -D warnings
+          cargo clippy --manifest-path app/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Capture previous latest version
         id: previous
