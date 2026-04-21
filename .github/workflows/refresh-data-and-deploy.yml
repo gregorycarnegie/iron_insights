@@ -9,9 +9,9 @@ on:
       - '.github/workflows/refresh-data-and-deploy.yml'
       - 'Cargo.toml'
       - 'Cargo.lock'
-      - 'app/**'
+      - 'iron_insights_web/**'
       - 'data/**'
-      - 'pipeline/**'
+      - 'iron_insights_pipeline/**'
       - 'scripts/**'
       - 'src/**'
   schedule:
@@ -61,9 +61,9 @@ jobs:
         run: |
           set -euo pipefail
           cargo test --workspace --exclude iron_insights_web
-          cargo test --manifest-path app/Cargo.toml --target wasm32-unknown-unknown --no-run
+          cargo test --manifest-path iron_insights_web/Cargo.toml --target wasm32-unknown-unknown --no-run
           cargo clippy --workspace --all-targets --exclude iron_insights_web -- -D warnings
-          cargo clippy --manifest-path app/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+          cargo clippy --manifest-path iron_insights_web/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Capture previous latest version
         id: previous
@@ -86,12 +86,12 @@ jobs:
 
           echo "DATA_VERSION=${VERSION}" >> "$GITHUB_ENV"
 
-          cargo run --manifest-path pipeline/Cargo.toml --bin 01_download -- \
+          cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 01_download -- \
             --dataset-version "${VERSION}"
 
-          cargo run --manifest-path pipeline/Cargo.toml --bin 02_build_aggregates
+          cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 02_build_aggregates
 
-          cargo run --manifest-path pipeline/Cargo.toml --bin 03_publish_data -- \
+          cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 03_publish_data -- \
             --data-dir data \
             --version "${VERSION}" \
             --keep-versions 2
@@ -102,8 +102,8 @@ jobs:
           set -euo pipefail
 
           # Guard: essential files must exist.
-          test -s "pipeline/output/openpowerlifting-latest.parquet"
-          test -s "pipeline/output/build_metadata.json"
+          test -s "iron_insights_pipeline/output/openpowerlifting-latest.parquet"
+          test -s "iron_insights_pipeline/output/build_metadata.json"
           test -s "data/latest.json"
           test -s "data/${DATA_VERSION}/index.json"
 
@@ -180,7 +180,7 @@ jobs:
           fi
 
           echo "Build metadata:"
-          cat pipeline/output/build_metadata.json
+          cat iron_insights_pipeline/output/build_metadata.json
 
       - name: Commit refreshed data back to main
         shell: bash
@@ -203,16 +203,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf app/data
-          mkdir -p app/data
-          cp -a data/. app/data/
+          rm -rf iron_insights_web/data
+          mkdir -p iron_insights_web/data
+          cp -a data/. iron_insights_web/data/
 
       - name: Build static site to docs
         shell: bash
         run: |
           set -euo pipefail
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
-          cd app
+          cd iron_insights_web
           trunk build --release --dist ../docs --public-url "/${REPO_NAME}/"
 
       - name: QA report (data + payload)

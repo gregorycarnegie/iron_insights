@@ -1,5 +1,5 @@
 [package]
-name = "pipeline"
+name = "iron_insights_pipeline"
 version.workspace = true
 edition.workspace = true
 

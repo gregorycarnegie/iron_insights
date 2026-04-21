@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::Parser;
 use iron_insights_core::{BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC};
-use pipeline::BuildMetadata;
+use iron_insights_pipeline::BuildMetadata;
 use polars::prelude::*;
 use serde::Serialize;
 

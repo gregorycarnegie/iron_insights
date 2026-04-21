@@ -6,7 +6,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
 use clap::Parser;
-use pipeline::{BuildMetadata, DEFAULT_ZIP_URL};
+use iron_insights_pipeline::{BuildMetadata, DEFAULT_ZIP_URL};
 use polars::prelude::{
     CsvReadOptions, DataType, Field, ParquetWriter, Schema, SchemaRef, SerReader,
 };
