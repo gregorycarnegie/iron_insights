@@ -13,5 +13,5 @@ fn main() {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    println!("ironscale is a wasm CSR app. Build for wasm32-unknown-unknown.");
+    println!("iron_insights_web is a wasm CSR app. Build for wasm32-unknown-unknown.");
 }

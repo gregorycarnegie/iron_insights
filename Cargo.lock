@@ -1576,7 +1576,7 @@ name = "iron_insights_core"
 version = "0.5.0"
 
 [[package]]
-name = "ironscale"
+name = "iron_insights_web"
 version = "0.5.0"
 dependencies = [
  "base64",

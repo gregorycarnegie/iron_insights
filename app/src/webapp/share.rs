@@ -74,7 +74,7 @@ pub(super) fn download_share_png(payload: ShareImagePayload<'_>) -> Result<(), S
     context.set_fill_style_str("#f4f1ea");
     context.set_font("700 20px 'JetBrains Mono', monospace");
     context
-        .fill_text("IRONSCALE", 112.0, 96.0)
+        .fill_text("IRON INSIGHTS", 112.0, 96.0)
         .map_err(|_| "Failed to render brand.")?;
 
     context.set_fill_style_str("#52504c");
@@ -171,7 +171,7 @@ pub(super) fn download_share_png(payload: ShareImagePayload<'_>) -> Result<(), S
     context.set_fill_style_str("#3a3a42");
     context.set_font("400 13px 'JetBrains Mono', monospace");
     context
-        .fill_text("IRONSCALE · WHERE YOU STAND", 80.0, 565.0)
+        .fill_text("IRON INSIGHTS · WHERE YOU STAND", 80.0, 565.0)
         .map_err(|_| "Failed to render watermark.")?;
 
     let data_url = canvas
@@ -183,7 +183,7 @@ pub(super) fn download_share_png(payload: ShareImagePayload<'_>) -> Result<(), S
         .dyn_into::<web_sys::HtmlAnchorElement>()
         .map_err(|_| "Failed to create download anchor.")?;
     anchor.set_href(&data_url);
-    anchor.set_download("ironscale-ranking.png");
+    anchor.set_download("iron-insights-ranking.png");
     anchor.click();
     Ok(())
 }

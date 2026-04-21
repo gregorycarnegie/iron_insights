@@ -54,11 +54,11 @@ pub fn PlateCalcPage() -> impl IntoView {
         let Ok(Some(storage)) = window.local_storage() else {
             return;
         };
-        if let Ok(Some(raw)) = storage.get_item("ironscale_plate_target_kg") {
+        if let Ok(Some(raw)) = storage.get_item("iron_insights_plate_target_kg") {
             if let Ok(value_kg) = raw.parse::<f32>() {
                 set_target.set(value_kg.max(0.0));
             }
-            let _ = storage.remove_item("ironscale_plate_target_kg");
+            let _ = storage.remove_item("iron_insights_plate_target_kg");
         }
     });
 

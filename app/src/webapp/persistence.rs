@@ -32,7 +32,7 @@ pub(super) fn setup_unit_pref_effects(ctx: UnitPrefCtx) {
             set_loaded.set(true);
             return;
         };
-        if let Ok(Some(saved)) = storage.get_item("ironscale_units")
+        if let Ok(Some(saved)) = storage.get_item("iron_insights_units")
             && saved == "lb"
         {
             set_use_lbs.set(true);
@@ -51,7 +51,7 @@ pub(super) fn setup_unit_pref_effects(ctx: UnitPrefCtx) {
             return;
         };
         let units = if use_lbs.get() { "lb" } else { "kg" };
-        let _ = storage.set_item("ironscale_units", units);
+        let _ = storage.set_item("iron_insights_units", units);
     });
 }
 
@@ -122,7 +122,7 @@ pub(super) fn setup_query_load_effect(ctx: &QueryLoadCtx) {
         if search.is_empty() {
             let mut restored_saved_state = false;
             if let Ok(Some(storage)) = window.local_storage()
-                && let Ok(Some(raw)) = storage.get_item("ironscale_last_state")
+                && let Ok(Some(raw)) = storage.get_item("iron_insights_last_state")
                 && let Some(saved) = SavedUiState::from_storage_json(&raw)
             {
                 restored_saved_state = true;
@@ -335,7 +335,7 @@ pub(super) fn setup_state_persist_effect(ctx: StatePersistCtx) {
             calculated: calculated.get(),
         };
         if let Ok(raw) = serde_json::to_string(&snapshot) {
-            let _ = storage.set_item("ironscale_last_state", &raw);
+            let _ = storage.set_item("iron_insights_last_state", &raw);
         }
     });
 }

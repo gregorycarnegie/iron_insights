@@ -1,5 +1,5 @@
 [package]
-name = "ironscale"
+name = "iron_insights_web"
 version.workspace = true
 edition.workspace = true
 

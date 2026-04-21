@@ -692,7 +692,7 @@ pub(super) fn App() -> impl IntoView {
             // Sidebar
             <aside class="nav" class:mobile-open=move || mobile_nav_open.get()>
                 <div class="brand">
-                    <div class="brand-mark"><span class="bar"></span>"IRONSCALE"</div>
+                    <div class="brand-mark"><span class="bar"></span>"IRON INSIGHTS"</div>
                     <div class="brand-sub">"// WHERE YOU STAND · EST. 2026"</div>
                 </div>
                 <ul class="nav-list">
@@ -762,7 +762,7 @@ pub(super) fn App() -> impl IntoView {
                         <span></span>
                         <span></span>
                     </button>
-                    <div class="mobile-brand">"IRONSCALE"</div>
+                    <div class="mobile-brand">"IRON INSIGHTS"</div>
                     <div class="mobile-tabs">
                         {[
                             (AppPage::Ranking, "Ranking"),
@@ -794,7 +794,7 @@ pub(super) fn App() -> impl IntoView {
 
                 <div class="topbar">
                     <div class="crumb">
-                        <span>"IRONSCALE"</span>
+                        <span>"IRON INSIGHTS"</span>
                         <span class="sep">"/"</span>
                         <span class="cur">{move || active_page.get().label()}</span>
                     </div>

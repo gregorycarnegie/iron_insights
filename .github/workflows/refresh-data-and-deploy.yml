@@ -60,9 +60,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo test --workspace --exclude ironscale
+          cargo test --workspace --exclude iron_insights_web
           cargo test --manifest-path app/Cargo.toml --target wasm32-unknown-unknown --no-run
-          cargo clippy --workspace --all-targets --exclude ironscale -- -D warnings
+          cargo clippy --workspace --all-targets --exclude iron_insights_web -- -D warnings
           cargo clippy --manifest-path app/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 
       - name: Capture previous latest version

@@ -68,7 +68,7 @@ pub fn OneRmPage() -> impl IntoView {
             return;
         };
         if let Ok(Some(storage)) = window.local_storage() {
-            let _ = storage.set_item("ironscale_plate_target_kg", &format!("{:.2}", rm.get()));
+            let _ = storage.set_item("iron_insights_plate_target_kg", &format!("{:.2}", rm.get()));
         }
         let _ = window.location().set_hash("plate-calc");
     };
