@@ -14,21 +14,21 @@ The repo downloads OpenPowerlifting, builds compact histogram and heatmap bundle
 
 ## What Is In Here
 
-- `app/` - Leptos CSR frontend built with Trunk
+- `iron_insights_web/` - Leptos CSR frontend built with Trunk
   - ranking page for quick percentile results
   - "Stats for Nerds" page for cohort comparison, distribution analysis, targets, and trends
   - "Men vs Women" page for aligned cross-sex cohort comparisons
   - 1RM calculator and plate calculator utilities
   - `landing/`, `robots.txt`, and `sitemap.xml` for static SEO pages
-- `android/` - native Kotlin + Jetpack Compose Android client
+- `iron_insights_android/` - native Kotlin + Jetpack Compose Android client
   - lookup, comparison, trends, and calculator screens backed by the published site dataset
-  - Android-specific setup and release notes in `android/README.md` and `android/RELEASING.md`
+  - Android-specific setup and release notes in `iron_insights_android/README.md` and `iron_insights_android/RELEASING.md`
 - `iron_insights_core/` - shared Rust crate for published-data contracts and binary format logic used by the web app and pipeline
-- `pipeline/` - Rust data pipeline that downloads, aggregates, and publishes versioned data bundles
+- `iron_insights_pipeline/` - Rust data pipeline that downloads, aggregates, and publishes versioned data bundles
 - `data/` - published dataset snapshots such as `v2026-03-20/` plus `latest.json`
 - `docs/` - GitHub Pages build output
 - `scripts/qa.sh`, `scripts/qa.ps1` - integrity and payload checks for published data and site output
-- `src/` - placeholder root crate; product code lives in `app/` and `pipeline/`
+- `src/` - placeholder root crate; product code lives in `iron_insights_web/` and `iron_insights_pipeline/`
 
 ## Prerequisites
 
@@ -39,19 +39,19 @@ The repo downloads OpenPowerlifting, builds compact histogram and heatmap bundle
 - PowerShell if you want to use the provided Windows helper scripts
 - Android Studio plus Android SDK Platform 35 if you want to run the Android app locally
 
-See `android/README.md` for the Android-specific workflow, release inputs, and output paths.
+See `iron_insights_android/README.md` for the Android-specific workflow, release inputs, and output paths.
 
 ## Local Workflow
 
 ### 1) Build or refresh the published data
 
 ```bash
-cargo run --manifest-path pipeline/Cargo.toml --bin 01_download -- \
+cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 01_download -- \
   --dataset-version vYYYY-MM-DD
 
-cargo run --manifest-path pipeline/Cargo.toml --bin 02_build_aggregates
+cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 02_build_aggregates
 
-cargo run --manifest-path pipeline/Cargo.toml --bin 03_publish_data -- \
+cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 03_publish_data -- \
   --data-dir data \
   --version vYYYY-MM-DD \
   --keep-versions 2
@@ -59,12 +59,12 @@ cargo run --manifest-path pipeline/Cargo.toml --bin 03_publish_data -- \
 
 Notes:
 
-- `01_download` defaults to the latest OpenPowerlifting ZIP and writes `pipeline/output/openpowerlifting-latest.parquet`.
+- `01_download` defaults to the latest OpenPowerlifting ZIP and writes `iron_insights_pipeline/output/openpowerlifting-latest.parquet`.
 - `03_publish_data` writes the versioned bundle into root `data/`. That is the source of truth.
 
 ### 2) Sync root data into the app copy
 
-From `app/` on Windows PowerShell:
+From `iron_insights_web/` on Windows PowerShell:
 
 ```powershell
 pwsh -File .\sync-data.ps1
@@ -73,17 +73,17 @@ pwsh -File .\sync-data.ps1
 On Linux/macOS:
 
 ```bash
-rm -rf app/data
-mkdir -p app/data
-cp -a data/. app/data/
+rm -rf iron_insights_web/data
+mkdir -p iron_insights_web/data
+cp -a data/. iron_insights_web/data/
 ```
 
-`app/data/` is a working copy used by Trunk. It can lag behind root `data/` until you resync it.
+`iron_insights_web/data/` is a working copy used by Trunk. It can lag behind root `data/` until you resync it.
 
 ### 3) Run the frontend locally
 
 ```bash
-cd app
+cd iron_insights_web
 trunk serve --open
 ```
 
@@ -102,15 +102,15 @@ The Android client consumes the same published payloads as the website.
 
 Best path:
 
-- open `android/` in Android Studio
+- open `iron_insights_android/` in Android Studio
 - let Studio install any missing SDK pieces
 - run the `app` configuration on a device or emulator
 
 Command-line builds also work with the checked-in Gradle wrapper:
 
 ```bash
-./android/gradlew -p android testDebugUnitTest
-./android/gradlew -p android :app:assembleDebug
+./iron_insights_android/gradlew -p android testDebugUnitTest
+./iron_insights_android/gradlew -p android :app:assembleDebug
 ```
 
 Detailed Android setup, release-signing inputs, and output locations are documented in `android/README.md`.
@@ -118,7 +118,7 @@ Detailed Android setup, release-signing inputs, and output locations are documen
 ## Build For GitHub Pages
 
 ```bash
-cd app
+cd iron_insights_web
 trunk build --release --dist ../docs --public-url "/<repo-name>/"
 ```
 
@@ -169,4 +169,4 @@ Workflows:
 ## Notes
 
 - The public app branding is `Iron Insights`; the workspace root here still uses the local checkout name `iron_insights2`.
-- `app/dist/` and `docs/` are generated outputs, not authoritative source files.
+- `iron_insights_web/dist/` and `docs/` are generated outputs, not authoritative source files.

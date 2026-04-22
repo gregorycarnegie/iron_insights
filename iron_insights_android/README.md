@@ -61,7 +61,7 @@ Surfaces:
 ### Health Connect integration
 
 - Opt-in sync of completed workouts to Health Connect as exercise sessions
-- Read latest body weight from Health Connect
+- Read the latest body weight from Health Connect
 - Background sync via WorkManager after each finished workout
 
 ### Settings
@@ -107,7 +107,7 @@ Important:
 
 ## Open In Android Studio
 
-1. Open the `android/` directory as a project.
+1. Open the `iron_insights_android/` directory as a project.
 2. Let Android Studio install any missing SDK or JDK pieces.
 3. Wait for Gradle sync to finish.
 4. Run the `app` configuration on an emulator or physical device.
@@ -117,15 +117,15 @@ Important:
 From the repo root:
 
 ```bash
-./android/gradlew -p android testDebugUnitTest
-./android/gradlew -p android :app:assembleDebug
+./iron_insights_android/gradlew -p android testDebugUnitTest
+./iron_insights_android/gradlew -p android :app:assembleDebug
 ```
 
 Debug APK output:
 
-- `android/app/build/outputs/apk/debug/app-debug.apk`
+- `iron_insights_android/app/build/outputs/apk/debug/app-debug.apk`
 
-If you prefer to run the commands from inside `android/`:
+If you prefer to run the commands from inside `iron_insights_android/`:
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -135,8 +135,8 @@ If you prefer to run the commands from inside `android/`:
 On Windows PowerShell, use:
 
 ```powershell
-.\android\gradlew.bat -p android testDebugUnitTest
-.\android\gradlew.bat -p android :app:assembleDebug
+.\iron_insights_android\gradlew.bat -p android testDebugUnitTest
+.\iron_insights_android\gradlew.bat -p android :app:assembleDebug
 ```
 
 ## Release Build
@@ -159,31 +159,31 @@ Example PowerShell flow:
 $env:IRON_INSIGHTS_VERSION_CODE="1"
 $env:IRON_INSIGHTS_VERSION_NAME="0.1.0"
 $env:IRON_INSIGHTS_REQUIRE_RELEASE_SIGNING="true"
-$env:IRON_INSIGHTS_KEYSTORE_PATH="C:\Users\grego\keys\iron-insights-release.keystore"
+$env:IRON_INSIGHTS_KEYSTORE_PATH="C:\Users\user\keys\iron-insights-release.keystore"
 $env:IRON_INSIGHTS_KEYSTORE_PASSWORD="..."
 $env:IRON_INSIGHTS_KEY_ALIAS="ironinsights"
 $env:IRON_INSIGHTS_KEY_PASSWORD="..."
 
-.\android\gradlew.bat -p android validateReleaseConfig :app:bundleRelease
+.\iron_insights_android\gradlew.bat -p android validateReleaseConfig :app:bundleRelease
 ```
 
 Release bundle output:
 
-- `android/app/build/outputs/bundle/release/app-release.aab`
+- `iron_insights_android/app/build/outputs/bundle/release/app-release.aab`
 
 For GitHub Actions release automation and optional Google Play upload, see [RELEASING.md](./RELEASING.md).
 
 ## Key Dependencies
 
-| Library | Purpose |
-| ------- | ------- |
-| Jetpack Compose + Material3 | UI framework |
-| Navigation Compose | Screen routing |
-| Room + KSP | Local SQLite database |
-| Preferences DataStore | User settings |
-| WorkManager | Background export/import and Health Connect sync |
-| Health Connect SDK | Exercise session and body weight integration |
-| Kotlinx Coroutines | Async operations |
+| Library                     | Purpose                                          |
+|-----------------------------|--------------------------------------------------|
+| Jetpack Compose + Material3 | UI framework                                     |
+| Navigation Compose          | Screen routing                                   |
+| Room + KSP                  | Local SQLite database                            |
+| Preferences DataStore       | User settings                                    |
+| WorkManager                 | Background export/import and Health Connect sync |
+| Health Connect SDK          | Exercise session and body weight integration     |
+| Kotlinx Coroutines          | Async operations                                 |
 
 ## Notes
 

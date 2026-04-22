@@ -5,7 +5,7 @@ The pipeline crate turns the OpenPowerlifting CSV ZIP into versioned binary bund
 ## 1) Download And Convert
 
 ```bash
-cargo run --manifest-path pipeline/Cargo.toml --bin 01_download -- \
+cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 01_download -- \
   --dataset-version vYYYY-MM-DD \
   --dataset-revision "optional-revision"
 ```
@@ -19,39 +19,39 @@ Defaults:
 
 Outputs:
 
-- `pipeline/output/openpowerlifting-latest.parquet`
-- `pipeline/output/build_metadata.json`
+- `iron_insights_pipeline/output/openpowerlifting-latest.parquet`
+- `iron_insights_pipeline/output/build_metadata.json`
 
 On success, the temporary ZIP and extracted CSV are removed and only the canonical Parquet plus metadata remain.
 
 ## 2) Build Aggregate Record Tables
 
 ```bash
-cargo run --manifest-path pipeline/Cargo.toml --bin 02_build_aggregates
+cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 02_build_aggregates
 ```
 
 Defaults:
 
-- `--input-parquet pipeline/output/openpowerlifting-latest.parquet`
-- `--output-dir pipeline/output/records`
+- `--input-parquet iron_insights_pipeline/output/openpowerlifting-latest.parquet`
+- `--output-dir iron_insights_pipeline/output/records`
 
 This stage filters to valid sanctioned meet results, derives IPF-style weight-class and age buckets, and writes per-lifter best-lift tables.
 
 Outputs:
 
-- `pipeline/output/records/all/squat.parquet`
-- `pipeline/output/records/all/bench.parquet`
-- `pipeline/output/records/all/deadlift.parquet`
-- `pipeline/output/records/all/total.parquet`
-- `pipeline/output/records/tested/squat.parquet`
-- `pipeline/output/records/tested/bench.parquet`
-- `pipeline/output/records/tested/deadlift.parquet`
-- `pipeline/output/records/tested/total.parquet`
+- `iron_insights_pipeline/output/records/all/squat.parquet`
+- `iron_insights_pipeline/output/records/all/bench.parquet`
+- `iron_insights_pipeline/output/records/all/deadlift.parquet`
+- `iron_insights_pipeline/output/records/all/total.parquet`
+- `iron_insights_pipeline/output/records/tested/squat.parquet`
+- `iron_insights_pipeline/output/records/tested/bench.parquet`
+- `iron_insights_pipeline/output/records/tested/deadlift.parquet`
+- `iron_insights_pipeline/output/records/tested/total.parquet`
 
 ## 3) Publish Versioned `data/`
 
 ```bash
-cargo run --manifest-path pipeline/Cargo.toml --bin 03_publish_data -- \
+cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 03_publish_data -- \
   --data-dir data \
   --version vYYYY-MM-DD \
   --keep-versions 4
@@ -59,8 +59,8 @@ cargo run --manifest-path pipeline/Cargo.toml --bin 03_publish_data -- \
 
 Useful options:
 
-- `--records-dir pipeline/output/records`
-- `--build-metadata-path pipeline/output/build_metadata.json`
+- `--records-dir iron_insights_pipeline/output/records`
+- `--build-metadata-path iron_insights_pipeline/output/build_metadata.json`
 - `--write-meta-files true` to restore legacy per-slice JSON metadata
 
 Outputs:
@@ -93,9 +93,9 @@ Retention behavior:
 ## Typical End-To-End Run
 
 ```bash
-cargo run --manifest-path pipeline/Cargo.toml --bin 01_download -- --dataset-version vYYYY-MM-DD
-cargo run --manifest-path pipeline/Cargo.toml --bin 02_build_aggregates
-cargo run --manifest-path pipeline/Cargo.toml --bin 03_publish_data -- --data-dir data --version vYYYY-MM-DD --keep-versions 4
+cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 01_download -- --dataset-version vYYYY-MM-DD
+cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 02_build_aggregates
+cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 03_publish_data -- --data-dir data --version vYYYY-MM-DD --keep-versions 2
 ```
 
-After publish, sync root `data/` into `app/data/` before running or building the frontend.
+After publish, sync root `data/` into `iron_insights_web/data/` before running or building the frontend.

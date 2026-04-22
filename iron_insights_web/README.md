@@ -1,4 +1,4 @@
-# IRONSCALE web app
+# IRON INSIGHTS web app
 
 This crate is a client-side Leptos app. Trunk serves `index.html`, copies
 `assets/`, and copies the static data bundle from `data/`.
