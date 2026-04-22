@@ -1,4 +1,4 @@
-use super::data::{fetch_binary_first_with_signal, fetch_json_first_with_signal};
+use super::data::{fetch_binary_data_with_signal, fetch_json_data_with_signal};
 use super::helpers::{ComparableLifter, comparable_lift_value};
 use super::models::{
     CrossSexComparison, CrossSexLiftComparison, LatestJson, RootIndex, SliceIndex,
@@ -186,9 +186,9 @@ fn heatmap_mean_lift_bodyweight_ratio(heat: &HeatmapBin) -> Option<f32> {
     (total > 0).then_some((weighted_ratio / f64::from(total)) as f32)
 }
 
-fn dataset_file_url(version: &str, path: &str) -> String {
+fn dataset_file_path(version: &str, path: &str) -> String {
     let trimmed = path.trim_start_matches('/');
-    format!("data/{version}/{trimmed}")
+    format!("{version}/{trimmed}")
 }
 
 // ── Cross-sex rows loading ────────────────────────────────────────────────────
@@ -263,8 +263,8 @@ pub(super) fn setup_cross_sex_rows_effect(ctx: CrossSexRowsCtx) {
             let mut issues = Vec::new();
 
             if let Some(rel) = male_shard_rel {
-                let url = dataset_file_url(&latest_v.version, &rel);
-                match fetch_json_first_with_signal::<SliceIndex>(&[&url], Some(&signal)).await {
+                let path = dataset_file_path(&latest_v.version, &rel);
+                match fetch_json_data_with_signal::<SliceIndex>(&path, Some(&signal)).await {
                     Ok(index) => {
                         if request.current.get_untracked() != next_id {
                             return;
@@ -278,8 +278,8 @@ pub(super) fn setup_cross_sex_rows_effect(ctx: CrossSexRowsCtx) {
             }
 
             if let Some(rel) = female_shard_rel {
-                let url = dataset_file_url(&latest_v.version, &rel);
-                match fetch_json_first_with_signal::<SliceIndex>(&[&url], Some(&signal)).await {
+                let path = dataset_file_path(&latest_v.version, &rel);
+                match fetch_json_data_with_signal::<SliceIndex>(&path, Some(&signal)).await {
                     Ok(index) => {
                         if request.current.get_untracked() != next_id {
                             return;
@@ -393,8 +393,8 @@ pub(super) fn setup_cross_sex_hist_effect(ctx: CrossSexHistCtx) {
             let mut issues = Vec::new();
 
             if pre_male.is_none() {
-                let url = dataset_file_url(&latest_v.version, &male_c.row.entry.bin);
-                match fetch_binary_first_with_signal(&[&url], Some(&signal)).await {
+                let path = dataset_file_path(&latest_v.version, &male_c.row.entry.bin);
+                match fetch_binary_data_with_signal(&path, Some(&signal)).await {
                     Ok(bytes) => match parse_combined_bin(&bytes).map(|(h, _)| h) {
                         Some(h) => {
                             if request.current.get_untracked() != next_id {
@@ -409,8 +409,8 @@ pub(super) fn setup_cross_sex_hist_effect(ctx: CrossSexHistCtx) {
             }
 
             if pre_female.is_none() {
-                let url = dataset_file_url(&latest_v.version, &female_c.row.entry.bin);
-                match fetch_binary_first_with_signal(&[&url], Some(&signal)).await {
+                let path = dataset_file_path(&latest_v.version, &female_c.row.entry.bin);
+                match fetch_binary_data_with_signal(&path, Some(&signal)).await {
                     Ok(bytes) => match parse_combined_bin(&bytes).map(|(h, _)| h) {
                         Some(h) => {
                             if request.current.get_untracked() != next_id {
@@ -496,8 +496,8 @@ pub(super) fn setup_cross_sex_heat_effect(ctx: CrossSexHeatCtx) {
         spawn_local(async move {
             let mut issues = Vec::new();
 
-            let male_url = dataset_file_url(&latest_v.version, &male_c.row.entry.bin);
-            match fetch_binary_first_with_signal(&[&male_url], Some(&signal)).await {
+            let male_path = dataset_file_path(&latest_v.version, &male_c.row.entry.bin);
+            match fetch_binary_data_with_signal(&male_path, Some(&signal)).await {
                 Ok(bytes) => match parse_combined_bin(&bytes).map(|(_, h)| h) {
                     Some(h) => {
                         if request.current.get_untracked() != next_id {
@@ -510,8 +510,8 @@ pub(super) fn setup_cross_sex_heat_effect(ctx: CrossSexHeatCtx) {
                 Err(e) => issues.push(e),
             }
 
-            let female_url = dataset_file_url(&latest_v.version, &female_c.row.entry.bin);
-            match fetch_binary_first_with_signal(&[&female_url], Some(&signal)).await {
+            let female_path = dataset_file_path(&latest_v.version, &female_c.row.entry.bin);
+            match fetch_binary_data_with_signal(&female_path, Some(&signal)).await {
                 Ok(bytes) => match parse_combined_bin(&bytes).map(|(_, h)| h) {
                     Some(h) => {
                         if request.current.get_untracked() != next_id {
@@ -628,13 +628,12 @@ pub(super) fn setup_cross_sex_lift_comparison_effect(ctx: CrossSexLiftComparison
             let mut issues = Vec::new();
 
             for (lift_code, label, male_c, female_c) in choices {
-                let male_url = dataset_file_url(&latest_v.version, &male_c.row.entry.bin);
-                let female_url = dataset_file_url(&latest_v.version, &female_c.row.entry.bin);
+                let male_path = dataset_file_path(&latest_v.version, &male_c.row.entry.bin);
+                let female_path = dataset_file_path(&latest_v.version, &female_c.row.entry.bin);
 
-                let male_payload =
-                    fetch_binary_first_with_signal(&[&male_url], Some(&signal)).await;
+                let male_payload = fetch_binary_data_with_signal(&male_path, Some(&signal)).await;
                 let female_payload =
-                    fetch_binary_first_with_signal(&[&female_url], Some(&signal)).await;
+                    fetch_binary_data_with_signal(&female_path, Some(&signal)).await;
                 if request.current.get_untracked() != next_id {
                     return;
                 }

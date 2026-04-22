@@ -8,12 +8,6 @@ thread_local! {
     static BINARY_CACHE: RefCell<HashMap<String, Vec<u8>>> = RefCell::new(HashMap::new());
 }
 
-pub(super) async fn fetch_json_first<T: for<'de> Deserialize<'de>>(
-    urls: &[&str],
-) -> Result<T, String> {
-    fetch_json_first_with_signal(urls, None).await
-}
-
 pub(super) async fn fetch_json_first_with_signal<T: for<'de> Deserialize<'de>>(
     urls: &[&str],
     signal: Option<&AbortSignal>,
@@ -57,4 +51,35 @@ pub(super) async fn fetch_binary_first_with_signal(
         }
     }
     Err(errors.join(" | "))
+}
+
+fn data_url_candidates(path_suffix: &str) -> Vec<String> {
+    let trimmed = path_suffix.trim_start_matches('/');
+    let relative = format!("data/{trimmed}");
+    let absolute = format!("/data/{trimmed}");
+    vec![relative, absolute]
+}
+
+pub(super) async fn fetch_json_data<T: for<'de> Deserialize<'de>>(
+    path_suffix: &str,
+) -> Result<T, String> {
+    fetch_json_data_with_signal(path_suffix, None).await
+}
+
+pub(super) async fn fetch_json_data_with_signal<T: for<'de> Deserialize<'de>>(
+    path_suffix: &str,
+    signal: Option<&AbortSignal>,
+) -> Result<T, String> {
+    let urls = data_url_candidates(path_suffix);
+    let url_refs = urls.iter().map(String::as_str).collect::<Vec<_>>();
+    fetch_json_first_with_signal(&url_refs, signal).await
+}
+
+pub(super) async fn fetch_binary_data_with_signal(
+    path_suffix: &str,
+    signal: Option<&AbortSignal>,
+) -> Result<Vec<u8>, String> {
+    let urls = data_url_candidates(path_suffix);
+    let url_refs = urls.iter().map(String::as_str).collect::<Vec<_>>();
+    fetch_binary_first_with_signal(&url_refs, signal).await
 }

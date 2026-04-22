@@ -1,4 +1,4 @@
-use super::data::{fetch_binary_first_with_signal, fetch_json_first, fetch_json_first_with_signal};
+use super::data::{fetch_binary_data_with_signal, fetch_json_data, fetch_json_data_with_signal};
 use super::logging::debug_log;
 use super::models::{
     LatestJson, RootIndex, SliceIndex, SliceIndexEntries, SliceMetaJson, SliceRow, SliceSummary,
@@ -213,13 +213,6 @@ pub(super) struct DistributionEffectContext {
     pub(super) request: RequestTracker,
 }
 
-fn data_url(path_suffix: &str) -> String {
-    let trimmed = path_suffix.trim_start_matches('/');
-    // Use a relative path so GitHub Pages project sites resolve to
-    // /<repo>/data/... instead of the domain root /data/...
-    format!("data/{trimmed}")
-}
-
 pub(super) fn init_dataset_load(
     set_latest: WriteSignal<Option<LatestJson>>,
     set_root_index: WriteSignal<Option<RootIndex>>,
@@ -228,8 +221,7 @@ pub(super) fn init_dataset_load(
     set_load_error: WriteSignal<Option<String>>,
 ) {
     spawn_local(async move {
-        let latest_url = data_url("latest.json");
-        let latest_json = fetch_json_first::<LatestJson>(&[&latest_url]).await;
+        let latest_json = fetch_json_data::<LatestJson>("latest.json").await;
         let Ok(latest_json) = latest_json else {
             if let Err(err) = latest_json {
                 set_load_error.set(Some(format!(
@@ -240,8 +232,8 @@ pub(super) fn init_dataset_load(
         };
         set_latest.set(Some(latest_json.clone()));
 
-        let index_url = data_url(&format!("{}/index.json", latest_json.version));
-        let index = fetch_json_first::<RootIndex>(&[&index_url]).await;
+        let index_path = format!("{}/index.json", latest_json.version);
+        let index = fetch_json_data::<RootIndex>(&index_path).await;
         let Ok(index) = index else {
             if let Err(err) = index {
                 set_load_error.set(Some(format!(
@@ -314,9 +306,8 @@ pub(super) fn setup_slice_rows_effect(context: SliceRowsEffectContext) {
         let slice_request_id = request.current;
         let signal = request_start.signal;
         spawn_local(async move {
-            let shard_url = data_url(&format!("{}/{}", latest_v.version, shard_rel));
-            let shard =
-                fetch_json_first_with_signal::<SliceIndex>(&[&shard_url], Some(&signal)).await;
+            let shard_path = format!("{}/{}", latest_v.version, shard_rel);
+            let shard = fetch_json_data_with_signal::<SliceIndex>(&shard_path, Some(&signal)).await;
             if slice_request_id.get_untracked() != next_request_id {
                 debug_log(&format!(
                     "Ignored stale shard response for request {next_request_id}"
@@ -407,7 +398,7 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
 
             // Fast path: payload is inlined as base64 — no network fetch needed.
             if row.entry.inline.is_empty() {
-                let bin_url = data_url(&format!("{}/{}", latest_v.version, row.entry.bin));
+                let bin_path = format!("{}/{}", latest_v.version, row.entry.bin);
                 spawn_local(async move {
                     if dist_request_id.get_untracked() != next_request_id {
                         debug_log(&format!(
@@ -416,8 +407,7 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
                         return;
                     }
 
-                    if let Ok(bytes) =
-                        fetch_binary_first_with_signal(&[&bin_url], Some(&signal)).await
+                    if let Ok(bytes) = fetch_binary_data_with_signal(&bin_path, Some(&signal)).await
                     {
                         if dist_request_id.get_untracked() != next_request_id {
                             debug_log(&format!(
@@ -436,7 +426,7 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
                             }
                             None => {
                                 set_load_error.set(Some(format!(
-                                    "Invalid or unsupported combined binary format: {bin_url}"
+                                    "Invalid or unsupported combined binary format: {bin_path}"
                                 )));
                             }
                         }
@@ -449,7 +439,7 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
                             return;
                         }
                         set_hist.set(None);
-                        set_load_error.set(Some(format!("Failed to fetch data: {bin_url}")));
+                        set_load_error.set(Some(format!("Failed to fetch data: {bin_path}")));
                         request.finish(next_request_id);
                     }
                 });
@@ -518,8 +508,8 @@ pub(super) fn setup_slice_summary_effect(
             return;
         }
 
-        let meta_url = data_url(&format!("{}/{}", latest_v.version, row.entry.meta));
-        let meta_err = meta_url.clone();
+        let meta_path = format!("{}/{}", latest_v.version, row.entry.meta);
+        let meta_err = meta_path.clone();
         let summary_request_id = request.current;
         let set_summary = set_summary;
         let set_summary_load_ms = set_summary_load_ms;
@@ -530,7 +520,7 @@ pub(super) fn setup_slice_summary_effect(
 
         spawn_local(async move {
             let meta =
-                fetch_json_first_with_signal::<SliceMetaJson>(&[&meta_url], Some(&signal)).await;
+                fetch_json_data_with_signal::<SliceMetaJson>(&meta_path, Some(&signal)).await;
             if summary_request_id.get_untracked() != next_request_id {
                 debug_log(&format!(
                     "Ignored stale summary response for request {next_request_id}"
