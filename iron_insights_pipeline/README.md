@@ -13,8 +13,8 @@ cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 01_download --
 Defaults:
 
 - `--zip-url https://openpowerlifting.gitlab.io/opl-csv/files/openpowerlifting-latest.zip`
-- `--temp-dir pipeline/tmp`
-- `--output-dir pipeline/output`
+- `--temp-dir iron_insights_pipeline/tmp`
+- `--output-dir iron_insights_pipeline/output`
 - `--dataset-version auto`
 
 Outputs:

@@ -231,9 +231,11 @@ pub(super) fn init_dataset_load(
         let latest_url = data_url("latest.json");
         let latest_json = fetch_json_first::<LatestJson>(&[&latest_url]).await;
         let Ok(latest_json) = latest_json else {
-            set_load_error.set(Some(
-                "Failed to load latest dataset pointer (data/latest.json).".to_string(),
-            ));
+            if let Err(err) = latest_json {
+                set_load_error.set(Some(format!(
+                    "Failed to load latest dataset pointer (data/latest.json): {err}"
+                )));
+            }
             return;
         };
         set_latest.set(Some(latest_json.clone()));

@@ -72,7 +72,7 @@
 - [ ] No unit tests in the `app` crate — WASM CSR makes unit tests awkward but integration/snapshot tests would catch regressions in complex components
 - [ ] Component size — `trends.rs` (~474 LOC), `plate_calc.rs` (~562 LOC), and `one_rep_max.rs` (~434 LOC) exceed a comfortable reading size; candidates for sub-component extraction
 - [x] No `///` doc comments on public types in `iron_insights_core` (`HistogramBin`, `HeatmapBin`, `HistogramDiagnostics`, etc.)
-- [x] IPF weight class boundaries are hardcoded in `pipeline/src/bin/02_build_aggregates.rs`; if they ever change they have only one owner today but a shared-constants home in `iron_insights_core` would make the contract explicit
+- [x] IPF weight class boundaries are hardcoded in `iron_insights_pipeline/src/bin/02_build_aggregates.rs`; if they ever change they have only one owner today but a shared-constants home in `iron_insights_core` would make the contract explicit
 
 ## Pipeline Performance
 

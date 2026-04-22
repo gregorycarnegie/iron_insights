@@ -2,7 +2,7 @@
 /.vscode
 /.idea
 /target
-/pipeline/Cargo.lock
+/iron_insights_pipeline/Cargo.lock
 /dist
 .codex
 
@@ -10,7 +10,7 @@
 # Generated copies should stay untracked.
 /docs/data
 /data_failed_*
-/app/data_failed_*
+/iron_insights_web/data_failed_*
 /docs/data_failed_*
 
 /docs/*

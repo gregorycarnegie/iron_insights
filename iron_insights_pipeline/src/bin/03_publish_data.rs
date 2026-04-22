@@ -24,10 +24,10 @@ const ALL_AGES: &str = "All Ages";
 
 #[derive(Debug, Parser)]
 struct Args {
-    #[arg(long, default_value = "pipeline/output/records")]
+    #[arg(long, default_value = "iron_insights_pipeline/output/records")]
     records_dir: PathBuf,
 
-    #[arg(long, default_value = "pipeline/output/build_metadata.json")]
+    #[arg(long, default_value = "iron_insights_pipeline/output/build_metadata.json")]
     build_metadata_path: PathBuf,
 
     #[arg(long, default_value = "data")]
