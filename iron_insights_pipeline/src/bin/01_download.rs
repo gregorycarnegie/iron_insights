@@ -16,10 +16,10 @@ struct Args {
     #[arg(long, default_value = DEFAULT_ZIP_URL)]
     zip_url: String,
 
-    #[arg(long, default_value = "pipeline/tmp")]
+    #[arg(long, default_value = "iron_insights_pipeline/tmp")]
     temp_dir: PathBuf,
 
-    #[arg(long, default_value = "pipeline/output")]
+    #[arg(long, default_value = "iron_insights_pipeline/output")]
     output_dir: PathBuf,
 
     #[arg(long, default_value = "auto")]

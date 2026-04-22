@@ -11,11 +11,11 @@ use polars::prelude::*;
 struct Args {
     #[arg(
         long,
-        default_value = "pipeline/output/openpowerlifting-latest.parquet"
+        default_value = "iron_insights_pipeline/output/openpowerlifting-latest.parquet"
     )]
     input_parquet: PathBuf,
 
-    #[arg(long, default_value = "pipeline/output/records")]
+    #[arg(long, default_value = "iron_insights_pipeline/output/records")]
     output_dir: PathBuf,
 }
 

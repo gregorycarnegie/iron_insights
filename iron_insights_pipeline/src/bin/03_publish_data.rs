@@ -8,7 +8,10 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::Parser;
-use iron_insights_core::{BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC};
+use iron_insights_core::{
+    BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC,
+    dots_points, goodlift_points, wilks_points,
+};
 use iron_insights_pipeline::BuildMetadata;
 use polars::prelude::*;
 use serde::Serialize;
@@ -999,65 +1002,6 @@ fn metric_value(
     }
 }
 
-#[allow(clippy::excessive_precision)]
-fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
-    let bw = match sex {
-        "F" => bodyweight_kg.clamp(40.0, 150.0),
-        _ => bodyweight_kg.clamp(40.0, 210.0),
-    };
-    let denom = if sex == "F" {
-        -57.96288 + 13.6175032 * bw - 0.1126655495 * bw.powi(2) + 0.0005158568 * bw.powi(3)
-            - 0.0000010706 * bw.powi(4)
-    } else {
-        -307.75076 + 24.0900756 * bw - 0.1918759221 * bw.powi(2) + 0.0007391293 * bw.powi(3)
-            - 0.0000010930 * bw.powi(4)
-    };
-    if denom <= 0.0 {
-        0.0
-    } else {
-        total_kg * 500.0 / denom
-    }
-}
-
-#[allow(clippy::excessive_precision)]
-fn wilks_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
-    let bw = match sex {
-        "F" => bodyweight_kg.clamp(26.51, 154.53),
-        _ => bodyweight_kg.clamp(40.0, 201.9),
-    };
-    let denom = if sex == "F" {
-        594.31747775582 - 27.23842536447 * bw + 0.82112226871 * bw.powi(2)
-            - 0.00930733913 * bw.powi(3)
-            + 0.00004731582 * bw.powi(4)
-            - 0.00000009054 * bw.powi(5)
-    } else {
-        -216.0475144 + 16.2606339 * bw - 0.002388645 * bw.powi(2) - 0.00113732 * bw.powi(3)
-            + 0.00000701863 * bw.powi(4)
-            - 0.00000001291 * bw.powi(5)
-    };
-    if denom <= 0.0 {
-        0.0
-    } else {
-        total_kg * 500.0 / denom
-    }
-}
-
-#[allow(clippy::excessive_precision)]
-fn goodlift_points(sex: &str, equipment: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
-    let classic = matches!(equipment, "Raw" | "Wraps" | "Straps");
-    let (a, b, c) = match (sex, classic) {
-        ("F", true) => (610.32796, 1045.59282, 0.03048),
-        ("F", false) => (758.63878, 949.31382, 0.02435),
-        ("M", true) => (1199.72839, 1025.18162, 0.00921),
-        _ => (1236.25115, 1449.21864, 0.01644),
-    };
-    let denom = a - (b * (-c * bodyweight_kg).exp());
-    if denom <= 0.0 {
-        0.0
-    } else {
-        total_kg * 100.0 / denom
-    }
-}
 
 #[cfg(test)]
 mod tests {
