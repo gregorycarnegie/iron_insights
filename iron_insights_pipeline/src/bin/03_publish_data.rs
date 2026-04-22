@@ -9,8 +9,8 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::Parser;
 use iron_insights_core::{
-    BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC,
-    dots_points, goodlift_points, wilks_points,
+    BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC, dots_points,
+    goodlift_points, wilks_points,
 };
 use iron_insights_pipeline::BuildMetadata;
 use polars::prelude::*;
@@ -1001,7 +1001,6 @@ fn metric_value(
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

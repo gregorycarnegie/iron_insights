@@ -1,8 +1,8 @@
-use crate::core::{dots_points, goodlift_points, wilks_points};
 pub(super) use crate::core::{
     bodyfat_category, calc_bodyfat_female, calc_bodyfat_jp3, calc_bodyfat_jp7, calc_bodyfat_male,
     calc_bodyfat_ymca, tier_for_percentile,
 };
+use crate::core::{dots_points, goodlift_points, wilks_points};
 
 #[derive(Clone, Copy)]
 pub(super) struct ComparableLifter<'a> {
@@ -52,7 +52,6 @@ pub(super) fn format_input_bound(value_kg: f32, use_lbs: bool) -> String {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,7 +84,10 @@ mod tests {
         let original = 142.5_f32;
         let converted = kg_to_display(original, true);
         let back = display_to_kg(converted, true);
-        assert!((back - original).abs() < 0.01, "round trip lost precision: {back}");
+        assert!(
+            (back - original).abs() < 0.01,
+            "round trip lost precision: {back}"
+        );
     }
 
     #[wasm_bindgen_test]
@@ -184,4 +186,3 @@ mod tests {
         assert_eq!(format_input_bound(102.3, false), "102.3");
     }
 }
-

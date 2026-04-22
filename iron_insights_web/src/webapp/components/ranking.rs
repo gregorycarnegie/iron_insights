@@ -176,7 +176,8 @@ pub fn RankingPage() -> impl IntoView {
     let pct_fraction = Memo::new(move |_| percentile.get().map(|(p, _, _)| p));
     let pct_display = Memo::new(move |_| {
         pct_num
-            .get().map_or_else(|| "--".to_string(), |p| format!("{p:.1}"))
+            .get()
+            .map_or_else(|| "--".to_string(), |p| format!("{p:.1}"))
     });
     let showing_sample_result = Memo::new(move |_| {
         calculated.get()

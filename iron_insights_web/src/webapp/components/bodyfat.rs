@@ -130,9 +130,7 @@ pub fn BodyfatPage() -> impl IntoView {
                 )
             }
         }
-        BodyfatMethod::Ymca => {
-            calc_bodyfat_ymca(weight_kg.get(), waist_cm.get(), is_male.get())
-        }
+        BodyfatMethod::Ymca => calc_bodyfat_ymca(weight_kg.get(), waist_cm.get(), is_male.get()),
         BodyfatMethod::Skinfold3 => {
             let male = is_male.get();
             let (a, b, c) = if male {

@@ -156,8 +156,9 @@ pub(super) fn draw_ranking_distribution_canvas(
     let bin_w = cw / bins as f64;
     let baseline = ch - 20.0;
     let plot_h = (ch - 40.0).max(1.0);
-    let your_x = user_value
-        .map_or(cw * 0.5, |value| ((f64::from(value) - x_min) / x_span).clamp(0.0, 1.0) * cw);
+    let your_x = user_value.map_or(cw * 0.5, |value| {
+        ((f64::from(value) - x_min) / x_span).clamp(0.0, 1.0) * cw
+    });
 
     let mut vals = Vec::with_capacity(bins);
     let mut max_val = 0.0_f64;
@@ -452,11 +453,13 @@ pub(super) fn draw_heatmap(
 
     if let Some(user_lift) = user_lift {
         let x = left
-            + f64::from(((user_lift - heat.min_x) / (heat.max_x - heat.min_x).max(0.0001)).clamp(0.0, 1.0))
-                * plot_w;
+            + f64::from(
+                ((user_lift - heat.min_x) / (heat.max_x - heat.min_x).max(0.0001)).clamp(0.0, 1.0),
+            ) * plot_w;
         let y = top + plot_h
-            - (f64::from(((user_bw - heat.min_y) / (heat.max_y - heat.min_y).max(0.0001)).clamp(0.0, 1.0))
-                * plot_h);
+            - (f64::from(
+                ((user_bw - heat.min_y) / (heat.max_y - heat.min_y).max(0.0001)).clamp(0.0, 1.0),
+            ) * plot_h);
 
         ctx.begin_path();
         ctx.set_fill_style_str(USER_MARKER_COLOR);

@@ -12,4 +12,3 @@ pub(super) use nerds::NerdsPage;
 pub(super) use one_rm::OneRmPage;
 pub(super) use plate_calc::PlateCalcPage;
 pub(super) use ranking::RankingPage;
-

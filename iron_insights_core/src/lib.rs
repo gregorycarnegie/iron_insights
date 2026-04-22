@@ -611,16 +611,13 @@ pub fn wilks_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
         _ => bodyweight_kg.clamp(40.0, 201.9),
     };
     let denom = if sex == "F" {
-        -125.425539779509
-            + 13.7121941940668 * bw
+        -125.425539779509 + 13.7121941940668 * bw
             - 0.0330325867486886 * bw.powi(2)
             - 0.00194553856286427 * bw.powi(3)
             + 0.0000412975938587791 * bw.powi(4)
             - 0.000000237218925425762 * bw.powi(5)
     } else {
-        47.4617885411949
-            + 8.47206137941125 * bw
-            + 0.073694103462609 * bw.powi(2)
+        47.4617885411949 + 8.47206137941125 * bw + 0.073694103462609 * bw.powi(2)
             - 0.00139583381094385 * bw.powi(3)
             + 0.00000707665973070743 * bw.powi(4)
             - 0.0000000120804336482315 * bw.powi(5)
@@ -849,7 +846,11 @@ pub fn calc_bodyfat_jp3(
     if bd <= 0.0 {
         return None;
     }
-    Some(make_bodyfat_result(siri_bf_from_density(bd), weight_kg, is_male))
+    Some(make_bodyfat_result(
+        siri_bf_from_density(bd),
+        weight_kg,
+        is_male,
+    ))
 }
 
 /// Estimates body fat percentage using the Jackson-Pollock 7-site skinfold method.
@@ -894,7 +895,11 @@ pub fn calc_bodyfat_jp7(
     if bd <= 0.0 {
         return None;
     }
-    Some(make_bodyfat_result(siri_bf_from_density(bd), weight_kg, is_male))
+    Some(make_bodyfat_result(
+        siri_bf_from_density(bd),
+        weight_kg,
+        is_male,
+    ))
 }
 
 /// Returns a descriptive body fat category based on percentage and sex.
@@ -1356,10 +1361,9 @@ mod tests {
     // ===== UNIT CONVERSION =====
 
     use super::{
-        bodyfat_category, calc_1rm, calc_bodyfat_female, calc_bodyfat_jp3, calc_bodyfat_jp7,
-        calc_bodyfat_male, calc_bodyfat_ymca, ipf_weight_class, kg_to_lbs, lbs_to_kg,
-        plates_per_side, siri_bf_from_density, tier_for_percentile,
-        KG_PER_LB, IPF_PLATES_KG,
+        IPF_PLATES_KG, KG_PER_LB, bodyfat_category, calc_1rm, calc_bodyfat_female,
+        calc_bodyfat_jp3, calc_bodyfat_jp7, calc_bodyfat_male, calc_bodyfat_ymca, ipf_weight_class,
+        kg_to_lbs, lbs_to_kg, plates_per_side, siri_bf_from_density, tier_for_percentile,
     };
 
     #[test]
@@ -1408,10 +1412,22 @@ mod tests {
 
     #[test]
     fn calc_bodyfat_male_rejects_invalid_inputs() {
-        assert!(calc_bodyfat_male(0.0, 80.0, 38.0, 90.0).is_none(), "zero height");
-        assert!(calc_bodyfat_male(-5.0, 80.0, 38.0, 90.0).is_none(), "negative height");
-        assert!(calc_bodyfat_male(178.0, 80.0, 0.0, 90.0).is_none(), "zero neck");
-        assert!(calc_bodyfat_male(178.0, 80.0, 95.0, 90.0).is_none(), "waist <= neck");
+        assert!(
+            calc_bodyfat_male(0.0, 80.0, 38.0, 90.0).is_none(),
+            "zero height"
+        );
+        assert!(
+            calc_bodyfat_male(-5.0, 80.0, 38.0, 90.0).is_none(),
+            "negative height"
+        );
+        assert!(
+            calc_bodyfat_male(178.0, 80.0, 0.0, 90.0).is_none(),
+            "zero neck"
+        );
+        assert!(
+            calc_bodyfat_male(178.0, 80.0, 95.0, 90.0).is_none(),
+            "waist <= neck"
+        );
     }
 
     #[test]
@@ -1423,16 +1439,21 @@ mod tests {
 
     #[test]
     fn calc_bodyfat_female_typical_case() {
-        let result =
-            calc_bodyfat_female(165.0, 65.0, 33.0, 75.0, 95.0).expect("should compute");
+        let result = calc_bodyfat_female(165.0, 65.0, 33.0, 75.0, 95.0).expect("should compute");
         assert!(result.body_fat_pct >= 8.0 && result.body_fat_pct <= 60.0);
         assert!((result.lean_mass_kg + result.fat_mass_kg - 65.0).abs() < 1e-3);
     }
 
     #[test]
     fn calc_bodyfat_female_rejects_invalid_inputs() {
-        assert!(calc_bodyfat_female(0.0, 65.0, 33.0, 75.0, 95.0).is_none(), "zero height");
-        assert!(calc_bodyfat_female(165.0, 65.0, 0.0, 75.0, 95.0).is_none(), "zero neck");
+        assert!(
+            calc_bodyfat_female(0.0, 65.0, 33.0, 75.0, 95.0).is_none(),
+            "zero height"
+        );
+        assert!(
+            calc_bodyfat_female(165.0, 65.0, 0.0, 75.0, 95.0).is_none(),
+            "zero neck"
+        );
         assert!(
             calc_bodyfat_female(165.0, 65.0, 200.0, 75.0, 95.0).is_none(),
             "diff <= 0"
@@ -1482,7 +1503,11 @@ mod tests {
         let r = calc_bodyfat_ymca(85.0, 85.0, true).expect("should compute");
         // 85 kg ≈ 187.39 lb, 85 cm ≈ 33.46 in.
         // BF = (-98.42 + 4.15*33.46 - 0.082*187.39) / 187.39 * 100 ≈ 13.5%
-        assert!((r.body_fat_pct - 13.5).abs() < 1.0, "got {}", r.body_fat_pct);
+        assert!(
+            (r.body_fat_pct - 13.5).abs() < 1.0,
+            "got {}",
+            r.body_fat_pct
+        );
         assert!((r.lean_mass_kg + r.fat_mass_kg - 85.0).abs() < 1e-3);
     }
 
@@ -1491,7 +1516,11 @@ mod tests {
         let r = calc_bodyfat_ymca(65.0, 75.0, false).expect("should compute");
         // 65 kg ≈ 143.30 lb, 75 cm ≈ 29.527 in.
         // BF = (-76.76 + 4.15*29.527 - 0.082*143.30) / 143.30 * 100 ≈ 23.75%
-        assert!((r.body_fat_pct - 23.75).abs() < 0.5, "got {}", r.body_fat_pct);
+        assert!(
+            (r.body_fat_pct - 23.75).abs() < 0.5,
+            "got {}",
+            r.body_fat_pct
+        );
         assert!((r.lean_mass_kg + r.fat_mass_kg - 65.0).abs() < 1e-3);
     }
 
@@ -1518,7 +1547,11 @@ mod tests {
         let r = calc_bodyfat_jp3(30.0, 85.0, true, 10.0, 20.0, 15.0).expect("should compute");
         assert!(r.body_fat_pct >= 2.0 && r.body_fat_pct <= 60.0);
         // Hand-computed: sum=45, BD ≈ 1.0677; Siri → ~13.6%
-        assert!((r.body_fat_pct - 13.6).abs() < 0.5, "got {}", r.body_fat_pct);
+        assert!(
+            (r.body_fat_pct - 13.6).abs() < 0.5,
+            "got {}",
+            r.body_fat_pct
+        );
         assert!((r.lean_mass_kg + r.fat_mass_kg - 85.0).abs() < 1e-3);
     }
 
@@ -1528,18 +1561,40 @@ mod tests {
         let r = calc_bodyfat_jp3(30.0, 65.0, false, 15.0, 12.0, 20.0).expect("should compute");
         assert!(r.body_fat_pct >= 8.0 && r.body_fat_pct <= 60.0);
         // Hand-computed: sum=47, BD≈1.056_39; Siri → ~20.7%
-        assert!((r.body_fat_pct - 20.7).abs() < 1.0, "got {}", r.body_fat_pct);
+        assert!(
+            (r.body_fat_pct - 20.7).abs() < 1.0,
+            "got {}",
+            r.body_fat_pct
+        );
         assert!((r.lean_mass_kg + r.fat_mass_kg - 65.0).abs() < 1e-3);
     }
 
     #[test]
     fn calc_bodyfat_jp3_rejects_invalid_inputs() {
-        assert!(calc_bodyfat_jp3(0.0, 85.0, true, 10.0, 20.0, 15.0).is_none(), "zero age");
-        assert!(calc_bodyfat_jp3(200.0, 85.0, true, 10.0, 20.0, 15.0).is_none(), "age too high");
-        assert!(calc_bodyfat_jp3(30.0, 0.0, true, 10.0, 20.0, 15.0).is_none(), "zero weight");
-        assert!(calc_bodyfat_jp3(30.0, 85.0, true, 0.0, 20.0, 15.0).is_none(), "zero site a");
-        assert!(calc_bodyfat_jp3(30.0, 85.0, true, 10.0, -1.0, 15.0).is_none(), "negative site b");
-        assert!(calc_bodyfat_jp3(30.0, 85.0, true, 10.0, 20.0, 0.0).is_none(), "zero site c");
+        assert!(
+            calc_bodyfat_jp3(0.0, 85.0, true, 10.0, 20.0, 15.0).is_none(),
+            "zero age"
+        );
+        assert!(
+            calc_bodyfat_jp3(200.0, 85.0, true, 10.0, 20.0, 15.0).is_none(),
+            "age too high"
+        );
+        assert!(
+            calc_bodyfat_jp3(30.0, 0.0, true, 10.0, 20.0, 15.0).is_none(),
+            "zero weight"
+        );
+        assert!(
+            calc_bodyfat_jp3(30.0, 85.0, true, 0.0, 20.0, 15.0).is_none(),
+            "zero site a"
+        );
+        assert!(
+            calc_bodyfat_jp3(30.0, 85.0, true, 10.0, -1.0, 15.0).is_none(),
+            "negative site b"
+        );
+        assert!(
+            calc_bodyfat_jp3(30.0, 85.0, true, 10.0, 20.0, 0.0).is_none(),
+            "zero site c"
+        );
     }
 
     #[test]
@@ -1555,20 +1610,22 @@ mod tests {
     #[test]
     fn calc_bodyfat_jp7_typical_male() {
         // 7 sites at 10 mm each, age 30, weight 85 kg.
-        let r =
-            calc_bodyfat_jp7(30.0, 85.0, true, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0)
-                .expect("should compute");
+        let r = calc_bodyfat_jp7(30.0, 85.0, true, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0)
+            .expect("should compute");
         assert!(r.body_fat_pct >= 2.0 && r.body_fat_pct <= 60.0);
         // Hand-computed: sum=70, BD≈1.073_25; Siri → ~11.2%
-        assert!((r.body_fat_pct - 11.2).abs() < 1.0, "got {}", r.body_fat_pct);
+        assert!(
+            (r.body_fat_pct - 11.2).abs() < 1.0,
+            "got {}",
+            r.body_fat_pct
+        );
         assert!((r.lean_mass_kg + r.fat_mass_kg - 85.0).abs() < 1e-3);
     }
 
     #[test]
     fn calc_bodyfat_jp7_typical_female() {
-        let r =
-            calc_bodyfat_jp7(30.0, 65.0, false, 12.0, 12.0, 15.0, 12.0, 15.0, 12.0, 20.0)
-                .expect("should compute");
+        let r = calc_bodyfat_jp7(30.0, 65.0, false, 12.0, 12.0, 15.0, 12.0, 15.0, 12.0, 20.0)
+            .expect("should compute");
         assert!(r.body_fat_pct >= 8.0 && r.body_fat_pct <= 60.0);
         assert!((r.lean_mass_kg + r.fat_mass_kg - 65.0).abs() < 1e-3);
     }
@@ -1606,7 +1663,10 @@ mod tests {
         // w * (1 + r/30)
         let expected = 100.0 * (1.0 + 5.0 / 30.0);
         assert!((calc_1rm(100.0, 5.0, "epley") - expected).abs() < 1e-4);
-        assert!((calc_1rm(100.0, 5.0, "unknown") - expected).abs() < 1e-4, "defaults to epley");
+        assert!(
+            (calc_1rm(100.0, 5.0, "unknown") - expected).abs() < 1e-4,
+            "defaults to epley"
+        );
     }
 
     #[test]
@@ -1691,7 +1751,10 @@ mod tests {
     fn plates_per_side_remainder_is_non_negative() {
         for per_side in [1.0f32, 7.5, 12.3, 47.5, 100.0] {
             let (_, remainder) = plates_per_side(per_side);
-            assert!(remainder >= 0.0, "remainder must be non-negative for {per_side}");
+            assert!(
+                remainder >= 0.0,
+                "remainder must be non-negative for {per_side}"
+            );
         }
     }
 
