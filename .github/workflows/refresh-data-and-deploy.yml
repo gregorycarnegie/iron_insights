@@ -30,6 +30,8 @@ concurrency:
 env:
   # Exercise all JS actions on Node 24 now to catch breakage before runner defaults switch.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PIPELINE_OUTPUT_DIR: iron_insights_pipeline/output
+  PIPELINE_RECORDS_DIR: iron_insights_pipeline/output/records
 
 jobs:
   refresh-and-deploy:
@@ -86,12 +88,17 @@ jobs:
 
           echo "DATA_VERSION=${VERSION}" >> "$GITHUB_ENV"
 
-          cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 01_download -- \
+          cargo run --release --manifest-path iron_insights_pipeline/Cargo.toml --bin 01_download -- \
+            --output-dir "${PIPELINE_OUTPUT_DIR}" \
             --dataset-version "${VERSION}"
 
-          cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 02_build_aggregates
+          cargo run --release --manifest-path iron_insights_pipeline/Cargo.toml --bin 02_build_aggregates -- \
+            --input-parquet "${PIPELINE_OUTPUT_DIR}/openpowerlifting-latest.parquet" \
+            --output-dir "${PIPELINE_RECORDS_DIR}"
 
-          cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 03_publish_data -- \
+          cargo run --release --manifest-path iron_insights_pipeline/Cargo.toml --bin 03_publish_data -- \
+            --records-dir "${PIPELINE_RECORDS_DIR}" \
+            --build-metadata-path "${PIPELINE_OUTPUT_DIR}/build_metadata.json" \
             --data-dir data \
             --version "${VERSION}" \
             --keep-versions 2
@@ -102,10 +109,18 @@ jobs:
           set -euo pipefail
 
           # Guard: essential files must exist.
-          test -s "iron_insights_pipeline/output/openpowerlifting-latest.parquet"
-          test -s "iron_insights_pipeline/output/build_metadata.json"
-          test -s "data/latest.json"
-          test -s "data/${DATA_VERSION}/index.json"
+          require_file() {
+            local path="$1"
+            if [[ ! -s "${path}" ]]; then
+              echo "Required file is missing or empty: ${path}"
+              exit 1
+            fi
+          }
+
+          require_file "${PIPELINE_OUTPUT_DIR}/openpowerlifting-latest.parquet"
+          require_file "${PIPELINE_OUTPUT_DIR}/build_metadata.json"
+          require_file "data/latest.json"
+          require_file "data/${DATA_VERSION}/index.json"
 
           sum_totals() {
             awk '{s += $1} END {print s + 0}'
@@ -180,7 +195,7 @@ jobs:
           fi
 
           echo "Build metadata:"
-          cat iron_insights_pipeline/output/build_metadata.json
+          cat "${PIPELINE_OUTPUT_DIR}/build_metadata.json"
 
       - name: Commit refreshed data back to main
         shell: bash
