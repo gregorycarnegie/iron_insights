@@ -2,7 +2,6 @@
 
 [![Refresh Data And Deploy](https://github.com/gregorycarnegie/iron_insights/actions/workflows/refresh-data-and-deploy.yml/badge.svg)](https://github.com/gregorycarnegie/iron_insights/actions/workflows/refresh-data-and-deploy.yml)
 ![Rust](https://img.shields.io/badge/Rust-2024_edition-000000?logo=rust)
-![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-7F52FF?logo=kotlin&logoColor=white)
 ![Leptos](https://img.shields.io/badge/Leptos-0.8-ef3939)
 ![Polars](https://img.shields.io/badge/Polars-0.53-5A32FA)
 ![Trunk](https://img.shields.io/badge/Trunk-WASM-2f9e44)
@@ -10,7 +9,7 @@
 Iron Insights is a Rust + Leptos powerlifting data project built around one question:
 **"How do I stack up?"**
 
-The repo downloads OpenPowerlifting, builds compact histogram and heatmap bundles, serves a static web app, and now includes a native Android client that consumes the same published data contract.
+The repo downloads OpenPowerlifting, builds compact published data bundles, and serves a static web app. The Android client has been removed from this repo for now so work can stay focused on the site.
 
 ## What Is In Here
 
@@ -20,9 +19,6 @@ The repo downloads OpenPowerlifting, builds compact histogram and heatmap bundle
   - "Men vs Women" page for aligned cross-sex cohort comparisons
   - 1RM calculator and plate calculator utilities
   - `landing/`, `robots.txt`, and `sitemap.xml` for static SEO pages
-- `iron_insights_android/` - native Kotlin + Jetpack Compose Android client
-  - lookup, comparison, trends, and calculator screens backed by the published site dataset
-  - Android-specific setup and release notes in `iron_insights_android/README.md` and `iron_insights_android/RELEASING.md`
 - `iron_insights_core/` - shared Rust crate for published-data contracts and binary format logic used by the web app and pipeline
 - `iron_insights_pipeline/` - Rust data pipeline that downloads, aggregates, and publishes versioned data bundles
 - `data/` - published dataset snapshots such as `v2026-03-20/` plus `latest.json`
@@ -37,9 +33,8 @@ The repo downloads OpenPowerlifting, builds compact histogram and heatmap bundle
 - Trunk (`cargo install trunk --locked`)
 - `jq` for `scripts/qa.sh` on Linux/macOS
 - PowerShell if you want to use the provided Windows helper scripts
-- Android Studio plus Android SDK Platform 35 if you want to run the Android app locally
 
-See `iron_insights_android/README.md` for the Android-specific workflow, release inputs, and output paths.
+See `iron_insights_web/README.md` for the frontend data-contract details.
 
 ## Local Workflow
 
@@ -92,28 +87,9 @@ The app loads:
 - `data/latest.json`
 - `data/<version>/index.json`
 - `data/<version>/index_shards/<sex>/<equip>/index.json`
-- referenced `hist/*.bin` and `heat/*.bin`
-- `data/<version>/trends.json`
+- referenced `bin/*.bin`
+- `data/<version>/trends_shards/<sex>/<equip>/trends.json`
 - optional `meta/*.json` only when verbose compatibility output is enabled
-
-### 4) Run the Android app locally
-
-The Android client consumes the same published payloads as the website.
-
-Best path:
-
-- open `iron_insights_android/` in Android Studio
-- let Studio install any missing SDK pieces
-- run the `app` configuration on a device or emulator
-
-Command-line builds also work with the checked-in Gradle wrapper:
-
-```bash
-./iron_insights_android/gradlew -p android testDebugUnitTest
-./iron_insights_android/gradlew -p android :app:assembleDebug
-```
-
-Detailed Android setup, release-signing inputs, and output locations are documented in `android/README.md`.
 
 ## Build For GitHub Pages
 
@@ -130,9 +106,8 @@ Each published version under `data/vYYYY-MM-DD/` contains:
 
 - `index.json` - root shard lookup by `sex` and `equip`
 - `index_shards/<sex>/<equip>/index.json` - slice lookup with embedded per-slice summary
-- `hist/<sex>/<equip>/<wc>/<age>/<tested>/<metric>/<lift>.bin`
-- `heat/<sex>/<equip>/<wc>/<age>/<tested>/<metric>/<lift>.bin`
-- `trends.json` - yearly cohort counts plus p50/p90 thresholds
+- `bin/<sex>/<equip>/<wc>/<age>/<tested>/<metric>/<lift>.bin`
+- `trends_shards/<sex>/<equip>/trends.json` - yearly cohort counts plus p50/p90 thresholds per shard
 - optional `meta/<sex>/<equip>/<wc>/<age>/<tested>/<metric>/<lift>.json`
 
 Metric behavior:
@@ -163,8 +138,6 @@ Checks include slice reference integrity, histogram and heatmap sanity, non-zero
 Workflows:
 
 - `.github/workflows/refresh-data-and-deploy.yml` - pipeline refresh, web build, QA, and Pages deploy
-- `.github/workflows/android-ci.yml` - Android debug build plus unit tests
-- `.github/workflows/android-release.yml` - signed Android release bundle build and optional Play upload
 
 ## Notes
 
