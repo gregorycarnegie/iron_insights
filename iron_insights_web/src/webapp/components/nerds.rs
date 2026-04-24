@@ -179,6 +179,14 @@ fn balance_index(squat_pct: f32, bench_pct: f32, deadlift_pct: f32) -> f32 {
     (1.0 - deviation / 40.0).clamp(0.0, 1.0)
 }
 
+fn lift_pct_of_total(lift_kg: f32, total_kg: f32) -> f32 {
+    if total_kg > 0.0 {
+        lift_kg / total_kg * 100.0
+    } else {
+        0.0
+    }
+}
+
 fn archetype(squat_pct: f32, bench_pct: f32, deadlift_pct: f32) -> (&'static str, &'static str) {
     let squat_delta = squat_pct - REF_SQUAT_PCT;
     let bench_delta = bench_pct - REF_BENCH_PCT;
@@ -257,30 +265,11 @@ pub fn NerdsPage() -> impl IntoView {
     });
 
     let total_kg = Memo::new(move |_| squat.get() + bench.get() + deadlift.get());
-    let squat_pct = Memo::new(move |_| {
-        let t = total_kg.get();
-        if t > 0.0 {
-            squat.get() / t * 100.0
-        } else {
-            0.0
-        }
-    });
-    let bench_pct = Memo::new(move |_| {
-        let t = total_kg.get();
-        if t > 0.0 {
-            bench.get() / t * 100.0
-        } else {
-            0.0
-        }
-    });
-    let dl_pct = Memo::new(move |_| {
-        let t = total_kg.get();
-        if t > 0.0 {
-            deadlift.get() / t * 100.0
-        } else {
-            0.0
-        }
-    });
+
+    let squat_pct = Memo::new(move |_| lift_pct_of_total(squat.get(), total_kg.get()));
+    let bench_pct = Memo::new(move |_| lift_pct_of_total(bench.get(), total_kg.get()));
+    let dl_pct = Memo::new(move |_| lift_pct_of_total(deadlift.get(), total_kg.get()));
+
     let squat_delta = Memo::new(move |_| squat_pct.get() - REF_SQUAT_PCT);
     let bench_delta = Memo::new(move |_| bench_pct.get() - REF_BENCH_PCT);
     let dl_delta = Memo::new(move |_| dl_pct.get() - REF_DEADLIFT_PCT);

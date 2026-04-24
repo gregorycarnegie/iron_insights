@@ -27,7 +27,10 @@ struct Args {
     #[arg(long, default_value = "iron_insights_pipeline/output/records")]
     records_dir: PathBuf,
 
-    #[arg(long, default_value = "iron_insights_pipeline/output/build_metadata.json")]
+    #[arg(
+        long,
+        default_value = "iron_insights_pipeline/output/build_metadata.json"
+    )]
     build_metadata_path: PathBuf,
 
     #[arg(long, default_value = "data")]
