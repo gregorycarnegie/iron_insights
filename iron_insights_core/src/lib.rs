@@ -172,6 +172,14 @@ pub const IPF_FEMALE_WEIGHT_CLASSES: &[(f32, &str)] = &[
 /// Returns the IPF weight class label for a given bodyweight (kg) and sex (`"M"` or `"F"`).
 ///
 /// Returns `None` if the sex string is not `"M"` or `"F"`.
+///
+/// ```
+/// use iron_insights_core::ipf_weight_class;
+/// assert_eq!(ipf_weight_class(80.0, "M"), Some("83"));
+/// assert_eq!(ipf_weight_class(83.0, "M"), Some("83")); // inclusive upper bound
+/// assert_eq!(ipf_weight_class(57.0, "F"), Some("57"));
+/// assert_eq!(ipf_weight_class(80.0, "X"), None);        // unknown sex
+/// ```
 pub fn ipf_weight_class(bodyweight_kg: f32, sex: &str) -> Option<&'static str> {
     let classes = match sex {
         "M" => IPF_MALE_WEIGHT_CLASSES,
@@ -581,6 +589,13 @@ pub fn bodyweight_conditioned_percentile(
 }
 
 /// Calculates the DOTS score for a given sex, bodyweight (kg), and total (kg).
+///
+/// ```
+/// use iron_insights_core::dots_points;
+/// assert_eq!(dots_points("M", 83.0, 0.0), 0.0);
+/// assert!(dots_points("M", 83.0, 500.0) > dots_points("M", 83.0, 400.0));
+/// assert!(dots_points("F", 63.0, 300.0) > 0.0);
+/// ```
 #[allow(clippy::excessive_precision)]
 pub fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     let bw = match sex {
@@ -604,6 +619,13 @@ pub fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
 /// Calculates the Wilks score for a given sex, bodyweight (kg), and total (kg).
 ///
 /// Uses the updated 2020 Wilks coefficients (600-point scale) as published by OpenPowerlifting.
+///
+/// ```
+/// use iron_insights_core::wilks_points;
+/// assert_eq!(wilks_points("M", 83.0, 0.0), 0.0);
+/// assert!(wilks_points("M", 83.0, 500.0) > wilks_points("M", 83.0, 400.0));
+/// assert!(wilks_points("F", 63.0, 300.0) > 0.0);
+/// ```
 #[allow(clippy::excessive_precision)]
 pub fn wilks_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     let bw = match sex {
@@ -630,6 +652,13 @@ pub fn wilks_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
 }
 
 /// Calculates the IPF GL (Goodlift) points for a given sex, equipment, bodyweight (kg), and total (kg).
+///
+/// ```
+/// use iron_insights_core::goodlift_points;
+/// assert_eq!(goodlift_points("M", "Raw", 83.0, 0.0), 0.0);
+/// assert!(goodlift_points("M", "Raw", 83.0, 500.0) > goodlift_points("M", "Raw", 83.0, 400.0));
+/// assert!(goodlift_points("F", "Single-ply", 63.0, 300.0) > 0.0);
+/// ```
 #[allow(clippy::excessive_precision)]
 pub fn goodlift_points(sex: &str, equipment: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     let classic = matches!(equipment, "Raw" | "Wraps" | "Straps");
@@ -648,6 +677,13 @@ pub fn goodlift_points(sex: &str, equipment: &str, bodyweight_kg: f32, total_kg:
 }
 
 /// Condenses a 1D counts array by summing adjacent `k` bins.
+///
+/// ```
+/// use iron_insights_core::rebin_1d;
+/// assert_eq!(rebin_1d(vec![1, 2, 3, 4], 2), vec![3, 7]);
+/// assert_eq!(rebin_1d(vec![1, 2, 3], 1), vec![1, 2, 3]); // identity
+/// assert_eq!(rebin_1d(vec![1, 2, 3], 2), vec![3, 3]);    // partial tail kept
+/// ```
 pub fn rebin_1d(counts: Vec<u32>, k: usize) -> Vec<u32> {
     if k <= 1 {
         return counts;
@@ -659,6 +695,16 @@ pub fn rebin_1d(counts: Vec<u32>, k: usize) -> Vec<u32> {
 }
 
 /// Condenses a 2D heatmap grid by pooling cells into `kx` by `ky` blocks.
+///
+/// ```
+/// use iron_insights_core::rebin_2d;
+/// // 2×2 grid pooled into 1×1
+/// let (out, w, h) = rebin_2d(vec![1, 2, 3, 4], 2, 2, 2, 2);
+/// assert_eq!((out, w, h), (vec![10], 1, 1));
+/// // identity: k=1 in each dimension
+/// let (out, w, h) = rebin_2d(vec![1, 2, 3, 4], 2, 2, 1, 1);
+/// assert_eq!((out, w, h), (vec![1, 2, 3, 4], 2, 2));
+/// ```
 pub fn rebin_2d(
     grid: Vec<u32>,
     width: usize,
@@ -691,11 +737,23 @@ pub fn rebin_2d(
 pub const KG_PER_LB: f32 = 0.453_592_37;
 
 /// Converts kilograms to pounds.
+///
+/// ```
+/// use iron_insights_core::kg_to_lbs;
+/// assert!((kg_to_lbs(100.0) - 220.462).abs() < 0.01);
+/// assert_eq!(kg_to_lbs(0.0), 0.0);
+/// ```
 pub fn kg_to_lbs(kg: f32) -> f32 {
     kg / KG_PER_LB
 }
 
 /// Converts pounds to kilograms.
+///
+/// ```
+/// use iron_insights_core::lbs_to_kg;
+/// assert!((lbs_to_kg(220.0) - 99.790).abs() < 0.01);
+/// assert_eq!(lbs_to_kg(0.0), 0.0);
+/// ```
 pub fn lbs_to_kg(lbs: f32) -> f32 {
     lbs * KG_PER_LB
 }
@@ -703,6 +761,15 @@ pub fn lbs_to_kg(lbs: f32) -> f32 {
 // ===== PERCENTILE TIER =====
 
 /// Maps a percentile (0.0 to 1.0) to a descriptive performance tier label.
+///
+/// ```
+/// use iron_insights_core::tier_for_percentile;
+/// assert_eq!(tier_for_percentile(0.99), "Legend");
+/// assert_eq!(tier_for_percentile(0.97), "Elite");
+/// assert_eq!(tier_for_percentile(0.85), "Advanced");
+/// assert_eq!(tier_for_percentile(0.70), "Intermediate");
+/// assert_eq!(tier_for_percentile(0.30), "Novice");
+/// ```
 pub fn tier_for_percentile(pct: f32) -> &'static str {
     if pct >= 0.99 {
         "Legend"
@@ -903,6 +970,15 @@ pub fn calc_bodyfat_jp7(
 }
 
 /// Returns a descriptive body fat category based on percentage and sex.
+///
+/// ```
+/// use iron_insights_core::bodyfat_category;
+/// assert_eq!(bodyfat_category(4.0, true),  "Essential");
+/// assert_eq!(bodyfat_category(8.0, true),  "Elite Athlete");
+/// assert_eq!(bodyfat_category(22.0, true), "Average");
+/// assert_eq!(bodyfat_category(12.0, false), "Essential");
+/// assert_eq!(bodyfat_category(35.0, false), "Obese");
+/// ```
 pub fn bodyfat_category(pct: f32, is_male: bool) -> &'static str {
     if is_male {
         if pct < 6.0 {
@@ -936,9 +1012,20 @@ pub fn bodyfat_category(pct: f32, is_male: bool) -> &'static str {
 // ===== 1RM FORMULAS =====
 
 /// Estimates the one-rep max from a submaximal set.
+///
 /// Returns `weight` unchanged for `reps <= 1.0`.
 /// Supported `formula` values: `"epley"` (default), `"brzycki"`, `"mayhew"`, `"lander"`,
 /// `"lombardi"`, `"oconner"`.
+///
+/// ```
+/// use iron_insights_core::calc_1rm;
+/// // single rep is always the 1RM
+/// assert_eq!(calc_1rm(100.0, 1.0, "epley"), 100.0);
+/// // Epley: weight * (1 + reps/30)
+/// assert!((calc_1rm(100.0, 10.0, "epley") - 133.33).abs() < 0.1);
+/// // higher rep count → higher estimated 1RM
+/// assert!(calc_1rm(100.0, 10.0, "brzycki") > calc_1rm(100.0, 5.0, "brzycki"));
+/// ```
 pub fn calc_1rm(weight: f32, reps: f32, formula: &str) -> f32 {
     if reps <= 1.0 {
         return weight;
@@ -962,6 +1049,17 @@ pub const IPF_PLATES_KG: &[f32] = &[25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25];
 ///
 /// Returns `(plates, remainder_kg)` where `plates` is a list of `(plate_weight_kg, count)`
 /// pairs and `remainder_kg` is the unloadable shortfall (ideally 0).
+///
+/// ```
+/// use iron_insights_core::plates_per_side;
+/// let (plates, rem) = plates_per_side(90.0);
+/// assert_eq!(plates, vec![(25.0, 3), (15.0, 1)]);
+/// assert!(rem.abs() < 1e-4);
+/// // negative input treated as zero
+/// let (plates, rem) = plates_per_side(-5.0);
+/// assert!(plates.is_empty());
+/// assert!(rem.abs() < 1e-4);
+/// ```
 pub fn plates_per_side(per_side_needed_kg: f32) -> (Vec<(f32, usize)>, f32) {
     let mut remaining = per_side_needed_kg.max(0.0);
     let mut plates = Vec::new();

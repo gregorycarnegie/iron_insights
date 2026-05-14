@@ -16,6 +16,19 @@ pub struct SliceEntryPaths {
     pub bin: String,
 }
 
+/// Parses a pipe-separated slice key string into a [`SliceKey`].
+///
+/// Fields are order-independent. `metric` defaults to `"Kg"` when omitted.
+/// Returns `None` if any required field (`sex`, `equip`, `wc`, `age`, `tested`, `lift`)
+/// is missing or if a segment has no `=` separator.
+///
+/// ```
+/// use iron_insights_core::parse_slice_key;
+/// let key = parse_slice_key("sex=M|equip=Raw|wc=93|age=Open|tested=Yes|lift=T").unwrap();
+/// assert_eq!(key.sex, "M");
+/// assert_eq!(key.metric, "Kg"); // default when omitted
+/// assert!(parse_slice_key("sex=M|equip=Raw").is_none()); // missing required fields
+/// ```
 pub fn parse_slice_key(raw: &str) -> Option<SliceKey> {
     let mut sex = None;
     let mut equip = None;
@@ -55,6 +68,17 @@ pub fn parse_slice_key(raw: &str) -> Option<SliceKey> {
     })
 }
 
+/// Extracts `(sex, equip)` from a pipe-separated key string.
+///
+/// Returns `None` if either field is absent.
+///
+/// ```
+/// use iron_insights_core::parse_shard_key;
+/// let (sex, equip) = parse_shard_key("sex=F|equip=Raw|wc=63").unwrap();
+/// assert_eq!(sex, "F");
+/// assert_eq!(equip, "Raw");
+/// assert!(parse_shard_key("sex=M").is_none()); // missing equip
+/// ```
 pub fn parse_shard_key(raw: &str) -> Option<(&str, &str)> {
     let mut sex = None;
     let mut equip = None;
