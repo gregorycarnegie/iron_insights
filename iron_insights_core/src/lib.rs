@@ -985,6 +985,7 @@ mod tests {
         parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
         wilks_points,
     };
+    use proptest::prelude::*;
 
     fn push_f32(bytes: &mut Vec<u8>, v: f32) {
         bytes.extend_from_slice(&v.to_le_bytes());
@@ -992,6 +993,18 @@ mod tests {
 
     fn push_u32(bytes: &mut Vec<u8>, v: u32) {
         bytes.extend_from_slice(&v.to_le_bytes());
+    }
+
+    fn bounded_count_vec() -> impl Strategy<Value = Vec<u32>> {
+        prop::collection::vec(0u32..10_000, 0..64)
+    }
+
+    fn bounded_heat_grid() -> impl Strategy<Value = (Vec<u32>, usize, usize)> {
+        (1usize..12, 1usize..12).prop_flat_map(|(width, height)| {
+            let cells = width * height;
+            prop::collection::vec(0u32..10_000, cells..=cells)
+                .prop_map(move |grid| (grid, width, height))
+        })
     }
 
     #[test]
@@ -1225,6 +1238,39 @@ mod tests {
         assert_eq!((w2, h2), (2, 1));
         assert_eq!(out, vec![12, 9]);
         assert_eq!(out.iter().sum::<u32>(), grid.iter().sum::<u32>());
+    }
+
+    proptest! {
+        #[test]
+        fn rebin_1d_preserves_total_for_generated_counts(
+            counts in bounded_count_vec(),
+            k in 0usize..16,
+        ) {
+            let expected = counts.iter().copied().sum::<u32>();
+            let out = rebin_1d(counts, k);
+
+            prop_assert_eq!(out.iter().copied().sum::<u32>(), expected);
+        }
+
+        #[test]
+        fn rebin_2d_preserves_total_and_shape_for_generated_grids(
+            (grid, width, height) in bounded_heat_grid(),
+            kx in 0usize..8,
+            ky in 0usize..8,
+        ) {
+            let expected = grid.iter().copied().sum::<u32>();
+            let (out, w2, h2) = rebin_2d(grid, width, height, kx, ky);
+
+            prop_assert_eq!(out.iter().copied().sum::<u32>(), expected);
+            prop_assert_eq!(out.len(), w2 * h2);
+        }
+
+        #[test]
+        fn kg_lbs_round_trip_for_generated_values(kg in 0.0f32..1000.0) {
+            let round_tripped = lbs_to_kg(kg_to_lbs(kg));
+
+            prop_assert!((round_tripped - kg).abs() <= 1e-4);
+        }
     }
 
     #[test]
