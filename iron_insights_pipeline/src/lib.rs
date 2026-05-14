@@ -16,6 +16,23 @@ pub struct BuildMetadata {
 }
 
 impl BuildMetadata {
+    /// Creates a new [`BuildMetadata`] snapshot, stamping the current UTC time.
+    ///
+    /// ```
+    /// use iron_insights_pipeline::BuildMetadata;
+    /// let meta = BuildMetadata::new(
+    ///     "2026-05-10".into(),
+    ///     Some("abc123".into()),
+    ///     "https://example.com/data.zip".into(),
+    ///     "data/data.zip".into(),
+    ///     "data/data.csv".into(),
+    ///     "data/data.parquet".into(),
+    /// );
+    /// assert_eq!(meta.dataset_version, "2026-05-10");
+    /// assert_eq!(meta.dataset_revision, Some("abc123".to_string()));
+    /// assert_eq!(meta.source_zip_url, "https://example.com/data.zip");
+    /// assert!(!meta.built_at_utc.is_empty());
+    /// ```
     pub fn new(
         dataset_version: String,
         dataset_revision: Option<String>,
