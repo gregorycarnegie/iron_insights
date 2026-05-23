@@ -2,39 +2,24 @@
 name = "iron_insights_web"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+publish = false
 
 [dependencies]
-base64 = "0.22.1"
-iron_insights_core = { path = "../iron_insights_core" }
+base64 = { workspace = true }
+iron_insights_core = { workspace = true }
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3"
+proptest = { workspace = true }
+wasm-bindgen-test = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-gloo-net = "0.7.0"
-gloo-timers = "0.4.0"
-js-sys = "0.3.95"
-leptos = { version = "0.8.19", features = ["csr"] }
+gloo-net = { workspace = true }
+gloo-timers = { workspace = true }
+js-sys = { workspace = true }
+leptos = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-wasm-bindgen = "0.2.118"
-wasm-bindgen-futures = "0.4.68"
-web-sys = { version = "0.3.95", features = [
-  "CanvasGradient",
-  "Clipboard",
-  "CanvasRenderingContext2d",
-  "AbortController",
-  "AbortSignal",
-  "Document",
-  "Element",
-  "History",
-  "HtmlAnchorElement",
-  "HtmlCanvasElement",
-  "HtmlElement",
-  "HtmlInputElement",
-  "Location",
-  "Navigator",
-  "Storage",
-  "UrlSearchParams",
-  "Window"
-] }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+web-sys = { workspace = true }

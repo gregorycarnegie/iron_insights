@@ -55,7 +55,13 @@ pub(super) fn format_input_bound(value_kg: f32, use_lbs: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+    use proptest::test_runner::{Config, TestRunner};
     use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn property_runner() -> TestRunner {
+        TestRunner::new(Config::with_cases(128))
+    }
 
     #[wasm_bindgen_test]
     fn kg_to_display_kg_mode_is_identity() {
@@ -91,6 +97,19 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    fn kg_display_round_trips_for_generated_values() {
+        property_runner()
+            .run(&(0.0f32..1000.0, any::<bool>()), |(kg, use_lbs)| {
+                let converted = kg_to_display(kg, use_lbs);
+                let back = display_to_kg(converted, use_lbs);
+
+                prop_assert!((back - kg).abs() <= 1e-4);
+                Ok(())
+            })
+            .expect("kg/display conversion property should hold");
+    }
+
+    #[wasm_bindgen_test]
     fn parse_query_f32_none_returns_default() {
         assert!((parse_query_f32(None, 50.0, 0.0, 100.0) - 50.0).abs() < 0.001);
     }
@@ -109,6 +128,22 @@ mod tests {
     #[wasm_bindgen_test]
     fn parse_query_f32_invalid_string_returns_default() {
         assert!((parse_query_f32(Some("abc".into()), 42.0, 0.0, 100.0) - 42.0).abs() < 0.001);
+    }
+
+    #[wasm_bindgen_test]
+    fn parse_query_f32_clamps_generated_values() {
+        property_runner()
+            .run(
+                &(-1000.0f32..1000.0, -1000.0f32..1000.0, 0.0f32..1000.0),
+                |(value, min, span)| {
+                    let max = min + span;
+                    let parsed = parse_query_f32(Some(value.to_string()), 0.0, min, max);
+
+                    prop_assert!((min..=max).contains(&parsed));
+                    Ok(())
+                },
+            )
+            .expect("query parsing clamp property should hold");
     }
 
     #[wasm_bindgen_test]
@@ -161,6 +196,34 @@ mod tests {
             deadlift: 240.0,
         };
         assert!((comparable_lift_value(lifter, "T", "Kg") - 570.0).abs() < 0.001);
+    }
+
+    #[wasm_bindgen_test]
+    fn comparable_lift_value_matches_generated_lift_fields() {
+        property_runner()
+            .run(
+                &(30.0f32..200.0, 0.0f32..500.0, 0.0f32..350.0, 0.0f32..500.0),
+                |(bodyweight, squat, bench, deadlift)| {
+                    let lifter = ComparableLifter {
+                        sex: "M",
+                        equipment: "Raw",
+                        bodyweight,
+                        squat,
+                        bench,
+                        deadlift,
+                    };
+
+                    prop_assert_eq!(comparable_lift_value(lifter, "S", "Kg"), squat);
+                    prop_assert_eq!(comparable_lift_value(lifter, "B", "Kg"), bench);
+                    prop_assert_eq!(comparable_lift_value(lifter, "D", "Kg"), deadlift);
+                    prop_assert_eq!(
+                        comparable_lift_value(lifter, "T", "Kg"),
+                        squat + bench + deadlift
+                    );
+                    Ok(())
+                },
+            )
+            .expect("comparable lift property should hold");
     }
 
     #[wasm_bindgen_test]

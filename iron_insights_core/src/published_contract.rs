@@ -16,6 +16,19 @@ pub struct SliceEntryPaths {
     pub bin: String,
 }
 
+/// Parses a pipe-separated slice key string into a [`SliceKey`].
+///
+/// Fields are order-independent. `metric` defaults to `"Kg"` when omitted.
+/// Returns `None` if any required field (`sex`, `equip`, `wc`, `age`, `tested`, `lift`)
+/// is missing or if a segment has no `=` separator.
+///
+/// ```
+/// use iron_insights_core::parse_slice_key;
+/// let key = parse_slice_key("sex=M|equip=Raw|wc=93|age=Open|tested=Yes|lift=T").unwrap();
+/// assert_eq!(key.sex, "M");
+/// assert_eq!(key.metric, "Kg"); // default when omitted
+/// assert!(parse_slice_key("sex=M|equip=Raw").is_none()); // missing required fields
+/// ```
 pub fn parse_slice_key(raw: &str) -> Option<SliceKey> {
     let mut sex = None;
     let mut equip = None;
@@ -55,6 +68,17 @@ pub fn parse_slice_key(raw: &str) -> Option<SliceKey> {
     })
 }
 
+/// Extracts `(sex, equip)` from a pipe-separated key string.
+///
+/// Returns `None` if either field is absent.
+///
+/// ```
+/// use iron_insights_core::parse_shard_key;
+/// let (sex, equip) = parse_shard_key("sex=F|equip=Raw|wc=63").unwrap();
+/// assert_eq!(sex, "F");
+/// assert_eq!(equip, "Raw");
+/// assert!(parse_shard_key("sex=M").is_none()); // missing equip
+/// ```
 pub fn parse_shard_key(raw: &str) -> Option<(&str, &str)> {
     let mut sex = None;
     let mut equip = None;
@@ -144,6 +168,7 @@ fn tested_dir_from_bucket(bucket: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{entry_paths_from_slice_key, parse_shard_key, parse_slice_key};
+    use proptest::prelude::*;
 
     #[test]
     fn parse_slice_key_defaults_metric_to_kg() {
@@ -200,5 +225,143 @@ mod tests {
         assert!(key.metric_explicit);
         assert_eq!(paths.meta, "meta/f/raw/63/open/all/lb/bench.json");
         assert_eq!(paths.bin, "bin/f/raw/63/open/all/lb/bench.bin");
+    }
+
+    fn field_value() -> impl Strategy<Value = String> {
+        prop::collection::vec(
+            prop::sample::select(
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 _./:+-"
+                    .chars()
+                    .collect::<Vec<_>>(),
+            ),
+            1..25,
+        )
+        .prop_map(|chars| chars.into_iter().collect::<String>())
+    }
+
+    fn lift_code() -> impl Strategy<Value = &'static str> {
+        prop::sample::select(vec!["S", "B", "D", "T"])
+    }
+
+    fn invalid_lift_code() -> impl Strategy<Value = String> {
+        prop::collection::vec(
+            prop::sample::select(
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+                    .chars()
+                    .collect::<Vec<_>>(),
+            ),
+            1..13,
+        )
+        .prop_map(|chars| chars.into_iter().collect::<String>())
+        .prop_filter("reserved valid lift code", |code| {
+            !matches!(code.as_str(), "S" | "B" | "D" | "T")
+        })
+    }
+
+    fn required_segments(
+        sex: &str,
+        equip: &str,
+        wc: &str,
+        age: &str,
+        tested: &str,
+        lift: &str,
+    ) -> Vec<String> {
+        vec![
+            format!("sex={sex}"),
+            format!("equip={equip}"),
+            format!("wc={wc}"),
+            format!("age={age}"),
+            format!("tested={tested}"),
+            format!("lift={lift}"),
+        ]
+    }
+
+    proptest! {
+        #[test]
+        fn parse_slice_key_is_order_independent_for_complete_keys(
+            sex in field_value(),
+            equip in field_value(),
+            wc in field_value(),
+            age in field_value(),
+            tested in field_value(),
+            lift in lift_code(),
+            metric in prop::option::of(field_value()),
+        ) {
+            let mut segments = required_segments(&sex, &equip, &wc, &age, &tested, lift);
+            if let Some(metric) = &metric {
+                segments.push(format!("metric={metric}"));
+            }
+
+            let forward = segments.join("|");
+            segments.reverse();
+            let reversed = segments.join("|");
+
+            prop_assert_eq!(parse_slice_key(&forward), parse_slice_key(&reversed));
+        }
+
+        #[test]
+        fn parse_slice_key_rejects_missing_required_fields(
+            sex in field_value(),
+            equip in field_value(),
+            wc in field_value(),
+            age in field_value(),
+            tested in field_value(),
+            lift in lift_code(),
+            missing_index in 0usize..6,
+        ) {
+            let mut segments = required_segments(&sex, &equip, &wc, &age, &tested, lift);
+            segments.remove(missing_index);
+
+            prop_assert!(parse_slice_key(&segments.join("|")).is_none());
+        }
+
+        #[test]
+        fn entry_paths_keep_meta_and_bin_on_same_payload_base(
+            sex in field_value(),
+            equip in field_value(),
+            wc in field_value(),
+            age in field_value(),
+            tested in field_value(),
+            lift in lift_code(),
+            metric in prop::option::of(field_value()),
+        ) {
+            let mut segments = required_segments(&sex, &equip, &wc, &age, &tested, lift);
+            let metric_explicit = metric.is_some();
+            if let Some(metric) = &metric {
+                segments.push(format!("metric={metric}"));
+            }
+
+            let (_, paths) = entry_paths_from_slice_key(&segments.join("|")).expect("paths");
+            let meta_base = paths
+                .meta
+                .strip_prefix("meta/")
+                .and_then(|path| path.strip_suffix(".json"))
+                .expect("meta path shape");
+            let bin_base = paths
+                .bin
+                .strip_prefix("bin/")
+                .and_then(|path| path.strip_suffix(".bin"))
+                .expect("bin path shape");
+
+            prop_assert_eq!(meta_base, bin_base);
+            prop_assert_eq!(meta_base.split('/').count(), if metric_explicit { 7 } else { 6 });
+            prop_assert!(!meta_base.contains('|'));
+            prop_assert!(!meta_base.contains('\\'));
+        }
+
+        #[test]
+        fn entry_paths_reject_unknown_lift_codes(
+            sex in field_value(),
+            equip in field_value(),
+            wc in field_value(),
+            age in field_value(),
+            tested in field_value(),
+            lift in invalid_lift_code(),
+        ) {
+            let raw = required_segments(&sex, &equip, &wc, &age, &tested, &lift).join("|");
+
+            prop_assert!(parse_slice_key(&raw).is_some());
+            prop_assert!(entry_paths_from_slice_key(&raw).is_none());
+        }
     }
 }

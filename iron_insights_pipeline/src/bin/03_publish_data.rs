@@ -27,7 +27,10 @@ struct Args {
     #[arg(long, default_value = "iron_insights_pipeline/output/records")]
     records_dir: PathBuf,
 
-    #[arg(long, default_value = "iron_insights_pipeline/output/build_metadata.json")]
+    #[arg(
+        long,
+        default_value = "iron_insights_pipeline/output/build_metadata.json"
+    )]
     build_metadata_path: PathBuf,
 
     #[arg(long, default_value = "data")]
@@ -1005,9 +1008,19 @@ fn metric_value(
 #[cfg(test)]
 mod tests {
     use super::{
-        BW_BIN_BASE_KG, LIFT_BIN_BASE_KG, build_heatmap, build_histogram, dots_points,
-        goodlift_points, parse_year_bucket, quantile_sorted, wilks_points,
+        BW_BIN_BASE_KG, LIFT_BIN_BASE_KG, build_combined_bytes, build_heatmap, build_histogram,
+        dots_points, goodlift_points, parse_year_bucket, quantile_sorted, wilks_points,
     };
+    use iron_insights_core::parse_combined_bin;
+    use proptest::prelude::*;
+
+    fn generated_lift_values() -> impl Strategy<Value = Vec<f32>> {
+        prop::collection::vec(0.0f32..1000.0, 1..96)
+    }
+
+    fn generated_heat_points() -> impl Strategy<Value = Vec<(f32, f32)>> {
+        prop::collection::vec((0.0f32..1000.0, 0.0f32..250.0), 1..96)
+    }
 
     #[test]
     fn dots_points_increase_with_total() {
@@ -1082,6 +1095,53 @@ mod tests {
             heat.grid.iter().copied().map(u64::from).sum::<u64>(),
             heat.total
         );
+    }
+
+    proptest! {
+        #[test]
+        fn build_histogram_preserves_total_for_generated_values(values in generated_lift_values()) {
+            let hist = build_histogram(&values, LIFT_BIN_BASE_KG).expect("histogram should build");
+            let counted = hist.counts.iter().copied().map(u64::from).sum::<u64>();
+
+            prop_assert_eq!(hist.total, values.len() as u64);
+            prop_assert_eq!(counted, hist.total);
+            prop_assert!(hist.min <= values.iter().copied().fold(f32::INFINITY, f32::min));
+            prop_assert!(hist.max > values.iter().copied().fold(f32::NEG_INFINITY, f32::max));
+        }
+
+        #[test]
+        fn build_heatmap_preserves_total_and_shape_for_generated_points(
+            points in generated_heat_points(),
+        ) {
+            let heat = build_heatmap(&points, LIFT_BIN_BASE_KG, BW_BIN_BASE_KG)
+                .expect("heatmap should build");
+            let counted = heat.grid.iter().copied().map(u64::from).sum::<u64>();
+
+            prop_assert_eq!(heat.total, points.len() as u64);
+            prop_assert_eq!(counted, heat.total);
+            prop_assert_eq!(heat.grid.len(), heat.width * heat.height);
+            prop_assert!(heat.min_x <= points.iter().map(|(x, _)| *x).fold(f32::INFINITY, f32::min));
+            prop_assert!(heat.max_x > points.iter().map(|(x, _)| *x).fold(f32::NEG_INFINITY, f32::max));
+            prop_assert!(heat.min_y <= points.iter().map(|(_, y)| *y).fold(f32::INFINITY, f32::min));
+            prop_assert!(heat.max_y > points.iter().map(|(_, y)| *y).fold(f32::NEG_INFINITY, f32::max));
+        }
+
+        #[test]
+        fn combined_payload_round_trips_generated_histogram_and_heatmap(
+            values in generated_lift_values(),
+            points in generated_heat_points(),
+        ) {
+            let hist = build_histogram(&values, LIFT_BIN_BASE_KG).expect("histogram should build");
+            let heat = build_heatmap(&points, LIFT_BIN_BASE_KG, BW_BIN_BASE_KG)
+                .expect("heatmap should build");
+            let bytes = build_combined_bytes(&hist, &heat, LIFT_BIN_BASE_KG, BW_BIN_BASE_KG);
+            let (parsed_hist, parsed_heat) = parse_combined_bin(&bytes).expect("payload should parse");
+
+            prop_assert_eq!(parsed_hist.counts, hist.counts);
+            prop_assert_eq!(parsed_heat.grid, heat.grid);
+            prop_assert_eq!(parsed_heat.width, heat.width);
+            prop_assert_eq!(parsed_heat.height, heat.height);
+        }
     }
 
     #[test]

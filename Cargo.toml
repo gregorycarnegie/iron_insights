@@ -1,17 +1,79 @@
 [workspace]
 members = ["iron_insights_web", "iron_insights_pipeline", "iron_insights_core"]
+default-members = [
+  "iron_insights_core",
+  "iron_insights_pipeline",
+  "iron_insights_web",
+]
+resolver = "3"
 
 [workspace.package]
-version = "0.5.0"
+version = "1.0.0"
 edition = "2024"
+rust-version = "1.95.0"
 
 [workspace.dependencies]
+anyhow = "1.0.102"
+base64 = "0.22.1"
+# Pinned for Polars compatibility; do not bump independently.
+chrono = { version = "0.4.41", default-features = false, features = [
+  "clock",
+  "serde",
+] }
+# Pinned for Polars compatibility; do not bump independently.
+clap = { version = "4.5.58", features = ["derive"] }
+gloo-net = "0.7.0"
+gloo-timers = "0.4.0"
+iron_insights_core = { path = "iron_insights_core" }
+js-sys = "0.3.98"
+leptos = { version = "0.8.19", features = ["csr"] }
+polars = { version = "0.53.0", default-features = false, features = [
+  "lazy",
+  "csv",
+  "parquet",
+  "dtype-categorical",
+  "strings",
+  "temporal",
+] }
+proptest = { version = "1.11.0", default-features = false, features = [
+  "alloc",
+  "no_std",
+] }
+reqwest = { version = "0.13.3", default-features = false, features = [
+  "blocking",
+  "rustls",
+] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.150"
+serde_json = "1.0.149"
+wasm-bindgen = "0.2.121"
+wasm-bindgen-futures = "0.4.71"
+wasm-bindgen-test = "0.3.71"
+web-sys = { version = "0.3.98", features = [
+  "AbortController",
+  "AbortSignal",
+  "CanvasGradient",
+  "CanvasRenderingContext2d",
+  "Clipboard",
+  "Document",
+  "Element",
+  "History",
+  "HtmlAnchorElement",
+  "HtmlCanvasElement",
+  "HtmlElement",
+  "HtmlInputElement",
+  "Location",
+  "Navigator",
+  "Storage",
+  "UrlSearchParams",
+  "Window",
+] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 
 [package]
 name = "iron_insights"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
 
 [dependencies]
