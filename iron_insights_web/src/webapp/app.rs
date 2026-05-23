@@ -803,7 +803,7 @@ pub(super) fn App() -> impl IntoView {
                             <span class="live-dot"></span>
                             "LIVE DATA"
                         </span>
-                        <span style="color:var(--ink-mute)">"v1.0"</span>
+                        <span style="color:var(--ink-mute)">{concat!("v", env!("CARGO_PKG_VERSION"))}</span>
                     </div>
                 </div>
 

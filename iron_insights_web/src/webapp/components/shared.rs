@@ -167,7 +167,7 @@ pub(super) fn InputForm() -> impl IntoView {
 
             <details class="advanced-fields">
                 <summary>
-                    <span>"Advanced"</span>
+                    <span><span class="adv-chevron">"›"</span>" Advanced"</span>
                     <small>{move || format!("{} / {} / {}", sel.equip.get(), sel.age.get(), sel.metric.get())}</small>
                 </summary>
 

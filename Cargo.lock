@@ -1569,18 +1569,18 @@ dependencies = [
 
 [[package]]
 name = "iron_insights"
-version = "1.0.0"
+version = "1.0.1"
 
 [[package]]
 name = "iron_insights_core"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "iron_insights_pipeline"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "base64",
@@ -1597,7 +1597,7 @@ dependencies = [
 
 [[package]]
 name = "iron_insights_web"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "base64",
  "gloo-net 0.7.0",

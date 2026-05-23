@@ -2,9 +2,7 @@
 .rank-grid { display: grid; grid-template-columns: 380px 1fr; gap: var(--space-6); }
 .input-stack { display: grid; gap: var(--space-4); }
 .advanced-fields {
-  border-top: 1px dashed var(--line);
-  border-bottom: 1px dashed var(--line);
-  padding: var(--space-3) 0;
+  margin: 0 calc(-1 * var(--space-3));
 }
 .advanced-fields summary {
   display: flex;
@@ -16,8 +14,32 @@
   font-size: 11px;
   letter-spacing: 0.15em;
   text-transform: uppercase;
+  list-style: none;
+  user-select: none;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-3);
+  border-top: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line-2);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.advanced-fields summary::marker { color: var(--iron); }
+.advanced-fields summary::-webkit-details-marker { display: none; }
+.advanced-fields summary::marker { display: none; }
+.advanced-fields summary:hover {
+  background: var(--bg-2);
+  color: var(--ink);
+  border-color: var(--iron);
+}
+.advanced-fields summary .adv-chevron {
+  color: var(--iron);
+  font-size: 16px;
+  line-height: 1;
+  display: inline-block;
+  transition: transform 0.2s ease;
+  margin-right: var(--space-1);
+}
+.advanced-fields[open] summary .adv-chevron {
+  transform: rotate(90deg);
+}
 .advanced-fields summary small {
   color: var(--ink-mute);
   font-size: 10px;
