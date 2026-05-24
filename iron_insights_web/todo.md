@@ -27,12 +27,14 @@ Current rating: **7.4/10**. Engineering is solid; the drag is structure, UX clar
 - [x] Purge inline `style="..."` strings in `ranking.rs` (25+ instances) — move to CSS classes in `assets/style.css`.
 - [x] Split `style.css` (1098 lines) into `base.css`, `layout.css`, `pages.css`, `components.css` via `@import` or a trunk pipeline.
 - [x] Define a spacing/size token scale (`--space-1` … `--space-8`) so magic pixel values (`padding:80px 40px`) stop multiplying.
+- [ ] Increase base font size from 14px to 15–16px — 14px JetBrains Mono is legible in short labels but fatiguing on the data-dense stats/nerds page with long reading passages.
 
 ## 5. Loading / error UX
 
 - [x] Replace the single plain `LOADING IRONSCALE` shell in `index.html` with skeleton panels that match the real layout (less layout shift).
 - [x] Consolidate the 8 separate `load_error`, `cross_sex_*_error` signals behind a toast/banner system; today they fight for the same real estate.
 - [x] Show a retry button when a shard fetch fails (currently silent after the first error string is set).
+- [ ] Add a WASM load error boundary — if the WASM bundle fails to initialise (ad blockers, old browser, network error) the boot shell stays frozen with no user-visible feedback. A `<noscript>` tag and a JS-level `WebAssembly` feature-detect fallback message would cover this.
 
 ## 6. Testing (currently none in `app/src`)
 
@@ -48,6 +50,8 @@ Current rating: **7.4/10**. Engineering is solid; the drag is structure, UX clar
 - [x] Verify canvas `devicePixelRatio` handling in `draw_ranking_distribution_canvas` and `draw_heatmap` — the window resize listener redraws but may not re-scale for HiDPI.
 - [x] Cancel in-flight shard fetches when selection changes rapidly — use `AbortController` to avoid stale responses landing after a newer request resolves.
 - [x] Version the `SavedUiState` localStorage schema (add a `version` field + migration fn) so a schema change doesn't silently deserialize garbage or lose user state.
+- [ ] Add a service worker with a selective caching strategy — the ~3GB of `.bin` shards are far too large to pre-cache (browser quota is ~50–150MB). Instead: (1) cache-first the WASM bundle, CSS, and `latest.json`/`index.json` metadata so the app shell loads offline; (2) runtime-cache only the `.bin` shards the user actually fetches (stale-while-revalidate), evicting old entries when the version key in `latest.json` changes.
+- [ ] Self-host the three Google Fonts (Archivo Black, JetBrains Mono, Fraunces) instead of loading from `fonts.googleapis.com` — eliminates the render-blocking external request, removes the GDPR third-party dependency, and shaves ~300ms on a cold load.
 
 ## 8. Accessibility
 
