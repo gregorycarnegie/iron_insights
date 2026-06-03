@@ -13,18 +13,22 @@ edition = "2024"
 rust-version = "1.95.0"
 
 [workspace.dependencies]
+# Internal crates
+iron_insights_core = { path = "iron_insights_core" }
+
+# Error handling
 anyhow = "1.0.102"
-base64 = "0.22.1"
+
+# CLI
+clap = { version = "4.6.1", features = ["derive"] }
+
+# Date & time
 chrono = { version = "0.4.44", default-features = false, features = [
   "clock",
   "serde",
 ] }
-clap = { version = "4.6.1", features = ["derive"] }
-gloo-net = "0.7.0"
-gloo-timers = "0.4.0"
-iron_insights_core = { path = "iron_insights_core" }
-js-sys = "0.3.99"
-leptos = { version = "0.8.19", features = ["csr"] }
+
+# Data processing
 polars = { version = "0.54.3", default-features = false, features = [
   "lazy",
   "csv",
@@ -33,19 +37,28 @@ polars = { version = "0.54.3", default-features = false, features = [
   "strings",
   "temporal",
 ] }
-proptest = { version = "1.11.0", default-features = false, features = [
-  "alloc",
-  "no_std",
-] }
+
+# HTTP client
 reqwest = { version = "0.13.4", default-features = false, features = [
   "blocking",
   "rustls",
 ] }
+
+# Serialization, encoding & compression
+base64 = "0.22.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+
+# Web framework (frontend)
+leptos = { version = "0.8.19", features = ["csr"] }
+
+# WASM & browser bindings
+gloo-net = "0.7.0"
+gloo-timers = "0.4.0"
+js-sys = "0.3.99"
 wasm-bindgen = "0.2.122"
 wasm-bindgen-futures = "0.4.72"
-wasm-bindgen-test = "0.3.72"
 web-sys = { version = "0.3.99", features = [
   "AbortController",
   "AbortSignal",
@@ -65,7 +78,13 @@ web-sys = { version = "0.3.99", features = [
   "UrlSearchParams",
   "Window",
 ] }
-zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+
+# Testing
+proptest = { version = "1.11.0", default-features = false, features = [
+  "alloc",
+  "no_std",
+] }
+wasm-bindgen-test = "0.3.72"
 
 [package]
 name = "iron_insights"
