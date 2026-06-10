@@ -23,13 +23,13 @@ anyhow = "1.0.102"
 clap = { version = "4.6.1", features = ["derive"] }
 
 # Date & time
-chrono = { version = "0.4.44", default-features = false, features = [
+chrono = { version = "0.4.45", default-features = false, features = [
   "clock",
   "serde",
 ] }
 
 # Data processing
-polars = { version = "0.54.3", default-features = false, features = [
+polars = { version = "0.54.4", default-features = false, features = [
   "lazy",
   "csv",
   "parquet",
@@ -56,10 +56,10 @@ leptos = { version = "0.8.19", features = ["csr"] }
 # WASM & browser bindings
 gloo-net = "0.7.0"
 gloo-timers = "0.4.0"
-js-sys = "0.3.99"
-wasm-bindgen = "0.2.122"
-wasm-bindgen-futures = "0.4.72"
-web-sys = { version = "0.3.99", features = [
+js-sys = "0.3.100"
+wasm-bindgen = "0.2.123"
+wasm-bindgen-futures = "0.4.73"
+web-sys = { version = "0.3.100", features = [
   "AbortController",
   "AbortSignal",
   "CanvasGradient",
