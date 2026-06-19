@@ -7,30 +7,61 @@
     <meta name="description" content="IRON INSIGHTS places your powerlifting numbers against 2M+ federated lifters. Percentiles, distributions, and strength analytics." />
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#0b0b0d" />
+    <link rel="canonical" href="https://gregorycarnegie.github.io/iron_insights/" />
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Iron Insights" />
+    <meta property="og:title" content="Iron Insights // Where You Stand" />
+    <meta property="og:description" content="Place your powerlifting numbers against 2M+ federated lifters. Percentiles, distributions, and strength analytics." />
+    <meta property="og:url" content="https://gregorycarnegie.github.io/iron_insights/" />
+    <meta property="og:image" content="https://gregorycarnegie.github.io/iron_insights/assets/favicon.svg" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Iron Insights // Where You Stand" />
+    <meta name="twitter:description" content="Place your powerlifting numbers against 2M+ federated lifters. Percentiles, distributions, and strength analytics." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@300;400;500;700&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,500&display=swap" rel="stylesheet" />
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "Iron Insights",
-      "url": "https://gregorycarnegie.github.io/iron_insights/",
-      "description": "Iron Insights places your powerlifting numbers against 2M+ federated lifters. Percentiles, distributions, and strength analytics.",
-      "applicationCategory": "SportsApplication",
-      "operatingSystem": "Any",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      }
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://gregorycarnegie.github.io/iron_insights/#website",
+          "name": "Iron Insights",
+          "url": "https://gregorycarnegie.github.io/iron_insights/"
+        },
+        {
+          "@type": "WebApplication",
+          "name": "Iron Insights",
+          "url": "https://gregorycarnegie.github.io/iron_insights/",
+          "description": "Iron Insights places your powerlifting numbers against 2M+ federated lifters. Percentiles, distributions, and strength analytics.",
+          "applicationCategory": "SportsApplication",
+          "operatingSystem": "Any",
+          "isPartOf": { "@id": "https://gregorycarnegie.github.io/iron_insights/#website" },
+          "creditText": "OpenPowerlifting",
+          "isBasedOn": "https://www.openpowerlifting.org/",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          }
+        }
+      ]
     }
     </script>
     <link data-trunk rel="css" href="assets/style.css" />
     <link data-trunk rel="copy-dir" href="assets" />
     <link data-trunk rel="copy-file" href="data/latest.json" />
     <link data-trunk rel="copy-dir" href="data" />
+    <link data-trunk rel="copy-dir" href="seo/strength-percentile-calculator" />
+    <link data-trunk rel="copy-dir" href="seo/powerlifting-strength-standards" />
+    <link data-trunk rel="copy-dir" href="seo/male-vs-female-strength-comparison" />
+    <link data-trunk rel="copy-dir" href="seo/one-rep-max-calculator" />
+    <link data-trunk rel="copy-dir" href="seo/barbell-plate-calculator" />
+    <link data-trunk rel="copy-dir" href="seo/body-fat-percentage-calculator" />
+    <link data-trunk rel="copy-file" href="robots.txt" />
+    <link data-trunk rel="copy-file" href="sitemap.xml" />
   </head>
   <body>
     <div id="app-shell" class="app boot-shell" aria-busy="true">
@@ -100,5 +131,23 @@
       </main>
     </div>
     <div id="app"></div>
+    <noscript>
+      <div style="max-width:760px;margin:0 auto;padding:32px 20px;font-family:monospace;color:#e8e3d6;background:#0b0b0d;line-height:1.6">
+        <h1 style="font-family:Georgia,serif">Iron Insights &mdash; powerlifting strength analytics</h1>
+        <p>Iron Insights places your powerlifting numbers against 2,000,000+ federated lifters from the
+        <a href="https://www.openpowerlifting.org/" style="color:#e8472b">OpenPowerlifting</a> database:
+        percentiles, strength standards, and distribution analytics. The interactive app needs JavaScript,
+        but every tool also has a full text page:</p>
+        <ul>
+          <li><a href="strength-percentile-calculator/" style="color:#e8472b">Strength percentile calculator</a> &mdash; what percentile is my squat, bench, deadlift or total?</li>
+          <li><a href="powerlifting-strength-standards/" style="color:#e8472b">Powerlifting strength standards</a> by weight class and bodyweight</li>
+          <li><a href="male-vs-female-strength-comparison/" style="color:#e8472b">Men vs women strength comparison</a></li>
+          <li><a href="one-rep-max-calculator/" style="color:#e8472b">1RM calculator</a> (Epley, Brzycki, Mayhew, Lombardi)</li>
+          <li><a href="barbell-plate-calculator/" style="color:#e8472b">Barbell plate calculator</a> (kg &amp; lb)</li>
+          <li><a href="body-fat-percentage-calculator/" style="color:#e8472b">Body fat percentage calculator</a> (Navy, YMCA, skinfold)</li>
+        </ul>
+        <p>Data source: <a href="https://www.openpowerlifting.org/" style="color:#e8472b">OpenPowerlifting</a> (public domain).</p>
+      </div>
+    </noscript>
   </body>
 </html>

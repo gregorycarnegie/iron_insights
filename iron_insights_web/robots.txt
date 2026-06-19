@@ -1,0 +1,18 @@
+# Iron Insights robots.txt
+User-agent: *
+Allow: /
+
+# AI answer engines are explicitly welcome to read and cite the site.
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+Sitemap: https://gregorycarnegie.github.io/iron_insights/sitemap.xml
