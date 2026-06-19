@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>1RM Calculator (Epley, Brzycki, Mayhew, Lombardi) | Iron Insights</title>
+<meta name="description" content="Estimate your one-rep max from any submaximal set across four validated formulas, with a percentage-based training table. Free, kg and lb." />
+<link rel="canonical" href="https://gregorycarnegie.github.io/iron_insights/one-rep-max-calculator/" />
+<meta name="robots" content="index, follow" />
+<meta name="theme-color" content="#0b0b0d" />
+<link rel="icon" type="image/svg+xml" href="https://gregorycarnegie.github.io/iron_insights/assets/favicon.svg" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Iron Insights" />
+<meta property="og:title" content="1RM Calculator (Epley, Brzycki, Mayhew, Lombardi) | Iron Insights" />
+<meta property="og:description" content="Estimate your one-rep max from any submaximal set across four validated formulas, with a percentage-based training table. Free, kg and lb." />
+<meta property="og:url" content="https://gregorycarnegie.github.io/iron_insights/one-rep-max-calculator/" />
+<meta property="og:image" content="https://gregorycarnegie.github.io/iron_insights/assets/favicon.svg" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="1RM Calculator (Epley, Brzycki, Mayhew, Lombardi) | Iron Insights" />
+<meta name="twitter:description" content="Estimate your one-rep max from any submaximal set across four validated formulas, with a percentage-based training table. Free, kg and lb." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@300;400;500;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,500&display=swap" rel="stylesheet" />
+<style>:root{--bg:#0b0b0d;--panel:#141416;--ink:#e8e3d6;--ink-mute:#9a958a;
+--line:#2a2926;--accent:#e8472b}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);
+font-family:"JetBrains Mono",ui-monospace,monospace;font-size:15px;
+line-height:1.65;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:820px;margin:0 auto;padding:32px 20px 80px}
+header.site{display:flex;justify-content:space-between;align-items:center;
+border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:8px}
+.brand{font-family:"Archivo Black",system-ui,sans-serif;letter-spacing:.04em}
+.brand .bar{display:inline-block;width:22px;height:8px;background:var(--accent);
+margin-right:8px;vertical-align:middle}
+nav.crumb{font-size:12px;color:var(--ink-mute);letter-spacing:.12em;
+text-transform:uppercase;margin:18px 0}
+h1{font-family:"Fraunces",Georgia,serif;font-weight:500;font-size:2.1rem;
+line-height:1.15;margin:.2em 0 .4em}
+h2{font-family:"Fraunces",Georgia,serif;font-weight:500;font-size:1.4rem;
+margin:2em 0 .5em;border-top:1px solid var(--line);padding-top:1.2em}
+.lead{font-size:1.12rem;color:var(--ink);background:var(--panel);
+border-left:3px solid var(--accent);padding:16px 18px;margin:1em 0}
+.cta{display:inline-block;background:var(--accent);color:#fff;font-weight:700;
+letter-spacing:.06em;text-transform:uppercase;padding:12px 22px;margin:18px 0;
+border-radius:4px}
+.cta:hover{text-decoration:none;filter:brightness(1.08)}
+table{width:100%;border-collapse:collapse;margin:1em 0;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--ink-mute);text-transform:uppercase;font-size:11px;
+letter-spacing:.1em}
+ul{padding-left:1.2em}
+li{margin:.3em 0}
+details{border:1px solid var(--line);border-radius:4px;padding:10px 14px;
+margin:.5em 0;background:var(--panel)}
+summary{cursor:pointer;font-weight:500}
+.faq h2{border:0;padding:0;margin-top:1.6em}
+footer.site{border-top:1px solid var(--line);margin-top:48px;padding-top:20px;
+font-size:13px;color:var(--ink-mute)}
+footer.site a{color:var(--ink-mute)}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
+.related a{border:1px solid var(--line);padding:6px 12px;border-radius:4px;
+color:var(--ink)}
+.src{font-size:12px;color:var(--ink-mute);margin-top:8px}</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Iron Insights",
+  "url": "https://gregorycarnegie.github.io/iron_insights/one-rep-max-calculator/",
+  "applicationCategory": "SportsApplication",
+  "operatingSystem": "Any",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "Iron Insights",
+    "url": "https://gregorycarnegie.github.io/iron_insights/"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "creditText": "OpenPowerlifting",
+  "isBasedOn": "https://www.openpowerlifting.org/"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Iron Insights",
+      "item": "https://gregorycarnegie.github.io/iron_insights/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "One-rep max (1RM) calculator",
+      "item": "https://gregorycarnegie.github.io/iron_insights/one-rep-max-calculator/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Which 1RM formula is most accurate?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "All are estimates. Epley and Brzycki are reliable up to about 10 reps; accuracy drops as reps rise. Comparing several formulas gives a sensible range rather than a single false-precision number."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How many reps should I use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Use a set of 10 reps or fewer for the best accuracy. The further from a true max effort, the larger the estimation error."
+      }
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+<header class="site">
+  <div class="brand"><span class="bar"></span>IRON INSIGHTS</div>
+  <a href="https://gregorycarnegie.github.io/iron_insights/">Open the app &rarr;</a>
+</header>
+<nav class="crumb" aria-label="Breadcrumb">
+  <a href="https://gregorycarnegie.github.io/iron_insights/">Iron Insights</a> / One-rep max (1RM) calculator
+</nav>
+<main>
+<h1>One-rep max (1RM) calculator</h1>
+<p class="lead">A one-rep max calculator estimates the heaviest single you could lift from a set you have already done. Enter the weight and reps and Iron Insights estimates your 1RM across four validated formulas, then builds a percentage table for programming your training weights.</p>
+<a class="cta" href="https://gregorycarnegie.github.io/iron_insights/#1rm">Try the live tool &rarr;</a>
+<h2>The four formulas</h2>
+<p>Estimates diverge as reps climb, so it helps to compare them:</p><table><thead><tr><th>Formula</th><th>Equation</th><th>Best for</th></tr></thead><tbody><tr><td>Epley</td><td>w &times; (1 + r/30)</td><td>Simple strength-room default</td></tr><tr><td>Brzycki</td><td>w / (1.0278 &minus; 0.0278r)</td><td>Conservative at low reps</td></tr><tr><td>Mayhew</td><td>100w / (52.2 + 41.9e^&minus;0.055r)</td><td>Non-linear across reps</td></tr><tr><td>Lombardi</td><td>w &times; r^0.1</td><td>Smooth power relationship</td></tr></tbody></table><p>where <em>w</em> is the weight lifted and <em>r</em> is the number of reps completed.</p>
+<h2>Training percentages</h2>
+<p>Once you have a 1RM estimate, common training intensities are roughly: 95% for max singles, 85% for heavy triples, 75% for strength-hypertrophy sets of 6-8, and 65% for higher-rep volume work.</p>
+<section class="faq">
+<h2>Frequently asked questions</h2>
+<details><summary>Which 1RM formula is most accurate?</summary><p>All are estimates. Epley and Brzycki are reliable up to about 10 reps; accuracy drops as reps rise. Comparing several formulas gives a sensible range rather than a single false-precision number.</p></details>
+<details><summary>How many reps should I use?</summary><p>Use a set of 10 reps or fewer for the best accuracy. The further from a true max effort, the larger the estimation error.</p></details>
+</section>
+<p class="src">Data source: lifter results from
+<a href="https://www.openpowerlifting.org/" rel="nofollow">OpenPowerlifting</a>, the open powerlifting
+results database (public domain). Iron Insights is an independent project and is
+not affiliated with OpenPowerlifting.</p>
+<a class="cta" href="https://gregorycarnegie.github.io/iron_insights/#1rm">Open the live tool &rarr;</a>
+</main>
+<footer class="site">
+<p>More Iron Insights tools:</p>
+<div class="related">
+<a href="https://gregorycarnegie.github.io/iron_insights/strength-percentile-calculator/">What percentile is my squat, bench, deadlift or total?</a>
+<a href="https://gregorycarnegie.github.io/iron_insights/powerlifting-strength-standards/">Powerlifting strength standards by weight class and bodyweight</a>
+<a href="https://gregorycarnegie.github.io/iron_insights/male-vs-female-strength-comparison/">How does male and female powerlifting strength compare?</a>
+<a href="https://gregorycarnegie.github.io/iron_insights/barbell-plate-calculator/">Barbell plate calculator: what plates do I load?</a>
+<a href="https://gregorycarnegie.github.io/iron_insights/body-fat-percentage-calculator/">Body fat percentage calculator</a>
+</div>
+<p style="margin-top:18px">&copy; 2026 Iron Insights &middot;
+<a href="https://gregorycarnegie.github.io/iron_insights/">Home</a></p>
+</footer>
+</div>
+</body>
+</html>

@@ -18,7 +18,7 @@ The repo downloads OpenPowerlifting, builds compact published data bundles, and 
   - "Stats for Nerds" page for cohort comparison, distribution analysis, targets, and trends
   - "Men vs Women" page for aligned cross-sex cohort comparisons
   - 1RM calculator and plate calculator utilities
-  - `landing/`, `robots.txt`, and `sitemap.xml` for static SEO pages
+  - `seo/`, `robots.txt`, and `sitemap.xml` for static, crawlable SEO/GEO landing pages (one answer-first page per tool); regenerate with `python scripts/build_seo_pages.py`, audit with `python scripts/seo_audit.py`
 - `iron_insights_core/` - shared Rust crate for published-data contracts and binary format logic used by the web app and pipeline
 - `iron_insights_pipeline/` - Rust data pipeline that downloads, aggregates, and publishes versioned data bundles
 - `data/` - published dataset snapshots such as `v2026-03-20/` plus `latest.json`
