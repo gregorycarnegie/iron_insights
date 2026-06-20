@@ -308,28 +308,28 @@ pub fn RankingPage() -> impl IntoView {
                         <div class="mini-stat">
                             <div class="l">"TOTAL"</div>
                             <div class="v">
-                                {move || format!("{:.0}", kg_to_display(total_kg.get(), use_lbs.get()))}
+                                {move || format!("{:.1}", kg_to_display(total_kg.get(), use_lbs.get()))}
                                 <span class="unit">{move || unit_label.get().to_uppercase()}</span>
                             </div>
                         </div>
                         <div class="mini-stat">
                             <div class="l">"SQUAT"</div>
                             <div class="v">
-                                {move || format!("{:.0}", kg_to_display(squat.get(), use_lbs.get()))}
+                                {move || format!("{:.1}", kg_to_display(squat.get(), use_lbs.get()))}
                                 <span class="unit">{move || unit_label.get().to_uppercase()}</span>
                             </div>
                         </div>
                         <div class="mini-stat">
                             <div class="l">"BENCH"</div>
                             <div class="v">
-                                {move || format!("{:.0}", kg_to_display(bench.get(), use_lbs.get()))}
+                                {move || format!("{:.1}", kg_to_display(bench.get(), use_lbs.get()))}
                                 <span class="unit">{move || unit_label.get().to_uppercase()}</span>
                             </div>
                         </div>
                         <div class="mini-stat">
                             <div class="l">"DEADLIFT"</div>
                             <div class="v">
-                                {move || format!("{:.0}", kg_to_display(deadlift.get(), use_lbs.get()))}
+                                {move || format!("{:.1}", kg_to_display(deadlift.get(), use_lbs.get()))}
                                 <span class="unit">{move || unit_label.get().to_uppercase()}</span>
                             </div>
                         </div>

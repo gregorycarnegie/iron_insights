@@ -1,7 +1,7 @@
 use crate::webapp::helpers::{display_to_kg, format_input_bound};
 use crate::webapp::state::AppState;
-use crate::webapp::ui::parse_f32_input;
 use leptos::prelude::*;
+use web_sys::HtmlInputElement;
 
 /// Corner decoration for panel
 #[component]
@@ -11,6 +11,73 @@ pub(super) fn Corners() -> impl IntoView {
         <span class="corner tr"></span>
         <span class="corner bl"></span>
         <span class="corner br"></span>
+    }
+}
+
+/// Decimal-friendly numeric input.
+///
+/// Backed by a raw text buffer so partially-typed values (e.g. `200.`) survive
+/// keystrokes instead of being clobbered by reformatting. The buffer holds the
+/// value in display units; the canonical signal stays in kg. An effect re-syncs
+/// the buffer only when the kg value or unit changes from outside (unit toggle,
+/// sample load), never while the user is mid-edit.
+#[component]
+pub(super) fn DecimalInput(
+    id: &'static str,
+    value_kg: ReadSignal<f32>,
+    set_value_kg: WriteSignal<f32>,
+    set_error: WriteSignal<Option<String>>,
+    use_lbs: ReadSignal<bool>,
+    min_kg: f32,
+    max_kg: f32,
+    error_msg: &'static str,
+) -> impl IntoView {
+    let raw = RwSignal::new(format_input_bound(
+        value_kg.get_untracked(),
+        use_lbs.get_untracked(),
+    ));
+
+    Effect::new(move |_| {
+        let kg = value_kg.get();
+        let lbs = use_lbs.get();
+        let in_sync = raw
+            .get_untracked()
+            .trim()
+            .parse::<f32>()
+            .ok()
+            .is_some_and(|v| (display_to_kg(v, lbs) - kg).abs() <= 0.05);
+        if !in_sync {
+            raw.set(format_input_bound(kg, lbs));
+        }
+    });
+
+    view! {
+        <input
+            id=id
+            type="text"
+            inputmode="decimal"
+            prop:value=move || raw.get()
+            on:input=move |ev| {
+                let typed = event_target::<HtmlInputElement>(&ev).value();
+                raw.set(typed.clone());
+                match typed.trim().parse::<f32>() {
+                    Ok(v) => {
+                        let kg = display_to_kg(v, use_lbs.get());
+                        if (min_kg..=max_kg).contains(&kg) {
+                            set_error.set(None);
+                            set_value_kg.set(kg);
+                        } else {
+                            set_error.set(Some(error_msg.to_string()));
+                        }
+                    }
+                    Err(_) => {
+                        if typed.trim().is_empty() {
+                            set_error.set(None);
+                        }
+                    }
+                }
+            }
+        />
     }
 }
 
@@ -69,21 +136,15 @@ pub(super) fn InputForm() -> impl IntoView {
             <div>
                 <label for="lifter-bodyweight">"Bodyweight"</label>
                 <div class="lift-row">
-                    <input
+                    <DecimalInput
                         id="lifter-bodyweight"
-                        type="number"
-                        step="0.5"
-                        prop:value=move || format_input_bound(inp.bodyweight.get(), inp.use_lbs.get())
-                        on:input=move |ev| {
-                            let raw = parse_f32_input(&ev);
-                            let kg = display_to_kg(raw, inp.use_lbs.get());
-                            if (35.0..=300.0).contains(&kg) {
-                                inp.set_bodyweight_error.set(None);
-                                inp.set_bodyweight.set(kg);
-                            } else {
-                                inp.set_bodyweight_error.set(Some("Enter 35–300 kg.".to_string()));
-                            }
-                        }
+                        value_kg=inp.bodyweight
+                        set_value_kg=inp.set_bodyweight
+                        set_error=inp.set_bodyweight_error
+                        use_lbs=inp.use_lbs
+                        min_kg=35.0
+                        max_kg=300.0
+                        error_msg="Enter 35–300 kg."
                     />
                     <div class="hint">{move || inp.unit_label.get().to_uppercase()}</div>
                 </div>
@@ -94,21 +155,15 @@ pub(super) fn InputForm() -> impl IntoView {
             <div>
                 <label for="lifter-squat">"Squat"</label>
                 <div class="lift-row">
-                    <input
+                    <DecimalInput
                         id="lifter-squat"
-                        type="number"
-                        step="2.5"
-                        prop:value=move || format_input_bound(inp.squat.get(), inp.use_lbs.get())
-                        on:input=move |ev| {
-                            let raw = parse_f32_input(&ev);
-                            let kg = display_to_kg(raw, inp.use_lbs.get());
-                            if (0.0..=600.0).contains(&kg) {
-                                inp.set_squat_error.set(None);
-                                inp.set_squat.set(kg);
-                            } else {
-                                inp.set_squat_error.set(Some("Enter 0–600 kg.".to_string()));
-                            }
-                        }
+                        value_kg=inp.squat
+                        set_value_kg=inp.set_squat
+                        set_error=inp.set_squat_error
+                        use_lbs=inp.use_lbs
+                        min_kg=0.0
+                        max_kg=600.0
+                        error_msg="Enter 0–600 kg."
                     />
                     <div class="hint">{move || inp.unit_label.get().to_uppercase()}</div>
                 </div>
@@ -119,21 +174,15 @@ pub(super) fn InputForm() -> impl IntoView {
             <div>
                 <label for="lifter-bench">"Bench Press"</label>
                 <div class="lift-row">
-                    <input
+                    <DecimalInput
                         id="lifter-bench"
-                        type="number"
-                        step="2.5"
-                        prop:value=move || format_input_bound(inp.bench.get(), inp.use_lbs.get())
-                        on:input=move |ev| {
-                            let raw = parse_f32_input(&ev);
-                            let kg = display_to_kg(raw, inp.use_lbs.get());
-                            if (0.0..=600.0).contains(&kg) {
-                                inp.set_bench_error.set(None);
-                                inp.set_bench.set(kg);
-                            } else {
-                                inp.set_bench_error.set(Some("Enter 0–600 kg.".to_string()));
-                            }
-                        }
+                        value_kg=inp.bench
+                        set_value_kg=inp.set_bench
+                        set_error=inp.set_bench_error
+                        use_lbs=inp.use_lbs
+                        min_kg=0.0
+                        max_kg=600.0
+                        error_msg="Enter 0–600 kg."
                     />
                     <div class="hint">{move || inp.unit_label.get().to_uppercase()}</div>
                 </div>
@@ -144,21 +193,15 @@ pub(super) fn InputForm() -> impl IntoView {
             <div>
                 <label for="lifter-deadlift">"Deadlift"</label>
                 <div class="lift-row">
-                    <input
+                    <DecimalInput
                         id="lifter-deadlift"
-                        type="number"
-                        step="2.5"
-                        prop:value=move || format_input_bound(inp.deadlift.get(), inp.use_lbs.get())
-                        on:input=move |ev| {
-                            let raw = parse_f32_input(&ev);
-                            let kg = display_to_kg(raw, inp.use_lbs.get());
-                            if (0.0..=600.0).contains(&kg) {
-                                inp.set_deadlift_error.set(None);
-                                inp.set_deadlift.set(kg);
-                            } else {
-                                inp.set_deadlift_error.set(Some("Enter 0–600 kg.".to_string()));
-                            }
-                        }
+                        value_kg=inp.deadlift
+                        set_value_kg=inp.set_deadlift
+                        set_error=inp.set_deadlift_error
+                        use_lbs=inp.use_lbs
+                        min_kg=0.0
+                        max_kg=600.0
+                        error_msg="Enter 0–600 kg."
                     />
                     <div class="hint">{move || inp.unit_label.get().to_uppercase()}</div>
                 </div>
