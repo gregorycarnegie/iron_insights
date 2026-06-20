@@ -1,7 +1,7 @@
 use super::shared::Corners;
 use crate::webapp::helpers::{
-    bodyfat_category, calc_bodyfat_female, calc_bodyfat_jp3, calc_bodyfat_jp7, calc_bodyfat_male,
-    calc_bodyfat_ymca,
+    JacksonPollock7SiteSkinfolds, bodyfat_category, calc_bodyfat_female, calc_bodyfat_jp3,
+    calc_bodyfat_jp7, calc_bodyfat_male, calc_bodyfat_ymca,
 };
 use crate::webapp::ui::parse_f32_input;
 use leptos::prelude::*;
@@ -144,13 +144,15 @@ pub fn BodyfatPage() -> impl IntoView {
             age.get(),
             weight_kg.get(),
             is_male.get(),
-            chest_mm.get(),
-            midaxillary_mm.get(),
-            tricep_mm.get(),
-            subscapular_mm.get(),
-            abdomen_mm.get(),
-            suprailiac_mm.get(),
-            thigh_mm.get(),
+            JacksonPollock7SiteSkinfolds {
+                chest_mm: chest_mm.get(),
+                midaxillary_mm: midaxillary_mm.get(),
+                tricep_mm: tricep_mm.get(),
+                subscapular_mm: subscapular_mm.get(),
+                abdomen_mm: abdomen_mm.get(),
+                suprailiac_mm: suprailiac_mm.get(),
+                thigh_mm: thigh_mm.get(),
+            },
         ),
     });
 
