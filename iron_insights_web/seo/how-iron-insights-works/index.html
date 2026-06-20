@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Men vs Women Strength Comparison | Iron Insights</title>
-<meta name="description" content="How male and female powerlifting strength compares in matched weight-class and equipment cohorts, using DOTS-normalised distributions from 2.9 million results." />
-<link rel="canonical" href="https://gregorycarnegie.github.io/iron_insights/male-vs-female-strength-comparison/" />
+<title>How Iron Insights Calculates Strength Percentiles | Methodology</title>
+<meta name="description" content="How Iron Insights computes strength percentiles: matched cohorts, empirical p50/p90 standards, and DOTS/Wilks/GL scoring from OpenPowerlifting data." />
+<link rel="canonical" href="https://gregorycarnegie.github.io/iron_insights/how-iron-insights-works/" />
 <meta name="robots" content="index, follow" />
 <meta name="theme-color" content="#0b0b0d" />
 <link rel="icon" type="image/svg+xml" href="https://gregorycarnegie.github.io/iron_insights/assets/favicon.svg" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Iron Insights" />
-<meta property="og:title" content="Men vs Women Strength Comparison | Iron Insights" />
-<meta property="og:description" content="How male and female powerlifting strength compares in matched weight-class and equipment cohorts, using DOTS-normalised distributions from 2.9 million results." />
-<meta property="og:url" content="https://gregorycarnegie.github.io/iron_insights/male-vs-female-strength-comparison/" />
+<meta property="og:title" content="How Iron Insights Calculates Strength Percentiles | Methodology" />
+<meta property="og:description" content="How Iron Insights computes strength percentiles: matched cohorts, empirical p50/p90 standards, and DOTS/Wilks/GL scoring from OpenPowerlifting data." />
+<meta property="og:url" content="https://gregorycarnegie.github.io/iron_insights/how-iron-insights-works/" />
 <meta property="og:image" content="https://gregorycarnegie.github.io/iron_insights/assets/favicon.svg" />
 <meta name="twitter:card" content="summary" />
-<meta name="twitter:title" content="Men vs Women Strength Comparison | Iron Insights" />
-<meta name="twitter:description" content="How male and female powerlifting strength compares in matched weight-class and equipment cohorts, using DOTS-normalised distributions from 2.9 million results." />
+<meta name="twitter:title" content="How Iron Insights Calculates Strength Percentiles | Methodology" />
+<meta name="twitter:description" content="How Iron Insights computes strength percentiles: matched cohorts, empirical p50/p90 standards, and DOTS/Wilks/GL scoring from OpenPowerlifting data." />
 <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@300;400;500;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,500&display=swap" rel="stylesheet" />
 <style>:root{--bg:#0b0b0d;--panel:#141416;--ink:#e8e3d6;--ink-mute:#9a958a;
 --line:#2a2926;--accent:#e8472b}
@@ -94,7 +94,7 @@ color:var(--ink)}
     "name": "Gregory Carnegie",
     "url": "https://github.com/gregorycarnegie"
   },
-  "url": "https://gregorycarnegie.github.io/iron_insights/male-vs-female-strength-comparison/"
+  "url": "https://gregorycarnegie.github.io/iron_insights/how-iron-insights-works/"
 }
 </script>
 <script type="application/ld+json">
@@ -110,8 +110,8 @@ color:var(--ink)}
     },
     {
       "@type": "ListItem",
-      "item": "https://gregorycarnegie.github.io/iron_insights/male-vs-female-strength-comparison/",
-      "name": "How does male and female powerlifting strength compare?",
+      "item": "https://gregorycarnegie.github.io/iron_insights/how-iron-insights-works/",
+      "name": "How Iron Insights calculates strength percentiles",
       "position": 2
     }
   ]
@@ -126,9 +126,25 @@ color:var(--ink)}
       "@type": "Question",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Across raw lifters the median woman's bench is about 47% of the median man's, the squat about 58% and the deadlift about 59% — so the gap is largest in upper-body pressing. Once totals are adjusted for bodyweight with DOTS the gap narrows to roughly 88%, because the median female lifter is lighter."
+        "text": "All figures are computed from OpenPowerlifting, the public-domain competition results database. Iron Insights is independent and not affiliated with OpenPowerlifting."
       },
-      "name": "How much stronger are men than women in powerlifting?"
+      "name": "Where does the data come from?"
+    },
+    {
+      "@type": "Question",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The published dataset is refreshed on a roughly weekly cadence, and percentiles, standards and comparisons are recomputed each time."
+      },
+      "name": "How often is it updated?"
+    },
+    {
+      "@type": "Question",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. The calculators run entirely in your browser; your numbers are not uploaded or stored."
+      },
+      "name": "Does my data leave my device?"
     }
   ]
 }
@@ -141,36 +157,42 @@ color:var(--ink)}
   <a href="https://gregorycarnegie.github.io/iron_insights/">Open the app &rarr;</a>
 </header>
 <nav class="crumb" aria-label="Breadcrumb">
-  <a href="https://gregorycarnegie.github.io/iron_insights/">Iron Insights</a> / How does male and female powerlifting strength compare?
+  <a href="https://gregorycarnegie.github.io/iron_insights/">Iron Insights</a> / How Iron Insights calculates strength percentiles
 </nav>
 <main>
-<h1>How does male and female powerlifting strength compare?</h1>
-<p class="lead">Iron Insights compares men and women in <em>aligned</em> cohorts &mdash; the same weight class, equipment and lift &mdash; and overlays their full strength distributions. Because raw kilograms favour heavier lifters, the comparison is also shown in bodyweight-adjusted DOTS points so the gap reflects strength, not size.</p>
-<a class="cta" href="https://gregorycarnegie.github.io/iron_insights/#men-vs-women">Try the live tool &rarr;</a>
-<h2>Median strength by lift</h2>
-<table><thead><tr><th>Lift</th><th>Men (median)</th><th>Women (median)</th><th>Female &divide; male</th></tr></thead><tbody><tr><td>Squat</td><td>191 kg</td><td>111 kg</td><td>58%</td></tr><tr><td>Bench</td><td>131 kg</td><td>61 kg</td><td>47%</td></tr><tr><td>Deadlift</td><td>221 kg</td><td>131 kg</td><td>59%</td></tr><tr><td>Total</td><td>536 kg</td><td>301 kg</td><td>56%</td></tr></tbody></table><p>Across the whole raw population the gap is widest in the bench press and narrowest in the deadlift.</p><p>Raw kilograms understate women's relative strength because the median female lifter is lighter. On bodyweight-adjusted <strong>DOTS</strong> points the gap narrows sharply: the median male total scores 356 DOTS versus 314 for women &mdash; about 88%.</p>
-<h2>Distributions overlap more than the medians suggest</h2>
-<p>A single ratio hides the overlap: the male and female distributions share a wide middle, so a strong woman out-lifts most men and vice versa. The live Sex Comparison view overlays both curves for the lift and cohort you pick so you can see where they meet and where they diverge.</p>
+<h1>How Iron Insights calculates strength percentiles</h1>
+<p class="lead">Iron Insights is built on one idea: compare a lifter only against people like them. Every percentile, strength standard and sex comparison is derived directly from 2.9 million competition results in the OpenPowerlifting database &mdash; no hand-tuned charts or rules of thumb. This page documents the method.</p>
+<a class="cta" href="https://gregorycarnegie.github.io/iron_insights/#nerds">Try the live tool &rarr;</a>
+<h2>Matched cohorts</h2>
+<p>A lift is never ranked against everyone at once. Iron Insights groups results by <strong>sex, weight class, equipment</strong> (raw, single-ply, multi-ply, wraps and so on), <strong>tested status</strong> and <strong>age band</strong>, then ranks your number inside that cohort. A 75&nbsp;kg raw tested lifter is measured against other 75&nbsp;kg raw tested lifters.</p>
+<h2>Percentiles and standards</h2>
+<p>Within a cohort, each lift sits in a histogram of competition results. Your percentile is the share of that cohort you exceed. The published strength standards are read off the same distribution: the <strong>median (p50)</strong> is the middle lifter and the <strong>90th percentile (p90)</strong> marks a strong one. Because they come from real results, the standards update automatically as the dataset grows.</p>
+<h2>Bodyweight-adjusted scoring</h2>
+<p>To compare lifters of different sizes, totals are also scored with <strong>DOTS</strong>, <strong>Wilks</strong> and <strong>Goodlift (GL)</strong> coefficients. These formulas weight a total against bodyweight so a 60&nbsp;kg and a 120&nbsp;kg lifter land on one scale.</p>
+<h2>Data and refresh</h2>
+<p>The source is the public-domain OpenPowerlifting results database, currently 2,893,852 individual squat, bench and deadlift results (data current as of 19 June 2026). The dataset is refreshed on a roughly weekly cadence and every figure on the site is recomputed from it.</p>
 <section class="faq">
 <h2>Frequently asked questions</h2>
-<details><summary>How much stronger are men than women in powerlifting?</summary><p>Across raw lifters the median woman's bench is about 47% of the median man's, the squat about 58% and the deadlift about 59% &mdash; so the gap is largest in upper-body pressing. Once totals are adjusted for bodyweight with DOTS the gap narrows to roughly 88%, because the median female lifter is lighter.</p></details>
+<details><summary>Where does the data come from?</summary><p>All figures are computed from OpenPowerlifting, the public-domain competition results database. Iron Insights is independent and not affiliated with OpenPowerlifting.</p></details>
+<details><summary>How often is it updated?</summary><p>The published dataset is refreshed on a roughly weekly cadence, and percentiles, standards and comparisons are recomputed each time.</p></details>
+<details><summary>Does my data leave my device?</summary><p>No. The calculators run entirely in your browser; your numbers are not uploaded or stored.</p></details>
 </section>
 <p class="src">Figures computed from 2,893,852 competition results;
 data current as of 19 June 2026. Data source: lifter results from
 <a href="https://www.openpowerlifting.org/" rel="nofollow">OpenPowerlifting</a>, the open powerlifting
 results database (public domain). Iron Insights is an independent project and is
 not affiliated with OpenPowerlifting.</p>
-<a class="cta" href="https://gregorycarnegie.github.io/iron_insights/#men-vs-women">Open the live tool &rarr;</a>
+<a class="cta" href="https://gregorycarnegie.github.io/iron_insights/#nerds">Open the live tool &rarr;</a>
 </main>
 <footer class="site">
 <p>More Iron Insights tools:</p>
 <div class="related">
 <a href="https://gregorycarnegie.github.io/iron_insights/strength-percentile-calculator/">What percentile is my squat, bench, deadlift or total?</a>
 <a href="https://gregorycarnegie.github.io/iron_insights/powerlifting-strength-standards/">Powerlifting strength standards by weight class and bodyweight</a>
+<a href="https://gregorycarnegie.github.io/iron_insights/male-vs-female-strength-comparison/">How does male and female powerlifting strength compare?</a>
 <a href="https://gregorycarnegie.github.io/iron_insights/one-rep-max-calculator/">One-rep max (1RM) calculator</a>
 <a href="https://gregorycarnegie.github.io/iron_insights/barbell-plate-calculator/">Barbell plate calculator: what plates do I load?</a>
 <a href="https://gregorycarnegie.github.io/iron_insights/body-fat-percentage-calculator/">Body fat percentage calculator</a>
-<a href="https://gregorycarnegie.github.io/iron_insights/how-iron-insights-works/">How Iron Insights calculates strength percentiles</a>
 </div>
 <p style="margin-top:18px">&copy; 2026 Iron Insights &middot;
 <a href="https://gregorycarnegie.github.io/iron_insights/">Home</a></p>

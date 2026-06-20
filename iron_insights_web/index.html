@@ -26,21 +26,31 @@
       "@context": "https://schema.org",
       "@graph": [
         {
+          "@type": "Person",
+          "@id": "https://gregorycarnegie.github.io/iron_insights/#author",
+          "name": "Gregory Carnegie",
+          "url": "https://github.com/gregorycarnegie"
+        },
+        {
           "@type": "WebSite",
           "@id": "https://gregorycarnegie.github.io/iron_insights/#website",
           "name": "Iron Insights",
-          "url": "https://gregorycarnegie.github.io/iron_insights/"
+          "url": "https://gregorycarnegie.github.io/iron_insights/",
+          "publisher": { "@id": "https://gregorycarnegie.github.io/iron_insights/#author" }
         },
         {
           "@type": "WebApplication",
           "name": "Iron Insights",
           "url": "https://gregorycarnegie.github.io/iron_insights/",
-          "description": "Iron Insights places your powerlifting numbers against 2M+ federated lifters. Percentiles, distributions, and strength analytics.",
+          "description": "Iron Insights places your powerlifting numbers against 2.8 million+ competition results from OpenPowerlifting. Percentiles, distributions, and strength analytics.",
           "applicationCategory": "SportsApplication",
           "operatingSystem": "Any",
           "isPartOf": { "@id": "https://gregorycarnegie.github.io/iron_insights/#website" },
+          "author": { "@id": "https://gregorycarnegie.github.io/iron_insights/#author" },
+          "publisher": { "@id": "https://gregorycarnegie.github.io/iron_insights/#author" },
           "creditText": "OpenPowerlifting",
           "isBasedOn": "https://www.openpowerlifting.org/",
+          "dateModified": "2026-06-19",
           "offers": {
             "@type": "Offer",
             "price": "0",
@@ -60,6 +70,7 @@
     <link data-trunk rel="copy-dir" href="seo/one-rep-max-calculator" />
     <link data-trunk rel="copy-dir" href="seo/barbell-plate-calculator" />
     <link data-trunk rel="copy-dir" href="seo/body-fat-percentage-calculator" />
+    <link data-trunk rel="copy-dir" href="seo/how-iron-insights-works" />
     <link data-trunk rel="copy-file" href="robots.txt" />
     <link data-trunk rel="copy-file" href="sitemap.xml" />
   </head>
@@ -134,10 +145,18 @@
     <noscript>
       <div style="max-width:760px;margin:0 auto;padding:32px 20px;font-family:monospace;color:#e8e3d6;background:#0b0b0d;line-height:1.6">
         <h1 style="font-family:Georgia,serif">Iron Insights &mdash; powerlifting strength analytics</h1>
-        <p>Iron Insights places your powerlifting numbers against 2,000,000+ federated lifters from the
+        <p>Iron Insights places your powerlifting numbers against 2.8 million+ competition results from the
         <a href="https://www.openpowerlifting.org/" style="color:#e8472b">OpenPowerlifting</a> database:
-        percentiles, strength standards, and distribution analytics. The interactive app needs JavaScript,
-        but every tool also has a full text page:</p>
+        percentiles, strength standards, and distribution analytics. Every lift is ranked inside a matched
+        cohort &mdash; the same sex, weight class, equipment, tested status and age band &mdash; rather than
+        against everyone at once, and totals can also be scored with DOTS, Wilks or Goodlift points.</p>
+        <p>For example, across raw lifters of all ages the median competition figures are roughly:</p>
+        <ul>
+          <li>83&nbsp;kg man: 184&nbsp;kg squat, 124&nbsp;kg bench, 214&nbsp;kg deadlift, 519&nbsp;kg total (median); 229 / 156 / 261 / 629&nbsp;kg at the 90th percentile.</li>
+          <li>63&nbsp;kg woman: 106&nbsp;kg squat, 59&nbsp;kg bench, 126&nbsp;kg deadlift, 291&nbsp;kg total (median).</li>
+          <li>Between sexes, the median woman's bench is about 47% of the median man's, the squat 58% and the deadlift 59%; on bodyweight-adjusted DOTS the gap narrows to roughly 88%.</li>
+        </ul>
+        <p>The interactive app needs JavaScript, but every tool also has a full text page:</p>
         <ul>
           <li><a href="strength-percentile-calculator/" style="color:#e8472b">Strength percentile calculator</a> &mdash; what percentile is my squat, bench, deadlift or total?</li>
           <li><a href="powerlifting-strength-standards/" style="color:#e8472b">Powerlifting strength standards</a> by weight class and bodyweight</li>
@@ -145,8 +164,9 @@
           <li><a href="one-rep-max-calculator/" style="color:#e8472b">1RM calculator</a> (Epley, Brzycki, Mayhew, Lombardi)</li>
           <li><a href="barbell-plate-calculator/" style="color:#e8472b">Barbell plate calculator</a> (kg &amp; lb)</li>
           <li><a href="body-fat-percentage-calculator/" style="color:#e8472b">Body fat percentage calculator</a> (Navy, YMCA, skinfold)</li>
+          <li><a href="how-iron-insights-works/" style="color:#e8472b">How Iron Insights works</a> &mdash; methodology and data sources</li>
         </ul>
-        <p>Data source: <a href="https://www.openpowerlifting.org/" style="color:#e8472b">OpenPowerlifting</a> (public domain).</p>
+        <p>Data source: <a href="https://www.openpowerlifting.org/" style="color:#e8472b">OpenPowerlifting</a> (public domain). Data current as of 19 June 2026.</p>
       </div>
     </noscript>
   </body>

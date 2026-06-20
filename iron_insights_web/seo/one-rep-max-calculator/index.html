@@ -67,22 +67,34 @@ color:var(--ink)}
 {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  "name": "Iron Insights",
-  "url": "https://gregorycarnegie.github.io/iron_insights/one-rep-max-calculator/",
   "applicationCategory": "SportsApplication",
-  "operatingSystem": "Any",
+  "author": {
+    "@type": "Person",
+    "name": "Gregory Carnegie",
+    "url": "https://github.com/gregorycarnegie"
+  },
+  "creditText": "OpenPowerlifting",
+  "dateModified": "2026-06-19",
+  "datePublished": "2026-04-22",
+  "isBasedOn": "https://www.openpowerlifting.org/",
   "isPartOf": {
     "@type": "WebSite",
     "name": "Iron Insights",
     "url": "https://gregorycarnegie.github.io/iron_insights/"
   },
+  "name": "Iron Insights",
   "offers": {
     "@type": "Offer",
     "price": "0",
     "priceCurrency": "USD"
   },
-  "creditText": "OpenPowerlifting",
-  "isBasedOn": "https://www.openpowerlifting.org/"
+  "operatingSystem": "Any",
+  "publisher": {
+    "@type": "Person",
+    "name": "Gregory Carnegie",
+    "url": "https://github.com/gregorycarnegie"
+  },
+  "url": "https://gregorycarnegie.github.io/iron_insights/one-rep-max-calculator/"
 }
 </script>
 <script type="application/ld+json">
@@ -92,15 +104,15 @@ color:var(--ink)}
   "itemListElement": [
     {
       "@type": "ListItem",
-      "position": 1,
+      "item": "https://gregorycarnegie.github.io/iron_insights/",
       "name": "Iron Insights",
-      "item": "https://gregorycarnegie.github.io/iron_insights/"
+      "position": 1
     },
     {
       "@type": "ListItem",
-      "position": 2,
+      "item": "https://gregorycarnegie.github.io/iron_insights/one-rep-max-calculator/",
       "name": "One-rep max (1RM) calculator",
-      "item": "https://gregorycarnegie.github.io/iron_insights/one-rep-max-calculator/"
+      "position": 2
     }
   ]
 }
@@ -112,19 +124,46 @@ color:var(--ink)}
   "mainEntity": [
     {
       "@type": "Question",
-      "name": "Which 1RM formula is most accurate?",
       "acceptedAnswer": {
         "@type": "Answer",
         "text": "All are estimates. Epley and Brzycki are reliable up to about 10 reps; accuracy drops as reps rise. Comparing several formulas gives a sensible range rather than a single false-precision number."
-      }
+      },
+      "name": "Which 1RM formula is most accurate?"
     },
     {
       "@type": "Question",
-      "name": "How many reps should I use?",
       "acceptedAnswer": {
         "@type": "Answer",
         "text": "Use a set of 10 reps or fewer for the best accuracy. The further from a true max effort, the larger the estimation error."
-      }
+      },
+      "name": "How many reps should I use?"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  "name": "How to estimate your one-rep max",
+  "step": [
+    {
+      "@type": "HowToStep",
+      "name": "Pick a recent set you took close to failure, ideally 10 reps or fewer.",
+      "position": 1,
+      "text": "Pick a recent set you took close to failure, ideally 10 reps or fewer."
+    },
+    {
+      "@type": "HowToStep",
+      "name": "Enter the weight lifted and the number of reps completed.",
+      "position": 2,
+      "text": "Enter the weight lifted and the number of reps completed."
+    },
+    {
+      "@type": "HowToStep",
+      "name": "Read the estimate and compare the four formulas for a sensible range rather than a single number.",
+      "position": 3,
+      "text": "Read the estimate and compare the four formulas for a sensible range rather than a single number."
     }
   ]
 }
@@ -152,7 +191,8 @@ color:var(--ink)}
 <details><summary>Which 1RM formula is most accurate?</summary><p>All are estimates. Epley and Brzycki are reliable up to about 10 reps; accuracy drops as reps rise. Comparing several formulas gives a sensible range rather than a single false-precision number.</p></details>
 <details><summary>How many reps should I use?</summary><p>Use a set of 10 reps or fewer for the best accuracy. The further from a true max effort, the larger the estimation error.</p></details>
 </section>
-<p class="src">Data source: lifter results from
+<p class="src">Figures computed from 2,893,852 competition results;
+data current as of 19 June 2026. Data source: lifter results from
 <a href="https://www.openpowerlifting.org/" rel="nofollow">OpenPowerlifting</a>, the open powerlifting
 results database (public domain). Iron Insights is an independent project and is
 not affiliated with OpenPowerlifting.</p>
@@ -166,6 +206,7 @@ not affiliated with OpenPowerlifting.</p>
 <a href="https://gregorycarnegie.github.io/iron_insights/male-vs-female-strength-comparison/">How does male and female powerlifting strength compare?</a>
 <a href="https://gregorycarnegie.github.io/iron_insights/barbell-plate-calculator/">Barbell plate calculator: what plates do I load?</a>
 <a href="https://gregorycarnegie.github.io/iron_insights/body-fat-percentage-calculator/">Body fat percentage calculator</a>
+<a href="https://gregorycarnegie.github.io/iron_insights/how-iron-insights-works/">How Iron Insights calculates strength percentiles</a>
 </div>
 <p style="margin-top:18px">&copy; 2026 Iron Insights &middot;
 <a href="https://gregorycarnegie.github.io/iron_insights/">Home</a></p>

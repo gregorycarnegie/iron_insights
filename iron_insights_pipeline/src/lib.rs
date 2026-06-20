@@ -1,6 +1,11 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
+pub mod aggregate;
+pub mod download;
+pub mod publish_data;
+pub mod seo_geo;
+
 pub const DEFAULT_ZIP_URL: &str =
     "https://openpowerlifting.gitlab.io/opl-csv/files/openpowerlifting-latest.zip";
 

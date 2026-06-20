@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Powerlifting Strength Percentile Calculator | Iron Insights</title>
-<meta name="description" content="Find the exact percentile of your squat, bench, deadlift or total against 2M+ federated lifters by sex, bodyweight and equipment. Free, no signup." />
+<meta name="description" content="Find the exact percentile of your squat, bench, deadlift or total against 2.9 million competition results by sex, bodyweight and equipment. Free, no signup." />
 <link rel="canonical" href="https://gregorycarnegie.github.io/iron_insights/strength-percentile-calculator/" />
 <meta name="robots" content="index, follow" />
 <meta name="theme-color" content="#0b0b0d" />
@@ -12,12 +12,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Iron Insights" />
 <meta property="og:title" content="Powerlifting Strength Percentile Calculator | Iron Insights" />
-<meta property="og:description" content="Find the exact percentile of your squat, bench, deadlift or total against 2M+ federated lifters by sex, bodyweight and equipment. Free, no signup." />
+<meta property="og:description" content="Find the exact percentile of your squat, bench, deadlift or total against 2.9 million competition results by sex, bodyweight and equipment. Free, no signup." />
 <meta property="og:url" content="https://gregorycarnegie.github.io/iron_insights/strength-percentile-calculator/" />
 <meta property="og:image" content="https://gregorycarnegie.github.io/iron_insights/assets/favicon.svg" />
 <meta name="twitter:card" content="summary" />
 <meta name="twitter:title" content="Powerlifting Strength Percentile Calculator | Iron Insights" />
-<meta name="twitter:description" content="Find the exact percentile of your squat, bench, deadlift or total against 2M+ federated lifters by sex, bodyweight and equipment. Free, no signup." />
+<meta name="twitter:description" content="Find the exact percentile of your squat, bench, deadlift or total against 2.9 million competition results by sex, bodyweight and equipment. Free, no signup." />
 <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@300;400;500;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,500&display=swap" rel="stylesheet" />
 <style>:root{--bg:#0b0b0d;--panel:#141416;--ink:#e8e3d6;--ink-mute:#9a958a;
 --line:#2a2926;--accent:#e8472b}
@@ -67,22 +67,34 @@ color:var(--ink)}
 {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  "name": "Iron Insights",
-  "url": "https://gregorycarnegie.github.io/iron_insights/strength-percentile-calculator/",
   "applicationCategory": "SportsApplication",
-  "operatingSystem": "Any",
+  "author": {
+    "@type": "Person",
+    "name": "Gregory Carnegie",
+    "url": "https://github.com/gregorycarnegie"
+  },
+  "creditText": "OpenPowerlifting",
+  "dateModified": "2026-06-19",
+  "datePublished": "2026-04-22",
+  "isBasedOn": "https://www.openpowerlifting.org/",
   "isPartOf": {
     "@type": "WebSite",
     "name": "Iron Insights",
     "url": "https://gregorycarnegie.github.io/iron_insights/"
   },
+  "name": "Iron Insights",
   "offers": {
     "@type": "Offer",
     "price": "0",
     "priceCurrency": "USD"
   },
-  "creditText": "OpenPowerlifting",
-  "isBasedOn": "https://www.openpowerlifting.org/"
+  "operatingSystem": "Any",
+  "publisher": {
+    "@type": "Person",
+    "name": "Gregory Carnegie",
+    "url": "https://github.com/gregorycarnegie"
+  },
+  "url": "https://gregorycarnegie.github.io/iron_insights/strength-percentile-calculator/"
 }
 </script>
 <script type="application/ld+json">
@@ -92,15 +104,15 @@ color:var(--ink)}
   "itemListElement": [
     {
       "@type": "ListItem",
-      "position": 1,
+      "item": "https://gregorycarnegie.github.io/iron_insights/",
       "name": "Iron Insights",
-      "item": "https://gregorycarnegie.github.io/iron_insights/"
+      "position": 1
     },
     {
       "@type": "ListItem",
-      "position": 2,
+      "item": "https://gregorycarnegie.github.io/iron_insights/strength-percentile-calculator/",
       "name": "What percentile is my squat, bench, deadlift or total?",
-      "item": "https://gregorycarnegie.github.io/iron_insights/strength-percentile-calculator/"
+      "position": 2
     }
   ]
 }
@@ -112,27 +124,27 @@ color:var(--ink)}
   "mainEntity": [
     {
       "@type": "Question",
-      "name": "What is a good powerlifting total?",
       "acceptedAnswer": {
         "@type": "Answer",
         "text": "It depends on bodyweight, sex and equipment. Iron Insights treats anything above the 80th percentile of your cohort as Advanced and above the 95th as Elite. Compare against your own weight class rather than an absolute number."
-      }
+      },
+      "name": "What is a good powerlifting total?"
     },
     {
       "@type": "Question",
-      "name": "How are the percentiles worked out?",
       "acceptedAnswer": {
         "@type": "Answer",
         "text": "Each lift is placed in the distribution of lifters who share your sex, weight class, equipment, tested status and age band, using competition results from OpenPowerlifting."
-      }
+      },
+      "name": "How are the percentiles worked out?"
     },
     {
       "@type": "Question",
-      "name": "Is it free?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. There is no signup and nothing to install \u2014 it runs entirely in your browser."
-      }
+        "text": "Yes. There is no signup and nothing to install — it runs entirely in your browser."
+      },
+      "name": "Is it free?"
     }
   ]
 }
@@ -149,26 +161,20 @@ color:var(--ink)}
 </nav>
 <main>
 <h1>What percentile is my squat, bench, deadlift or total?</h1>
-<p class="lead">Iron Insights ranks your lift against more than 2,000,000 competition results from the OpenPowerlifting database. Enter your bodyweight and lifts and it returns your exact percentile within your sex, weight-class and equipment cohort, then maps it to a strength tier from Novice to Legend.</p>
+<p class="lead">Iron Insights ranks your lift against more than 2.9 million competition results from the OpenPowerlifting database. Enter your bodyweight and lifts and it returns your exact percentile within your sex, weight-class and equipment cohort, then maps it to a strength tier from Novice to Legend.</p>
 <a class="cta" href="https://gregorycarnegie.github.io/iron_insights/#ranking">Try the live tool &rarr;</a>
 <h2>Strength tiers by percentile</h2>
-<p>Iron Insights labels every result with a tier so a raw percentile is easy to read:</p><table><thead><tr><th>Percentile</th><th>Tier</th>
-<th>What it means</th></tr></thead><tbody>
-<tr><td>Top 1% (99th+)</td><td>Legend</td><td>National / world-class numbers</td></tr>
-<tr><td>95th-99th</td><td>Elite</td><td>Competitive at a high level</td></tr>
-<tr><td>80th-95th</td><td>Advanced</td><td>Strong, years of focused training</td></tr>
-<tr><td>60th-80th</td><td>Intermediate</td><td>Above the typical lifter</td></tr>
-<tr><td>Below 60th</td><td>Novice</td><td>Early in the strength journey</td></tr>
-</tbody></table>
+<p>Iron Insights labels every result with a tier so a raw percentile is easy to read:</p><table><thead><tr><th>Percentile</th><th>Tier</th><th>What it means</th></tr></thead><tbody><tr><td>Top 1% (99th+)</td><td>Legend</td><td>National / world-class numbers</td></tr><tr><td>95th-99th</td><td>Elite</td><td>Competitive at a high level</td></tr><tr><td>80th-95th</td><td>Advanced</td><td>Strong, years of focused training</td></tr><tr><td>60th-80th</td><td>Intermediate</td><td>Above the typical lifter</td></tr><tr><td>Below 60th</td><td>Novice</td><td>Early in the strength journey</td></tr></tbody></table>
 <h2>How the percentile is calculated</h2>
-<p>Your number is compared against the distribution of a <strong>matched cohort</strong> &mdash; same sex, weight class, equipment (raw, single-ply, etc.), tested status and age band &mdash; not against everyone at once. For the total you can rank by raw kilograms or by the DOTS, Wilks or Goodlift (GL) bodyweight-adjusted scores.</p>
+<p>Your number is compared against the distribution of a <strong>matched cohort</strong> &mdash; same sex, weight class, equipment (raw, single-ply, etc.), tested status and age band &mdash; not against everyone at once. For the total you can rank by raw kilograms or by the DOTS, Wilks or Goodlift (GL) bodyweight-adjusted scores.</p><p>Worked examples from the live data:</p><ul><li>A <strong>83 kg male</strong> lifter (raw, all ages) with a 180 kg squat sits at roughly the <strong>45th percentile</strong> of that cohort.</li><li>A <strong>83 kg male</strong> lifter (raw, all ages) with a 230 kg squat sits at roughly the <strong>90th percentile</strong> of that cohort.</li><li>A <strong>63 kg female</strong> lifter (raw, all ages) with a 150 kg deadlift sits at roughly the <strong>80th percentile</strong> of that cohort.</li></ul>
 <section class="faq">
 <h2>Frequently asked questions</h2>
 <details><summary>What is a good powerlifting total?</summary><p>It depends on bodyweight, sex and equipment. Iron Insights treats anything above the 80th percentile of your cohort as Advanced and above the 95th as Elite. Compare against your own weight class rather than an absolute number.</p></details>
 <details><summary>How are the percentiles worked out?</summary><p>Each lift is placed in the distribution of lifters who share your sex, weight class, equipment, tested status and age band, using competition results from OpenPowerlifting.</p></details>
 <details><summary>Is it free?</summary><p>Yes. There is no signup and nothing to install &mdash; it runs entirely in your browser.</p></details>
 </section>
-<p class="src">Data source: lifter results from
+<p class="src">Figures computed from 2,893,852 competition results;
+data current as of 19 June 2026. Data source: lifter results from
 <a href="https://www.openpowerlifting.org/" rel="nofollow">OpenPowerlifting</a>, the open powerlifting
 results database (public domain). Iron Insights is an independent project and is
 not affiliated with OpenPowerlifting.</p>
@@ -182,6 +188,7 @@ not affiliated with OpenPowerlifting.</p>
 <a href="https://gregorycarnegie.github.io/iron_insights/one-rep-max-calculator/">One-rep max (1RM) calculator</a>
 <a href="https://gregorycarnegie.github.io/iron_insights/barbell-plate-calculator/">Barbell plate calculator: what plates do I load?</a>
 <a href="https://gregorycarnegie.github.io/iron_insights/body-fat-percentage-calculator/">Body fat percentage calculator</a>
+<a href="https://gregorycarnegie.github.io/iron_insights/how-iron-insights-works/">How Iron Insights calculates strength percentiles</a>
 </div>
 <p style="margin-top:18px">&copy; 2026 Iron Insights &middot;
 <a href="https://gregorycarnegie.github.io/iron_insights/">Home</a></p>

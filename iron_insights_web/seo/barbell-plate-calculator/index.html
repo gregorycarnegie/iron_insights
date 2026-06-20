@@ -67,22 +67,34 @@ color:var(--ink)}
 {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  "name": "Iron Insights",
-  "url": "https://gregorycarnegie.github.io/iron_insights/barbell-plate-calculator/",
   "applicationCategory": "SportsApplication",
-  "operatingSystem": "Any",
+  "author": {
+    "@type": "Person",
+    "name": "Gregory Carnegie",
+    "url": "https://github.com/gregorycarnegie"
+  },
+  "creditText": "OpenPowerlifting",
+  "dateModified": "2026-06-19",
+  "datePublished": "2026-04-22",
+  "isBasedOn": "https://www.openpowerlifting.org/",
   "isPartOf": {
     "@type": "WebSite",
     "name": "Iron Insights",
     "url": "https://gregorycarnegie.github.io/iron_insights/"
   },
+  "name": "Iron Insights",
   "offers": {
     "@type": "Offer",
     "price": "0",
     "priceCurrency": "USD"
   },
-  "creditText": "OpenPowerlifting",
-  "isBasedOn": "https://www.openpowerlifting.org/"
+  "operatingSystem": "Any",
+  "publisher": {
+    "@type": "Person",
+    "name": "Gregory Carnegie",
+    "url": "https://github.com/gregorycarnegie"
+  },
+  "url": "https://gregorycarnegie.github.io/iron_insights/barbell-plate-calculator/"
 }
 </script>
 <script type="application/ld+json">
@@ -92,15 +104,15 @@ color:var(--ink)}
   "itemListElement": [
     {
       "@type": "ListItem",
-      "position": 1,
+      "item": "https://gregorycarnegie.github.io/iron_insights/",
       "name": "Iron Insights",
-      "item": "https://gregorycarnegie.github.io/iron_insights/"
+      "position": 1
     },
     {
       "@type": "ListItem",
-      "position": 2,
+      "item": "https://gregorycarnegie.github.io/iron_insights/barbell-plate-calculator/",
       "name": "Barbell plate calculator: what plates do I load?",
-      "item": "https://gregorycarnegie.github.io/iron_insights/barbell-plate-calculator/"
+      "position": 2
     }
   ]
 }
@@ -112,19 +124,46 @@ color:var(--ink)}
   "mainEntity": [
     {
       "@type": "Question",
-      "name": "How much does a barbell weigh?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "A standard Olympic men's bar is 20\u00a0kg (44\u00a0lb); a women's bar is 15\u00a0kg (33\u00a0lb). The calculator lets you pick the bar and whether you are using collars."
-      }
+        "text": "A standard Olympic men's bar is 20 kg (44 lb); a women's bar is 15 kg (33 lb). The calculator lets you pick the bar and whether you are using collars."
+      },
+      "name": "How much does a barbell weigh?"
     },
     {
       "@type": "Question",
-      "name": "What plates do I need for 100kg?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "On a 20\u00a0kg bar that is 40\u00a0kg per side: 2\u00d720\u00a0kg, or 1\u00d720 + 1\u00d715 + 1\u00d75. The tool shows the optimal set for any target."
-      }
+        "text": "On a 20 kg bar that is 40 kg per side: 2×20 kg, or 1×20 + 1×15 + 1×5. The tool shows the optimal set for any target."
+      },
+      "name": "What plates do I need for 100kg?"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  "name": "How to work out which plates to load",
+  "step": [
+    {
+      "@type": "HowToStep",
+      "name": "Subtract the bar weight (20 kg men's, 15 kg women's) and any collars from your target weight.",
+      "position": 1,
+      "text": "Subtract the bar weight (20 kg men's, 15 kg women's) and any collars from your target weight."
+    },
+    {
+      "@type": "HowToStep",
+      "name": "Halve the remainder to get the load required on each side.",
+      "position": 2,
+      "text": "Halve the remainder to get the load required on each side."
+    },
+    {
+      "@type": "HowToStep",
+      "name": "Fill each side with the largest plates first until you reach the per-side load.",
+      "position": 3,
+      "text": "Fill each side with the largest plates first until you reach the per-side load."
     }
   ]
 }
@@ -152,7 +191,8 @@ color:var(--ink)}
 <details><summary>How much does a barbell weigh?</summary><p>A standard Olympic men's bar is 20&nbsp;kg (44&nbsp;lb); a women's bar is 15&nbsp;kg (33&nbsp;lb). The calculator lets you pick the bar and whether you are using collars.</p></details>
 <details><summary>What plates do I need for 100kg?</summary><p>On a 20&nbsp;kg bar that is 40&nbsp;kg per side: 2&times;20&nbsp;kg, or 1&times;20 + 1&times;15 + 1&times;5. The tool shows the optimal set for any target.</p></details>
 </section>
-<p class="src">Data source: lifter results from
+<p class="src">Figures computed from 2,893,852 competition results;
+data current as of 19 June 2026. Data source: lifter results from
 <a href="https://www.openpowerlifting.org/" rel="nofollow">OpenPowerlifting</a>, the open powerlifting
 results database (public domain). Iron Insights is an independent project and is
 not affiliated with OpenPowerlifting.</p>
@@ -166,6 +206,7 @@ not affiliated with OpenPowerlifting.</p>
 <a href="https://gregorycarnegie.github.io/iron_insights/male-vs-female-strength-comparison/">How does male and female powerlifting strength compare?</a>
 <a href="https://gregorycarnegie.github.io/iron_insights/one-rep-max-calculator/">One-rep max (1RM) calculator</a>
 <a href="https://gregorycarnegie.github.io/iron_insights/body-fat-percentage-calculator/">Body fat percentage calculator</a>
+<a href="https://gregorycarnegie.github.io/iron_insights/how-iron-insights-works/">How Iron Insights calculates strength percentiles</a>
 </div>
 <p style="margin-top:18px">&copy; 2026 Iron Insights &middot;
 <a href="https://gregorycarnegie.github.io/iron_insights/">Home</a></p>

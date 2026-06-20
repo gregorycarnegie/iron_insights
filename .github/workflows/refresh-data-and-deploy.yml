@@ -104,6 +104,11 @@ jobs:
             --version "${VERSION}" \
             --keep-versions 2
 
+          # Regenerate the static SEO/GEO pages from the freshly published data.
+          cargo run --release --manifest-path iron_insights_pipeline/Cargo.toml --bin 04_seo_geo -- \
+            --data-dir data \
+            --web-dir iron_insights_web
+
       - name: Safeguards and metadata report
         shell: bash
         run: |
@@ -203,15 +208,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          if git diff --quiet -- data; then
-            echo "No data changes to commit."
+          SEO_PATHS=(iron_insights_web/seo iron_insights_web/robots.txt iron_insights_web/sitemap.xml)
+          if git diff --quiet -- data "${SEO_PATHS[@]}"; then
+            echo "No data or SEO changes to commit."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add data
+          git add data "${SEO_PATHS[@]}"
           git commit -m "chore(data): weekly refresh ${DATA_VERSION}"
           git push
 

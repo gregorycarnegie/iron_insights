@@ -83,6 +83,35 @@ Retention behavior:
 
 - `keep_versions` prunes older directories whose names match `vYYYY-MM-DD`
 
+## 4) Generate SEO/GEO Pages
+
+```bash
+cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 04_seo_geo -- \
+  --data-dir data \
+  --web-dir iron_insights_web
+```
+
+Reads the published data (via `data/latest.json`) and regenerates the static,
+crawlable landing pages plus `robots.txt` and `sitemap.xml`. The concrete
+figures — per-class median (p50) and strong-lifter (p90) standards, the
+male/female gap per lift, worked percentile examples, and the dataset size and
+date — are computed straight from the cohort histograms, so they stay current
+with every refresh. `sitemap.xml` `lastmod` and the on-page "data current as
+of" line are derived from the published version date.
+
+Useful options:
+
+- `--base-url https://gregorycarnegie.github.io/iron_insights/` (canonical origin)
+- `--date-published 2026-04-22` (schema.org `datePublished`)
+
+Outputs:
+
+- `iron_insights_web/seo/<slug>/index.html` (one answer-first page per tool, plus a methodology page)
+- `iron_insights_web/robots.txt`
+- `iron_insights_web/sitemap.xml`
+
+Audit the result with `python scripts/seo_audit.py iron_insights_web`.
+
 ## Data Model Notes
 
 - Histograms use a compact binary format with 2.5 kg base bins for `Kg` metrics.
@@ -96,6 +125,7 @@ Retention behavior:
 cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 01_download -- --dataset-version vYYYY-MM-DD
 cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 02_build_aggregates
 cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 03_publish_data -- --data-dir data --version vYYYY-MM-DD --keep-versions 2
+cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 04_seo_geo -- --data-dir data --web-dir iron_insights_web
 ```
 
 After publish, sync root `data/` into `iron_insights_web/data/` before running or building the frontend.

@@ -1,5 +1,5 @@
 use anyhow::Result;
 
 fn main() -> Result<()> {
-    iron_insights_pipeline::publish_data::run()
+    iron_insights_pipeline::seo_geo::run()
 }
