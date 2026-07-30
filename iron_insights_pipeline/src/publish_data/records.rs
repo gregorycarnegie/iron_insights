@@ -75,9 +75,7 @@ pub(super) fn publish_records_for_lift(job: PublishRecordsJob<'_>) -> Result<()>
             continue;
         }
 
-        let valid_bw = bw_col
-            .get(i)
-            .and_then(|bw| if bw > 0.0 { Some(bw) } else { None });
+        let valid_bw = bw_col.get(i).filter(|&bw| bw > 0.0);
         let year = parse_year_bucket(date_col.get(i));
 
         for publisher in &mut publishers {
