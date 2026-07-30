@@ -39,6 +39,21 @@ pub(super) fn metric_base_bin(metric: Metric) -> f32 {
     }
 }
 
+/// Upper sanity bound for a metric value.
+///
+/// OpenPowerlifting contains corrupt rows — a bodyweight typo yields a Wilks
+/// score in the hundreds of thousands. Histogram and heatmap axes are sized
+/// from the observed min/max, so a single such row stretches a grid to ~112k
+/// columns of zeroes and inflates the published bundle by ~1000x.
+pub(super) fn metric_max_valid(metric: Metric) -> f32 {
+    match metric {
+        // Heaviest equipped total on record is ~1400 kg; leave headroom.
+        Metric::Kg => 1500.0,
+        // Elite scores top out near 700 points.
+        Metric::Dots | Metric::Wilks | Metric::Gl => 1000.0,
+    }
+}
+
 pub(super) fn metric_slug(metric: Metric) -> &'static str {
     match metric {
         Metric::Kg => "kg",

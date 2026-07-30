@@ -23,6 +23,7 @@ The repo downloads OpenPowerlifting, builds compact published data bundles, and 
 - `iron_insights_pipeline/` - Rust data pipeline that downloads, aggregates, and publishes versioned data bundles
 - `data/` - published dataset snapshots such as `v2026-03-20/` plus `latest.json`
 - `docs/` - GitHub Pages build output
+- `scripts/refresh.sh`, `scripts/refresh.ps1` - run all four pipeline stages for one dataset version
 - `scripts/qa.sh`, `scripts/qa.ps1` - integrity and payload checks for published data and site output
 - `src/` - placeholder root crate; product code lives in `iron_insights_web/` and `iron_insights_pipeline/`
 
@@ -39,6 +40,18 @@ See `iron_insights_web/README.md` for the frontend data-contract details.
 ## Local Workflow
 
 ### 1) Build or refresh the published data
+
+All four stages, versioned to today unless you pass a version:
+
+```bash
+./scripts/refresh.sh              # or: ./scripts/refresh.sh v2026-07-30
+```
+
+```powershell
+pwsh -File .\scripts\refresh.ps1  # or: -Version v2026-07-30
+```
+
+The individual stages, if you need to run one on its own:
 
 ```bash
 cargo run --manifest-path iron_insights_pipeline/Cargo.toml --bin 01_download -- \

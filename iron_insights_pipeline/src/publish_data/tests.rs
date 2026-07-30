@@ -1,10 +1,13 @@
 use super::{
+    accumulation::{AccumulationRow, MetricPublisher},
     constants::{BW_BIN_BASE_KG, LIFT_BIN_BASE_KG},
     histogram::{build_combined_bytes, build_heatmap, build_histogram},
+    metric::Metric,
     trends::{parse_year_bucket, quantile_sorted},
 };
 use iron_insights_core::{dots_points, goodlift_points, parse_combined_bin, wilks_points};
 use proptest::prelude::*;
+use std::collections::BTreeMap;
 
 fn generated_lift_values() -> impl Strategy<Value = Vec<f32>> {
     prop::collection::vec(0.0f32..1000.0, 1..96)
@@ -37,6 +40,45 @@ fn goodlift_points_differs_by_equipment() {
     assert!(raw.is_finite());
     assert!(equipped.is_finite());
     assert_ne!(raw, equipped);
+}
+
+/// A corrupt Wilks score (bodyweight typo) must not reach any accumulator —
+/// heatmap and histogram axes are sized from observed min/max, so one such row
+/// stretched a published grid to 112,513 columns / 90 MB.
+#[test]
+fn accumulate_row_rejects_implausible_values() {
+    let mut pubr = MetricPublisher::new(Metric::Wilks, "tested", "total");
+    let mut trends = BTreeMap::new();
+    let row = |x: f32, bw: Option<f32>| AccumulationRow {
+        sex: "F",
+        equipment: "Raw",
+        weight_class: "63",
+        age_class: "24-34",
+        year: Some(2024),
+        x_value: x,
+        valid_bw: bw,
+    };
+
+    pubr.accumulate_row(row(281_280.0, Some(63.0)), &mut trends); // corrupt score
+    pubr.accumulate_row(row(f32::NAN, Some(63.0)), &mut trends);
+    pubr.accumulate_row(row(0.0, Some(63.0)), &mut trends);
+    assert!(pubr.slices.is_empty(), "implausible rows must be dropped");
+    assert!(trends.is_empty(), "implausible rows must not reach trends");
+
+    pubr.accumulate_row(row(450.0, Some(2000.0)), &mut trends); // good score, bad bw
+    let acc = pubr
+        .slices
+        .get(&("F", "Raw", "63", "24-34"))
+        .expect("valid row should accumulate");
+    assert_eq!(acc.lift_values, vec![450.0]);
+    assert!(
+        acc.heat_points.is_empty(),
+        "implausible bodyweight must not size the heatmap"
+    );
+
+    pubr.accumulate_row(row(450.0, Some(63.0)), &mut trends);
+    let acc = pubr.slices.get(&("F", "Raw", "63", "24-34")).unwrap();
+    assert_eq!(acc.heat_points, vec![(450.0, 63.0)]);
 }
 
 #[test]

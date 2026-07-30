@@ -6,9 +6,11 @@ use anyhow::{Context, Result};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 
-use super::constants::{ALL, ALL_AGES, BW_BIN_BASE_KG};
+use super::constants::{ALL, ALL_AGES, BW_BIN_BASE_KG, VALID_BW_RANGE_KG};
 use super::histogram::{INLINE_THRESHOLD, build_combined_bytes, build_heatmap, build_histogram};
-use super::metric::{Metric, lift_code, metric_base_bin, metric_code, metric_slug, tested_bucket};
+use super::metric::{
+    Metric, lift_code, metric_base_bin, metric_code, metric_max_valid, metric_slug, tested_bucket,
+};
 use super::model::{HeatMeta, HistMeta, SliceIndexEntry, SliceMeta, SliceSummary};
 use super::util::{slug, write_bytes};
 
@@ -35,7 +37,7 @@ pub(super) type SliceKey<'a> = (&'a str, &'a str, &'a str, &'a str);
 pub(super) struct MetricPublisher<'a> {
     pub(super) metric: Metric,
     trend_key_suffix: String,
-    slices: HashMap<SliceKey<'a>, SliceAccumulator>,
+    pub(super) slices: HashMap<SliceKey<'a>, SliceAccumulator>,
 }
 
 impl<'a> MetricPublisher<'a> {
@@ -73,6 +75,22 @@ impl<'a> MetricPublisher<'a> {
         row: AccumulationRow<'a>,
         trends_acc: &mut BTreeMap<String, BTreeMap<i32, Vec<f32>>>,
     ) {
+        // Drop implausible rows before they reach any accumulator: histogram and
+        // heatmap axes are sized from observed min/max, so one corrupt value
+        // stretches every grid built from this slice.
+        if !row.x_value.is_finite()
+            || row.x_value <= 0.0
+            || row.x_value > metric_max_valid(self.metric)
+        {
+            return;
+        }
+        let row = AccumulationRow {
+            valid_bw: row
+                .valid_bw
+                .filter(|bw| bw.is_finite() && VALID_BW_RANGE_KG.contains(bw)),
+            ..row
+        };
+
         if let Some(year) = row.year {
             for trend_equip in [row.equipment, ALL] {
                 let trend_key = self.trend_key(row.sex, trend_equip);
