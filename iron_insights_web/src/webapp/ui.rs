@@ -15,16 +15,25 @@ pub(super) fn pick_preferred(options: &[String], preferred: &str) -> String {
     options[0].clone()
 }
 
+/// Orders weight classes for the dropdown: the "All" aggregate first, then the
+/// numeric classes ascending, then the open-ended `N+` top class.
+///
+/// The leading "All" mirrors [`age_class_sort_key`], which puts "All Ages"
+/// first; without it "All" fell into the unknown bucket and sorted below `120+`,
+/// even though it is the default selection.
 pub(super) fn ipf_class_sort_key(class: &str) -> (u8, i32) {
+    if class == "All" {
+        return (0, i32::MIN);
+    }
     if let Some(prefix) = class.strip_suffix('+')
         && let Ok(v) = prefix.parse::<i32>()
     {
-        return (1, v);
+        return (2, v);
     }
     if let Ok(v) = class.parse::<i32>() {
-        return (0, v);
+        return (1, v);
     }
-    (2, i32::MAX)
+    (3, i32::MAX)
 }
 
 pub(super) fn metric_label(code: &str) -> &'static str {

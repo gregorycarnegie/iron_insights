@@ -59,12 +59,36 @@ jobs:
       - name: Install Trunk
         run: cargo install trunk --locked
 
+      # Must match the wasm-bindgen version in Cargo.lock, or the runner refuses
+      # the test binary. `.cargo/config.toml` points the wasm target at it.
+      - name: Install wasm-bindgen-test-runner
+        run: cargo install wasm-bindgen-cli --version 0.2.126 --locked
+
+      # The runner image ships chromedriver but exposes its directory as
+      # CHROMEWEBDRIVER, which wasm-bindgen-test-runner does not read. Resolve it
+      # explicitly and fail loudly, so a missing driver can never silently
+      # downgrade the browser tests to a compile-only check again.
+      - name: Locate chromedriver
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${CHROMEWEBDRIVER:-}" && -x "${CHROMEWEBDRIVER}/chromedriver" ]]; then
+            echo "CHROMEDRIVER=${CHROMEWEBDRIVER}/chromedriver" >> "$GITHUB_ENV"
+          elif command -v chromedriver >/dev/null 2>&1; then
+            echo "CHROMEDRIVER=$(command -v chromedriver)" >> "$GITHUB_ENV"
+          else
+            echo "No chromedriver on this runner image; wasm tests cannot run." >&2
+            exit 1
+          fi
+
       - name: Quality gates (tests + clippy)
         shell: bash
         run: |
           set -euo pipefail
           cargo test --workspace --exclude iron_insights_web
-          cargo test --manifest-path iron_insights_web/Cargo.toml --target wasm32-unknown-unknown --no-run
+          # Actually executes the browser tests: ubuntu-latest ships Chrome and
+          # chromedriver, which wasm-bindgen-test-runner picks up from PATH.
+          cargo test --manifest-path iron_insights_web/Cargo.toml --target wasm32-unknown-unknown
           cargo clippy --workspace --all-targets --exclude iron_insights_web -- -D warnings
           cargo clippy --manifest-path iron_insights_web/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
 

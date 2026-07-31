@@ -4,10 +4,35 @@ Current focus: website + published dataset only. The Android client has been rem
 
 ## Website
 
-- [ ] Add integration or snapshot coverage for the highest-risk flows in `iron_insights_web`
-- [ ] Break up the largest UI modules (`trends.rs`, `plate_calc.rs`, `one_rm.rs`) before they sprawl further
+- [x] Add integration or snapshot coverage for the highest-risk flows in `iron_insights_web` — 29 `wasm-bindgen-test` cases (six per-page render smoke tests, the selector cascade snapshot, plate/1RM/percentile helpers). They previously compiled but never ran; see [Testing](#testing).
+- [ ] Break up the largest UI modules — currently `app.rs` (862), `cross_sex.rs` (773), `charts.rs` (720), `nerds.rs` (675)
 - [ ] Keep tightening the first-run and mobile experience in the main site
 - [ ] Continue burning down the detailed UI checklist in `iron_insights_web/todo.md`
+
+## Testing
+
+The `iron_insights_web` tests run in headless Chrome via `wasm-bindgen-test`.
+`.cargo/config.toml` points the wasm target at `wasm-bindgen-test-runner`, which
+needs two things installed:
+
+```sh
+cargo install wasm-bindgen-cli --version 0.2.126 --locked   # must match Cargo.lock
+# plus a chromedriver whose major version matches the local Chrome, on PATH
+# (or pointed at by $CHROMEDRIVER) — https://googlechromelabs.github.io/chrome-for-testing/
+```
+
+Then:
+
+```sh
+cargo test --workspace --exclude iron_insights_web
+cargo test --manifest-path iron_insights_web/Cargo.toml --target wasm32-unknown-unknown
+```
+
+CI runs both, and resolves chromedriver from the runner image's `CHROMEWEBDRIVER`.
+Bumping `wasm-bindgen` means bumping the pinned version in the workflow too.
+
+- [ ] Pipeline stages 01-04 have no end-to-end test; the CI safeguards (row-count drop threshold, required-file checks) are the only coverage
+- [ ] 4 pre-existing `clippy::float_cmp` warnings in `helpers.rs` proptests — exact float equality is intentional there, so either `#[allow]` them with a reason or switch to an epsilon compare
 
 ## GEO (Generative Engine Optimization)
 
@@ -33,7 +58,7 @@ P3 — homepage:
 - [x] Expand the `index.html` `<noscript>` into a real content summary (added headline medians, sex gap, methodology link)
 
 P4 — polish:
-- [ ] Replace `og:image` (currently the favicon SVG) with a 1200x630 raster — needs a real image asset; not yet done
+- [ ] Replace `og:image` (still the favicon SVG, in both `iron_insights_web/index.html` and `seo_geo/render.rs`) with a 1200x630 raster — needs a real image asset
 - [x] Add `HowTo` schema to the plate-calculator and 1RM pages
 - [x] `llms.txt`: skipped — Google ignores it and payoff is low
 
@@ -42,3 +67,5 @@ P4 — polish:
 - [ ] Revisit content-addressed `.bin` filenames if hosting moves from GitHub Pages to a CDN with immutable cache headers
 - [ ] Keep the published-data contract in the root `README.md` and `iron_insights_web/README.md` synchronized
 - [ ] Track payload size, slice counts, and refresh safety rails as the dataset grows
+- [ ] `scripts/qa.sh` and `scripts/qa.ps1` each reimplement the slice-key to path mapping that `iron_insights_core::parse_slice_key` owns — a third and fourth copy, in two languages
+- [ ] The CI safeguard's `meta/`-directory branch and `qa.sh`'s key-list index branch are both dead: no `meta/` tree is written and every shard uses the map form

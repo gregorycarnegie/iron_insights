@@ -95,6 +95,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The `iron_insights_web` test suite never ran.** CI invoked it with
+  `--no-run` and no WebDriver runner was configured, so all 29
+  `wasm-bindgen-test` cases — six per-page render smoke tests, the selector
+  cascade snapshot, and the plate/1RM/percentile helpers — were only ever
+  type-checked. `.cargo/config.toml` now points the wasm target at
+  `wasm-bindgen-test-runner`, and CI resolves chromedriver from the runner
+  image's `CHROMEWEBDRIVER` and fails if it is absent, so the gate cannot
+  silently degrade to a compile check again.
+
+  Running them surfaced one real bug, below. See `TODO.md` for the local setup.
+
+- **"All" sorted last in the weight-class dropdown, below `120+`.**
+  `age_class_sort_key` special-cases "All Ages" to sort first, but
+  `ipf_class_sort_key` had no equivalent, so the aggregate class fell into the
+  unknown bucket `(2, i32::MAX)` and sorted after every numeric class — despite
+  being the default selection. The never-run selector snapshot asserted the
+  intended order (`["All", "83", "93"]`) and had been wrong since it was
+  written. The two sort keys are now consistent.
+
 - **`03_publish_data` left orphaned files when republishing a version.** The
   version directory was created but never cleared, so files written by an
   earlier run survived even when the fresh index no longer referenced them.

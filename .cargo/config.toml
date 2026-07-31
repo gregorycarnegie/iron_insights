@@ -1,0 +1,11 @@
+# Run the `iron_insights_web` wasm tests in a real browser.
+#
+# `wasm-bindgen-test-runner` must match the `wasm-bindgen` version in Cargo.lock:
+#   cargo install wasm-bindgen-cli --version 0.2.126 --locked
+#
+# It needs a WebDriver binary. It looks for `chromedriver`/`geckodriver` on PATH
+# or via the CHROMEDRIVER/GECKODRIVER env vars, and downloads one if neither is
+# present. Tests marked `run_in_browser` need a browser installed; the rest run
+# in Node.
+[target.wasm32-unknown-unknown]
+runner = "wasm-bindgen-test-runner"
