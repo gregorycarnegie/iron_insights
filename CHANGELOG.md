@@ -93,6 +93,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `default-members` — which existed only to keep this package out of default
   builds — went with it.
 
+### Added
+
+- **End-to-end coverage for `03_publish_data`.** `run` now parses argv and
+  delegates to a `publish(&Args)` that tests can drive against a
+  `tempfile::TempDir`: a synthetic records parquet goes in, and the published
+  tree is read back the way the app reads it — raw JSON off disk, payloads
+  through `iron_insights_core::parse_combined_bin`. Deliberately not via the
+  crate's own serializable types, so a rename that breaks the web app fails the
+  test instead of passing on both sides.
+
+  Covers the version-tree layout, that every published slice key parses with the
+  shared contract, that summary totals match the input rows, that republishing a
+  version clears orphans rather than merging, and that pruning keeps the newest
+  N. Verified non-vacuous by breaking a published total and confirming a red
+  test.
+
+- **Rendered-page invariants for the SEO stage.** Run against whatever
+  `build_pages` returns, so a page added later is covered without touching the
+  tests: no unsubstituted `[[TOKEN]]` placeholders survive rendering, slugs are
+  unique and URL-safe (output is `seo/<slug>/index.html`, so a duplicate would
+  silently overwrite), every page appears in `sitemap.xml`, `robots.txt`
+  advertises the sitemap, and — the coupling most likely to rot — every page has
+  a matching `copy-dir` link in `iron_insights_web/index.html`, without which
+  trunk generates the page on every refresh and then drops it from the deploy.
+
 ### Fixed
 
 - **The `iron_insights_web` test suite never ran.** CI invoked it with

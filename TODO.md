@@ -31,7 +31,9 @@ cargo test --manifest-path iron_insights_web/Cargo.toml --target wasm32-unknown-
 CI runs both, and resolves chromedriver from the runner image's `CHROMEWEBDRIVER`.
 Bumping `wasm-bindgen` means bumping the pinned version in the workflow too.
 
-- [ ] Pipeline stages 01-04 have no end-to-end test; the CI safeguards (row-count drop threshold, required-file checks) are the only coverage
+- [x] Stage 03 end-to-end: synthetic records parquet in a `tempfile::TempDir`, real publish, then the tree read back as raw JSON and payloads decoded with `iron_insights_core::parse_combined_bin` — covers the layout, the summary totals, republish-clears-orphans, and version pruning
+- [ ] Stages 01, 02 and 04 still have no end-to-end test. 01 needs a fake zip/CSV fixture, 02 a source parquet, 04 a published `bin/` tree — each is a fixture-building exercise more than a test-writing one
+- [ ] Consider `cargo-mutants` as an occasional audit rather than a CI gate; it is the only way to tell whether these tests actually catch anything, and a manual spot-check (breaking a published total, confirming a red test) is the cheap version
 - [ ] 4 pre-existing `clippy::float_cmp` warnings in `helpers.rs` proptests — exact float equality is intentional there, so either `#[allow]` them with a reason or switch to an epsilon compare
 
 ## GEO (Generative Engine Optimization)

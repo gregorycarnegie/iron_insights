@@ -41,12 +41,17 @@ struct Args {
 }
 
 pub fn run() -> Result<()> {
-    let args = Args::parse();
+    publish(&Args::parse())
+}
+
+/// Split from [`run`] so tests can drive a publish against a temp directory
+/// without going through argv.
+fn publish(args: &Args) -> Result<()> {
     fs::create_dir_all(&args.data_dir)
         .with_context(|| format!("failed to create {}", args.data_dir.display()))?;
 
     let build_meta = read_optional_build_metadata(&args.build_metadata_path)?;
-    let version = resolve_version(args.version, build_meta.as_ref());
+    let version = resolve_version(args.version.clone(), build_meta.as_ref());
     let version_dir = args.data_dir.join(&version);
 
     // Republishing a version must not inherit its predecessor's files. Which

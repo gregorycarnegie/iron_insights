@@ -194,3 +194,193 @@ fn quantile_sorted_uses_nearest_rank_on_sorted_data() {
     assert_eq!(quantile_sorted(&values, 0.5), 30.0);
     assert_eq!(quantile_sorted(&values, 0.9), 50.0);
 }
+
+// ===== END-TO-END PUBLISH =====
+//
+// Everything above tests one function. These drive the whole of stage 3 against
+// a temp directory: synthetic records parquet in, published tree out, then read
+// the tree back the way the web app does — raw JSON off disk, payload through
+// `iron_insights_core::parse_combined_bin`. Asserting the wire format rather
+// than our own serializable types is deliberate: a rename that breaks the app
+// should fail here, and it would not if both sides shared a struct.
+
+use super::{Args, publish};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use polars::prelude::*;
+use serde_json::Value;
+use std::{fs, path::Path};
+use tempfile::TempDir;
+
+/// One row per lifter, in the shape stage 2 hands to stage 3.
+fn write_records_parquet(path: &Path, rows: &[(&str, &str, &str, &str, f32, f32, &str)]) {
+    fs::create_dir_all(path.parent().expect("records path has a parent")).expect("create dir");
+
+    let mut df = df!(
+        "Sex" => rows.iter().map(|r| r.0).collect::<Vec<_>>(),
+        "Equipment" => rows.iter().map(|r| r.1).collect::<Vec<_>>(),
+        "IpfWeightClass" => rows.iter().map(|r| r.2).collect::<Vec<_>>(),
+        "AgeClassBucket" => rows.iter().map(|r| r.3).collect::<Vec<_>>(),
+        "best_lift" => rows.iter().map(|r| r.4).collect::<Vec<_>>(),
+        "bodyweight_at_best" => rows.iter().map(|r| r.5).collect::<Vec<_>>(),
+        "date_at_best" => rows.iter().map(|r| r.6).collect::<Vec<_>>(),
+    )
+    .expect("records frame should build");
+
+    let mut file = fs::File::create(path).expect("create parquet");
+    ParquetWriter::new(&mut file)
+        .finish(&mut df)
+        .expect("write parquet");
+}
+
+/// Publishes a fixed three-lifter cohort and returns the temp dir plus data dir.
+fn publish_fixture(version: &str) -> (TempDir, std::path::PathBuf) {
+    let temp = TempDir::new().expect("temp dir");
+    let records_dir = temp.path().join("records");
+    let data_dir = temp.path().join("data");
+
+    // Two men and one woman, all raw, all in the same age class.
+    let squats = [
+        ("M", "Raw", "93", "24-34", 200.0f32, 92.0f32, "2026-03-07"),
+        ("M", "Raw", "93", "24-34", 220.0, 91.0, "2026-04-01"),
+        ("F", "Raw", "63", "24-34", 120.0, 62.0, "2026-05-02"),
+    ];
+    write_records_parquet(&records_dir.join("all").join("squat.parquet"), &squats);
+
+    publish(&Args {
+        records_dir,
+        build_metadata_path: temp.path().join("missing_metadata.json"),
+        data_dir: data_dir.clone(),
+        version: Some(version.to_string()),
+        keep_versions: 4,
+    })
+    .expect("publish should succeed");
+
+    (temp, data_dir)
+}
+
+fn read_json(path: &Path) -> Value {
+    let bytes = fs::read(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
+}
+
+/// Resolves a slice entry's payload the way the app does: inline base64 first,
+/// otherwise the `.bin` file it points at.
+fn payload_bytes(version_dir: &Path, entry: &Value) -> Vec<u8> {
+    let inline = entry["inline"].as_str().unwrap_or_default();
+    if !inline.is_empty() {
+        return BASE64.decode(inline).expect("inline payload is valid base64");
+    }
+    let bin = entry["bin"].as_str().expect("entry has bin or inline");
+    assert!(!bin.is_empty(), "entry has neither bin nor inline");
+    fs::read(version_dir.join(bin)).expect("read .bin")
+}
+
+#[test]
+fn publish_writes_a_readable_version_tree() {
+    let (_temp, data_dir) = publish_fixture("v2026-07-31");
+
+    let latest = read_json(&data_dir.join("latest.json"));
+    assert_eq!(latest["version"], "v2026-07-31");
+
+    let version_dir = data_dir.join("v2026-07-31");
+    let index = read_json(&version_dir.join("index.json"));
+
+    // Each lifter is counted into both their own equipment and the "All"
+    // aggregate, so both shards must exist and be reachable from the root.
+    for shard_key in ["sex=M|equip=Raw", "sex=M|equip=All", "sex=F|equip=Raw"] {
+        let rel = index["shards"][shard_key]
+            .as_str()
+            .unwrap_or_else(|| panic!("root index is missing shard {shard_key}"));
+        assert!(
+            version_dir.join(rel).is_file(),
+            "shard {shard_key} points at a missing file: {rel}"
+        );
+    }
+
+    // No meta/ tree is written any more; the summary rides in the index.
+    assert!(!version_dir.join("meta").exists());
+}
+
+#[test]
+fn published_slices_round_trip_through_the_core_parser() {
+    let (_temp, data_dir) = publish_fixture("v2026-07-31");
+    let version_dir = data_dir.join("v2026-07-31");
+
+    let index = read_json(&version_dir.join("index.json"));
+    let shard_rel = index["shards"]["sex=M|equip=Raw"]
+        .as_str()
+        .expect("male raw shard");
+    let shard = read_json(&version_dir.join(shard_rel));
+
+    // The widest male cohort: both men, aggregated across every filter.
+    let key = "sex=M|equip=Raw|wc=All|age=All Ages|tested=All|lift=S|metric=Kg";
+    let entry = &shard["slices"][key];
+    assert!(!entry.is_null(), "shard is missing slice {key}");
+
+    assert_eq!(entry["summary"]["total"], 2, "both men should be counted");
+
+    let (hist, heat) = parse_combined_bin(&payload_bytes(&version_dir, entry))
+        .expect("published payload should parse with the shipped parser");
+
+    assert_eq!(hist.total, 2);
+    assert_eq!(hist.counts.iter().sum::<u32>(), 2);
+    assert_eq!(heat.grid.iter().sum::<u32>(), 2, "both men have bodyweight");
+
+    // The 200 kg and 220 kg squats must land inside the histogram's own bounds.
+    assert!(hist.min <= 200.0 && hist.max >= 220.0, "{hist:?}");
+
+    // Every key in the shard must parse with the contract the app uses.
+    for raw_key in shard["slices"].as_object().expect("slices object").keys() {
+        assert!(
+            iron_insights_core::parse_slice_key(raw_key).is_some(),
+            "app could not parse published key: {raw_key}"
+        );
+    }
+}
+
+#[test]
+fn republishing_a_version_replaces_rather_than_merges() {
+    let (temp, data_dir) = publish_fixture("v2026-07-31");
+    let version_dir = data_dir.join("v2026-07-31");
+
+    // A file the fresh index will not reference.
+    let orphan = version_dir.join("bin").join("orphan.bin");
+    fs::create_dir_all(orphan.parent().expect("bin dir")).expect("create bin dir");
+    fs::write(&orphan, b"stale").expect("write orphan");
+
+    publish(&Args {
+        records_dir: temp.path().join("records"),
+        build_metadata_path: temp.path().join("missing_metadata.json"),
+        data_dir,
+        version: Some("v2026-07-31".to_string()),
+        keep_versions: 4,
+    })
+    .expect("republish should succeed");
+
+    assert!(
+        !orphan.exists(),
+        "republish left an orphaned file behind: {}",
+        orphan.display()
+    );
+}
+
+#[test]
+fn prune_keeps_only_the_newest_versions() {
+    let (temp, data_dir) = publish_fixture("v2026-07-29");
+    let records_dir = temp.path().join("records");
+
+    for version in ["v2026-07-30", "v2026-07-31"] {
+        publish(&Args {
+            records_dir: records_dir.clone(),
+            build_metadata_path: temp.path().join("missing_metadata.json"),
+            data_dir: data_dir.clone(),
+            version: Some(version.to_string()),
+            keep_versions: 2,
+        })
+        .expect("publish should succeed");
+    }
+
+    assert!(!data_dir.join("v2026-07-29").exists(), "oldest should prune");
+    assert!(data_dir.join("v2026-07-30").exists());
+    assert!(data_dir.join("v2026-07-31").exists());
+}

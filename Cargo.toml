@@ -73,4 +73,5 @@ proptest = { version = "1.11.0", default-features = false, features = [
   "alloc",
   "no_std",
 ] }
+tempfile = "3.24.0"
 wasm-bindgen-test = "0.3.76"
