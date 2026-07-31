@@ -204,6 +204,107 @@ fn parse_rejects_unsupported_version() {
     assert!(parse_heat_bin(&heat_bytes).is_none());
 }
 
+/// A header with no count payload: the shortest input each parser must accept.
+fn minimal_hist_header(bins: u32) -> Vec<u8> {
+    let mut b = Vec::new();
+    b.extend_from_slice(&HISTOGRAM_MAGIC);
+    b.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
+    push_f32(&mut b, 2.5);
+    push_f32(&mut b, 100.0);
+    push_f32(&mut b, 100.0);
+    push_u32(&mut b, bins);
+    b
+}
+
+fn minimal_heat_header(width: u32, height: u32) -> Vec<u8> {
+    let mut b = Vec::new();
+    b.extend_from_slice(&HEATMAP_MAGIC);
+    b.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
+    for value in [2.5f32, 1.0, 100.0, 100.0, 80.0, 80.0] {
+        push_f32(&mut b, value);
+    }
+    push_u32(&mut b, width);
+    push_u32(&mut b, height);
+    b
+}
+
+#[test]
+fn parsers_accept_a_header_of_exactly_the_minimum_length() {
+    // The guards are `len < N`, so a payload of exactly N must parse. Off-by-one
+    // there would reject the smallest real cohorts rather than fail loudly.
+    let hist = minimal_hist_header(0);
+    assert_eq!(hist.len(), 22);
+    assert!(parse_hist_bin(&hist).is_some());
+
+    let heat = minimal_heat_header(0, 0);
+    assert_eq!(heat.len(), 38);
+    assert!(parse_heat_bin(&heat).is_some());
+}
+
+#[test]
+fn parsers_reject_truncated_headers_without_panicking() {
+    // Shorter than the magic itself: the length guard is the only thing between
+    // this and an out-of-bounds slice.
+    for len in [0usize, 1, 3, 4, 10, 21] {
+        assert!(parse_hist_bin(&vec![0u8; len]).is_none(), "hist len {len}");
+    }
+    for len in [0usize, 4, 20, 37] {
+        assert!(parse_heat_bin(&vec![0u8; len]).is_none(), "heat len {len}");
+    }
+    for len in [0usize, 4, 9] {
+        assert!(
+            parse_combined_bin(&vec![0u8; len]).is_none(),
+            "combined len {len}"
+        );
+    }
+}
+
+#[test]
+fn parsers_reject_the_right_length_with_the_wrong_magic() {
+    // Length and magic are checked in one `||`. If that became `&&`, a
+    // long-enough buffer of anything at all would be parsed as a payload.
+    let mut hist = minimal_hist_header(0);
+    hist[0..4].copy_from_slice(b"XXXX");
+    assert!(parse_hist_bin(&hist).is_none());
+
+    let mut heat = minimal_heat_header(0, 0);
+    heat[0..4].copy_from_slice(b"XXXX");
+    assert!(parse_heat_bin(&heat).is_none());
+
+    let mut combined = Vec::new();
+    combined.extend_from_slice(b"XXXX");
+    combined.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
+    combined.extend_from_slice(&0u32.to_le_bytes());
+    assert_eq!(combined.len(), 10);
+    assert!(parse_combined_bin(&combined).is_none());
+}
+
+#[test]
+fn decode_counts_rejects_a_run_that_overruns_the_declared_length() {
+    // Two literals then a run of three, but only four counts declared. The
+    // remaining space is two, so the run must be refused. Comparing against
+    // `len + out.len()` instead of `len - out.len()` would accept it and return
+    // more counts than the header promised.
+    let payload = encode_counts(&[1, 1, 0, 0, 0]);
+    assert_eq!(payload, vec![1, 1, 0, 3]);
+    assert!(decode_counts(&payload, 4).is_none());
+}
+
+#[test]
+fn decode_counts_accepts_exactly_the_maximum_cell_count() {
+    // The cap is `len > MAX_CELLS`, so the maximum itself is still valid. A zero
+    // run makes a grid this size only a few bytes on the wire, which is what
+    // makes the boundary cheap to test at all.
+    const MAX_CELLS: usize = 1 << 22;
+    let payload = encode_counts(&vec![0u32; MAX_CELLS]);
+
+    assert_eq!(
+        decode_counts(&payload, MAX_CELLS).map(|counts| counts.len()),
+        Some(MAX_CELLS)
+    );
+    assert!(decode_counts(&payload, MAX_CELLS + 1).is_none());
+}
+
 #[test]
 fn encode_counts_collapses_zero_runs() {
     // 1-byte literal, then a run marker + length, then a literal.
@@ -891,3 +992,119 @@ fn bodyweight_is_clamped_to_each_formulas_valid_range() {
         "the female clamp must keep her score above the male curve at 200 kg"
     );
 }
+
+// ===== JACKSON-POLLOCK 7-SITE PINS =====
+//
+// Same reasoning as the scoring pins above: the body-density polynomial has its
+// own set of transcribed coefficients that the range assertions elsewhere cannot
+// distinguish from a corrupted one.
+
+fn jp7_reference_sites() -> JacksonPollock7SiteSkinfolds {
+    JacksonPollock7SiteSkinfolds {
+        chest_mm: 12.0,
+        midaxillary_mm: 10.0,
+        tricep_mm: 14.0,
+        subscapular_mm: 16.0,
+        abdomen_mm: 20.0,
+        suprailiac_mm: 18.0,
+        thigh_mm: 22.0,
+    }
+}
+
+#[test]
+fn navy_and_ymca_match_pinned_coefficients() {
+    // The Navy formulas are log-based and the YMCA ones linear; each has its own
+    // set of transcribed constants that the range assertions elsewhere cannot
+    // tell apart from a corrupted set.
+    let male = calc_bodyfat_male(178.0, 85.0, 38.0, 90.0).expect("navy male");
+    assert_score(male.body_fat_pct, 20.1466, "navy male pct");
+    assert_score(male.lean_mass_kg, 67.8754, "navy male lean");
+    assert_score(male.fat_mass_kg, 17.1246, "navy male fat");
+
+    // The female formula adds the hip measurement and uses different constants.
+    let female = calc_bodyfat_female(165.0, 65.0, 33.0, 75.0, 95.0).expect("navy female");
+    assert_score(female.body_fat_pct, 26.9171, "navy female pct");
+    assert_score(female.lean_mass_kg, 47.5039, "navy female lean");
+    assert_score(female.fat_mass_kg, 17.4961, "navy female fat");
+
+    assert_score(
+        calc_bodyfat_ymca(85.0, 90.0, true).expect("ymca male").body_fat_pct,
+        17.7493,
+        "ymca male",
+    );
+    assert_score(
+        calc_bodyfat_ymca(65.0, 75.0, false).expect("ymca female").body_fat_pct,
+        23.7464,
+        "ymca female",
+    );
+}
+
+#[test]
+fn jp3_matches_pinned_coefficients_and_bounds() {
+    assert_score(
+        calc_bodyfat_jp3(30.0, 85.0, true, 12.0, 20.0, 22.0)
+            .expect("jp3 male")
+            .body_fat_pct,
+        16.2414,
+        "jp3 male",
+    );
+    assert_score(
+        calc_bodyfat_jp3(30.0, 65.0, false, 14.0, 18.0, 22.0)
+            .expect("jp3 female")
+            .body_fat_pct,
+        22.1452,
+        "jp3 female",
+    );
+
+    // Inclusive upper age bound, as in the 7-site version.
+    assert!(calc_bodyfat_jp3(120.0, 85.0, true, 12.0, 20.0, 22.0).is_some());
+    assert!(calc_bodyfat_jp3(121.0, 85.0, true, 12.0, 20.0, 22.0).is_none());
+}
+
+#[test]
+fn jp7_matches_pinned_coefficients() {
+    let male = calc_bodyfat_jp7(30.0, 85.0, true, jp7_reference_sites()).expect("male result");
+    assert_score(male.body_fat_pct, 16.3070, "jp7 male pct");
+    assert_score(male.lean_mass_kg, 71.1391, "jp7 male lean");
+    assert_score(male.fat_mass_kg, 13.8609, "jp7 male fat");
+
+    // The female branch uses different coefficients entirely.
+    let female = calc_bodyfat_jp7(30.0, 85.0, false, jp7_reference_sites()).expect("female result");
+    assert_score(female.body_fat_pct, 22.5227, "jp7 female pct");
+    assert_score(female.lean_mass_kg, 65.8557, "jp7 female lean");
+    assert_score(female.fat_mass_kg, 19.1443, "jp7 female fat");
+}
+
+#[test]
+fn jp7_accepts_the_oldest_valid_age_and_rejects_past_it() {
+    // The bound is inclusive; only an exact-120 case separates `>` from `>=`.
+    assert!(calc_bodyfat_jp7(120.0, 85.0, true, jp7_reference_sites()).is_some());
+    assert!(calc_bodyfat_jp7(121.0, 85.0, true, jp7_reference_sites()).is_none());
+    assert!(calc_bodyfat_jp7(0.0, 85.0, true, jp7_reference_sites()).is_none());
+}
+
+#[test]
+fn jp7_rejects_a_zero_reading_at_any_single_site() {
+    // A caliper reading of exactly zero is impossible and would skew the sum.
+    // Each site needs its own case: with six other positive readings, a single
+    // dropped bound is invisible unless that site is the one set to zero.
+    let sites = jp7_reference_sites();
+    let zeroed: [(&str, JacksonPollock7SiteSkinfolds); 7] = [
+        ("chest", JacksonPollock7SiteSkinfolds { chest_mm: 0.0, ..sites }),
+        ("midaxillary", JacksonPollock7SiteSkinfolds { midaxillary_mm: 0.0, ..sites }),
+        ("tricep", JacksonPollock7SiteSkinfolds { tricep_mm: 0.0, ..sites }),
+        ("subscapular", JacksonPollock7SiteSkinfolds { subscapular_mm: 0.0, ..sites }),
+        ("abdomen", JacksonPollock7SiteSkinfolds { abdomen_mm: 0.0, ..sites }),
+        ("suprailiac", JacksonPollock7SiteSkinfolds { suprailiac_mm: 0.0, ..sites }),
+        ("thigh", JacksonPollock7SiteSkinfolds { thigh_mm: 0.0, ..sites }),
+    ];
+
+    for (site, skinfolds) in zeroed {
+        assert!(
+            calc_bodyfat_jp7(30.0, 85.0, true, skinfolds).is_none(),
+            "a zero {site} reading should be rejected"
+        );
+    }
+}
+
+

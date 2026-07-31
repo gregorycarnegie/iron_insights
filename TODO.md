@@ -54,16 +54,30 @@ The web crate cannot be included: it has no native `cargo test` build.
 
 Baseline run (966 mutants): 547 caught, 191 timeout, 43 unviable, 185 missed.
 Timeouts are almost all loop conditions mutated into infinite loops, so they
-are detected in practice. `scoring.rs` accounted for 74 of the survivors and is
-now 113/113 caught. Remaining survivors, largest first:
+are detected in practice.
 
-- [ ] `bodyfat.rs` (24) — mostly `>` vs `>=` on skinfold validation bounds; a zero-width caliper reading is the only input that tells them apart
-- [ ] `seo_geo/snippets.rs` (14) — HTML string assembly; low value, the page invariants already cover the shape
-- [ ] `publish_data/versioning.rs` (13) — version-name validation and prune arithmetic; worth doing, these decide which published versions get deleted
-- [ ] `publish_data/histogram.rs` (11) — bin-edge arithmetic; a wrong edge shifts every published percentile
-- [ ] `iron_insights_core/binary.rs` (11) — parser length guards (`<` vs `<=`, `||` vs `&&`) on malformed payloads
-- [ ] `publish_data/metric.rs` (8), `aggregate.rs` (6), `seo_geo/stats.rs` (5), then a long tail of 1-3
-- [ ] 4 pre-existing `clippy::float_cmp` warnings in `helpers.rs` proptests — exact float equality is intentional there, so either `#[allow]` them with a reason or switch to an epsilon compare
+Addressed so far — re-verified per file, `missed` before to after:
+
+| file | before | after |
+|---|---|---|
+| `scoring.rs` | 74 | 0 |
+| `bodyfat.rs` | 24 | 0 |
+| `publish_data/versioning.rs` | 13 | 0 |
+| `seo_geo/snippets.rs` | 14 | 0 |
+| `publish_data/metric.rs` | 8 | 0 |
+| `publish_data/histogram.rs` | 11 | 2 (equivalent) |
+| `iron_insights_core/binary.rs` | 11 | 1 (equivalent) |
+
+Not yet addressed (the whole-repo number has not been re-measured since):
+
+- [ ] `seo_geo/stats.rs` (5) — the `100 * f / m` sex-comparison ratio in `load_stats`. The same arithmetic in `snippets.rs` is now covered, but this copy is not; needs a `load_stats` test over a published tree carrying both sexes for one lift
+- [ ] a long tail of 1-3 each in `seo_geo/render.rs`, `trends.rs`, `records.rs`, `accumulation.rs`, `rebin.rs`, `histogram.rs` (core)
+
+Known equivalent mutants — no test can kill these, do not chase them:
+
+- `publish_data/histogram.rs` `(width - 1)` / `(height - 1)` / `(bins - 1)` clamp bounds: indices are derived from the same edges that size the array, so the clamp never binds
+- `iron_insights_core/binary.rs:217` `<` vs `<=` in `parse_combined_bin`: a 10-byte payload is rejected either way, because the embedded histogram blob would be empty
+- `aggregate.rs` — `stack_size(64 * 1024 * 1024)` arithmetic on the worker thread, and `run`/`build_all` replaced with `Ok(())`; both entry points parse argv and cannot be driven from a test
 
 ## GEO (Generative Engine Optimization)
 

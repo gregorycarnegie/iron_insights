@@ -1,6 +1,6 @@
 use super::{
     accumulation::{AccumulationRow, MetricPublisher},
-    constants::{BW_BIN_BASE_KG, LIFT_BIN_BASE_KG},
+    constants::{BW_BIN_BASE_KG, LIFT_BIN_BASE_KG, SCORE_BIN_BASE_POINTS},
     histogram::{build_combined_bytes, build_heatmap, build_histogram},
     metric::Metric,
     trends::{parse_year_bucket, quantile_sorted},
@@ -94,6 +94,99 @@ fn build_histogram_uses_expected_edges_and_total() {
         hist.counts.iter().copied().map(u64::from).sum::<u64>(),
         hist.total
     );
+}
+
+// ===== METRIC MAPPING =====
+//
+// These map a lift and metric onto the published slice key and bin width. A
+// wrong answer here does not fail anything: it silently files a cohort under
+// the wrong key, or bins it at the wrong resolution.
+
+#[test]
+fn lift_codes_are_stable_for_every_published_lift() {
+    use super::metric::lift_code;
+
+    // These letters go straight into slice keys the app parses back.
+    assert_eq!(lift_code("squat"), "S");
+    assert_eq!(lift_code("bench"), "B");
+    assert_eq!(lift_code("deadlift"), "D");
+    assert_eq!(lift_code("total"), "T");
+    assert_eq!(lift_code("cartwheel"), "U");
+}
+
+#[test]
+fn only_total_carries_the_score_metrics() {
+    use super::metric::{Metric, metric_base_bin, metrics_for_lift};
+
+    assert_eq!(metrics_for_lift("total").len(), 4);
+    for lift in ["squat", "bench", "deadlift"] {
+        assert_eq!(metrics_for_lift(lift).len(), 1, "{lift} should be kg only");
+    }
+
+    // Kilograms and points need different bin widths.
+    assert_eq!(metric_base_bin(Metric::Kg), LIFT_BIN_BASE_KG);
+    assert_eq!(metric_base_bin(Metric::Dots), SCORE_BIN_BASE_POINTS);
+}
+
+#[test]
+fn score_metrics_are_only_computed_for_the_total() {
+    use super::metric::{Metric, metric_value};
+
+    // A DOTS score for a bench press alone is meaningless, so the guard must
+    // refuse it rather than score the single lift as though it were a total.
+    for metric in [Metric::Dots, Metric::Wilks, Metric::Gl] {
+        assert!(
+            metric_value(metric, "bench", "M", "Raw", 140.0, Some(93.0)).is_none(),
+            "{metric:?} should not be computed for a single lift"
+        );
+        assert!(
+            metric_value(metric, "total", "M", "Raw", 700.0, Some(93.0)).is_some(),
+            "{metric:?} should be computed for a total"
+        );
+    }
+
+    // Kg passes the lift value straight through, for any lift.
+    assert_eq!(
+        metric_value(Metric::Kg, "bench", "M", "Raw", 140.0, Some(93.0)),
+        Some(140.0)
+    );
+    // ...and a score needs a bodyweight to divide by.
+    assert!(metric_value(Metric::Dots, "total", "M", "Raw", 700.0, None).is_none());
+}
+
+#[test]
+fn build_histogram_places_values_in_the_expected_bins() {
+    // Asserting the whole counts vector, not just its sum: an index computed
+    // from the wrong edge still lands somewhere, and clamping keeps the total
+    // right, so a sum-only assertion cannot tell the two apart.
+    let hist = build_histogram(&[100.0, 101.0, 105.0], 2.5).expect("histogram should build");
+
+    assert_eq!(hist.min, 100.0);
+    assert_eq!(hist.max, 107.5);
+    assert_eq!(hist.counts, vec![2, 0, 1]);
+}
+
+#[test]
+fn build_heatmap_places_points_in_the_expected_cells() {
+    // Two deliberate choices here. A y base that is not 1.0, because with 1.0
+    // dividing and multiplying by the base are the same operation and the
+    // y-axis arithmetic goes untested whatever the assertion says. And a grid
+    // tall enough that a multiplied index lands somewhere other than the
+    // clamped top row — on a short grid both wrong and right answers get
+    // clamped to the same cell and the assertion cannot tell them apart.
+    let heat = build_heatmap(&[(100.0, 80.0), (105.0, 86.0), (102.5, 100.0)], 2.5, 2.0)
+        .expect("heatmap should build");
+
+    assert_eq!((heat.min_x, heat.max_x), (100.0, 107.5));
+    assert_eq!((heat.min_y, heat.max_y), (80.0, 102.0));
+    assert_eq!((heat.width, heat.height), (3, 11));
+
+    // Row-major, so index = y_bin * width + x_bin.
+    assert_eq!(heat.grid[0], 1, "(100, 80) belongs at the origin cell");
+    assert_eq!(heat.grid[3 * 3 + 2], 1, "(105, 86) belongs at x=2, y=3");
+    assert_eq!(heat.grid[10 * 3 + 1], 1, "(102.5, 100) belongs at x=1, y=10");
+    assert_eq!(heat.grid.iter().sum::<u32>(), 3, "no point may be lost");
+    assert_eq!(heat.grid.len(), 3 * 11);
 }
 
 #[test]

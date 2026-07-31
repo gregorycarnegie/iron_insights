@@ -147,6 +147,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a matching `copy-dir` link in `iron_insights_web/index.html`, without which
   trunk generates the page on every refresh and then drops it from the deploy.
 
+- **Coverage for the rest of the mutation-testing survivors.** Core tests 70 to
+  80, pipeline 47 to 63. Per file, surviving mutants before and after:
+  `bodyfat.rs` 24 to 0, `versioning.rs` 13 to 0, `snippets.rs` 14 to 0,
+  `metric.rs` 8 to 0, `histogram.rs` 11 to 2, `binary.rs` 11 to 1. The three
+  that remain are equivalent mutants, listed in `TODO.md` so they are not
+  chased again.
+
+  Several needed a specific fixture rather than more assertions, which is the
+  interesting part:
+
+  - `versioning.rs` had no tests at all. Pruning is checked with five versions
+    keeping two, because the obvious three-keeping-two case cannot tell
+    `len - keep` from `len / keep`. Another asserts `latest.json` and unrelated
+    directories survive, which is what breaks if the version-name check ever
+    returns true unconditionally.
+  - The heatmap y-axis was untestable with the production `BW_BIN_BASE_KG` of
+    1.0, where dividing and multiplying by the base are the same operation, so
+    the test uses 2.0. It also needs an 11-row grid: on a short one a wrongly
+    multiplied index and the correct index both clamp to the same cell.
+  - Cell-placement assertions replace sum-only ones. Clamping preserves the
+    total, so a index computed from the wrong edge still lands somewhere and a
+    sum assertion cannot see it.
+  - `binary.rs` needed payloads of exactly 22 and 38 bytes for the `len < N`
+    guards, right-length-wrong-magic for the `||`, and a run-overrun payload
+    where `len - out.len()` and `len + out.len()` actually diverge. The
+    `MAX_CELLS` boundary is affordable to test only because a zero run encodes
+    four million cells in a handful of bytes.
+  - The Navy, YMCA and Jackson-Pollock 3-site formulas are pinned alongside the
+    7-site one, and each of the seven skinfold sites gets its own zero-reading
+    case: with six other positive readings, a single dropped bound is invisible.
+
+- The four `clippy::float_cmp` warnings in the web helpers are now `#[expect]`
+  with a reason rather than silenced or loosened. `comparable_lift_value`
+  returns the lift verbatim, so exact equality is the property under test; an
+  epsilon would let a rounded or scaled value pass.
+
 ### Fixed
 
 - **The `iron_insights_web` test suite never ran.** CI invoked it with

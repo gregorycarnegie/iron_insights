@@ -2,7 +2,9 @@ use super::{
     content::build_pages,
     formatting::{group_thousands, human_date},
     render::{Site, escape, render_page, render_robots, render_sitemap, strip_for_jsonld},
-    snippets::{ordinal, wc_label},
+    snippets::{
+        comparison_table_html, ordinal, percentile_examples_html, standards_tables_html, wc_label,
+    },
     stats::{percentile_value, value_percentile},
 };
 use iron_insights_core::HistogramBin;
@@ -303,6 +305,93 @@ fn degrades_to_generic_copy_when_the_published_bins_are_missing() {
     )
     .expect("read percentile page");
     assert!(html.contains("over 2 million"), "expected the fallback count");
+}
+
+// ===== SNIPPET RENDERING =====
+//
+// These build the figure tables from a `Stats` value. Driving them with a
+// synthetic one pins the arithmetic that turns two medians into a percentage,
+// which the page-level invariants above deliberately do not look at.
+
+fn synthetic_stats() -> crate::seo_geo::stats::Stats {
+    use crate::seo_geo::stats::{ClassRow, Example, Stats};
+
+    Stats {
+        men: vec![ClassRow {
+            wc: "83",
+            cells: [Some((200.0, 260.0)), None, None, None],
+        }],
+        women: vec![ClassRow {
+            wc: "63",
+            cells: [Some((100.0, 140.0)), None, None, None],
+        }],
+        // Women's median is 60% of men's: 100 * 120 / 200.
+        comparison: vec![("squat", 200.0, 120.0, 60.0)],
+        dots_m: Some(400.0),
+        dots_f: Some(360.0),
+        result_count: 2_844_167,
+        // Both sexes, so the male/female wording branch is exercised.
+        examples: vec![
+            Example {
+                sex: "m",
+                wc: "83",
+                lift: "squat",
+                value: 180.0,
+                pct: 42.0,
+            },
+            Example {
+                sex: "f",
+                wc: "63",
+                lift: "deadlift",
+                value: 150.0,
+                pct: 71.0,
+            },
+        ],
+    }
+}
+
+#[test]
+fn comparison_table_reports_the_female_to_male_ratio() {
+    let html = comparison_table_html(&synthetic_stats());
+
+    assert!(html.contains("Squat"), "lift label missing:\n{html}");
+    assert!(html.contains("200 kg") && html.contains("120 kg"), "{html}");
+    // The ratio column and the DOTS note are both `100 * f / m`; a swapped
+    // operator here would publish a plausible but wrong headline number.
+    assert!(html.contains("60%"), "expected the 60% ratio:\n{html}");
+    assert!(html.contains("about 90%"), "expected the 90% DOTS gap:\n{html}");
+}
+
+#[test]
+fn comparison_table_is_empty_without_figures() {
+    let mut stats = synthetic_stats();
+    stats.comparison.clear();
+    assert!(comparison_table_html(&stats).is_empty());
+}
+
+#[test]
+fn percentile_examples_render_each_worked_case() {
+    let html = percentile_examples_html(&synthetic_stats());
+
+    assert!(html.contains("83 kg"), "weight class label missing:\n{html}");
+    assert!(html.contains("180 kg squat"), "{html}");
+    assert!(html.contains("42nd percentile"), "{html}");
+
+    // The sex word is chosen by a string compare; both branches must render.
+    assert!(html.contains("83 kg male"), "male wording missing:\n{html}");
+    assert!(html.contains("63 kg female"), "female wording missing:\n{html}");
+    assert!(html.contains("71st percentile"), "{html}");
+
+    let mut empty = synthetic_stats();
+    empty.examples.clear();
+    assert!(percentile_examples_html(&empty).is_empty());
+}
+
+#[test]
+fn standards_tables_label_both_sexes() {
+    let html = standards_tables_html(&synthetic_stats());
+    assert!(html.contains("83"), "men's class missing:\n{html}");
+    assert!(html.contains("63"), "women's class missing:\n{html}");
 }
 
 #[test]

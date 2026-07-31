@@ -147,6 +147,11 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    #[expect(
+        clippy::float_cmp,
+        reason = "these lifts are returned verbatim, so exact equality is the property under test: \
+                  an epsilon would let a value that had been rounded or scaled slip through"
+    )]
     fn comparable_lift_value_matches_generated_lift_fields() {
         property_runner()
             .run(
