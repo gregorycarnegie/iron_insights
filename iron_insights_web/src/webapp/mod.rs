@@ -28,8 +28,7 @@ mod ui;
 pub(super) use app::AppPage;
 
 use self::app::App;
-use leptos::mount::mount_to;
-use leptos::prelude::*;
+use leptos::{mount::mount_to, prelude::*};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 

@@ -1,10 +1,9 @@
 use super::{
     BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC, HeatmapBin,
-    HistogramBin, TINY_COHORT_WARNING_THRESHOLD, bodyweight_conditioned_percentile,
-    decode_counts, dots_points, encode_counts, equivalent_value_for_same_percentile,
-    goodlift_points, histogram_density_for_value, histogram_diagnostics, parse_combined_bin,
-    parse_heat_bin, parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
-    wilks_points,
+    HistogramBin, TINY_COHORT_WARNING_THRESHOLD, bodyweight_conditioned_percentile, decode_counts,
+    dots_points, encode_counts, equivalent_value_for_same_percentile, goodlift_points,
+    histogram_density_for_value, histogram_diagnostics, parse_combined_bin, parse_heat_bin,
+    parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile, wilks_points,
 };
 use crate::bodyfat::siri_bf_from_density;
 use proptest::prelude::*;

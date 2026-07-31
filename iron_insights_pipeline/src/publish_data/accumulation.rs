@@ -1,18 +1,22 @@
-use std::collections::{BTreeMap, HashMap};
-use std::fs;
-use std::path::Path;
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs,
+    path::Path,
+};
 
 use anyhow::{Context, Result};
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
-use super::constants::{ALL, ALL_AGES, BW_BIN_BASE_KG, VALID_BW_RANGE_KG};
-use super::histogram::{INLINE_THRESHOLD, build_combined_bytes, build_heatmap, build_histogram};
-use super::metric::{
-    Metric, lift_code, metric_base_bin, metric_code, metric_max_valid, metric_slug, tested_bucket,
+use super::{
+    constants::{ALL, ALL_AGES, BW_BIN_BASE_KG, VALID_BW_RANGE_KG},
+    histogram::{INLINE_THRESHOLD, build_combined_bytes, build_heatmap, build_histogram},
+    metric::{
+        Metric, lift_code, metric_base_bin, metric_code, metric_max_valid, metric_slug,
+        tested_bucket,
+    },
+    model::{HeatMeta, HistMeta, SliceIndexEntry, SliceMeta, SliceSummary},
+    util::{slug, write_bytes},
 };
-use super::model::{HeatMeta, HistMeta, SliceIndexEntry, SliceMeta, SliceSummary};
-use super::util::{slug, write_bytes};
 
 #[derive(Debug, Default)]
 pub(super) struct SliceAccumulator {

@@ -1,6 +1,8 @@
-use super::models::{RootIndex, SliceRow};
-use super::slices::parse_shard_key;
-use super::ui::{age_class_sort_key, ipf_class_sort_key, unique};
+use super::{
+    models::{RootIndex, SliceRow},
+    slices::parse_shard_key,
+    ui::{age_class_sort_key, ipf_class_sort_key, unique},
+};
 use leptos::prelude::*;
 use std::collections::{BTreeSet, HashMap};
 
@@ -280,8 +282,7 @@ fn selector_key(parts: &[&str]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::webapp::models::SliceIndexEntry;
-    use crate::webapp::slices::SliceKey;
+    use crate::webapp::{models::SliceIndexEntry, slices::SliceKey};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     fn row(wc: &str, age: &str, tested: &str, lift: &str, metric: &str) -> SliceRow {

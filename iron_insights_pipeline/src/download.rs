@@ -1,10 +1,12 @@
 //! Stage 1: download the OpenPowerlifting CSV dump and convert it to a
 //! canonical Parquet file, stamping a [`BuildMetadata`] snapshot alongside it.
 
-use std::fs::{self, File};
-use std::io::{self, BufWriter, copy};
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    fs::{self, File},
+    io::{self, BufWriter, copy},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use anyhow::{Context, Result, anyhow};
 use chrono::Utc;

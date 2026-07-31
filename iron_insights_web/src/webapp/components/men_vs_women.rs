@@ -1,12 +1,13 @@
 use super::shared::Corners;
-use crate::core::{HeatmapBin, HistogramBin, percentile_for_value, value_for_percentile};
-use crate::webapp::charts::{draw_cross_sex_heatmap_overlay, draw_dual_normal_curve_canvas};
-use crate::webapp::models::{CrossSexComparison, CrossSexLiftComparison};
-use crate::webapp::state::AppState;
-use leptos::ev;
-use leptos::html::Canvas;
-use leptos::leptos_dom::helpers::window_event_listener;
-use leptos::prelude::*;
+use crate::{
+    core::{HeatmapBin, HistogramBin, percentile_for_value, value_for_percentile},
+    webapp::{
+        charts::{draw_cross_sex_heatmap_overlay, draw_dual_normal_curve_canvas},
+        models::{CrossSexComparison, CrossSexLiftComparison},
+        state::AppState,
+    },
+};
+use leptos::{ev, html::Canvas, leptos_dom::helpers::window_event_listener, prelude::*};
 
 #[derive(Clone, Copy)]
 pub struct MenVsWomenCtx {

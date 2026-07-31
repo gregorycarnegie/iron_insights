@@ -1,12 +1,9 @@
 use super::shared::{Corners, InputForm};
-use crate::core::HeatmapBin;
-use crate::webapp::charts::draw_heatmap;
-use crate::webapp::helpers::kg_to_display;
-use crate::webapp::state::AppState;
-use leptos::ev;
-use leptos::html::Canvas;
-use leptos::leptos_dom::helpers::window_event_listener;
-use leptos::prelude::*;
+use crate::{
+    core::HeatmapBin,
+    webapp::{charts::draw_heatmap, helpers::kg_to_display, state::AppState},
+};
+use leptos::{ev, html::Canvas, leptos_dom::helpers::window_event_listener, prelude::*};
 
 const REF_SQUAT_PCT: f32 = 35.0;
 const REF_BENCH_PCT: f32 = 25.0;

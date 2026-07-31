@@ -15,8 +15,7 @@
 //! `robots.txt` and `sitemap.xml`; trunk copies them into the deploy dir via
 //! the copy-dir/copy-file links in `index.html`.
 
-use std::fs;
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Parser;

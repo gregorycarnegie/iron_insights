@@ -1,18 +1,18 @@
-use super::data::{fetch_binary_data_with_signal, fetch_json_data_with_signal};
-use super::helpers::{ComparableLifter, comparable_lift_value};
-use super::models::{
-    CrossSexComparison, CrossSexLiftComparison, LatestJson, RootIndex, SliceIndex,
-    SliceIndexEntries, SliceRow,
+use super::{
+    data::{fetch_binary_data_with_signal, fetch_json_data_with_signal},
+    helpers::{ComparableLifter, comparable_lift_value},
+    models::{
+        CrossSexComparison, CrossSexLiftComparison, LatestJson, RootIndex, SliceIndex,
+        SliceIndexEntries, SliceRow,
+    },
+    slices::{entry_from_slice_key, parse_slice_key},
+    state::RequestTracker,
 };
-use super::slices::{entry_from_slice_key, parse_slice_key};
-use super::state::RequestTracker;
 use crate::core::{
     HeatmapBin, HistogramBin, equivalent_value_for_same_percentile, parse_combined_bin,
 };
-use leptos::prelude::*;
-use leptos::task::spawn_local;
-use std::cell::RefCell;
-use std::collections::HashMap;
+use leptos::{prelude::*, task::spawn_local};
+use std::{cell::RefCell, collections::HashMap};
 
 pub(super) const MIN_CROSS_SEX_COHORT_TOTAL: u32 = 50;
 pub(super) const CROSS_SEX_LIFT_ROWS: [(&str, &str); 3] =

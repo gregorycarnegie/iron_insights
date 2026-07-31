@@ -1,8 +1,10 @@
 use serde_json::json;
 
-use super::assets::{FONTS, STYLE};
-use super::constants::{SOURCE_NAME, SOURCE_URL};
-use super::content::Page;
+use super::{
+    assets::{FONTS, STYLE},
+    constants::{SOURCE_NAME, SOURCE_URL},
+    content::Page,
+};
 
 /// Author/publisher entity for E-E-A-T signalling (GEO authority).
 fn publisher() -> serde_json::Value {

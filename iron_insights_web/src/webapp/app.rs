@@ -1,26 +1,28 @@
-use super::components;
-use super::cross_sex::{
-    CrossSexComparisonCtx, CrossSexHeatCtx, CrossSexHistCtx, CrossSexLiftComparisonCtx,
-    CrossSexRowsCtx, choose_cross_sex_slice, make_cross_sex_comparison,
-    setup_cross_sex_heat_effect, setup_cross_sex_hist_effect,
-    setup_cross_sex_lift_comparison_effect, setup_cross_sex_rows_effect,
+use super::{
+    components,
+    cross_sex::{
+        CrossSexComparisonCtx, CrossSexHeatCtx, CrossSexHistCtx, CrossSexLiftComparisonCtx,
+        CrossSexRowsCtx, choose_cross_sex_slice, make_cross_sex_comparison,
+        setup_cross_sex_heat_effect, setup_cross_sex_hist_effect,
+        setup_cross_sex_lift_comparison_effect, setup_cross_sex_rows_effect,
+    },
+    helpers::{ComparableLifter, comparable_lift_value, tier_for_percentile},
+    models::{CrossSexLiftComparison, LatestJson, RootIndex, SliceRow, SliceSummary},
+    persistence::{
+        HashNavCtx, QueryLoadCtx, StatePersistCtx, UnitPrefCtx, setup_hash_nav_effects,
+        setup_query_load_effect, setup_state_persist_effect, setup_unit_pref_effects,
+    },
+    selectors::{
+        age_options, equip_options, lift_options, metric_options, sex_options,
+        slice_selector_index, tested_options, wc_options,
+    },
+    state::{
+        self, AppState, ComputeState, LifterInputState, SelectionState, init_dataset_load,
+        setup_default_selection_effects, setup_distribution_effect, setup_slice_rows_effect,
+        setup_slice_summary_effect,
+    },
+    ui::metric_label,
 };
-use super::helpers::{ComparableLifter, comparable_lift_value, tier_for_percentile};
-use super::models::{CrossSexLiftComparison, LatestJson, RootIndex, SliceRow, SliceSummary};
-use super::persistence::{
-    HashNavCtx, QueryLoadCtx, StatePersistCtx, UnitPrefCtx, setup_hash_nav_effects,
-    setup_query_load_effect, setup_state_persist_effect, setup_unit_pref_effects,
-};
-use super::selectors::{
-    age_options, equip_options, lift_options, metric_options, sex_options, slice_selector_index,
-    tested_options, wc_options,
-};
-use super::state::{
-    self, AppState, ComputeState, LifterInputState, SelectionState, init_dataset_load,
-    setup_default_selection_effects, setup_distribution_effect, setup_slice_rows_effect,
-    setup_slice_summary_effect,
-};
-use super::ui::metric_label;
 use crate::core::{HeatmapBin, HistogramBin, percentile_for_value, rebin_1d, rebin_2d};
 use gloo_timers::callback::Timeout;
 use leptos::prelude::*;
@@ -855,8 +857,7 @@ pub(super) fn App() -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::{App, AppPage};
-    use leptos::mount::mount_to;
-    use leptos::prelude::*;
+    use leptos::{mount::mount_to, prelude::*};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
     use web_sys::HtmlElement;

@@ -1,5 +1,7 @@
-use super::snippets::{comparison_table_html, percentile_examples_html, standards_tables_html};
-use super::stats::Stats;
+use super::{
+    snippets::{comparison_table_html, percentile_examples_html, standards_tables_html},
+    stats::Stats,
+};
 
 mod calculators;
 mod method;

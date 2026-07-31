@@ -1,13 +1,14 @@
-use std::collections::BTreeMap;
-use std::path::Path;
+use std::{collections::BTreeMap, path::Path};
 
 use anyhow::{Context, Result};
 use polars::prelude::*;
 
-use super::accumulation::{AccumulationRow, MetricPublisher};
-use super::metric::{metric_value, metrics_for_lift};
-use super::model::SliceIndexEntry;
-use super::trends::parse_year_bucket;
+use super::{
+    accumulation::{AccumulationRow, MetricPublisher},
+    metric::{metric_value, metrics_for_lift},
+    model::SliceIndexEntry,
+    trends::parse_year_bucket,
+};
 
 pub(super) struct PublishRecordsJob<'a> {
     pub(super) records_path: &'a Path,

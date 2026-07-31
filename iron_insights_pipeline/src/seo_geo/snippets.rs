@@ -1,5 +1,7 @@
-use super::constants::LIFT_LABELS;
-use super::stats::{ClassRow, Stats};
+use super::{
+    constants::LIFT_LABELS,
+    stats::{ClassRow, Stats},
+};
 
 pub(super) fn wc_label(wc: &str) -> String {
     match wc.strip_suffix('_') {

@@ -1,7 +1,11 @@
 use super::shared::Corners;
-use crate::core::{KG_PER_LB, plates_per_side};
-use crate::webapp::helpers::{display_to_kg, kg_to_display};
-use crate::webapp::ui::parse_f32_input;
+use crate::{
+    core::{KG_PER_LB, plates_per_side},
+    webapp::{
+        helpers::{display_to_kg, kg_to_display},
+        ui::parse_f32_input,
+    },
+};
 use leptos::prelude::*;
 
 #[derive(Clone, PartialEq)]

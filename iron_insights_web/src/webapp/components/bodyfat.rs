@@ -1,9 +1,11 @@
 use super::shared::Corners;
-use crate::webapp::helpers::{
-    JacksonPollock7SiteSkinfolds, bodyfat_category, calc_bodyfat_female, calc_bodyfat_jp3,
-    calc_bodyfat_jp7, calc_bodyfat_male, calc_bodyfat_ymca,
+use crate::webapp::{
+    helpers::{
+        JacksonPollock7SiteSkinfolds, bodyfat_category, calc_bodyfat_female, calc_bodyfat_jp3,
+        calc_bodyfat_jp7, calc_bodyfat_male, calc_bodyfat_ymca,
+    },
+    ui::parse_f32_input,
 };
-use crate::webapp::ui::parse_f32_input;
 use leptos::prelude::*;
 
 const MALE_BF_ROWS: [(&str, &str, &str); 6] = [

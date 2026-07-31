@@ -1,6 +1,4 @@
-use std::collections::BTreeMap;
-use std::fs;
-use std::path::PathBuf;
+use std::{collections::BTreeMap, fs, path::PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Parser;

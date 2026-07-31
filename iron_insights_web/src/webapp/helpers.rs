@@ -55,8 +55,10 @@ pub(super) fn format_input_bound(value_kg: f32, use_lbs: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proptest::prelude::*;
-    use proptest::test_runner::{Config, TestRunner};
+    use proptest::{
+        prelude::*,
+        test_runner::{Config, TestRunner},
+    };
     use wasm_bindgen_test::wasm_bindgen_test;
 
     fn property_runner() -> TestRunner {

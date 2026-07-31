@@ -1,5 +1,7 @@
-use crate::webapp::helpers::{display_to_kg, format_input_bound};
-use crate::webapp::state::AppState;
+use crate::webapp::{
+    helpers::{display_to_kg, format_input_bound},
+    state::AppState,
+};
 use leptos::prelude::*;
 use web_sys::HtmlInputElement;
 

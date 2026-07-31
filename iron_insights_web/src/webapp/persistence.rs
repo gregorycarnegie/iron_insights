@@ -1,9 +1,9 @@
-use super::AppPage;
-use super::helpers::parse_query_f32;
-use super::models::{SAVED_UI_STATE_VERSION, SavedUiState};
-use leptos::ev;
-use leptos::leptos_dom::helpers::window_event_listener;
-use leptos::prelude::*;
+use super::{
+    AppPage,
+    helpers::parse_query_f32,
+    models::{SAVED_UI_STATE_VERSION, SavedUiState},
+};
+use leptos::{ev, leptos_dom::helpers::window_event_listener, prelude::*};
 
 #[derive(Clone, Copy)]
 pub(super) struct UnitPrefCtx {

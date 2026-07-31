@@ -1,6 +1,5 @@
 use super::shared::Corners;
-use crate::core::calc_1rm;
-use crate::webapp::ui::parse_f32_input;
+use crate::{core::calc_1rm, webapp::ui::parse_f32_input};
 use leptos::prelude::*;
 
 const PERCENTAGES: &[(&str, u32, &str)] = &[

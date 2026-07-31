@@ -1,13 +1,12 @@
 use super::shared::{Corners, InputForm};
-use crate::core::value_for_percentile;
-use crate::webapp::charts::draw_ranking_distribution_canvas;
-use crate::webapp::helpers::kg_to_display;
-use crate::webapp::state::AppState;
-use crate::webapp::ui::metric_label;
-use leptos::ev;
-use leptos::html::Canvas;
-use leptos::leptos_dom::helpers::window_event_listener;
-use leptos::prelude::*;
+use crate::{
+    core::value_for_percentile,
+    webapp::{
+        charts::draw_ranking_distribution_canvas, helpers::kg_to_display, state::AppState,
+        ui::metric_label,
+    },
+};
+use leptos::{ev, html::Canvas, leptos_dom::helpers::window_event_listener, prelude::*};
 
 const LADDER_DOTS: usize = 240;
 const LADDER_MARKS: [(f32, &str, &str); 5] = [

@@ -1,5 +1,4 @@
-use std::fs;
-use std::path::Path;
+use std::{fs, path::Path};
 
 use iron_insights_core::{HistogramBin, parse_combined_bin};
 
