@@ -70,7 +70,11 @@ pub fn run() -> Result<()> {
 }
 
 fn build_all() -> Result<()> {
-    let args = Args::parse();
+    build_aggregates(&Args::parse())
+}
+
+/// Split from [`build_all`] so tests can drive a build without going through argv.
+fn build_aggregates(args: &Args) -> Result<()> {
     fs::create_dir_all(&args.output_dir)
         .with_context(|| format!("failed to create {}", args.output_dir.display()))?;
 
@@ -243,8 +247,106 @@ fn derive_age_class_expr() -> Expr {
 
 #[cfg(test)]
 mod tests {
-    use super::{derive_age_class_expr, derive_ipf_weight_class_expr, event_filter};
+    use super::{Args, build_aggregates, derive_age_class_expr, derive_ipf_weight_class_expr,
+        event_filter};
     use polars::prelude::*;
+    use std::path::Path;
+    use tempfile::TempDir;
+
+    /// One competition result, in the shape stage 1 writes.
+    struct SourceRow {
+        name: &'static str,
+        sex: &'static str,
+        equipment: &'static str,
+        event: &'static str,
+        tested: &'static str,
+        sanctioned: &'static str,
+        place: &'static str,
+        age: f32,
+        bodyweight: f32,
+        squat: f32,
+        bench: f32,
+        deadlift: f32,
+        total: f32,
+        date: &'static str,
+    }
+
+    impl SourceRow {
+        /// A clean, sanctioned, raw male SBD result that survives every filter.
+        fn valid(name: &'static str) -> Self {
+            Self {
+                name,
+                sex: "M",
+                equipment: "Raw",
+                event: "SBD",
+                tested: "Yes",
+                sanctioned: "Yes",
+                place: "1",
+                age: 30.0,
+                bodyweight: 92.0,
+                squat: 200.0,
+                bench: 140.0,
+                deadlift: 240.0,
+                total: 580.0,
+                date: "2026-03-07",
+            }
+        }
+    }
+
+    fn write_source_parquet(path: &Path, rows: &[SourceRow]) {
+        std::fs::create_dir_all(path.parent().expect("source path has a parent"))
+            .expect("create source dir");
+
+        let mut df = df!(
+            "Name" => rows.iter().map(|r| r.name).collect::<Vec<_>>(),
+            "Sex" => rows.iter().map(|r| r.sex).collect::<Vec<_>>(),
+            "Equipment" => rows.iter().map(|r| r.equipment).collect::<Vec<_>>(),
+            "Event" => rows.iter().map(|r| r.event).collect::<Vec<_>>(),
+            "Tested" => rows.iter().map(|r| r.tested).collect::<Vec<_>>(),
+            "Sanctioned" => rows.iter().map(|r| r.sanctioned).collect::<Vec<_>>(),
+            "Place" => rows.iter().map(|r| r.place).collect::<Vec<_>>(),
+            "Age" => rows.iter().map(|r| r.age).collect::<Vec<_>>(),
+            "BodyweightKg" => rows.iter().map(|r| r.bodyweight).collect::<Vec<_>>(),
+            "Best3SquatKg" => rows.iter().map(|r| r.squat).collect::<Vec<_>>(),
+            "Best3BenchKg" => rows.iter().map(|r| r.bench).collect::<Vec<_>>(),
+            "Best3DeadliftKg" => rows.iter().map(|r| r.deadlift).collect::<Vec<_>>(),
+            "TotalKg" => rows.iter().map(|r| r.total).collect::<Vec<_>>(),
+            "Date" => rows.iter().map(|r| r.date).collect::<Vec<_>>(),
+        )
+        .expect("source frame should build");
+
+        let mut file = std::fs::File::create(path).expect("create source parquet");
+        ParquetWriter::new(&mut file)
+            .finish(&mut df)
+            .expect("write source parquet");
+    }
+
+    /// Runs stage 2 over `rows` and returns the temp dir plus the records dir.
+    fn run_stage_2(rows: &[SourceRow]) -> (TempDir, std::path::PathBuf) {
+        let temp = TempDir::new().expect("temp dir");
+        let input_parquet = temp.path().join("source.parquet");
+        let output_dir = temp.path().join("records");
+        write_source_parquet(&input_parquet, rows);
+
+        build_aggregates(&Args {
+            input_parquet,
+            output_dir: output_dir.clone(),
+        })
+        .expect("stage 2 should succeed");
+
+        (temp, output_dir)
+    }
+
+    fn read_records(records_dir: &Path, tested: &str, lift: &str) -> DataFrame {
+        let path = records_dir.join(tested).join(format!("{lift}.parquet"));
+        LazyFrame::scan_parquet(
+            path.to_string_lossy().as_ref().into(),
+            ScanArgsParquet::default(),
+        )
+        .unwrap_or_else(|e| panic!("scan {}: {e}", path.display()))
+        .collect()
+        .expect("collect records")
+    }
 
     #[test]
     fn event_filter_includes_expected_events() {
@@ -297,5 +399,105 @@ mod tests {
         assert_eq!(col.get(1), Some("120+"));
         assert_eq!(col.get(2), Some("57"));
         assert_eq!(col.get(3), Some("84+"));
+    }
+
+    // ===== END-TO-END AGGREGATE =====
+
+    #[test]
+    fn writes_a_parquet_per_lift_and_cohort() {
+        let (_temp, records) = run_stage_2(&[SourceRow::valid("Ada")]);
+
+        // Stage 3 walks exactly this grid and skips what is missing, so a lift
+        // silently dropped here becomes a lift missing from the whole site.
+        for tested in ["all", "tested"] {
+            for lift in ["squat", "bench", "deadlift", "total"] {
+                let path = records.join(tested).join(format!("{lift}.parquet"));
+                assert!(path.is_file(), "stage 2 did not write {}", path.display());
+            }
+        }
+    }
+
+    #[test]
+    fn output_columns_match_what_stage_3_reads() {
+        let (_temp, records) = run_stage_2(&[SourceRow::valid("Ada")]);
+        let df = read_records(&records, "all", "squat");
+
+        // `publish_data::collect_records_frame` selects these by name. Name and
+        // TestedBucket are grouping keys only and must not survive: Name alone
+        // was 45% of the written file.
+        let mut columns: Vec<_> = df.get_column_names().iter().map(|c| c.to_string()).collect();
+        columns.sort();
+        assert_eq!(
+            columns,
+            [
+                "AgeClassBucket",
+                "Equipment",
+                "IpfWeightClass",
+                "Sex",
+                "best_lift",
+                "bodyweight_at_best",
+                "date_at_best",
+            ]
+        );
+    }
+
+    #[test]
+    fn keeps_only_each_lifters_best_result() {
+        // Same lifter, same cohort, three meets: one row out, holding the best.
+        let mut light = SourceRow::valid("Ada");
+        light.squat = 180.0;
+        light.date = "2026-01-01";
+        let mut heavy = SourceRow::valid("Ada");
+        heavy.squat = 215.0;
+        heavy.date = "2026-06-01";
+        let mut middling = SourceRow::valid("Ada");
+        middling.squat = 200.0;
+
+        let (_temp, records) = run_stage_2(&[light, heavy, middling]);
+        let df = read_records(&records, "all", "squat");
+
+        assert_eq!(df.height(), 1, "one row per lifter per cohort");
+        let best = df.column("best_lift").expect("best_lift").f32().expect("f32");
+        assert_eq!(best.get(0), Some(215.0));
+    }
+
+    #[test]
+    fn drops_rows_that_are_not_real_results() {
+        let mut dq = SourceRow::valid("Disqualified");
+        dq.place = "DQ";
+        let mut unsanctioned = SourceRow::valid("Unsanctioned");
+        unsanctioned.sanctioned = "No";
+        let mut no_bodyweight = SourceRow::valid("NoBodyweight");
+        no_bodyweight.bodyweight = 0.0;
+        let mut bench_only = SourceRow::valid("BenchOnly");
+        bench_only.event = "B";
+
+        let (_temp, records) = run_stage_2(&[
+            SourceRow::valid("Ada"),
+            dq,
+            unsanctioned,
+            no_bodyweight,
+            bench_only,
+        ]);
+
+        // Only Ada has a squat that counts; the bench-only lifter has no squat
+        // event, and the rest fail a validity filter.
+        let squats = read_records(&records, "all", "squat");
+        assert_eq!(squats.height(), 1);
+
+        // ...but the bench-only lifter does belong in the bench table.
+        let benches = read_records(&records, "all", "bench");
+        assert_eq!(benches.height(), 2);
+    }
+
+    #[test]
+    fn tested_cohort_excludes_untested_lifters() {
+        let mut untested = SourceRow::valid("Untested");
+        untested.tested = "";
+
+        let (_temp, records) = run_stage_2(&[SourceRow::valid("Ada"), untested]);
+
+        assert_eq!(read_records(&records, "all", "squat").height(), 2);
+        assert_eq!(read_records(&records, "tested", "squat").height(), 1);
     }
 }

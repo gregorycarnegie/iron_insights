@@ -4,6 +4,8 @@ pub mod aggregate;
 pub mod download;
 pub mod publish_data;
 pub mod seo_geo;
+#[cfg(test)]
+mod test_support;
 
 pub const DEFAULT_ZIP_URL: &str =
     "https://openpowerlifting.gitlab.io/opl-csv/files/openpowerlifting-latest.zip";

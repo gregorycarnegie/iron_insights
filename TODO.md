@@ -31,8 +31,12 @@ cargo test --manifest-path iron_insights_web/Cargo.toml --target wasm32-unknown-
 CI runs both, and resolves chromedriver from the runner image's `CHROMEWEBDRIVER`.
 Bumping `wasm-bindgen` means bumping the pinned version in the workflow too.
 
-- [x] Stage 03 end-to-end: synthetic records parquet in a `tempfile::TempDir`, real publish, then the tree read back as raw JSON and payloads decoded with `iron_insights_core::parse_combined_bin` — covers the layout, the summary totals, republish-clears-orphans, and version pruning
-- [ ] Stages 01, 02 and 04 still have no end-to-end test. 01 needs a fake zip/CSV fixture, 02 a source parquet, 04 a published `bin/` tree — each is a fixture-building exercise more than a test-writing one
+- [x] Every stage now has end-to-end coverage, driven from shared fixtures in `src/test_support.rs`:
+  - **01** — a hand-built zip (with a decoy non-CSV entry) through extraction, parquet conversion and metadata stamping. The `Float32` schema override is asserted on a wholly-empty column, since that is what stops stage 2's `> 0` filters silently matching nothing. Only the HTTP GET is left uncovered; `run` does the fetch and delegates the rest to `convert_downloaded_zip`
+  - **02** — a synthetic source parquet through filtering, per-lifter best aggregation and cohort splitting, asserting the output columns are exactly the seven stage 3 reads
+  - **03** — records parquet in, published tree out, read back as raw JSON with payloads decoded by `iron_insights_core::parse_combined_bin`
+  - **04** — runs a real stage 3 publish first, then generates against it, so the 03 → 04 seam is covered. The fixture is deliberately wide enough to exceed `INLINE_THRESHOLD`, otherwise no `.bin` files exist and stage 4 would silently test only its statless fallback
+- [ ] No test spans 01 → 04 in one run. Each stage is covered against fixtures of the next one's input shape, which catches schema drift but not a stage that is skipped entirely
 - [ ] Consider `cargo-mutants` as an occasional audit rather than a CI gate; it is the only way to tell whether these tests actually catch anything, and a manual spot-check (breaking a published total, confirming a red test) is the cheap version
 - [ ] 4 pre-existing `clippy::float_cmp` warnings in `helpers.rs` proptests — exact float equality is intentional there, so either `#[allow]` them with a reason or switch to an epsilon compare
 

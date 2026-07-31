@@ -35,27 +35,31 @@ use formatting::{group_thousands, human_date};
 use render::{Site, render_page, render_robots, render_sitemap};
 use stats::load_stats;
 
+#[cfg(test)]
+pub(crate) use Args as SeoArgs;
+
+/// Crate-visible so the stage 4 tests can generate into a temp dir.
 #[derive(Debug, Parser)]
 #[command(about = "Generate the static SEO/GEO landing pages from published data")]
-struct Args {
+pub(crate) struct Args {
     /// Published data dir (source of truth, read for concrete figures).
     #[arg(long, default_value = "data")]
-    data_dir: PathBuf,
+    pub(crate) data_dir: PathBuf,
 
     /// Web crate dir: receives seo/, robots.txt and sitemap.xml.
     #[arg(long, default_value = "iron_insights_web")]
-    web_dir: PathBuf,
+    pub(crate) web_dir: PathBuf,
 
     /// Canonical site origin (with trailing slash).
     #[arg(
         long,
         default_value = "https://gregorycarnegie.github.io/iron_insights/"
     )]
-    base_url: String,
+    pub(crate) base_url: String,
 
     /// schema.org datePublished for the pages.
     #[arg(long, default_value = DATEPUBLISHED_DEFAULT)]
-    date_published: String,
+    pub(crate) date_published: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,8 +68,12 @@ pub(super) struct LatestJson {
 }
 
 pub fn run() -> Result<()> {
-    let args = Args::parse();
+    generate(&Args::parse())
+}
 
+/// Split from [`run`] so tests can generate into a temp dir from a published
+/// tree without going through argv.
+pub(crate) fn generate(args: &Args) -> Result<()> {
     let latest_path = args.data_dir.join("latest.json");
     let latest: LatestJson = serde_json::from_slice(
         &fs::read(&latest_path)

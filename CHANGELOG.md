@@ -95,6 +95,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **End-to-end coverage for pipeline stages 1, 2 and 4.** Each stage's `run`
+  now parses argv and delegates to a function tests can call directly, and
+  fixtures live in a shared `src/test_support.rs` so stages 3 and 4 exercise the
+  same publish path rather than two approximations of it. Pipeline tests: 26 to
+  47.
+
+  Stage 1 runs a hand-built zip — including a decoy non-CSV entry, to prove the
+  CSV is chosen by extension rather than by position — through extraction,
+  parquet conversion, metadata stamping and temp-file cleanup. Only the HTTP GET
+  is left uncovered. The `Float32` schema override is asserted against a column
+  that is empty on every row, because that is the case where inference would
+  otherwise pick a non-numeric type and stage 2's `> 0` filters would quietly
+  stop matching; removing the override turns that column `Int64` and fails the
+  test.
+
+  Stage 2 takes a synthetic source parquet through the validity filters
+  (DQ/DD/NS, unsanctioned, missing bodyweight, wrong event), per-lifter best
+  aggregation, and the tested/all split, and pins the output columns to exactly
+  the seven stage 3 reads — the cross-stage contract that `Name` and
+  `TestedBucket` must not cross.
+
+  Stage 4 runs a real stage 3 publish first and generates against its output, so
+  the seam between them is covered rather than a hand-built `bin/` tree. The
+  fixture is deliberately wide enough to exceed `INLINE_THRESHOLD`: a smaller one
+  would be inlined into the index, leaving stage 4 no `.bin` files to read, and
+  the test would pass while exercising only the statless fallback. Paired tests
+  assert the real figures appear when payloads exist and the generic copy appears
+  when they do not, so neither can silently become the other.
+
 - **End-to-end coverage for `03_publish_data`.** `run` now parses argv and
   delegates to a `publish(&Args)` that tests can drive against a
   `tempfile::TempDir`: a synthetic records parquet goes in, and the published

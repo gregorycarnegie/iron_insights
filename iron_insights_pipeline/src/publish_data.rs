@@ -19,25 +19,30 @@ use records::{PublishRecordsJob, publish_records_for_lift};
 use trends::build_trends_shards;
 use versioning::{prune_old_versions, read_optional_build_metadata, resolve_version};
 
+#[cfg(test)]
+pub(crate) use Args as PublishArgs;
+
+/// Crate-visible so `test_support` can build a published tree for the stage 4
+/// tests; the binary still reaches it only through [`run`].
 #[derive(Debug, Parser)]
-struct Args {
+pub(crate) struct Args {
     #[arg(long, default_value = "iron_insights_pipeline/output/records")]
-    records_dir: PathBuf,
+    pub(crate) records_dir: PathBuf,
 
     #[arg(
         long,
         default_value = "iron_insights_pipeline/output/build_metadata.json"
     )]
-    build_metadata_path: PathBuf,
+    pub(crate) build_metadata_path: PathBuf,
 
     #[arg(long, default_value = "data")]
-    data_dir: PathBuf,
+    pub(crate) data_dir: PathBuf,
 
     #[arg(long)]
-    version: Option<String>,
+    pub(crate) version: Option<String>,
 
     #[arg(long, default_value_t = 4)]
-    keep_versions: usize,
+    pub(crate) keep_versions: usize,
 }
 
 pub fn run() -> Result<()> {
@@ -46,7 +51,7 @@ pub fn run() -> Result<()> {
 
 /// Split from [`run`] so tests can drive a publish against a temp directory
 /// without going through argv.
-fn publish(args: &Args) -> Result<()> {
+pub(crate) fn publish(args: &Args) -> Result<()> {
     fs::create_dir_all(&args.data_dir)
         .with_context(|| format!("failed to create {}", args.data_dir.display()))?;
 

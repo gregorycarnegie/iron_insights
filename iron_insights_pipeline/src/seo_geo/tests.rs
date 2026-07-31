@@ -191,3 +191,132 @@ fn robots_points_crawlers_at_the_sitemap() {
         "robots.txt must advertise the sitemap:\n{robots}"
     );
 }
+
+// ===== END-TO-END GENERATION =====
+//
+// Stage 4 reads the tree stage 3 publishes, so these run a real publish first
+// rather than hand-building a `bin/` directory. That makes them a test of the
+// seam as much as of stage 4: a change to the published layout that stage 4 is
+// not taught about fails here.
+
+use crate::seo_geo::{SeoArgs, generate};
+use crate::test_support::{publish_tree, wide_cohort};
+
+/// Publishes a cohort wide enough to survive as real `.bin` files, then
+/// generates the site into a temp web dir.
+fn generate_site() -> (tempfile::TempDir, std::path::PathBuf) {
+    let (temp, data_dir) = publish_tree(
+        "v2026-07-31",
+        &[
+            ("squat", wide_cohort("M", "83", 100.0)),
+            ("bench", wide_cohort("M", "83", 60.0)),
+            ("deadlift", wide_cohort("F", "63", 80.0)),
+            ("total", wide_cohort("M", "83", 300.0)),
+        ],
+    );
+    let web_dir = temp.path().join("web");
+
+    generate(&SeoArgs {
+        data_dir,
+        web_dir: web_dir.clone(),
+        base_url: "https://example.test/iron_insights/".to_string(),
+        date_published: "2026-06-20".to_string(),
+    })
+    .expect("stage 4 should succeed");
+
+    (temp, web_dir)
+}
+
+#[test]
+fn writes_every_page_plus_robots_and_sitemap() {
+    let (_temp, web_dir) = generate_site();
+
+    for page in build_pages(None) {
+        let out = web_dir.join("seo").join(page.slug).join("index.html");
+        assert!(out.is_file(), "stage 4 did not write {}", out.display());
+
+        let html = std::fs::read_to_string(&out).expect("read page");
+        assert!(html.starts_with("<!doctype html>"), "{} lacks a doctype", page.slug);
+        assert!(
+            html.contains("application/ld+json"),
+            "{} lost its structured data",
+            page.slug
+        );
+    }
+
+    assert!(web_dir.join("robots.txt").is_file());
+    assert!(web_dir.join("sitemap.xml").is_file());
+}
+
+#[test]
+fn pages_carry_figures_read_back_from_the_published_bins() {
+    let (_temp, web_dir) = generate_site();
+    let html = std::fs::read_to_string(
+        web_dir
+            .join("seo")
+            .join("powerlifting-strength-standards")
+            .join("index.html"),
+    )
+    .expect("read standards page");
+
+    // The whole point of stage 4 is injecting real figures. If the fixture were
+    // small enough to be inlined into the index, `load_stats` would find no
+    // `.bin` files, silently fall back, and this page would ship the generic
+    // copy — so assert the data actually made the round trip.
+    assert!(
+        html.contains("<table>"),
+        "standards page has no data table, so stats did not load"
+    );
+    assert!(
+        !html.contains("over 2 million"),
+        "page fell back to the placeholder count instead of the real one"
+    );
+    assert!(
+        html.contains("83"),
+        "the published 83 kg cohort is missing from the standards table"
+    );
+}
+
+#[test]
+fn degrades_to_generic_copy_when_the_published_bins_are_missing() {
+    let (temp, data_dir) = publish_tree("v2026-07-31", &[("squat", wide_cohort("M", "83", 100.0))]);
+
+    // latest.json still points at the version, but the payloads are gone. This
+    // is what a partial or interrupted publish looks like, and stage 4 must
+    // still produce a site rather than panicking or writing nothing.
+    std::fs::remove_dir_all(data_dir.join("v2026-07-31").join("bin")).expect("drop bins");
+
+    let web_dir = temp.path().join("web-degraded");
+    generate(&SeoArgs {
+        data_dir,
+        web_dir: web_dir.clone(),
+        base_url: "https://example.test/iron_insights/".to_string(),
+        date_published: "2026-06-20".to_string(),
+    })
+    .expect("stage 4 should still succeed without payloads");
+
+    let html = std::fs::read_to_string(
+        web_dir
+            .join("seo")
+            .join("strength-percentile-calculator")
+            .join("index.html"),
+    )
+    .expect("read percentile page");
+    assert!(html.contains("over 2 million"), "expected the fallback count");
+}
+
+#[test]
+fn fails_loudly_when_there_is_nothing_published() {
+    let temp = tempfile::TempDir::new().expect("temp dir");
+
+    let result = generate(&SeoArgs {
+        data_dir: temp.path().join("empty"),
+        web_dir: temp.path().join("web"),
+        base_url: "https://example.test/iron_insights/".to_string(),
+        date_published: "2026-06-20".to_string(),
+    });
+
+    // Publishing a site built from no data at all would quietly replace good
+    // pages with empty ones on the next deploy.
+    assert!(result.is_err(), "missing latest.json must be an error");
+}

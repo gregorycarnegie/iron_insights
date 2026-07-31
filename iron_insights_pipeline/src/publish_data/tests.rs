@@ -205,57 +205,26 @@ fn quantile_sorted_uses_nearest_rank_on_sorted_data() {
 // should fail here, and it would not if both sides shared a struct.
 
 use super::{Args, publish};
+use crate::test_support::{RecordRow, publish_tree};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use polars::prelude::*;
 use serde_json::Value;
 use std::{fs, path::Path};
 use tempfile::TempDir;
 
-/// One row per lifter, in the shape stage 2 hands to stage 3.
-fn write_records_parquet(path: &Path, rows: &[(&str, &str, &str, &str, f32, f32, &str)]) {
-    fs::create_dir_all(path.parent().expect("records path has a parent")).expect("create dir");
-
-    let mut df = df!(
-        "Sex" => rows.iter().map(|r| r.0).collect::<Vec<_>>(),
-        "Equipment" => rows.iter().map(|r| r.1).collect::<Vec<_>>(),
-        "IpfWeightClass" => rows.iter().map(|r| r.2).collect::<Vec<_>>(),
-        "AgeClassBucket" => rows.iter().map(|r| r.3).collect::<Vec<_>>(),
-        "best_lift" => rows.iter().map(|r| r.4).collect::<Vec<_>>(),
-        "bodyweight_at_best" => rows.iter().map(|r| r.5).collect::<Vec<_>>(),
-        "date_at_best" => rows.iter().map(|r| r.6).collect::<Vec<_>>(),
-    )
-    .expect("records frame should build");
-
-    let mut file = fs::File::create(path).expect("create parquet");
-    ParquetWriter::new(&mut file)
-        .finish(&mut df)
-        .expect("write parquet");
-}
-
 /// Publishes a fixed three-lifter cohort and returns the temp dir plus data dir.
 fn publish_fixture(version: &str) -> (TempDir, std::path::PathBuf) {
-    let temp = TempDir::new().expect("temp dir");
-    let records_dir = temp.path().join("records");
-    let data_dir = temp.path().join("data");
-
     // Two men and one woman, all raw, all in the same age class.
-    let squats = [
-        ("M", "Raw", "93", "24-34", 200.0f32, 92.0f32, "2026-03-07"),
-        ("M", "Raw", "93", "24-34", 220.0, 91.0, "2026-04-01"),
-        ("F", "Raw", "63", "24-34", 120.0, 62.0, "2026-05-02"),
-    ];
-    write_records_parquet(&records_dir.join("all").join("squat.parquet"), &squats);
-
-    publish(&Args {
-        records_dir,
-        build_metadata_path: temp.path().join("missing_metadata.json"),
-        data_dir: data_dir.clone(),
-        version: Some(version.to_string()),
-        keep_versions: 4,
-    })
-    .expect("publish should succeed");
-
-    (temp, data_dir)
+    publish_tree(
+        version,
+        &[(
+            "squat",
+            vec![
+                RecordRow::new("M", "93", 200.0, 92.0),
+                RecordRow::new("M", "93", 220.0, 91.0),
+                RecordRow::new("F", "63", 120.0, 62.0),
+            ],
+        )],
+    )
 }
 
 fn read_json(path: &Path) -> Value {
