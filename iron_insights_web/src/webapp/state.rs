@@ -1,13 +1,11 @@
 use super::{
+    cross_sex::rows_from_slice_index,
     data::{fetch_binary_data_with_signal, fetch_json_data, fetch_json_data_with_signal},
     logging::debug_log,
-    models::{
-        LatestJson, RootIndex, SliceIndex, SliceIndexEntries, SliceMetaJson, SliceRow, SliceSummary,
-    },
-    slices::{entry_from_slice_key, parse_shard_key, parse_slice_key},
+    models::{LatestJson, RootIndex, SliceIndex, SliceRow, SliceSummary},
     ui::{pick_preferred, unique},
 };
-use crate::core::{HeatmapBin, HistogramBin, parse_combined_bin};
+use crate::core::{HeatmapBin, HistogramBin, parse_combined_bin, parse_shard_key};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use leptos::{prelude::*, task::spawn_local};
 use std::{cell::RefCell, collections::HashMap};
@@ -60,9 +58,6 @@ pub(super) struct LifterInputState {
     pub set_bodyweight_error: WriteSignal<Option<String>>,
     pub use_lbs: ReadSignal<bool>,
     pub set_use_lbs: WriteSignal<bool>,
-    pub set_squat_delta: WriteSignal<f32>,
-    pub set_bench_delta: WriteSignal<f32>,
-    pub set_deadlift_delta: WriteSignal<f32>,
     pub set_lift_mult: WriteSignal<usize>,
     pub set_bw_mult: WriteSignal<usize>,
     pub has_input_error: Memo<bool>,
@@ -74,8 +69,6 @@ pub(super) struct LifterInputState {
 pub(super) struct ComputeState {
     pub calculated: ReadSignal<bool>,
     pub set_calculated: WriteSignal<bool>,
-    pub calculating: ReadSignal<bool>,
-    pub set_calculating: WriteSignal<bool>,
     pub reveal_tick: ReadSignal<u64>,
     pub set_reveal_tick: WriteSignal<u64>,
     pub user_lift: Memo<f32>,
@@ -88,7 +81,7 @@ pub(super) struct ComputeState {
     pub load_error: ReadSignal<Option<String>>,
     pub dataset_blurb: Memo<String>,
     pub ranking_cohort_blurb: Memo<String>,
-    pub slice_summary: ReadSignal<Option<SliceSummary>>,
+    pub slice_summary: Memo<Option<SliceSummary>>,
 }
 
 /// Single shared application state distributed via `provide_context`.
@@ -97,36 +90,6 @@ pub(super) struct AppState {
     pub selection: SelectionState,
     pub input: LifterInputState,
     pub compute: ComputeState,
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct DefaultSelectionOptions {
-    pub(super) equip: Memo<Vec<String>>,
-    pub(super) wc: Memo<Vec<String>>,
-    pub(super) age: Memo<Vec<String>>,
-    pub(super) tested: Memo<Vec<String>>,
-    pub(super) lift: Memo<Vec<String>>,
-    pub(super) metric: Memo<Vec<String>>,
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct DefaultSelectionSignals {
-    pub(super) equip: ReadSignal<String>,
-    pub(super) wc: ReadSignal<String>,
-    pub(super) age: ReadSignal<String>,
-    pub(super) tested: ReadSignal<String>,
-    pub(super) lift: ReadSignal<String>,
-    pub(super) metric: ReadSignal<String>,
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct DefaultSelectionSetters {
-    pub(super) equip: WriteSignal<String>,
-    pub(super) wc: WriteSignal<String>,
-    pub(super) age: WriteSignal<String>,
-    pub(super) tested: WriteSignal<String>,
-    pub(super) lift: WriteSignal<String>,
-    pub(super) metric: WriteSignal<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -198,8 +161,6 @@ pub(super) struct SliceRowsEffectContext {
 pub(super) struct DistributionOutputs {
     pub(super) set_hist: WriteSignal<Option<HistogramBin>>,
     pub(super) set_heat: WriteSignal<Option<HeatmapBin>>,
-    pub(super) set_hist_load_ms: WriteSignal<Option<u32>>,
-    pub(super) set_heat_load_ms: WriteSignal<Option<u32>>,
     pub(super) set_load_error: WriteSignal<Option<String>>,
 }
 
@@ -321,28 +282,8 @@ pub(super) fn setup_slice_rows_effect(context: SliceRowsEffectContext) {
                 request.finish(next_request_id);
                 return;
             };
-            let mut rows = Vec::new();
-            match shard.slices {
-                SliceIndexEntries::Map(entries) => {
-                    rows.reserve(entries.len());
-                    for (raw_key, entry) in entries {
-                        if let Some(key) = parse_slice_key(&raw_key) {
-                            rows.push(SliceRow { key, entry });
-                        }
-                    }
-                }
-                SliceIndexEntries::Keys(keys) => {
-                    rows.reserve(keys.len());
-                    for raw_key in keys {
-                        if let Some((key, entry)) = entry_from_slice_key(&raw_key) {
-                            rows.push(SliceRow { key, entry });
-                        }
-                    }
-                }
-            }
-            rows.sort_by(|a, b| a.key.cmp(&b.key));
             set_load_error.set(None);
-            set_slice_rows.set(rows);
+            set_slice_rows.set(rows_from_slice_index(shard));
             request.finish(next_request_id);
         });
     });
@@ -369,30 +310,23 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
         if !should_load_hist {
             outputs.set_hist.set(None);
             outputs.set_heat.set(None);
-            outputs.set_hist_load_ms.set(None);
-            outputs.set_heat_load_ms.set(None);
             request.finish(next_request_id);
             return;
         }
 
         if !should_load_heat {
             outputs.set_heat.set(None);
-            outputs.set_heat_load_ms.set(None);
         }
 
         if let (Some(row), Some(latest_v)) = (row, latest_v) {
             let set_hist = outputs.set_hist;
             let set_heat = outputs.set_heat;
-            let set_hist_load_ms = outputs.set_hist_load_ms;
-            let set_heat_load_ms = outputs.set_heat_load_ms;
             let set_load_error = outputs.set_load_error;
             let dist_request_id = request.current;
             let signal = request_start.signal;
             set_hist.set(None);
-            set_hist_load_ms.set(None);
             if should_load_heat {
                 set_heat.set(None);
-                set_heat_load_ms.set(None);
             }
 
             // Fast path: payload is inlined as base64 — no network fetch needed.
@@ -417,10 +351,8 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
                         match parse_combined_bin(&bytes) {
                             Some((hist, heat)) => {
                                 set_hist.set(Some(hist));
-                                set_hist_load_ms.set(Some(0));
                                 if should_load_heat {
                                     set_heat.set(Some(heat));
-                                    set_heat_load_ms.set(Some(0));
                                 }
                             }
                             None => {
@@ -447,10 +379,8 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
                     Ok(bytes) => match parse_combined_bin(&bytes) {
                         Some((hist, heat)) => {
                             set_hist.set(Some(hist));
-                            set_hist_load_ms.set(Some(0));
                             if should_load_heat {
                                 set_heat.set(Some(heat));
-                                set_heat_load_ms.set(Some(0));
                             }
                         }
                         None => {
@@ -465,86 +395,14 @@ pub(super) fn setup_distribution_effect(context: DistributionEffectContext) {
         } else {
             outputs.set_hist.set(None);
             outputs.set_heat.set(None);
-            outputs.set_hist_load_ms.set(None);
-            outputs.set_heat_load_ms.set(None);
             request.finish(next_request_id);
         }
     });
 }
 
-pub(super) fn setup_slice_summary_effect(
-    current_row: Memo<Option<SliceRow>>,
-    latest: ReadSignal<Option<LatestJson>>,
-    set_summary: WriteSignal<Option<SliceSummary>>,
-    set_summary_load_ms: WriteSignal<Option<u32>>,
-    set_load_error: WriteSignal<Option<String>>,
-    request: RequestTracker,
-) {
-    Effect::new(move |_| {
-        let request_start = request.begin();
-        let next_request_id = request_start.id;
-
-        let row = current_row.get();
-        let latest_v = latest.get();
-        let (Some(row), Some(latest_v)) = (row, latest_v) else {
-            set_summary.set(None);
-            set_summary_load_ms.set(None);
-            request.finish(next_request_id);
-            return;
-        };
-
-        if let Some(summary) = row.entry.summary.clone() {
-            set_summary.set(Some(summary));
-            set_summary_load_ms.set(Some(0));
-            request.finish(next_request_id);
-            return;
-        }
-
-        if row.entry.meta.trim().is_empty() {
-            set_summary.set(None);
-            set_summary_load_ms.set(None);
-            request.finish(next_request_id);
-            return;
-        }
-
-        let meta_path = format!("{}/{}", latest_v.version, row.entry.meta);
-        let meta_err = meta_path.clone();
-        let summary_request_id = request.current;
-        let set_summary = set_summary;
-        let set_summary_load_ms = set_summary_load_ms;
-        let set_load_error = set_load_error;
-        let signal = request_start.signal;
-        set_summary.set(None);
-        set_summary_load_ms.set(None);
-
-        spawn_local(async move {
-            let meta =
-                fetch_json_data_with_signal::<SliceMetaJson>(&meta_path, Some(&signal)).await;
-            if summary_request_id.get_untracked() != next_request_id {
-                debug_log(&format!(
-                    "Ignored stale summary response for request {next_request_id}"
-                ));
-                return;
-            }
-            match meta {
-                Ok(meta) => {
-                    set_summary.set(Some(SliceSummary {
-                        min_kg: meta.hist.min_kg,
-                        max_kg: meta.hist.max_kg,
-                        total: meta.hist.total,
-                    }));
-                    set_summary_load_ms.set(Some(0));
-                }
-                Err(err) => {
-                    set_summary.set(None);
-                    set_load_error.set(Some(format!(
-                        "Failed to load slice summary {meta_err}: {err}"
-                    )));
-                }
-            }
-            request.finish(next_request_id);
-        });
-    });
+/// The cohort summary ships inline in the slice index, so it needs no fetch.
+pub(super) fn slice_summary(current_row: Memo<Option<SliceRow>>) -> Memo<Option<SliceSummary>> {
+    Memo::new(move |_| current_row.get().and_then(|row| row.entry.summary))
 }
 
 fn setup_preferred_selection_effect(
@@ -566,15 +424,17 @@ fn setup_preferred_selection_effect(
     });
 }
 
-pub(super) fn setup_default_selection_effects(
-    options: DefaultSelectionOptions,
-    current: DefaultSelectionSignals,
-    setters: DefaultSelectionSetters,
-) {
-    setup_preferred_selection_effect(options.equip, current.equip, setters.equip, "Raw");
-    setup_preferred_selection_effect(options.wc, current.wc, setters.wc, "All");
-    setup_preferred_selection_effect(options.age, current.age, setters.age, "All Ages");
-    setup_preferred_selection_effect(options.tested, current.tested, setters.tested, "All");
-    setup_preferred_selection_effect(options.lift, current.lift, setters.lift, "T");
-    setup_preferred_selection_effect(options.metric, current.metric, setters.metric, "Kg");
+/// Keeps every cohort dropdown on a valid value: when the options change and the
+/// current pick is gone, fall back to the preferred default (or the first option).
+pub(super) fn setup_default_selection_effects(sel: SelectionState) {
+    for (options, current, set_current, preferred) in [
+        (sel.equip_opts, sel.equip, sel.set_equip, "Raw"),
+        (sel.wc_opts, sel.wc, sel.set_wc, "All"),
+        (sel.age_opts, sel.age, sel.set_age, "All Ages"),
+        (sel.tested_opts, sel.tested, sel.set_tested, "All"),
+        (sel.lift_opts, sel.lift, sel.set_lift, "T"),
+        (sel.metric_opts, sel.metric, sel.set_metric, "Kg"),
+    ] {
+        setup_preferred_selection_effect(options, current, set_current, preferred);
+    }
 }

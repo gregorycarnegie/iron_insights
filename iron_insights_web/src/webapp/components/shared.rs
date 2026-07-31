@@ -83,6 +83,84 @@ pub(super) fn DecimalInput(
     }
 }
 
+/// One labelled lift/bodyweight field: input, unit hint, and its validation message.
+#[component]
+fn LiftField(
+    id: &'static str,
+    label: &'static str,
+    value_kg: ReadSignal<f32>,
+    set_value_kg: WriteSignal<f32>,
+    error: ReadSignal<Option<String>>,
+    set_error: WriteSignal<Option<String>>,
+    use_lbs: ReadSignal<bool>,
+    unit_label: Memo<&'static str>,
+    min_kg: f32,
+    max_kg: f32,
+    error_msg: &'static str,
+) -> impl IntoView {
+    view! {
+        <div>
+            <label for=id>{label}</label>
+            <div class="lift-row">
+                <DecimalInput
+                    id=id
+                    value_kg=value_kg
+                    set_value_kg=set_value_kg
+                    set_error=set_error
+                    use_lbs=use_lbs
+                    min_kg=min_kg
+                    max_kg=max_kg
+                    error_msg=error_msg
+                />
+                <div class="hint">{move || unit_label.get().to_uppercase()}</div>
+            </div>
+            {move || error.get().map(|e| view! { <p class="notice error">{e}</p> })}
+        </div>
+    }
+}
+
+/// One labelled cohort dropdown. `label_for` renders each option's display text,
+/// which is the only thing that differs between the advanced selects.
+#[component]
+fn SelectField(
+    label: &'static str,
+    options: Memo<Vec<String>>,
+    current: ReadSignal<String>,
+    set_current: WriteSignal<String>,
+    #[prop(default = |opt: &str| opt.to_string())] label_for: fn(&str) -> String,
+) -> impl IntoView {
+    view! {
+        <div>
+            <label>{label}</label>
+            <select
+                on:change=move |ev| set_current.set(event_target_value(&ev))
+                prop:value=move || current.get()
+            >
+                {move || options.get().into_iter().map(|opt| {
+                    let text = label_for(&opt);
+                    let selected_when = opt.clone();
+                    view! {
+                        <option value=opt.clone() prop:selected=move || current.get() == selected_when>
+                            {text}
+                        </option>
+                    }
+                }).collect_view()}
+            </select>
+        </div>
+    }
+}
+
+fn lift_code_label(code: &str) -> String {
+    match code {
+        "S" => "Squat",
+        "B" => "Bench",
+        "D" => "Deadlift",
+        "T" => "Total",
+        _ => "Unknown",
+    }
+    .to_string()
+}
+
 #[component]
 pub(super) fn InputForm() -> impl IntoView {
     let app = use_context::<AppState>().expect("AppState must be provided by App");
@@ -91,16 +169,11 @@ pub(super) fn InputForm() -> impl IntoView {
     let cmp = app.compute;
 
     let on_compute = move |_| {
-        inp.set_squat_delta.set(0.0);
-        inp.set_bench_delta.set(0.0);
-        inp.set_deadlift_delta.set(0.0);
         inp.set_lift_mult.set(4);
         inp.set_bw_mult.set(5);
-        cmp.set_calculating.set(true);
         let tick = cmp.reveal_tick.get_untracked();
         cmp.set_reveal_tick.set(tick.wrapping_add(1));
         cmp.set_calculated.set(true);
-        cmp.set_calculating.set(false);
     };
 
     view! {
@@ -134,81 +207,34 @@ pub(super) fn InputForm() -> impl IntoView {
                 </div>
             </div>
 
-            // Bodyweight
-            <div>
-                <label for="lifter-bodyweight">"Bodyweight"</label>
-                <div class="lift-row">
-                    <DecimalInput
-                        id="lifter-bodyweight"
-                        value_kg=inp.bodyweight
-                        set_value_kg=inp.set_bodyweight
-                        set_error=inp.set_bodyweight_error
-                        use_lbs=inp.use_lbs
-                        min_kg=35.0
-                        max_kg=300.0
-                        error_msg="Enter 35–300 kg."
-                    />
-                    <div class="hint">{move || inp.unit_label.get().to_uppercase()}</div>
-                </div>
-                {move || inp.bodyweight_error.get().map(|e| view! { <p class="notice error">{e}</p> })}
-            </div>
-
-            // Squat
-            <div>
-                <label for="lifter-squat">"Squat"</label>
-                <div class="lift-row">
-                    <DecimalInput
-                        id="lifter-squat"
-                        value_kg=inp.squat
-                        set_value_kg=inp.set_squat
-                        set_error=inp.set_squat_error
-                        use_lbs=inp.use_lbs
-                        min_kg=0.0
-                        max_kg=600.0
-                        error_msg="Enter 0–600 kg."
-                    />
-                    <div class="hint">{move || inp.unit_label.get().to_uppercase()}</div>
-                </div>
-                {move || inp.squat_error.get().map(|e| view! { <p class="notice error">{e}</p> })}
-            </div>
-
-            // Bench
-            <div>
-                <label for="lifter-bench">"Bench Press"</label>
-                <div class="lift-row">
-                    <DecimalInput
-                        id="lifter-bench"
-                        value_kg=inp.bench
-                        set_value_kg=inp.set_bench
-                        set_error=inp.set_bench_error
-                        use_lbs=inp.use_lbs
-                        min_kg=0.0
-                        max_kg=600.0
-                        error_msg="Enter 0–600 kg."
-                    />
-                    <div class="hint">{move || inp.unit_label.get().to_uppercase()}</div>
-                </div>
-                {move || inp.bench_error.get().map(|e| view! { <p class="notice error">{e}</p> })}
-            </div>
-
-            // Deadlift
-            <div>
-                <label for="lifter-deadlift">"Deadlift"</label>
-                <div class="lift-row">
-                    <DecimalInput
-                        id="lifter-deadlift"
-                        value_kg=inp.deadlift
-                        set_value_kg=inp.set_deadlift
-                        set_error=inp.set_deadlift_error
-                        use_lbs=inp.use_lbs
-                        min_kg=0.0
-                        max_kg=600.0
-                        error_msg="Enter 0–600 kg."
-                    />
-                    <div class="hint">{move || inp.unit_label.get().to_uppercase()}</div>
-                </div>
-                {move || inp.deadlift_error.get().map(|e| view! { <p class="notice error">{e}</p> })}
-            </div>
+            <LiftField
+                id="lifter-bodyweight" label="Bodyweight"
+                value_kg=inp.bodyweight set_value_kg=inp.set_bodyweight
+                error=inp.bodyweight_error set_error=inp.set_bodyweight_error
+                use_lbs=inp.use_lbs unit_label=inp.unit_label
+                min_kg=35.0 max_kg=300.0 error_msg="Enter 35–300 kg."
+            />
+            <LiftField
+                id="lifter-squat" label="Squat"
+                value_kg=inp.squat set_value_kg=inp.set_squat
+                error=inp.squat_error set_error=inp.set_squat_error
+                use_lbs=inp.use_lbs unit_label=inp.unit_label
+                min_kg=0.0 max_kg=600.0 error_msg="Enter 0–600 kg."
+            />
+            <LiftField
+                id="lifter-bench" label="Bench Press"
+                value_kg=inp.bench set_value_kg=inp.set_bench
+                error=inp.bench_error set_error=inp.set_bench_error
+                use_lbs=inp.use_lbs unit_label=inp.unit_label
+                min_kg=0.0 max_kg=600.0 error_msg="Enter 0–600 kg."
+            />
+            <LiftField
+                id="lifter-deadlift" label="Deadlift"
+                value_kg=inp.deadlift set_value_kg=inp.set_deadlift
+                error=inp.deadlift_error set_error=inp.set_deadlift_error
+                use_lbs=inp.use_lbs unit_label=inp.unit_label
+                min_kg=0.0 max_kg=600.0 error_msg="Enter 0–600 kg."
+            />
 
             <details class="advanced-fields">
                 <summary>
@@ -217,83 +243,17 @@ pub(super) fn InputForm() -> impl IntoView {
                 </summary>
 
                 <div class="advanced-grid">
-                    <div>
-                        <label>"Equipment"</label>
-                        <select
-                            on:change=move |ev| {
-                                sel.set_equip.set(event_target_value(&ev));
-                            }
-                            prop:value=move || sel.equip.get()
-                        >
-                            {move || sel.equip_opts.get().into_iter().map(|opt| {
-                                let opt_clone = opt.clone();
-                                view! { <option value={opt_clone.clone()} prop:selected=move || sel.equip.get() == opt_clone>{opt}</option> }
-                            }).collect_view()}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label>"Weight Class"</label>
-                        <select on:change=move |ev| sel.set_wc.set(event_target_value(&ev)) prop:value=move || sel.wc.get()>
-                            {move || sel.wc_opts.get().into_iter().map(|opt| {
-                                let opt_c = opt.clone();
-                                view! { <option value={opt_c.clone()} prop:selected=move || sel.wc.get() == opt_c>{opt}</option> }
-                            }).collect_view()}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label>"Age Class"</label>
-                        <select on:change=move |ev| sel.set_age.set(event_target_value(&ev)) prop:value=move || sel.age.get()>
-                            {move || sel.age_opts.get().into_iter().map(|opt| {
-                                let opt_c = opt.clone();
-                                view! { <option value={opt_c.clone()} prop:selected=move || sel.age.get() == opt_c>{opt}</option> }
-                            }).collect_view()}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label>"Tested Status"</label>
-                        <select on:change=move |ev| sel.set_tested.set(event_target_value(&ev)) prop:value=move || sel.tested.get()>
-                            {move || sel.tested_opts.get().into_iter().map(|opt| {
-                                let opt_c = opt.clone();
-                                view! { <option value={opt_c.clone()} prop:selected=move || sel.tested.get() == opt_c>{opt}</option> }
-                            }).collect_view()}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label>"Lift"</label>
-                        <select on:change=move |ev| sel.set_lift.set(event_target_value(&ev)) prop:value=move || sel.lift.get()>
-                            {move || sel.lift_opts.get().into_iter().map(|opt| {
-                                let label = match opt.as_str() {
-                                    "S" => "Squat", "B" => "Bench", "D" => "Deadlift",
-                                    "T" => "Total", _ => "Unknown",
-                                };
-                                let opt_c = opt.clone();
-                                view! { <option value={opt_c.clone()} prop:selected=move || sel.lift.get() == opt_c>{label}</option> }
-                            }).collect_view()}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label>"Metric"</label>
-                        <select on:change=move |ev| sel.set_metric.set(event_target_value(&ev)) prop:value=move || sel.metric.get()>
-                            {move || sel.metric_opts.get().into_iter().map(|opt| {
-                                let opt_c = opt.clone();
-                                view! { <option value={opt_c.clone()} prop:selected=move || sel.metric.get() == opt_c>{opt}</option> }
-                            }).collect_view()}
-                        </select>
-                    </div>
+                    <SelectField label="Equipment" options=sel.equip_opts current=sel.equip set_current=sel.set_equip />
+                    <SelectField label="Weight Class" options=sel.wc_opts current=sel.wc set_current=sel.set_wc />
+                    <SelectField label="Age Class" options=sel.age_opts current=sel.age set_current=sel.set_age />
+                    <SelectField label="Tested Status" options=sel.tested_opts current=sel.tested set_current=sel.set_tested />
+                    <SelectField label="Lift" options=sel.lift_opts current=sel.lift set_current=sel.set_lift label_for=lift_code_label />
+                    <SelectField label="Metric" options=sel.metric_opts current=sel.metric set_current=sel.set_metric />
                 </div>
             </details>
 
-            <button
-                class="btn"
-                disabled=move || inp.has_input_error.get() || cmp.calculating.get()
-                on:click=on_compute
-            >
-                {move || if cmp.calculating.get() { "COMPUTING..." } else { "COMPUTE PERCENTILE →" }}
+            <button class="btn" disabled=move || inp.has_input_error.get() on:click=on_compute>
+                "COMPUTE PERCENTILE →"
             </button>
         </div>
     }

@@ -7,7 +7,7 @@ use super::{
         setup_cross_sex_lift_comparison_effect, setup_cross_sex_rows_effect,
     },
     helpers::{ComparableLifter, comparable_lift_value, tier_for_percentile},
-    models::{CrossSexLiftComparison, LatestJson, RootIndex, SliceRow, SliceSummary},
+    models::{CrossSexLiftComparison, LatestJson, RootIndex, SliceRow},
     persistence::{
         HashNavCtx, QueryLoadCtx, StatePersistCtx, UnitPrefCtx, setup_hash_nav_effects,
         setup_query_load_effect, setup_state_persist_effect, setup_unit_pref_effects,
@@ -19,13 +19,12 @@ use super::{
     state::{
         self, AppState, ComputeState, LifterInputState, SelectionState, init_dataset_load,
         setup_default_selection_effects, setup_distribution_effect, setup_slice_rows_effect,
-        setup_slice_summary_effect,
     },
     ui::metric_label,
 };
 use crate::core::{HeatmapBin, HistogramBin, percentile_for_value, rebin_1d, rebin_2d};
-use gloo_timers::callback::Timeout;
-use leptos::prelude::*;
+use leptos::{leptos_dom::helpers::set_timeout, prelude::*};
+use std::time::Duration;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AppPage {
@@ -37,16 +36,28 @@ pub(crate) enum AppPage {
     Bodyfat,
 }
 
+/// Every page, in nav order: `(page, nav number, sidebar label, short tab label)`.
+/// Drives the sidebar, the mobile tab strip, and the breadcrumb.
+pub(super) const PAGES: [(AppPage, &str, &str, &str); 6] = [
+    (AppPage::Ranking, "01", "Ranking", "Ranking"),
+    (AppPage::Nerds, "02", "Stats", "Stats"),
+    (
+        AppPage::MenVsWomen,
+        "03",
+        "Sex Comparison",
+        "Sex Comparison",
+    ),
+    (AppPage::OneRm, "04", "1RM Calculator", "1RM"),
+    (AppPage::PlateCalc, "05", "Plate Calculator", "Plates"),
+    (AppPage::Bodyfat, "06", "Bodyfat %", "Bodyfat"),
+];
+
 impl AppPage {
     pub(super) fn label(self) -> &'static str {
-        match self {
-            AppPage::Ranking => "RANKING",
-            AppPage::Nerds => "Stats",
-            AppPage::MenVsWomen => "Sex Comparison",
-            AppPage::OneRm => "1RM Calculator",
-            AppPage::PlateCalc => "Plate Calculator",
-            AppPage::Bodyfat => "BODYFAT %",
-        }
+        PAGES
+            .iter()
+            .find(|(page, ..)| *page == self)
+            .map_or("Ranking", |(_, _, label, _)| *label)
     }
 
     pub(super) fn hash(self) -> &'static str {
@@ -66,7 +77,6 @@ pub(super) fn App() -> impl IntoView {
     let (calculated, set_calculated) = signal(false);
     let (reveal_tick, set_reveal_tick) = signal(0u64);
     let (use_lbs, set_use_lbs) = signal(false);
-    let (calculating, set_calculating) = signal(false);
     let (active_page, set_active_page) = signal(AppPage::Ranking);
     let (mobile_nav_open, set_mobile_nav_open) = signal(false);
     let (page_loaded, set_page_loaded) = signal(false);
@@ -99,9 +109,6 @@ pub(super) fn App() -> impl IntoView {
     let (bench_error, set_bench_error) = signal(None::<String>);
     let (deadlift_error, set_deadlift_error) = signal(None::<String>);
     let (bodyweight_error, set_bodyweight_error) = signal(None::<String>);
-    let (squat_delta, set_squat_delta) = signal(0.0f32);
-    let (bench_delta, set_bench_delta) = signal(0.0f32);
-    let (deadlift_delta, set_deadlift_delta) = signal(0.0f32);
 
     let (lift_mult, set_lift_mult) = signal(4usize);
     let (bw_mult, set_bw_mult) = signal(5usize);
@@ -109,12 +116,7 @@ pub(super) fn App() -> impl IntoView {
     let (hist, set_hist) = signal(None::<HistogramBin>);
     let (heat, set_heat) = signal(None::<HeatmapBin>);
     let (slice_request_id, set_slice_request_id) = signal(0u64);
-    let (summary_request_id, set_summary_request_id) = signal(0u64);
     let (dist_request_id, set_dist_request_id) = signal(0u64);
-    let (slice_summary, set_slice_summary) = signal(None::<SliceSummary>);
-    let (_hist_load_ms, set_hist_load_ms) = signal(None::<u32>);
-    let (_heat_load_ms, set_heat_load_ms) = signal(None::<u32>);
-    let (_summary_load_ms, set_summary_load_ms) = signal(None::<u32>);
 
     // Cross-sex
     let (male_slice_rows, set_male_slice_rows) = signal(Vec::<SliceRow>::new());
@@ -143,16 +145,18 @@ pub(super) fn App() -> impl IntoView {
         let snapshot = (squat.get(), bench.get(), deadlift.get(), bodyweight.get());
         let next_id = input_debounce_request_id.get_untracked().wrapping_add(1);
         set_input_debounce_request_id.set(next_id);
-        Timeout::new(180, move || {
-            if input_debounce_request_id.get_untracked() != next_id {
-                return;
-            }
-            set_debounced_squat.set(snapshot.0);
-            set_debounced_bench.set(snapshot.1);
-            set_debounced_deadlift.set(snapshot.2);
-            set_debounced_bodyweight.set(snapshot.3);
-        })
-        .forget();
+        set_timeout(
+            move || {
+                if input_debounce_request_id.get_untracked() != next_id {
+                    return;
+                }
+                set_debounced_squat.set(snapshot.0);
+                set_debounced_bench.set(snapshot.1);
+                set_debounced_deadlift.set(snapshot.2);
+                set_debounced_bodyweight.set(snapshot.3);
+            },
+            Duration::from_millis(180),
+        );
     });
 
     let nerds_page_active = Memo::new(move |_| active_page.get() == AppPage::Nerds);
@@ -277,8 +281,6 @@ pub(super) fn App() -> impl IntoView {
         outputs: state::DistributionOutputs {
             set_hist,
             set_heat,
-            set_hist_load_ms,
-            set_heat_load_ms,
             set_load_error,
         },
         request: state::RequestTracker {
@@ -288,18 +290,7 @@ pub(super) fn App() -> impl IntoView {
         },
     });
 
-    setup_slice_summary_effect(
-        current_row,
-        latest,
-        set_slice_summary,
-        set_summary_load_ms,
-        set_load_error,
-        state::RequestTracker {
-            current: summary_request_id,
-            set: set_summary_request_id,
-            label: "slice_summary",
-        },
-    );
+    let slice_summary = state::slice_summary(current_row);
 
     let sex_opts = sex_options(root_index);
     let equip_opts = equip_options(root_index, sex);
@@ -309,32 +300,30 @@ pub(super) fn App() -> impl IntoView {
     let lift_opts = lift_options(selector_index, wc, age, tested);
     let metric_opts = metric_options(selector_index, wc, age, tested, lift);
 
-    setup_default_selection_effects(
-        state::DefaultSelectionOptions {
-            equip: equip_opts,
-            wc: wc_opts,
-            age: age_opts,
-            tested: tested_opts,
-            lift: lift_opts,
-            metric: metric_opts,
-        },
-        state::DefaultSelectionSignals {
-            equip,
-            wc,
-            age,
-            tested,
-            lift,
-            metric,
-        },
-        state::DefaultSelectionSetters {
-            equip: set_equip,
-            wc: set_wc,
-            age: set_age,
-            tested: set_tested,
-            lift: set_lift,
-            metric: set_metric,
-        },
-    );
+    let selection = SelectionState {
+        sex,
+        set_sex,
+        equip,
+        set_equip,
+        wc,
+        set_wc,
+        age,
+        set_age,
+        tested,
+        set_tested,
+        lift,
+        set_lift,
+        metric,
+        set_metric,
+        sex_opts,
+        equip_opts,
+        wc_opts,
+        age_opts,
+        tested_opts,
+        lift_opts,
+        metric_opts,
+    };
+    setup_default_selection_effects(selection);
 
     let rebinned_hist = Memo::new(move |_| {
         hist.get().map(|h| {
@@ -528,9 +517,6 @@ pub(super) fn App() -> impl IntoView {
         set_deadlift,
         bodyweight,
         set_bodyweight,
-        set_squat_delta,
-        set_bench_delta,
-        set_deadlift_delta,
         set_lift_mult,
         set_bw_mult,
         set_calculated,
@@ -556,9 +542,6 @@ pub(super) fn App() -> impl IntoView {
         bench,
         deadlift,
         bodyweight,
-        squat_delta,
-        bench_delta,
-        deadlift_delta,
         lift_mult,
         bw_mult,
         calculated,
@@ -583,29 +566,7 @@ pub(super) fn App() -> impl IntoView {
 
     // Provide grouped state via Leptos context - pages read it via use_context.
     let app_state = AppState {
-        selection: SelectionState {
-            sex,
-            set_sex,
-            equip,
-            set_equip,
-            wc,
-            set_wc,
-            age,
-            set_age,
-            tested,
-            set_tested,
-            lift,
-            set_lift,
-            metric,
-            set_metric,
-            sex_opts,
-            equip_opts,
-            wc_opts,
-            age_opts,
-            tested_opts,
-            lift_opts,
-            metric_opts,
-        },
+        selection,
         input: LifterInputState {
             squat,
             set_squat,
@@ -625,9 +586,6 @@ pub(super) fn App() -> impl IntoView {
             set_bodyweight_error,
             use_lbs,
             set_use_lbs,
-            set_squat_delta,
-            set_bench_delta,
-            set_deadlift_delta,
             set_lift_mult,
             set_bw_mult,
             has_input_error,
@@ -636,8 +594,6 @@ pub(super) fn App() -> impl IntoView {
         compute: ComputeState {
             calculated,
             set_calculated,
-            calculating,
-            set_calculating,
             reveal_tick,
             set_reveal_tick,
             user_lift,
@@ -698,16 +654,9 @@ pub(super) fn App() -> impl IntoView {
                     <div class="brand-sub">"// WHERE YOU STAND · EST. 2026"</div>
                 </div>
                 <ul class="nav-list">
-                    {[
-                        (AppPage::Ranking, "01", "Ranking"),
-                        (AppPage::Nerds, "02", "Stats"),
-                        (AppPage::MenVsWomen, "03", "Sex Comparison"),
-                        (AppPage::OneRm, "04", "1RM Calculator"),
-                        (AppPage::PlateCalc, "05", "Plate Calculator"),
-                        (AppPage::Bodyfat, "06", "Bodyfat %"),
-                    ]
+                    {PAGES
                     .into_iter()
-                    .map(|(page, num, label)| {
+                    .map(|(page, num, label, _)| {
                         view! {
                             <li
                                 class="nav-item"
@@ -766,16 +715,9 @@ pub(super) fn App() -> impl IntoView {
                     </button>
                     <div class="mobile-brand">"IRON INSIGHTS"</div>
                     <div class="mobile-tabs">
-                        {[
-                            (AppPage::Ranking, "Ranking"),
-                            (AppPage::Nerds, "Stats"),
-                            (AppPage::MenVsWomen, "Sex Comparison"),
-                            (AppPage::OneRm, "1RM"),
-                            (AppPage::PlateCalc, "Plates"),
-                            (AppPage::Bodyfat, "Bodyfat"),
-                        ]
+                        {PAGES
                         .into_iter()
-                        .map(|(page, label)| {
+                        .map(|(page, _, _, label)| {
                             view! {
                                 <button
                                     type="button"

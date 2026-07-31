@@ -229,143 +229,52 @@ pub fn BodyfatPage() -> impl IntoView {
                                 </div>
                             </div>
 
-                            <div>
-                                <label for="bodyfat-weight">"Weight - kg"</label>
-                                <input
-                                    id="bodyfat-weight"
-                                    type="number"
-                                    step="0.5"
-                                    min="30"
-                                    max="300"
-                                    prop:value=move || weight_kg.get()
-                                    on:input=move |ev| {
-                                        let v = parse_f32_input(&ev);
-                                        if (30.0..=300.0).contains(&v) {
-                                            set_weight_kg.set(v);
-                                        }
-                                    }
-                                />
-                            </div>
+                            <NumberInput
+                                id="bodyfat-weight" label="Weight - kg"
+                                value=weight_kg on_change=set_weight_kg min=30.0 max=300.0
+                            />
 
                             {move || match method.get() {
                                 BodyfatMethod::Navy => view! {
                                     <>
-                                        <div>
-                                            <label for="bodyfat-height">"Height (cm)"</label>
-                                            <input
-                                                id="bodyfat-height"
-                                                type="number"
-                                                step="0.5"
-                                                min="100"
-                                                max="250"
-                                                prop:value=move || height_cm.get()
-                                                on:input=move |ev| {
-                                                    let v = parse_f32_input(&ev);
-                                                    if (100.0..=250.0).contains(&v) {
-                                                        set_height_cm.set(v);
-                                                    }
-                                                }
-                                            />
-                                        </div>
-                                        <div>
-                                            <label for="bodyfat-neck">"Neck (cm)"</label>
-                                            <input
-                                                id="bodyfat-neck"
-                                                type="number"
-                                                step="0.5"
-                                                min="20"
-                                                max="80"
-                                                prop:value=move || neck_cm.get()
-                                                on:input=move |ev| {
-                                                    let v = parse_f32_input(&ev);
-                                                    if (20.0..=80.0).contains(&v) {
-                                                        set_neck_cm.set(v);
-                                                    }
-                                                }
-                                            />
-                                        </div>
-                                        <div>
-                                            <label for="bodyfat-waist">"Waist (cm - navel)"</label>
-                                            <input
-                                                id="bodyfat-waist"
-                                                type="number"
-                                                step="0.5"
-                                                min="40"
-                                                max="200"
-                                                prop:value=move || waist_cm.get()
-                                                on:input=move |ev| {
-                                                    let v = parse_f32_input(&ev);
-                                                    if (40.0..=200.0).contains(&v) {
-                                                        set_waist_cm.set(v);
-                                                    }
-                                                }
-                                            />
-                                        </div>
+                                        <NumberInput
+                                            id="bodyfat-height" label="Height (cm)"
+                                            value=height_cm on_change=set_height_cm min=100.0 max=250.0
+                                        />
+                                        <NumberInput
+                                            id="bodyfat-neck" label="Neck (cm)"
+                                            value=neck_cm on_change=set_neck_cm min=20.0 max=80.0
+                                        />
+                                        <NumberInput
+                                            id="bodyfat-waist" label="Waist (cm - navel)"
+                                            value=waist_cm on_change=set_waist_cm min=40.0 max=200.0
+                                        />
                                         {move || {
                                             if is_male.get() {
                                                 view! { <div class="visually-hidden">"Hip measurement is not used for the male Navy formula."</div> }.into_any()
                                             } else {
                                                 view! {
-                                                    <div>
-                                                        <label for="bodyfat-hips">"Hips (cm)"</label>
-                                                        <input
-                                                            id="bodyfat-hips"
-                                                            type="number"
-                                                            step="0.5"
-                                                            min="40"
-                                                            max="200"
-                                                            prop:value=move || hip_cm.get()
-                                                            on:input=move |ev| {
-                                                                let v = parse_f32_input(&ev);
-                                                                if (40.0..=200.0).contains(&v) {
-                                                                    set_hip_cm.set(v);
-                                                                }
-                                                            }
-                                                        />
-                                                    </div>
+                                                    <NumberInput
+                                                        id="bodyfat-hips" label="Hips (cm)"
+                                                        value=hip_cm on_change=set_hip_cm min=40.0 max=200.0
+                                                    />
                                                 }.into_any()
                                             }
                                         }}
                                     </>
                                 }.into_any(),
                                 BodyfatMethod::Ymca => view! {
-                                    <div>
-                                        <label for="bodyfat-waist">"Waist (cm - navel)"</label>
-                                        <input
-                                            id="bodyfat-waist"
-                                            type="number"
-                                            step="0.5"
-                                            min="40"
-                                            max="200"
-                                            prop:value=move || waist_cm.get()
-                                            on:input=move |ev| {
-                                                let v = parse_f32_input(&ev);
-                                                if (40.0..=200.0).contains(&v) {
-                                                    set_waist_cm.set(v);
-                                                }
-                                            }
-                                        />
-                                    </div>
+                                    <NumberInput
+                                        id="bodyfat-waist" label="Waist (cm - navel)"
+                                        value=waist_cm on_change=set_waist_cm min=40.0 max=200.0
+                                    />
                                 }.into_any(),
                                 BodyfatMethod::Skinfold3 => view! {
                                     <>
-                                        <div>
-                                            <label for="bodyfat-age">"Age (years)"</label>
-                                            <input
-                                                id="bodyfat-age"
-                                                type="number"
-                                                step="1"
-                                                min="10"
-                                                max="100"
-                                                prop:value=move || age.get()
-                                                on:input=move |ev| {
-                                                    let v = parse_f32_input(&ev);
-                                                    if (10.0..=100.0).contains(&v) {
-                                                        set_age.set(v);
-                                                    }
-                                                }
-                                            />
-                                        </div>
+                                        <NumberInput
+                                            id="bodyfat-age" label="Age (years)"
+                                            value=age on_change=set_age min=10.0 max=100.0 step=1.0
+                                        />
                                         {move || {
                                             if is_male.get() {
                                                 view! {
@@ -419,23 +328,10 @@ pub fn BodyfatPage() -> impl IntoView {
                                 }.into_any(),
                                 BodyfatMethod::Skinfold7 => view! {
                                     <>
-                                        <div>
-                                            <label for="bodyfat-age">"Age (years)"</label>
-                                            <input
-                                                id="bodyfat-age"
-                                                type="number"
-                                                step="1"
-                                                min="10"
-                                                max="100"
-                                                prop:value=move || age.get()
-                                                on:input=move |ev| {
-                                                    let v = parse_f32_input(&ev);
-                                                    if (10.0..=100.0).contains(&v) {
-                                                        set_age.set(v);
-                                                    }
-                                                }
-                                            />
-                                        </div>
+                                        <NumberInput
+                                            id="bodyfat-age" label="Age (years)"
+                                            value=age on_change=set_age min=10.0 max=100.0 step=1.0
+                                        />
                                         <div class="bf-two-col">
                                             <SkinfoldInput
                                                 id="bodyfat-chest"
@@ -668,12 +564,17 @@ pub fn BodyfatPage() -> impl IntoView {
     }
 }
 
+/// A labelled numeric measurement field. Out-of-range input is ignored, leaving
+/// the last valid value in the signal (the browser keeps what was typed).
 #[component]
-fn SkinfoldInput(
+fn NumberInput(
     id: &'static str,
     label: &'static str,
     value: ReadSignal<f32>,
     on_change: WriteSignal<f32>,
+    min: f32,
+    max: f32,
+    #[prop(default = 0.5)] step: f32,
 ) -> impl IntoView {
     view! {
         <div>
@@ -681,17 +582,28 @@ fn SkinfoldInput(
             <input
                 id=id
                 type="number"
-                step="0.5"
-                min="2"
-                max="60"
+                step=step
+                min=min
+                max=max
                 prop:value=move || value.get()
                 on:input=move |ev| {
                     let v = parse_f32_input(&ev);
-                    if (2.0..=60.0).contains(&v) {
+                    if (min..=max).contains(&v) {
                         on_change.set(v);
                     }
                 }
             />
         </div>
     }
+}
+
+/// Skinfold calipers all share the same plausible range.
+#[component]
+fn SkinfoldInput(
+    id: &'static str,
+    label: &'static str,
+    value: ReadSignal<f32>,
+    on_change: WriteSignal<f32>,
+) -> impl IntoView {
+    view! { <NumberInput id=id label=label value=value on_change=on_change min=2.0 max=60.0 /> }
 }

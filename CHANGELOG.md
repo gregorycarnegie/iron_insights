@@ -39,6 +39,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   change: the published site was approaching the documented 1 GB Pages limit,
   which planned per-era time slices would have multiplied.
 
+- **Over-engineering audit: -1,703 net lines, two dependencies.** A whole-repo
+  pass for dead code, duplicated logic, and abstractions with one caller. No
+  feature was dropped; the site renders identically.
+
+  Deleted outright: `webapp/share.rs` (189 lines of PNG share-card rendering
+  with no callers, `#![allow(dead_code)]` at the top), `core::heatmap` and
+  core's histogram diagnostics/density APIs (~300 lines reachable only from
+  their own tests), `core::histogram_mean_stddev` (`charts.rs` keeps its own
+  f64 copy), `kg_to_lbs`/`lbs_to_kg` (no non-test caller; `helpers.rs`
+  hardcoded the factor), the Lander and O'Conner 1RM formulas (the picker
+  offers four), three write-only load-timing signals, and the
+  `?sd`/`?bd`/`?dd` deltas, which round-tripped from query string to
+  `localStorage` and back without ever being read.
+
+  Deduplicated: `slug` and `parse_shard_key` existed in both `core` and the
+  pipeline; `rows_from_slice_index` existed in both `state.rs` and
+  `cross_sex.rs`; the DPR/backing-store canvas setup and the heatmap axis block
+  were each inlined twice in `charts.rs`. The four lift fields and six cohort
+  selects in `InputForm`, and the seven measurement inputs in `bodyfat.rs`,
+  became one component each.
+
+  Dropped as unused flexibility: the `--write-meta-files` flag (no script or
+  workflow set it) and with it `SliceMeta`/`HistMeta`/`HeatMeta` and the app's
+  `meta/` fetch fallback — shard indexes have carried the summary inline since
+  1.2.0, so the cohort summary is now a `Memo` rather than an async effect with
+  its own request tracker. `SliceIndexEntries::Keys`, the legacy key-list index
+  form, and `entry_paths_from_slice_key` went the same way; every published
+  shard uses the map form. `SliceSelectorIndex` kept nine parallel lookup maps
+  holding four clones of every row to drive five dropdowns, and now filters one
+  `Vec` on demand. `BuildMetadata` no longer records three paths to files the
+  stage deletes before it exits.
+
+  Removed dependencies: `wasm-bindgen-futures` (zero references) and
+  `gloo-timers` (one 180 ms debounce, now `leptos::leptos_dom::helpers::set_timeout`),
+  plus the unused `Clipboard`, `History`, `Navigator` and `HtmlAnchorElement`
+  `web-sys` features.
+
+- **SEO pages and the ranking view now quote the same percentile.**
+  `seo_geo/stats.rs` had its own `percentile_value`/`value_percentile` using an
+  upper-edge CDF convention, while the app uses `iron_insights_core`, which
+  places a value at its bin's centre. The same lift could therefore be reported
+  differently on the landing page and in the app it links to. The local copies
+  are gone in favour of `value_for_percentile`/`percentile_for_value`; published
+  medians and worked examples shift by up to one bin. Heatmap axis ticks pick up
+  the shared `format_axis_tick`, so bin edges may now show one decimal.
+
 - Removed the dead root `iron_insights` package: `main.rs` was `Hello, world!`
   and `lib.rs` re-exported only `binary_counts` (a second, now-divergent copy of
   the binary format that still wrote fixed-width `u32` under the same `IIH1`

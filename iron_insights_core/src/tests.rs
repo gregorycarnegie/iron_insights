@@ -1,10 +1,10 @@
 use super::{
-    BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC, HeatmapBin,
-    HistogramBin, TINY_COHORT_WARNING_THRESHOLD, bodyweight_conditioned_percentile, decode_counts,
-    dots_points, encode_counts, equivalent_value_for_same_percentile, goodlift_points,
-    histogram_density_for_value, histogram_diagnostics, parse_combined_bin, parse_heat_bin,
-    parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile, wilks_points,
+    BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC, HistogramBin,
+    decode_counts, dots_points, encode_counts, equivalent_value_for_same_percentile,
+    goodlift_points, parse_combined_bin, percentile_for_value, rebin_1d, rebin_2d,
+    value_for_percentile, wilks_points,
 };
+use crate::binary::{parse_heat_bin, parse_hist_bin};
 use crate::bodyfat::siri_bf_from_density;
 use proptest::prelude::*;
 
@@ -333,12 +333,6 @@ proptest! {
         }
     }
 
-    #[test]
-    fn kg_lbs_round_trip_for_generated_values(kg in 0.0f32..1000.0) {
-        let round_tripped = lbs_to_kg(kg_to_lbs(kg));
-
-        prop_assert!((round_tripped - kg).abs() <= 1e-4);
-    }
 }
 
 #[test]
@@ -356,98 +350,6 @@ fn score_functions_are_monotonic_for_fixed_bodyweight() {
     assert!(gl_raw.is_finite());
     assert!(gl_equipped.is_finite());
     assert_ne!(gl_raw, gl_equipped);
-}
-
-#[test]
-fn histogram_diagnostics_reports_expected_ranges() {
-    let hist = HistogramBin::new(100.0, 112.0, 2.0, vec![0, 4, 10, 6, 2, 0]);
-
-    let diag = histogram_diagnostics(Some(&hist)).expect("diagnostics should compute");
-    assert!(diag.p01 <= diag.p05 && diag.p05 <= diag.p10);
-    assert!(diag.p25 <= diag.p50 && diag.p50 <= diag.p75);
-    assert!(diag.p90 <= diag.p95 && diag.p95 <= diag.p99);
-    assert!((diag.iqr - (diag.p75 - diag.p25)).abs() < 1e-6);
-    assert_eq!(diag.mode_bin_count, 10);
-    assert_eq!(diag.occupied_bins, 4);
-    assert_eq!(diag.total_bins, 6);
-    assert!((0.0..=1.0).contains(&diag.sparsity_score));
-}
-
-#[test]
-fn histogram_diagnostics_flags_tiny_sample() {
-    let hist = HistogramBin::new(0.0, 4.0, 1.0, vec![50, 40, 30, 20]);
-    let diag = histogram_diagnostics(Some(&hist)).expect("diagnostics should compute");
-    assert_eq!(diag.total_lifters, 140);
-    assert_eq!(
-        diag.tiny_sample_warning,
-        140 < TINY_COHORT_WARNING_THRESHOLD
-    );
-}
-
-#[test]
-fn histogram_density_reports_neighbors_and_label() {
-    let hist = HistogramBin::new(100.0, 112.0, 2.0, vec![1, 4, 10, 6, 2, 1]);
-
-    let density = histogram_density_for_value(Some(&hist), 104.2).expect("density should compute");
-    assert_eq!(density.bin_index, 2);
-    assert_eq!(density.current_bin_count, 10);
-    assert_eq!(density.left_bin_count, 4);
-    assert_eq!(density.right_bin_count, 6);
-    assert_eq!(density.neighborhood_count, 20);
-    assert_eq!(density.label, "dense middle");
-    assert!((0.0..=1.0).contains(&density.local_density_ratio));
-    assert!((0.0..=1.0).contains(&density.neighborhood_share));
-}
-
-#[test]
-fn bodyweight_conditioned_percentile_uses_nearby_rows() {
-    let heat = HeatmapBin {
-        min_x: 100.0,
-        max_x: 115.0,
-        min_y: 60.0,
-        max_y: 66.0,
-        base_x: 5.0,
-        base_y: 2.0,
-        width: 3,
-        height: 3,
-        grid: vec![
-            1, 2, 1, // y=0
-            2, 6, 2, // y=1
-            1, 2, 1, // y=2
-        ],
-    };
-
-    let stats =
-        bodyweight_conditioned_percentile(Some(&heat), 106.0, 62.5).expect("should compute");
-    assert!((stats.percentile - 0.5).abs() < 1e-6);
-    assert_eq!(stats.rank, 9);
-    assert_eq!(stats.total_nearby, 18);
-    assert_eq!(stats.local_cell_count, 6);
-    assert_eq!(stats.neighborhood_count, 18);
-    assert!((stats.neighborhood_share - 1.0).abs() < 1e-6);
-}
-
-#[test]
-fn bodyweight_conditioned_percentile_clamps_edges() {
-    let heat = HeatmapBin {
-        min_x: 100.0,
-        max_x: 110.0,
-        min_y: 50.0,
-        max_y: 54.0,
-        base_x: 5.0,
-        base_y: 2.0,
-        width: 2,
-        height: 2,
-        grid: vec![
-            10, 0, // low bw
-            0, 0, // high bw
-        ],
-    };
-    let stats = bodyweight_conditioned_percentile(Some(&heat), 95.0, 40.0).expect("should compute");
-    assert_eq!(stats.bw_bin_index, 0);
-    assert_eq!(stats.lift_bin_index, 0);
-    assert_eq!(stats.total_nearby, 10);
-    assert_eq!(stats.rank, 5);
 }
 
 #[test]
@@ -470,32 +372,11 @@ fn equivalent_value_for_same_percentile_returns_none_without_data() {
     assert!(equivalent_value_for_same_percentile(Some(&source), None, 105.0).is_none());
 }
 
-// ===== UNIT CONVERSION =====
-
 use super::{
-    IPF_PLATES_KG, JacksonPollock7SiteSkinfolds, KG_PER_LB, bodyfat_category, calc_1rm,
-    calc_bodyfat_female, calc_bodyfat_jp3, calc_bodyfat_jp7, calc_bodyfat_male, calc_bodyfat_ymca,
-    ipf_weight_class, kg_to_lbs, lbs_to_kg, plates_per_side, tier_for_percentile,
+    IPF_PLATES_KG, JacksonPollock7SiteSkinfolds, bodyfat_category, calc_1rm, calc_bodyfat_female,
+    calc_bodyfat_jp3, calc_bodyfat_jp7, calc_bodyfat_male, calc_bodyfat_ymca, ipf_weight_class,
+    plates_per_side, tier_for_percentile,
 };
-
-#[test]
-fn kg_lbs_round_trip() {
-    let kg = 100.0f32;
-    let converted = lbs_to_kg(kg_to_lbs(kg));
-    assert!((converted - kg).abs() < 1e-4);
-}
-
-#[test]
-fn kg_to_lbs_known_value() {
-    let lbs = kg_to_lbs(100.0);
-    assert!((lbs - 100.0 / KG_PER_LB).abs() < 1e-4);
-}
-
-#[test]
-fn lbs_to_kg_known_value() {
-    let kg = lbs_to_kg(220.0);
-    assert!((kg - 220.0 * KG_PER_LB).abs() < 1e-4);
-}
 
 // ===== PERCENTILE TIER =====
 
@@ -800,7 +681,7 @@ fn calc_bodyfat_jp7_rejects_invalid_inputs() {
 fn calc_1rm_returns_weight_for_one_rep() {
     assert_eq!(calc_1rm(100.0, 1.0, "epley"), 100.0);
     assert_eq!(calc_1rm(100.0, 0.5, "brzycki"), 100.0);
-    assert_eq!(calc_1rm(100.0, 1.0, "lander"), 100.0);
+    assert_eq!(calc_1rm(100.0, 1.0, "lombardi"), 100.0);
 }
 
 #[test]
@@ -822,13 +703,6 @@ fn calc_1rm_brzycki_formula() {
 }
 
 #[test]
-fn calc_1rm_lander_formula() {
-    // (100 * w) / (101.3 - 2.67123 * r)
-    let expected = (100.0 * 100.0) / (101.3 - 2.67123 * 5.0);
-    assert!((calc_1rm(100.0, 5.0, "lander") - expected).abs() < 1e-3);
-}
-
-#[test]
 fn calc_1rm_mayhew_formula() {
     // (100 * w) / (52.2 + 41.9 * e^(-0.055 * r))
     let expected = (100.0 * 100.0) / (52.2 + 41.9 * (-0.055_f32 * 5.0).exp());
@@ -843,17 +717,8 @@ fn calc_1rm_lombardi_formula() {
 }
 
 #[test]
-fn calc_1rm_oconner_formula() {
-    // w * (1 + r/40)
-    let expected = 100.0 * (1.0 + 5.0 / 40.0);
-    assert!((calc_1rm(100.0, 5.0, "oconner") - expected).abs() < 1e-4);
-}
-
-#[test]
 fn calc_1rm_is_monotonic_with_reps() {
-    for formula in &[
-        "epley", "brzycki", "mayhew", "lander", "lombardi", "oconner",
-    ] {
+    for formula in &["epley", "brzycki", "mayhew", "lombardi"] {
         let low = calc_1rm(100.0, 3.0, formula);
         let high = calc_1rm(100.0, 10.0, formula);
         assert!(high > low, "formula {formula} should increase with reps");

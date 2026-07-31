@@ -101,7 +101,6 @@ fn build_heatmap_empty_is_zero_shape() {
     let heat = build_heatmap(&[], LIFT_BIN_BASE_KG, BW_BIN_BASE_KG).expect("heatmap should build");
     assert_eq!(heat.width, 0);
     assert_eq!(heat.height, 0);
-    assert_eq!(heat.total, 0);
     assert!(heat.grid.is_empty());
 }
 
@@ -123,10 +122,9 @@ fn build_heatmap_bins_points_and_preserves_total() {
     assert_eq!(heat.max_y, 82.0);
     assert_eq!(heat.width, 3);
     assert_eq!(heat.height, 2);
-    assert_eq!(heat.total, points.len() as u64);
     assert_eq!(
         heat.grid.iter().copied().map(u64::from).sum::<u64>(),
-        heat.total
+        points.len() as u64
     );
 }
 
@@ -150,8 +148,7 @@ proptest! {
             .expect("heatmap should build");
         let counted = heat.grid.iter().copied().map(u64::from).sum::<u64>();
 
-        prop_assert_eq!(heat.total, points.len() as u64);
-        prop_assert_eq!(counted, heat.total);
+        prop_assert_eq!(counted, points.len() as u64);
         prop_assert_eq!(heat.grid.len(), heat.width * heat.height);
         prop_assert!(heat.min_x <= points.iter().map(|(x, _)| *x).fold(f32::INFINITY, f32::min));
         prop_assert!(heat.max_x > points.iter().map(|(x, _)| *x).fold(f32::NEG_INFINITY, f32::max));

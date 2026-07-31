@@ -1,11 +1,8 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    fs,
-    path::Path,
-};
+use std::{collections::{BTreeMap, HashMap}, path::Path};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use iron_insights_core::slug;
 
 use super::{
     constants::{ALL, ALL_AGES, BW_BIN_BASE_KG, VALID_BW_RANGE_KG},
@@ -14,8 +11,8 @@ use super::{
         Metric, lift_code, metric_base_bin, metric_code, metric_max_valid, metric_slug,
         tested_bucket,
     },
-    model::{HeatMeta, HistMeta, SliceIndexEntry, SliceMeta, SliceSummary},
-    util::{slug, write_bytes},
+    model::{SliceIndexEntry, SliceSummary},
+    util::write_bytes,
 };
 
 #[derive(Debug, Default)]
@@ -59,19 +56,7 @@ impl<'a> MetricPublisher<'a> {
     }
 
     fn trend_key(&self, sex: &str, equipment: &str) -> String {
-        let mut key = String::with_capacity(
-            "sex=".len()
-                + sex.len()
-                + "|equip=".len()
-                + equipment.len()
-                + self.trend_key_suffix.len(),
-        );
-        key.push_str("sex=");
-        key.push_str(sex);
-        key.push_str("|equip=");
-        key.push_str(equipment);
-        key.push_str(&self.trend_key_suffix);
-        key
+        format!("sex={sex}|equip={equipment}{}", self.trend_key_suffix)
     }
 
     pub(super) fn accumulate_row(
@@ -128,10 +113,8 @@ impl<'a> MetricPublisher<'a> {
     pub(super) fn write_outputs(
         self,
         version_dir: &Path,
-        version: &str,
         tested: &str,
         lift: &str,
-        write_meta_files: bool,
         shard_indices: &mut BTreeMap<String, BTreeMap<String, SliceIndexEntry>>,
     ) -> Result<()> {
         let metric = self.metric;
@@ -152,11 +135,6 @@ impl<'a> MetricPublisher<'a> {
             let wc_slug = slug(weight_class);
             let age_slug = slug(age_class);
 
-            let meta_rel = format!(
-                "meta/{sex_slug}/{equip_slug}/{wc_slug}/{age_slug}/{tested}/{metric_slug}/{lift}.json"
-            );
-            let meta_path = version_dir.join(&meta_rel);
-
             let combined = build_combined_bytes(&hist_data, &heat_data, x_base, BW_BIN_BASE_KG);
             let (bin_rel, inline) = if combined.len() <= INLINE_THRESHOLD {
                 (String::new(), BASE64.encode(&combined))
@@ -169,65 +147,17 @@ impl<'a> MetricPublisher<'a> {
                 (rel, String::new())
             };
 
-            let meta = SliceMeta {
-                version: version.to_string(),
-                sex: sex.to_string(),
-                equipment: equipment.to_string(),
-                ipf_weight_class: weight_class.to_string(),
-                age_class: age_class.to_string(),
-                tested: tested.to_string(),
-                lift: lift.to_string(),
-                metric: metric_code.to_string(),
-                hist: HistMeta {
-                    file: bin_rel.clone(),
-                    base_bin_size_kg: x_base,
-                    min_kg: hist_data.min,
-                    max_kg: hist_data.max,
-                    bins: hist_data.counts.len(),
-                    total: hist_data.total,
-                },
-                heat: HeatMeta {
-                    file: bin_rel.clone(),
-                    x_base_bin_size_kg: x_base,
-                    y_base_bin_size_kg: BW_BIN_BASE_KG,
-                    min_x_kg: heat_data.min_x,
-                    max_x_kg: heat_data.max_x,
-                    min_y_kg: heat_data.min_y,
-                    max_y_kg: heat_data.max_y,
-                    width: heat_data.width,
-                    height: heat_data.height,
-                    total: heat_data.total,
-                },
-            };
-
-            if write_meta_files {
-                if let Some(parent) = meta_path.parent() {
-                    fs::create_dir_all(parent)
-                        .with_context(|| format!("failed creating {}", parent.display()))?;
-                }
-                fs::write(&meta_path, serde_json::to_vec(&meta)?)
-                    .with_context(|| format!("failed writing {}", meta_path.display()))?;
-            }
-
             let key = format!(
-                "sex={}|equip={}|wc={}|age={}|tested={}|lift={}|metric={}",
-                sex,
-                equipment,
-                weight_class,
-                age_class,
+                "sex={sex}|equip={equipment}|wc={weight_class}|age={age_class}|tested={}|lift={}|metric={metric_code}",
                 tested_bucket(tested),
                 lift_code(lift),
-                metric_code,
             );
-            let shard_key = format!("sex={}|equip={}", sex, equipment);
-            shard_indices.entry(shard_key).or_default().insert(
+            shard_indices
+                .entry(format!("sex={sex}|equip={equipment}"))
+                .or_default()
+                .insert(
                 key,
                 SliceIndexEntry {
-                    meta: if write_meta_files {
-                        meta_rel
-                    } else {
-                        String::new()
-                    },
                     bin: bin_rel,
                     inline,
                     summary: SliceSummary {

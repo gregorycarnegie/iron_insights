@@ -20,7 +20,6 @@ pub(super) struct HeatmapData {
     pub(super) width: usize,
     pub(super) height: usize,
     pub(super) grid: Vec<u32>,
-    pub(super) total: u64,
 }
 
 pub(super) fn build_histogram(values: &[f32], base: f32) -> Result<HistogramData> {
@@ -68,7 +67,6 @@ pub(super) fn build_heatmap(
             width: 0,
             height: 0,
             grid: Vec::new(),
-            total: 0,
         });
     }
 
@@ -105,7 +103,6 @@ pub(super) fn build_heatmap(
         max_y: max_y_edge,
         width,
         height,
-        total: points.len() as u64,
         grid,
     })
 }

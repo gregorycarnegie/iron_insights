@@ -1,4 +1,4 @@
-use super::slices::SliceKey;
+use crate::core::SliceKey;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -19,12 +19,8 @@ pub(super) struct SavedUiState {
     pub(super) bench: f32,
     pub(super) deadlift: f32,
     pub(super) bodyweight: f32,
-    pub(super) squat_delta: f32,
-    pub(super) bench_delta: f32,
-    pub(super) deadlift_delta: f32,
     pub(super) lift_mult: usize,
     pub(super) bw_mult: usize,
-    pub(super) share_handle: String,
     pub(super) calculated: bool,
 }
 
@@ -55,20 +51,11 @@ pub(super) struct RootIndex {
 
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct SliceIndex {
-    pub(super) slices: SliceIndexEntries,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub(super) enum SliceIndexEntries {
-    Map(BTreeMap<String, SliceIndexEntry>),
-    Keys(Vec<String>),
+    pub(super) slices: BTreeMap<String, SliceIndexEntry>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub(super) struct SliceIndexEntry {
-    #[serde(default)]
-    pub(super) meta: String,
     #[serde(default)]
     pub(super) bin: String,
     /// Base64-encoded IIC1 payload for sparse cohorts. When non-empty the app
@@ -83,18 +70,6 @@ pub(super) struct SliceIndexEntry {
 pub(super) struct SliceRow {
     pub(super) key: SliceKey,
     pub(super) entry: SliceIndexEntry,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub(super) struct SliceMetaJson {
-    pub(super) hist: SliceMetaHist,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub(super) struct SliceMetaHist {
-    pub(super) min_kg: f32,
-    pub(super) max_kg: f32,
-    pub(super) total: u32,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]

@@ -74,9 +74,6 @@ pub(super) struct QueryLoadCtx {
     pub(super) set_deadlift: WriteSignal<f32>,
     pub(super) bodyweight: ReadSignal<f32>,
     pub(super) set_bodyweight: WriteSignal<f32>,
-    pub(super) set_squat_delta: WriteSignal<f32>,
-    pub(super) set_bench_delta: WriteSignal<f32>,
-    pub(super) set_deadlift_delta: WriteSignal<f32>,
     pub(super) set_lift_mult: WriteSignal<usize>,
     pub(super) set_bw_mult: WriteSignal<usize>,
     pub(super) set_calculated: WriteSignal<bool>,
@@ -101,9 +98,6 @@ pub(super) fn setup_query_load_effect(ctx: &QueryLoadCtx) {
         set_deadlift,
         bodyweight,
         set_bodyweight,
-        set_squat_delta,
-        set_bench_delta,
-        set_deadlift_delta,
         set_lift_mult,
         set_bw_mult,
         set_calculated,
@@ -137,9 +131,6 @@ pub(super) fn setup_query_load_effect(ctx: &QueryLoadCtx) {
                 set_bench.set(saved.bench.clamp(0.0, 600.0));
                 set_deadlift.set(saved.deadlift.clamp(0.0, 600.0));
                 set_bodyweight.set(saved.bodyweight.clamp(35.0, 300.0));
-                set_squat_delta.set(saved.squat_delta.clamp(-50.0, 50.0));
-                set_bench_delta.set(saved.bench_delta.clamp(-50.0, 50.0));
-                set_deadlift_delta.set(saved.deadlift_delta.clamp(-50.0, 50.0));
                 set_lift_mult.set(saved.lift_mult.clamp(1, 4));
                 set_bw_mult.set(saved.bw_mult.clamp(1, 5));
                 set_calculated.set(saved.calculated);
@@ -199,9 +190,6 @@ pub(super) fn setup_query_load_effect(ctx: &QueryLoadCtx) {
             35.0,
             300.0,
         ));
-        set_squat_delta.set(parse_query_f32(params.get("sd"), 0.0, -50.0, 50.0));
-        set_bench_delta.set(parse_query_f32(params.get("bd"), 0.0, -50.0, 50.0));
-        set_deadlift_delta.set(parse_query_f32(params.get("dd"), 0.0, -50.0, 50.0));
         if params.get("calc").as_deref() == Some("1") {
             set_calculated.set(true);
         }
@@ -273,9 +261,6 @@ pub(super) struct StatePersistCtx {
     pub(super) bench: ReadSignal<f32>,
     pub(super) deadlift: ReadSignal<f32>,
     pub(super) bodyweight: ReadSignal<f32>,
-    pub(super) squat_delta: ReadSignal<f32>,
-    pub(super) bench_delta: ReadSignal<f32>,
-    pub(super) deadlift_delta: ReadSignal<f32>,
     pub(super) lift_mult: ReadSignal<usize>,
     pub(super) bw_mult: ReadSignal<usize>,
     pub(super) calculated: ReadSignal<bool>,
@@ -295,9 +280,6 @@ pub(super) fn setup_state_persist_effect(ctx: StatePersistCtx) {
         bench,
         deadlift,
         bodyweight,
-        squat_delta,
-        bench_delta,
-        deadlift_delta,
         lift_mult,
         bw_mult,
         calculated,
@@ -326,12 +308,8 @@ pub(super) fn setup_state_persist_effect(ctx: StatePersistCtx) {
             bench: bench.get(),
             deadlift: deadlift.get(),
             bodyweight: bodyweight.get(),
-            squat_delta: squat_delta.get(),
-            bench_delta: bench_delta.get(),
-            deadlift_delta: deadlift_delta.get(),
             lift_mult: lift_mult.get(),
             bw_mult: bw_mult.get(),
-            share_handle: String::new(),
             calculated: calculated.get(),
         };
         if let Ok(raw) = serde_json::to_string(&snapshot) {

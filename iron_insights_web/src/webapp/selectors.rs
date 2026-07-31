@@ -1,10 +1,9 @@
 use super::{
     models::{RootIndex, SliceRow},
-    slices::parse_shard_key,
     ui::{age_class_sort_key, ipf_class_sort_key, unique},
 };
+use crate::core::parse_shard_key;
 use leptos::prelude::*;
-use std::collections::{BTreeSet, HashMap};
 
 pub(super) fn sex_options(root_index: ReadSignal<Option<RootIndex>>) -> Memo<Vec<String>> {
     Memo::new(move |_| {
@@ -39,130 +38,52 @@ pub(super) fn equip_options(
     })
 }
 
+/// The rows of one shard, kept in `SliceKey` order. The cohort dropdowns cascade
+/// by filtering this list on demand — a shard is a few thousand rows, so the
+/// scan is cheaper than the parallel lookup maps it replaced.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(super) struct SliceSelectorIndex {
-    all_rows: Vec<SliceRow>,
-    weight_classes: Vec<String>,
-    ages_by_wc: HashMap<String, Vec<String>>,
-    tested_by_wc_age: HashMap<String, Vec<String>>,
-    lifts_by_wc_age_tested: HashMap<String, Vec<String>>,
-    metrics_by_wc_age_tested_lift: HashMap<String, Vec<String>>,
-    exact_rows: HashMap<String, SliceRow>,
-    rows_by_tested_lift_metric: HashMap<String, Vec<SliceRow>>,
-    rows_by_tested_lift: HashMap<String, Vec<SliceRow>>,
+    rows: Vec<SliceRow>,
 }
 
 impl SliceSelectorIndex {
     fn from_rows(rows: Vec<SliceRow>) -> Self {
-        let mut all_rows = Vec::with_capacity(rows.len());
-        let mut weight_classes = BTreeSet::new();
-        let mut ages_by_wc = HashMap::<String, BTreeSet<String>>::new();
-        let mut tested_by_wc_age = HashMap::<String, BTreeSet<String>>::new();
-        let mut lifts_by_wc_age_tested = HashMap::<String, BTreeSet<String>>::new();
-        let mut metrics_by_wc_age_tested_lift = HashMap::<String, BTreeSet<String>>::new();
-        let mut exact_rows = HashMap::<String, SliceRow>::new();
-        let mut rows_by_tested_lift_metric = HashMap::<String, Vec<SliceRow>>::new();
-        let mut rows_by_tested_lift = HashMap::<String, Vec<SliceRow>>::new();
-
-        for row in rows {
-            let wc = row.key.wc.clone();
-            let age = row.key.age.clone();
-            let tested = row.key.tested.clone();
-            let lift = row.key.lift.clone();
-            let metric = row.key.metric.clone();
-
-            weight_classes.insert(wc.clone());
-            ages_by_wc
-                .entry(wc.clone())
-                .or_default()
-                .insert(age.clone());
-            tested_by_wc_age
-                .entry(selector_key(&[&wc, &age]))
-                .or_default()
-                .insert(tested.clone());
-            lifts_by_wc_age_tested
-                .entry(selector_key(&[&wc, &age, &tested]))
-                .or_default()
-                .insert(lift.clone());
-            metrics_by_wc_age_tested_lift
-                .entry(selector_key(&[&wc, &age, &tested, &lift]))
-                .or_default()
-                .insert(metric.clone());
-
-            let row_clone = row.clone();
-            exact_rows.insert(
-                selector_key(&[&wc, &age, &tested, &lift, &metric]),
-                row_clone.clone(),
-            );
-            rows_by_tested_lift_metric
-                .entry(selector_key(&[&tested, &lift, &metric]))
-                .or_default()
-                .push(row_clone.clone());
-            rows_by_tested_lift
-                .entry(selector_key(&[&tested, &lift]))
-                .or_default()
-                .push(row_clone.clone());
-            all_rows.push(row_clone);
-        }
-
-        let mut weight_classes: Vec<_> = weight_classes.into_iter().collect();
-        weight_classes.sort_by_key(|wc| ipf_class_sort_key(wc));
-
-        let ages_by_wc = ages_by_wc
-            .into_iter()
-            .map(|(wc, ages)| {
-                let mut ages: Vec<_> = ages.into_iter().collect();
-                ages.sort_by_key(|age| age_class_sort_key(age));
-                (wc, ages)
-            })
-            .collect();
-
-        let tested_by_wc_age = tested_by_wc_age
-            .into_iter()
-            .map(|(key, values)| (key, values.into_iter().collect()))
-            .collect();
-        let lifts_by_wc_age_tested = lifts_by_wc_age_tested
-            .into_iter()
-            .map(|(key, values)| (key, values.into_iter().collect()))
-            .collect();
-        let metrics_by_wc_age_tested_lift = metrics_by_wc_age_tested_lift
-            .into_iter()
-            .map(|(key, values)| (key, values.into_iter().collect()))
-            .collect();
-
-        Self {
-            all_rows,
-            weight_classes,
-            ages_by_wc,
-            tested_by_wc_age,
-            lifts_by_wc_age_tested,
-            metrics_by_wc_age_tested_lift,
-            exact_rows,
-            rows_by_tested_lift_metric,
-            rows_by_tested_lift,
-        }
+        Self { rows }
     }
 
     pub(super) fn wc_options(&self) -> Vec<String> {
-        self.weight_classes.clone()
+        let mut classes = unique(self.rows.iter().map(|r| r.key.wc.clone()));
+        classes.sort_by_key(|wc| ipf_class_sort_key(wc));
+        classes
     }
 
     pub(super) fn age_options(&self, wc: &str) -> Vec<String> {
-        self.ages_by_wc.get(wc).cloned().unwrap_or_default()
+        let mut ages = unique(
+            self.rows
+                .iter()
+                .filter(|r| r.key.wc == wc)
+                .map(|r| r.key.age.clone()),
+        );
+        ages.sort_by_key(|age| age_class_sort_key(age));
+        ages
     }
 
     pub(super) fn tested_options(&self, wc: &str, age: &str) -> Vec<String> {
-        self.tested_by_wc_age
-            .get(&selector_key(&[wc, age]))
-            .cloned()
-            .unwrap_or_default()
+        unique(
+            self.rows
+                .iter()
+                .filter(|r| r.key.wc == wc && r.key.age == age)
+                .map(|r| r.key.tested.clone()),
+        )
     }
 
     pub(super) fn lift_options(&self, wc: &str, age: &str, tested: &str) -> Vec<String> {
-        self.lifts_by_wc_age_tested
-            .get(&selector_key(&[wc, age, tested]))
-            .cloned()
-            .unwrap_or_default()
+        unique(
+            self.rows
+                .iter()
+                .filter(|r| r.key.wc == wc && r.key.age == age && r.key.tested == tested)
+                .map(|r| r.key.lift.clone()),
+        )
     }
 
     pub(super) fn metric_options(
@@ -172,10 +93,17 @@ impl SliceSelectorIndex {
         tested: &str,
         lift: &str,
     ) -> Vec<String> {
-        self.metrics_by_wc_age_tested_lift
-            .get(&selector_key(&[wc, age, tested, lift]))
-            .cloned()
-            .unwrap_or_default()
+        unique(
+            self.rows
+                .iter()
+                .filter(|r| {
+                    r.key.wc == wc
+                        && r.key.age == age
+                        && r.key.tested == tested
+                        && r.key.lift == lift
+                })
+                .map(|r| r.key.metric.clone()),
+        )
     }
 
     pub(super) fn current_row(
@@ -186,21 +114,43 @@ impl SliceSelectorIndex {
         lift: &str,
         metric: &str,
     ) -> Option<SliceRow> {
-        self.exact_rows
-            .get(&selector_key(&[wc, age, tested, lift, metric]))
+        self.rows
+            .iter()
+            .find(|r| {
+                r.key.wc == wc
+                    && r.key.age == age
+                    && r.key.tested == tested
+                    && r.key.lift == lift
+                    && r.key.metric == metric
+            })
             .cloned()
     }
 
+    /// Rows to fall back on when the exact cohort has no slice: narrowest match
+    /// first, widening to every row rather than returning nothing.
     pub(super) fn candidate_rows(&self, tested: &str, lift: &str, metric: &str) -> Vec<SliceRow> {
-        self.rows_by_tested_lift_metric
-            .get(&selector_key(&[tested, lift, metric]))
-            .cloned()
-            .or_else(|| {
-                self.rows_by_tested_lift
-                    .get(&selector_key(&[tested, lift]))
-                    .cloned()
-            })
-            .unwrap_or_else(|| self.all_rows.clone())
+        let matching = |with_metric: bool| -> Vec<SliceRow> {
+            self.rows
+                .iter()
+                .filter(|r| {
+                    r.key.tested == tested
+                        && r.key.lift == lift
+                        && (!with_metric || r.key.metric == metric)
+                })
+                .cloned()
+                .collect()
+        };
+
+        let exact = matching(true);
+        if !exact.is_empty() {
+            return exact;
+        }
+        let any_metric = matching(false);
+        if any_metric.is_empty() {
+            self.rows.clone()
+        } else {
+            any_metric
+        }
     }
 }
 
@@ -266,23 +216,10 @@ pub(super) fn metric_options(
     })
 }
 
-fn selector_key(parts: &[&str]) -> String {
-    let mut key = String::with_capacity(
-        parts.iter().map(|part| part.len()).sum::<usize>() + parts.len().saturating_sub(1),
-    );
-    for (idx, part) in parts.iter().enumerate() {
-        if idx > 0 {
-            key.push('\u{1f}');
-        }
-        key.push_str(part);
-    }
-    key
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::webapp::{models::SliceIndexEntry, slices::SliceKey};
+    use crate::{core::SliceKey, webapp::models::SliceIndexEntry};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     fn row(wc: &str, age: &str, tested: &str, lift: &str, metric: &str) -> SliceRow {
@@ -298,7 +235,6 @@ mod tests {
                 metric_explicit: true,
             },
             entry: SliceIndexEntry {
-                meta: format!("{wc}-{age}-{tested}-{lift}-{metric}.json"),
                 bin: format!("{wc}-{age}-{tested}-{lift}-{metric}.bin"),
                 inline: String::new(),
                 summary: None,

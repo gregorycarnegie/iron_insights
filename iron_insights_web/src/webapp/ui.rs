@@ -2,11 +2,7 @@ use std::collections::BTreeSet;
 use web_sys::HtmlInputElement;
 
 pub(super) fn unique(items: impl Iterator<Item = String>) -> Vec<String> {
-    let mut set = BTreeSet::new();
-    for item in items {
-        set.insert(item);
-    }
-    set.into_iter().collect()
+    items.collect::<BTreeSet<_>>().into_iter().collect()
 }
 
 pub(super) fn pick_preferred(options: &[String], preferred: &str) -> String {

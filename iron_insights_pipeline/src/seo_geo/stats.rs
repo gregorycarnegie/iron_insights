@@ -1,6 +1,8 @@
 use std::{fs, path::Path};
 
-use iron_insights_core::{HistogramBin, parse_combined_bin};
+use iron_insights_core::{
+    HistogramBin, parse_combined_bin, percentile_for_value, value_for_percentile,
+};
 
 use super::constants::LIFTS;
 
@@ -57,39 +59,12 @@ fn read_hist(
     parse_combined_bin(&bytes).map(|(hist, _heat)| hist)
 }
 
-pub(super) fn total_count(hist: &HistogramBin) -> u64 {
-    hist.counts.iter().map(|&c| u64::from(c)).sum()
-}
-
 pub(super) fn percentile_value(hist: &HistogramBin, q: f32) -> f32 {
-    let total = total_count(hist);
-    if total == 0 {
-        return 0.0;
-    }
-    let target = q * total as f32;
-    let mut cum = 0.0f32;
-    for (i, &n) in hist.counts.iter().enumerate() {
-        cum += n as f32;
-        if cum >= target {
-            return hist.min + (i as f32 + 0.5) * hist.base_bin;
-        }
-    }
-    hist.min + hist.counts.len() as f32 * hist.base_bin
+    value_for_percentile(Some(hist), q).unwrap_or(0.0)
 }
 
 pub(super) fn value_percentile(hist: &HistogramBin, value: f32) -> f32 {
-    let total = total_count(hist);
-    if total == 0 {
-        return 0.0;
-    }
-    let below: u64 = hist
-        .counts
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| hist.min + *i as f32 * hist.base_bin < value)
-        .map(|(_, &n)| u64::from(n))
-        .sum();
-    100.0 * below as f32 / total as f32
+    percentile_for_value(Some(hist), value).map_or(0.0, |(pct, _, _)| 100.0 * pct)
 }
 
 pub(super) fn load_stats(bins: &Path) -> Option<Stats> {
@@ -137,7 +112,7 @@ pub(super) fn load_stats(bins: &Path) -> Option<Stats> {
     for sex in ["m", "f"] {
         for lift in ["squat", "bench", "deadlift"] {
             if let Some(h) = read_hist(bins, sex, "all", "all", "all_ages", "all", "kg", lift) {
-                result_count += total_count(&h);
+                result_count += u64::from(h.total);
             }
         }
     }

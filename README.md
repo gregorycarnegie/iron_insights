@@ -132,8 +132,7 @@ Metric behavior:
 
 - squat, bench, and deadlift publish only `Kg`
 - total publishes `Kg`, `Dots`, `Wilks`, and `GL`
-- default publish mode embeds summary in shard indexes and skips `meta/`
-- `--write-meta-files true` writes legacy per-slice JSON metadata
+- shard indexes embed the cohort summary directly, so there is no `meta/` tree
 
 ## QA And Validation
 

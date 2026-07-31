@@ -3,8 +3,7 @@
 /// Estimates the one-rep max from a submaximal set.
 ///
 /// Returns `weight` unchanged for `reps <= 1.0`.
-/// Supported `formula` values: `"epley"` (default), `"brzycki"`, `"mayhew"`, `"lander"`,
-/// `"lombardi"`, `"oconner"`.
+/// Supported `formula` values: `"epley"` (default), `"brzycki"`, `"mayhew"`, `"lombardi"`.
 ///
 /// ```
 /// use iron_insights_core::calc_1rm;
@@ -22,9 +21,7 @@ pub fn calc_1rm(weight: f32, reps: f32, formula: &str) -> f32 {
     match formula {
         "brzycki" => weight / (1.0278 - 0.0278 * reps),
         "mayhew" => (100.0 * weight) / (52.2 + 41.9 * (-0.055 * reps).exp()),
-        "lander" => (100.0 * weight) / (101.3 - 2.67123 * reps),
         "lombardi" => weight * reps.powf(0.1),
-        "oconner" => weight * (1.0 + reps / 40.0),
         _ => weight * (1.0 + reps / 30.0),
     }
 }

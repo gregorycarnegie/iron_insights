@@ -52,14 +52,12 @@ pub fn run() -> Result<()> {
     extract_first_csv(&zip_path, &csv_path)?;
     convert_csv_to_parquet(&csv_path, &parquet_path)?;
 
-    let metadata = BuildMetadata::new(
-        resolve_dataset_version(&args.dataset_version),
-        args.dataset_revision,
-        args.zip_url,
-        zip_path.display().to_string(),
-        csv_path.display().to_string(),
-        parquet_path.display().to_string(),
-    );
+    let metadata = BuildMetadata {
+        built_at_utc: Utc::now().to_rfc3339(),
+        dataset_version: resolve_dataset_version(&args.dataset_version),
+        dataset_revision: args.dataset_revision,
+        source_zip_url: args.zip_url,
+    };
 
     fs::write(&metadata_path, serde_json::to_vec_pretty(&metadata)?)
         .with_context(|| format!("failed writing metadata {}", metadata_path.display()))?;

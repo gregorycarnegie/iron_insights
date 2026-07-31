@@ -13,10 +13,10 @@ mod trends;
 mod util;
 mod versioning;
 
+use iron_insights_core::{parse_shard_key, slug};
 use model::{LatestJson, RootIndex, SliceIndex, SliceIndexEntry};
 use records::{PublishRecordsJob, publish_records_for_lift};
 use trends::build_trends_shards;
-use util::{parse_shard_key, slug};
 use versioning::{prune_old_versions, read_optional_build_metadata, resolve_version};
 
 #[derive(Debug, Parser)]
@@ -38,9 +38,6 @@ struct Args {
 
     #[arg(long, default_value_t = 4)]
     keep_versions: usize,
-
-    #[arg(long, default_value_t = false)]
-    write_meta_files: bool,
 }
 
 pub fn run() -> Result<()> {
@@ -78,10 +75,8 @@ pub fn run() -> Result<()> {
             publish_records_for_lift(PublishRecordsJob {
                 records_path: &records_path,
                 version_dir: &version_dir,
-                version: &version,
                 tested,
                 lift,
-                write_meta_files: args.write_meta_files,
                 shard_indices: &mut shard_indices,
                 trends_acc: &mut trends_acc,
             })?;

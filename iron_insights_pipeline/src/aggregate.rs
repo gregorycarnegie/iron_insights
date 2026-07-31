@@ -183,20 +183,40 @@ fn event_filter(events: &[&str]) -> Expr {
         .fold(lit(false), |expr, ev| expr.or(col("Event").eq(lit(*ev))))
 }
 
-fn weight_class_chain(bw: Expr, classes: &[(f32, &'static str)]) -> Expr {
-    // Build a when/then chain from the shared IPF boundary constants in iron_insights_core.
+/// Upper age bound (inclusive) and label per class; the last entry is the open-ended top.
+const AGE_CLASSES: &[(f32, &str)] = &[
+    (12.0, "5-12"),
+    (15.0, "13-15"),
+    (17.0, "16-17"),
+    (19.0, "18-19"),
+    (23.0, "20-23"),
+    (34.0, "24-34"),
+    (39.0, "35-39"),
+    (44.0, "40-44"),
+    (49.0, "45-49"),
+    (54.0, "50-54"),
+    (59.0, "55-59"),
+    (64.0, "60-64"),
+    (69.0, "65-69"),
+    (74.0, "70-74"),
+    (79.0, "75-79"),
+    (f32::INFINITY, "80+"),
+];
+
+fn bounded_class_chain(value: Expr, classes: &[(f32, &'static str)]) -> Expr {
+    // Build a when/then chain from a shared boundary table.
     // Bootstrap with two entries to produce a ChainedThen — Then and ChainedThen are distinct
     // Polars types so both can't be held in the same mut variable.
     let mut iter = classes.iter();
     let (u0, l0) = iter.next().expect("classes must have at least 2 entries");
     let (u1, l1) = iter.next().expect("classes must have at least 2 entries");
-    let mut expr = when(bw.clone().lt_eq(lit(*u0)))
+    let mut expr = when(value.clone().lt_eq(lit(*u0)))
         .then(lit(*l0))
-        .when(bw.clone().lt_eq(lit(*u1)))
+        .when(value.clone().lt_eq(lit(*u1)))
         .then(lit(*l1));
     for (upper, label) in iter {
         if upper.is_finite() {
-            expr = expr.when(bw.clone().lt_eq(lit(*upper))).then(lit(*label));
+            expr = expr.when(value.clone().lt_eq(lit(*upper))).then(lit(*label));
         } else {
             return expr.otherwise(lit(*label));
         }
@@ -206,8 +226,8 @@ fn weight_class_chain(bw: Expr, classes: &[(f32, &'static str)]) -> Expr {
 
 fn derive_ipf_weight_class_expr() -> Expr {
     let bw = col("BodyweightKg").cast(DataType::Float32);
-    let men = weight_class_chain(bw.clone(), IPF_MALE_WEIGHT_CLASSES);
-    let women = weight_class_chain(bw, IPF_FEMALE_WEIGHT_CLASSES);
+    let men = bounded_class_chain(bw.clone(), IPF_MALE_WEIGHT_CLASSES);
+    let women = bounded_class_chain(bw, IPF_FEMALE_WEIGHT_CLASSES);
 
     when(col("Sex").eq(lit("M")))
         .then(men)
@@ -218,39 +238,7 @@ fn derive_ipf_weight_class_expr() -> Expr {
 }
 
 fn derive_age_class_expr() -> Expr {
-    let age = col("Age").cast(DataType::Float32);
-    when(age.clone().lt_eq(lit(12.0f32)))
-        .then(lit("5-12"))
-        .when(age.clone().lt_eq(lit(15.0f32)))
-        .then(lit("13-15"))
-        .when(age.clone().lt_eq(lit(17.0f32)))
-        .then(lit("16-17"))
-        .when(age.clone().lt_eq(lit(19.0f32)))
-        .then(lit("18-19"))
-        .when(age.clone().lt_eq(lit(23.0f32)))
-        .then(lit("20-23"))
-        .when(age.clone().lt_eq(lit(34.0f32)))
-        .then(lit("24-34"))
-        .when(age.clone().lt_eq(lit(39.0f32)))
-        .then(lit("35-39"))
-        .when(age.clone().lt_eq(lit(44.0f32)))
-        .then(lit("40-44"))
-        .when(age.clone().lt_eq(lit(49.0f32)))
-        .then(lit("45-49"))
-        .when(age.clone().lt_eq(lit(54.0f32)))
-        .then(lit("50-54"))
-        .when(age.clone().lt_eq(lit(59.0f32)))
-        .then(lit("55-59"))
-        .when(age.clone().lt_eq(lit(64.0f32)))
-        .then(lit("60-64"))
-        .when(age.clone().lt_eq(lit(69.0f32)))
-        .then(lit("65-69"))
-        .when(age.clone().lt_eq(lit(74.0f32)))
-        .then(lit("70-74"))
-        .when(age.clone().lt_eq(lit(79.0f32)))
-        .then(lit("75-79"))
-        .otherwise(lit("80+"))
-        .alias("AgeClassBucket")
+    bounded_class_chain(col("Age").cast(DataType::Float32), AGE_CLASSES).alias("AgeClassBucket")
 }
 
 #[cfg(test)]

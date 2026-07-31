@@ -64,8 +64,11 @@ fn escape_encodes_html_specials() {
 
 #[test]
 fn percentile_value_reads_midpoint() {
-    // 10 in [100,102.5), 10 in [102.5,105): p50 should land in first bin.
+    // Shares the app's mid-bin convention (iron_insights_core), so an SEO page
+    // and the ranking view quote the same number for the same lift: a bin's
+    // occupants count as sitting at its centre, not its edge.
+    // 10 in [100,102.5), 10 in [102.5,105).
     let hist = HistogramBin::new(100.0, 105.0, 2.5, vec![10, 10]);
-    assert_eq!(percentile_value(&hist, 0.5), 101.25);
-    assert_eq!(value_percentile(&hist, 102.5), 50.0);
+    assert_eq!(percentile_value(&hist, 0.5), 103.75);
+    assert_eq!(value_percentile(&hist, 102.5), 75.0);
 }

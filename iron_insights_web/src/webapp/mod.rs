@@ -20,8 +20,6 @@ mod logging;
 mod models;
 mod persistence;
 mod selectors;
-mod share;
-mod slices;
 mod state;
 mod ui;
 

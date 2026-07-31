@@ -17,6 +17,22 @@ const LEGEND_BORDER: &str = "#2a2a30";
 const HEAT_COLOR_RGB: &str = "232, 71, 43";
 const STEEL_BAR_COLOR: &str = "rgba(107,115,128,0.4)";
 
+/// Heatmap canvases have no CSS height of their own, so they fall back to the
+/// default aspect ratio rather than a fixed pixel height.
+fn setup_heatmap_canvas(
+    canvas: &HtmlCanvasElement,
+) -> Option<(CanvasRenderingContext2d, f64, f64)> {
+    let css_w = f64::from(canvas.client_width().max(1));
+    setup_canvas(
+        canvas,
+        (css_w * (DEFAULT_HEATMAP_HEIGHT / DEFAULT_HEATMAP_WIDTH))
+            .round()
+            .max(1.0),
+    )
+}
+
+/// Sizes the backing store for the device pixel ratio, clears it, and returns
+/// the context plus the CSS-pixel dimensions to draw in.
 fn setup_canvas(
     canvas: &HtmlCanvasElement,
     fallback_h: f64,
@@ -381,39 +397,10 @@ pub(super) fn draw_heatmap(
     user_bw: f32,
     x_label: &str,
 ) {
-    let Ok(Some(ctx)) = canvas.get_context("2d") else {
-        return;
-    };
-    let Ok(ctx) = ctx.dyn_into::<CanvasRenderingContext2d>() else {
+    let Some((ctx, cw, ch)) = setup_heatmap_canvas(canvas) else {
         return;
     };
 
-    let css_w = f64::from(canvas.client_width().max(1));
-    let css_h = match canvas.client_height() {
-        0 => (css_w * (DEFAULT_HEATMAP_HEIGHT / DEFAULT_HEATMAP_WIDTH))
-            .round()
-            .max(1.0),
-        value => f64::from(value),
-    };
-    let dpr = web_sys::window()
-        .map_or(1.0, |window| window.device_pixel_ratio())
-        .max(1.0);
-    let backing_w = (css_w * dpr).round().max(1.0) as u32;
-    let backing_h = (css_h * dpr).round().max(1.0) as u32;
-
-    if canvas.width() != backing_w {
-        canvas.set_width(backing_w);
-    }
-    if canvas.height() != backing_h {
-        canvas.set_height(backing_h);
-    }
-
-    let _ = ctx.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-    ctx.clear_rect(0.0, 0.0, f64::from(backing_w), f64::from(backing_h));
-    let _ = ctx.scale(dpr, dpr);
-
-    let cw = css_w;
-    let ch = css_h;
     let left = 58.0f64;
     let right = 96.0f64;
     let top = 18.0f64;
@@ -467,53 +454,18 @@ pub(super) fn draw_heatmap(
         ctx.fill();
     }
 
-    ctx.set_stroke_style_str(AXIS_COLOR);
-    ctx.begin_path();
-    ctx.move_to(left, top + plot_h);
-    ctx.line_to(left + plot_w, top + plot_h);
-    ctx.move_to(left, top);
-    ctx.line_to(left, top + plot_h);
-    ctx.stroke();
-
-    ctx.set_fill_style_str(TICK_COLOR);
-    ctx.set_font("11px 'JetBrains Mono', monospace");
-    ctx.set_text_align("center");
-    ctx.set_text_baseline("top");
-    let _ = ctx.fill_text(&format!("{:.0}", heat.min_x), left, top + plot_h + 8.0);
-    let _ = ctx.fill_text(
-        &format!("{:.0}", (heat.min_x + heat.max_x) * 0.5),
-        left + plot_w * 0.5,
-        top + plot_h + 8.0,
+    draw_heatmap_axes(
+        &ctx,
+        (
+            f64::from(heat.min_x),
+            f64::from(heat.max_x),
+            f64::from(heat.min_y),
+            f64::from(heat.max_y),
+        ),
+        (left, top, plot_w, plot_h),
+        ch,
+        x_label,
     );
-    let _ = ctx.fill_text(
-        &format!("{:.0}", heat.max_x),
-        left + plot_w,
-        top + plot_h + 8.0,
-    );
-
-    ctx.set_text_align("right");
-    ctx.set_text_baseline("middle");
-    let _ = ctx.fill_text(&format!("{:.0}", heat.min_y), left - 8.0, top + plot_h);
-    let _ = ctx.fill_text(
-        &format!("{:.0}", (heat.min_y + heat.max_y) * 0.5),
-        left - 8.0,
-        top + plot_h * 0.5,
-    );
-    let _ = ctx.fill_text(&format!("{:.0}", heat.max_y), left - 8.0, top);
-
-    ctx.set_fill_style_str(LABEL_COLOR);
-    ctx.set_font("12px 'JetBrains Mono', monospace");
-    ctx.set_text_align("center");
-    ctx.set_text_baseline("top");
-    let _ = ctx.fill_text(x_label, left + plot_w * 0.5, ch - 18.0);
-
-    ctx.save();
-    let _ = ctx.translate(16.0, top + plot_h * 0.5);
-    let _ = ctx.rotate(-std::f64::consts::FRAC_PI_2);
-    ctx.set_text_align("center");
-    ctx.set_text_baseline("top");
-    let _ = ctx.fill_text("Bodyweight (kg)", 0.0, 0.0);
-    ctx.restore();
 
     let legend_x = left + plot_w + 22.0;
     let legend_y = top + 30.0;
@@ -611,6 +563,64 @@ fn draw_circle_marker(ctx: &CanvasRenderingContext2d, x: f64, y: f64, color: &st
     ctx.stroke();
 }
 
+/// The L-shaped axes, min/mid/max ticks on both, and the two axis titles shared
+/// by the single-cohort heatmap and the cross-sex overlay.
+#[allow(clippy::too_many_arguments)]
+fn draw_heatmap_axes(
+    ctx: &CanvasRenderingContext2d,
+    bounds: (f64, f64, f64, f64),
+    plot: (f64, f64, f64, f64),
+    ch: f64,
+    x_label: &str,
+) {
+    let (min_x, max_x, min_y, max_y) = bounds;
+    let (left, top, plot_w, plot_h) = plot;
+
+    ctx.set_stroke_style_str(AXIS_COLOR);
+    ctx.begin_path();
+    ctx.move_to(left, top + plot_h);
+    ctx.line_to(left + plot_w, top + plot_h);
+    ctx.move_to(left, top);
+    ctx.line_to(left, top + plot_h);
+    ctx.stroke();
+
+    ctx.set_fill_style_str(TICK_COLOR);
+    ctx.set_font("11px 'JetBrains Mono', monospace");
+    ctx.set_text_align("center");
+    ctx.set_text_baseline("top");
+    for (value, x) in [
+        (min_x, left),
+        ((min_x + max_x) * 0.5, left + plot_w * 0.5),
+        (max_x, left + plot_w),
+    ] {
+        let _ = ctx.fill_text(&format_axis_tick(value as f32), x, top + plot_h + 8.0);
+    }
+
+    ctx.set_text_align("right");
+    ctx.set_text_baseline("middle");
+    for (value, y) in [
+        (min_y, top + plot_h),
+        ((min_y + max_y) * 0.5, top + plot_h * 0.5),
+        (max_y, top),
+    ] {
+        let _ = ctx.fill_text(&format_axis_tick(value as f32), left - 8.0, y);
+    }
+
+    ctx.set_fill_style_str(LABEL_COLOR);
+    ctx.set_font("12px 'JetBrains Mono', monospace");
+    ctx.set_text_align("center");
+    ctx.set_text_baseline("top");
+    let _ = ctx.fill_text(x_label, left + plot_w * 0.5, ch - 18.0);
+
+    ctx.save();
+    let _ = ctx.translate(16.0, top + plot_h * 0.5);
+    let _ = ctx.rotate(-std::f64::consts::FRAC_PI_2);
+    ctx.set_text_align("center");
+    ctx.set_text_baseline("top");
+    let _ = ctx.fill_text("Bodyweight (kg)", 0.0, 0.0);
+    ctx.restore();
+}
+
 pub(super) fn draw_cross_sex_heatmap_overlay(
     canvas: &HtmlCanvasElement,
     male_heat: &HeatmapBin,
@@ -619,39 +629,10 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
     user_bw: f32,
     x_label: &str,
 ) {
-    let Ok(Some(ctx)) = canvas.get_context("2d") else {
-        return;
-    };
-    let Ok(ctx) = ctx.dyn_into::<CanvasRenderingContext2d>() else {
+    let Some((ctx, cw, ch)) = setup_heatmap_canvas(canvas) else {
         return;
     };
 
-    let css_w = f64::from(canvas.client_width().max(1));
-    let css_h = match canvas.client_height() {
-        0 => (css_w * (DEFAULT_HEATMAP_HEIGHT / DEFAULT_HEATMAP_WIDTH))
-            .round()
-            .max(1.0),
-        value => f64::from(value),
-    };
-    let dpr = web_sys::window()
-        .map_or(1.0, |window| window.device_pixel_ratio())
-        .max(1.0);
-    let backing_w = (css_w * dpr).round().max(1.0) as u32;
-    let backing_h = (css_h * dpr).round().max(1.0) as u32;
-
-    if canvas.width() != backing_w {
-        canvas.set_width(backing_w);
-    }
-    if canvas.height() != backing_h {
-        canvas.set_height(backing_h);
-    }
-
-    let _ = ctx.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-    ctx.clear_rect(0.0, 0.0, f64::from(backing_w), f64::from(backing_h));
-    let _ = ctx.scale(dpr, dpr);
-
-    let cw = css_w;
-    let ch = css_h;
     let left = 58.0f64;
     let right = 132.0f64;
     let top = 18.0f64;
@@ -708,53 +689,13 @@ pub(super) fn draw_cross_sex_heatmap_overlay(
         draw_circle_marker(&ctx, marker_x, marker_y, USER_MARKER_COLOR);
     }
 
-    ctx.set_stroke_style_str(AXIS_COLOR);
-    ctx.begin_path();
-    ctx.move_to(left, top + plot_h);
-    ctx.line_to(left + plot_w, top + plot_h);
-    ctx.move_to(left, top);
-    ctx.line_to(left, top + plot_h);
-    ctx.stroke();
-
-    ctx.set_fill_style_str(TICK_COLOR);
-    ctx.set_font("11px 'JetBrains Mono', monospace");
-    ctx.set_text_align("center");
-    ctx.set_text_baseline("top");
-    let _ = ctx.fill_text(&format_axis_tick(min_x as f32), left, top + plot_h + 8.0);
-    let _ = ctx.fill_text(
-        &format_axis_tick(((min_x + max_x) * 0.5) as f32),
-        left + plot_w * 0.5,
-        top + plot_h + 8.0,
+    draw_heatmap_axes(
+        &ctx,
+        (min_x, max_x, min_y, max_y),
+        (left, top, plot_w, plot_h),
+        ch,
+        x_label,
     );
-    let _ = ctx.fill_text(
-        &format_axis_tick(max_x as f32),
-        left + plot_w,
-        top + plot_h + 8.0,
-    );
-
-    ctx.set_text_align("right");
-    ctx.set_text_baseline("middle");
-    let _ = ctx.fill_text(&format_axis_tick(min_y as f32), left - 8.0, top + plot_h);
-    let _ = ctx.fill_text(
-        &format_axis_tick(((min_y + max_y) * 0.5) as f32),
-        left - 8.0,
-        top + plot_h * 0.5,
-    );
-    let _ = ctx.fill_text(&format_axis_tick(max_y as f32), left - 8.0, top);
-
-    ctx.set_fill_style_str(LABEL_COLOR);
-    ctx.set_font("12px 'JetBrains Mono', monospace");
-    ctx.set_text_align("center");
-    ctx.set_text_baseline("top");
-    let _ = ctx.fill_text(x_label, left + plot_w * 0.5, ch - 18.0);
-
-    ctx.save();
-    let _ = ctx.translate(16.0, top + plot_h * 0.5);
-    let _ = ctx.rotate(-std::f64::consts::FRAC_PI_2);
-    ctx.set_text_align("center");
-    ctx.set_text_baseline("top");
-    let _ = ctx.fill_text("Bodyweight (kg)", 0.0, 0.0);
-    ctx.restore();
 
     let legend_x = left + plot_w + 20.0;
     let legend_y = top + 26.0;

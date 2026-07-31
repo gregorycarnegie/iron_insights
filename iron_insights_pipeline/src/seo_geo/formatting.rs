@@ -1,31 +1,9 @@
-const MONTHS: [&str; 12] = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-];
+use chrono::NaiveDate;
 
+/// `2026-07-31` to `31 July 2026`; anything unparseable passes through unchanged.
 pub(super) fn human_date(iso: &str) -> String {
-    let parts: Vec<&str> = iso.split('-').collect();
-    let [y, m, d] = parts[..] else {
-        return iso.to_string();
-    };
-    let (Ok(month), Ok(day)) = (m.parse::<usize>(), d.parse::<u32>()) else {
-        return iso.to_string();
-    };
-    if (1..=12).contains(&month) {
-        format!("{day} {} {y}", MONTHS[month - 1])
-    } else {
-        iso.to_string()
-    }
+    NaiveDate::parse_from_str(iso, "%Y-%m-%d")
+        .map_or_else(|_| iso.to_string(), |d| d.format("%-d %B %Y").to_string())
 }
 
 pub(super) fn group_thousands(n: u64) -> String {

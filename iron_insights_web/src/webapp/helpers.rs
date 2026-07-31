@@ -66,36 +66,17 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn kg_to_display_kg_mode_is_identity() {
-        assert!((kg_to_display(100.0, false) - 100.0).abs() < 0.001);
-    }
-
-    #[wasm_bindgen_test]
-    fn kg_to_display_converts_to_lbs() {
-        let lbs = kg_to_display(100.0, true);
-        assert!((lbs - 220.462).abs() < 0.01, "got {lbs}");
-    }
-
-    #[wasm_bindgen_test]
-    fn display_to_kg_kg_mode_is_identity() {
-        assert!((display_to_kg(100.0, false) - 100.0).abs() < 0.001);
-    }
-
-    #[wasm_bindgen_test]
-    fn display_to_kg_converts_from_lbs() {
-        let kg = display_to_kg(220.462, true);
-        assert!((kg - 100.0).abs() < 0.01, "got {kg}");
-    }
-
-    #[wasm_bindgen_test]
-    fn kg_display_round_trips() {
-        let original = 142.5_f32;
-        let converted = kg_to_display(original, true);
-        let back = display_to_kg(converted, true);
-        assert!(
-            (back - original).abs() < 0.01,
-            "round trip lost precision: {back}"
-        );
+    fn kg_display_converts_both_directions() {
+        // (kg, use_lbs, expected display value)
+        for (kg, use_lbs, expected) in [
+            (100.0, false, 100.0),
+            (100.0, true, 220.462),
+            (0.0, true, 0.0),
+        ] {
+            let shown = kg_to_display(kg, use_lbs);
+            assert!((shown - expected).abs() < 0.01, "{kg} kg -> {shown}");
+            assert!((display_to_kg(shown, use_lbs) - kg).abs() < 0.01, "{shown}");
+        }
     }
 
     #[wasm_bindgen_test]
@@ -112,24 +93,18 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn parse_query_f32_none_returns_default() {
-        assert!((parse_query_f32(None, 50.0, 0.0, 100.0) - 50.0).abs() < 0.001);
-    }
-
-    #[wasm_bindgen_test]
-    fn parse_query_f32_parses_valid_string() {
-        assert!((parse_query_f32(Some("75.5".into()), 0.0, 0.0, 100.0) - 75.5).abs() < 0.001);
-    }
-
-    #[wasm_bindgen_test]
-    fn parse_query_f32_clamps_to_range() {
-        assert!((parse_query_f32(Some("200.0".into()), 0.0, 0.0, 100.0) - 100.0).abs() < 0.001);
-        assert!((parse_query_f32(Some("-10.0".into()), 0.0, 0.0, 100.0) - 0.0).abs() < 0.001);
-    }
-
-    #[wasm_bindgen_test]
-    fn parse_query_f32_invalid_string_returns_default() {
-        assert!((parse_query_f32(Some("abc".into()), 42.0, 0.0, 100.0) - 42.0).abs() < 0.001);
+    fn parse_query_f32_parses_clamps_and_falls_back() {
+        // (raw param, default, expected)
+        for (raw, default, expected) in [
+            (None, 50.0, 50.0),                    // absent
+            (Some("75.5"), 0.0, 75.5),             // valid
+            (Some("200.0"), 0.0, 100.0),           // above max
+            (Some("-10.0"), 0.0, 0.0),             // below min
+            (Some("abc"), 42.0, 42.0),             // unparseable
+        ] {
+            let got = parse_query_f32(raw.map(Into::into), default, 0.0, 100.0);
+            assert!((got - expected).abs() < 0.001, "{raw:?} -> {got}");
+        }
     }
 
     #[wasm_bindgen_test]
@@ -149,7 +124,7 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn comparable_lift_value_squat() {
+    fn comparable_lift_value_selects_the_named_lift() {
         let lifter = ComparableLifter {
             sex: "M",
             equipment: "Raw",
@@ -158,46 +133,17 @@ mod tests {
             bench: 130.0,
             deadlift: 240.0,
         };
-        assert!((comparable_lift_value(lifter, "S", "Kg") - 200.0).abs() < 0.001);
-    }
-
-    #[wasm_bindgen_test]
-    fn comparable_lift_value_bench() {
-        let lifter = ComparableLifter {
-            sex: "M",
-            equipment: "Raw",
-            bodyweight: 83.0,
-            squat: 200.0,
-            bench: 130.0,
-            deadlift: 240.0,
-        };
-        assert!((comparable_lift_value(lifter, "B", "Kg") - 130.0).abs() < 0.001);
-    }
-
-    #[wasm_bindgen_test]
-    fn comparable_lift_value_deadlift() {
-        let lifter = ComparableLifter {
-            sex: "M",
-            equipment: "Raw",
-            bodyweight: 83.0,
-            squat: 200.0,
-            bench: 130.0,
-            deadlift: 240.0,
-        };
-        assert!((comparable_lift_value(lifter, "D", "Kg") - 240.0).abs() < 0.001);
-    }
-
-    #[wasm_bindgen_test]
-    fn comparable_lift_value_total_kg() {
-        let lifter = ComparableLifter {
-            sex: "M",
-            equipment: "Raw",
-            bodyweight: 83.0,
-            squat: 200.0,
-            bench: 130.0,
-            deadlift: 240.0,
-        };
-        assert!((comparable_lift_value(lifter, "T", "Kg") - 570.0).abs() < 0.001);
+        // (lift code, expected kg); "X" is an unknown code.
+        for (lift, expected) in [
+            ("S", 200.0),
+            ("B", 130.0),
+            ("D", 240.0),
+            ("T", 570.0),
+            ("X", 0.0),
+        ] {
+            let got = comparable_lift_value(lifter, lift, "Kg");
+            assert!((got - expected).abs() < 0.001, "{lift} -> {got}");
+        }
     }
 
     #[wasm_bindgen_test]
@@ -229,25 +175,8 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn comparable_lift_value_unknown_lift_returns_zero() {
-        let lifter = ComparableLifter {
-            sex: "M",
-            equipment: "Raw",
-            bodyweight: 83.0,
-            squat: 200.0,
-            bench: 130.0,
-            deadlift: 240.0,
-        };
-        assert!((comparable_lift_value(lifter, "X", "Kg") - 0.0).abs() < 0.001);
-    }
-
-    #[wasm_bindgen_test]
-    fn format_input_bound_whole_number() {
+    fn format_input_bound_drops_trailing_zero_decimals() {
         assert_eq!(format_input_bound(100.0, false), "100");
-    }
-
-    #[wasm_bindgen_test]
-    fn format_input_bound_fractional() {
         assert_eq!(format_input_bound(102.3, false), "102.3");
     }
 }

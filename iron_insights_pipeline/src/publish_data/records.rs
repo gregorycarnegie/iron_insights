@@ -13,10 +13,8 @@ use super::{
 pub(super) struct PublishRecordsJob<'a> {
     pub(super) records_path: &'a Path,
     pub(super) version_dir: &'a Path,
-    pub(super) version: &'a str,
     pub(super) tested: &'a str,
     pub(super) lift: &'a str,
-    pub(super) write_meta_files: bool,
     pub(super) shard_indices: &'a mut BTreeMap<String, BTreeMap<String, SliceIndexEntry>>,
     pub(super) trends_acc: &'a mut BTreeMap<String, BTreeMap<i32, Vec<f32>>>,
 }
@@ -25,10 +23,8 @@ pub(super) fn publish_records_for_lift(job: PublishRecordsJob<'_>) -> Result<()>
     let PublishRecordsJob {
         records_path,
         version_dir,
-        version,
         tested,
         lift,
-        write_meta_files,
         shard_indices,
         trends_acc,
     } = job;
@@ -101,14 +97,7 @@ pub(super) fn publish_records_for_lift(job: PublishRecordsJob<'_>) -> Result<()>
     }
 
     for publisher in publishers {
-        publisher.write_outputs(
-            version_dir,
-            version,
-            tested,
-            lift,
-            write_meta_files,
-            shard_indices,
-        )?;
+        publisher.write_outputs(version_dir, tested, lift, shard_indices)?;
     }
 
     Ok(())

@@ -50,25 +50,19 @@ leptos = { version = "0.8.20", features = ["csr"] }
 
 # WASM & browser bindings
 gloo-net = "0.7.0"
-gloo-timers = "0.4.0"
 js-sys = "0.3.103"
 wasm-bindgen = "0.2.126"
-wasm-bindgen-futures = "0.4.76"
 web-sys = { version = "0.3.103", features = [
   "AbortController",
   "AbortSignal",
   "CanvasGradient",
   "CanvasRenderingContext2d",
-  "Clipboard",
   "Document",
   "Element",
-  "History",
-  "HtmlAnchorElement",
   "HtmlCanvasElement",
   "HtmlElement",
   "HtmlInputElement",
   "Location",
-  "Navigator",
   "Storage",
   "UrlSearchParams",
   "Window",

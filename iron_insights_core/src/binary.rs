@@ -112,7 +112,8 @@ pub struct HistogramBin {
     pub base_bin: f32,
     /// Per-bin lifter counts.
     pub counts: Vec<u32>,
-    pub(crate) total: u32,
+    /// Sum of `counts`, computed once by [`HistogramBin::new`].
+    pub total: u32,
 }
 
 /// A parsed heatmap binary payload mapping bodyweight (x) vs lift (y) cell counts.
@@ -155,7 +156,7 @@ impl HistogramBin {
 }
 
 /// Parses a standalone `IIH1` histogram binary payload.
-pub fn parse_hist_bin(bytes: &[u8]) -> Option<HistogramBin> {
+pub(crate) fn parse_hist_bin(bytes: &[u8]) -> Option<HistogramBin> {
     if bytes.len() < 22 || bytes[0..4] != HISTOGRAM_MAGIC {
         return None;
     }
@@ -175,7 +176,7 @@ pub fn parse_hist_bin(bytes: &[u8]) -> Option<HistogramBin> {
 }
 
 /// Parses a standalone `IIM1` heatmap binary payload.
-pub fn parse_heat_bin(bytes: &[u8]) -> Option<HeatmapBin> {
+pub(crate) fn parse_heat_bin(bytes: &[u8]) -> Option<HeatmapBin> {
     if bytes.len() < 38 || bytes[0..4] != HEATMAP_MAGIC {
         return None;
     }
