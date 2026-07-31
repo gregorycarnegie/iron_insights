@@ -1,9 +1,11 @@
 //! Stage 2: build the per-lifter best-lift aggregate tables (one Parquet per
 //! lift, split into `all`/`tested` cohorts) consumed by stage 3.
 
-use std::fs::{self, File};
-use std::path::{Path, PathBuf};
-use std::thread;
+use std::{
+    fs::{self, File},
+    path::{Path, PathBuf},
+    thread,
+};
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -133,8 +135,6 @@ fn build_records(input_parquet: &Path, spec: LiftSpec, tested_only: bool) -> Res
                 .cast(DataType::Float32)
                 .alias("BodyweightKg"),
             col("Date"),
-            col("Federation"),
-            col("MeetName"),
         ]);
 
     if tested_only {
@@ -144,6 +144,10 @@ fn build_records(input_parquet: &Path, spec: LiftSpec, tested_only: bool) -> Res
     // MVP: build per-lifter best-lift table. We keep context columns with simple reducers.
     // NOTE: using sort_by(...).last() for context columns caused stack overflow on Windows
     // in this Polars query path, so we keep the stable reducers here.
+    //
+    // Name and TestedBucket are grouping keys only: they dedupe to one row per
+    // lifter, then get dropped. Stage 3 reads neither (the tested cohort is the
+    // output directory), and Name alone is 45% of the written file.
     let result = filtered
         .group_by([
             col("Name"),
@@ -157,8 +161,15 @@ fn build_records(input_parquet: &Path, spec: LiftSpec, tested_only: bool) -> Res
             col("lift_value").max().alias("best_lift"),
             col("BodyweightKg").max().alias("bodyweight_at_best"),
             col("Date").max().alias("date_at_best"),
-            col("Federation").first().alias("federation_at_best"),
-            col("MeetName").first().alias("meet_name_at_best"),
+        ])
+        .select([
+            col("Sex"),
+            col("Equipment"),
+            col("IpfWeightClass"),
+            col("AgeClassBucket"),
+            col("best_lift"),
+            col("bodyweight_at_best"),
+            col("date_at_best"),
         ])
         .collect()
         .context("failed collecting grouped records")?;
