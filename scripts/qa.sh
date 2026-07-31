@@ -122,7 +122,7 @@ for i in "${!slice_source_files[@]}"; do
       | [
           .key,
           (if ((.value.meta // "") | length) > 0 then .value.meta else "-" end),
-          .value.bin,
+          (if ((.value.bin // "") | length) > 0 then .value.bin else "-" end),
           $rel,
           (if .value.summary.total == null then "-" else (.value.summary.total | tostring) end)
         ]
@@ -153,6 +153,9 @@ meta_total_sum=0
 
 while IFS=$'\t' read -r key meta_rel bin_rel shard_rel summary_total; do
   [[ "$meta_rel" == "-" ]] && meta_rel=""
+  # Inlined slices carry no .bin file; the placeholder keeps the TSV columns
+  # non-empty so bash's read does not collapse the adjacent tabs.
+  [[ "$bin_rel" == "-" ]] && bin_rel=""
   [[ "$summary_total" == "-" ]] && summary_total=""
 
   for rel in "$meta_rel" "$bin_rel"; do
@@ -250,6 +253,7 @@ if [[ -z "$sample_line" ]]; then
 fi
 IFS=$'\t' read -r sample_name sample_meta_rel sample_bin_rel sample_shard_rel sample_summary_total <<<"$sample_line"
 [[ "$sample_meta_rel" == "-" ]] && sample_meta_rel=""
+[[ "$sample_bin_rel" == "-" ]] && sample_bin_rel=""
 [[ "$sample_summary_total" == "-" ]] && sample_summary_total=""
 
 if [[ "$mode" == "sharded" ]]; then
@@ -265,7 +269,12 @@ if [[ -n "$sample_meta_rel" && -s "$VERSION_DIR/$sample_meta_rel" ]]; then
 else
   sample_meta_bytes=0
 fi
-sample_bin_bytes="$(wc -c < "$VERSION_DIR/$sample_bin_rel")"
+if [[ -n "$sample_bin_rel" && -s "$VERSION_DIR/$sample_bin_rel" ]]; then
+  sample_bin_bytes="$(wc -c < "$VERSION_DIR/$sample_bin_rel")"
+else
+  # Inlined slice: the payload is already counted inside the index shard.
+  sample_bin_bytes=0
+fi
 sample_data_bytes=$((latest_bytes + index_budget_sample_bytes + sample_meta_bytes + sample_bin_bytes))
 
 male_probe_line="$(awk -F'\t' '$1 ~ /^sex=M\|equip=All\|wc=[^|]+\|age=24-34\|tested=All\|lift=B$/ {print; exit}' "$entries_tsv")"
@@ -285,6 +294,7 @@ male_probe_shard_rel=""
 if [[ -n "$male_probe_line" ]]; then
   IFS=$'\t' read -r male_probe_name male_probe_meta_rel male_probe_bin_rel male_probe_shard_rel male_probe_summary_total <<<"$male_probe_line"
   [[ "$male_probe_meta_rel" == "-" ]] && male_probe_meta_rel=""
+  [[ "$male_probe_bin_rel" == "-" ]] && male_probe_bin_rel=""
   [[ "$male_probe_summary_total" == "-" ]] && male_probe_summary_total=""
 fi
 
@@ -333,8 +343,10 @@ if [[ -n "$BASE_URL" ]]; then
     urls+=("$base/data/$VERSION/$sample_meta_rel")
     labels+=("sample")
   fi
-  urls+=("$base/data/$VERSION/$sample_bin_rel")
-  labels+=("sample")
+  if [[ -n "$sample_bin_rel" ]]; then
+    urls+=("$base/data/$VERSION/$sample_bin_rel")
+    labels+=("sample")
+  fi
 
   if [[ -n "$male_probe_name" && "$male_probe_name" != "$sample_name" ]]; then
     echo "[qa] Probe sample (M/All): $male_probe_name"
@@ -346,8 +358,10 @@ if [[ -n "$BASE_URL" ]]; then
       urls+=("$base/data/$VERSION/$male_probe_meta_rel")
       labels+=("m_all")
     fi
-    urls+=("$base/data/$VERSION/$male_probe_bin_rel")
-    labels+=("m_all")
+    if [[ -n "$male_probe_bin_rel" ]]; then
+      urls+=("$base/data/$VERSION/$male_probe_bin_rel")
+      labels+=("m_all")
+    fi
   fi
   for i in "${!urls[@]}"; do
     u="${urls[$i]}"

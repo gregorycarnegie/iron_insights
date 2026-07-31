@@ -1,5 +1,7 @@
 use anyhow::Result;
-use iron_insights_core::{BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC};
+use iron_insights_core::{
+    BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC, encode_counts,
+};
 
 #[derive(Debug)]
 pub(super) struct HistogramData {
@@ -109,21 +111,21 @@ pub(super) fn build_heatmap(
 }
 
 fn hist_bytes(hist: &HistogramData, x_base: f32) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(4 + 2 + (3 * 4) + 4 + hist.counts.len() * 4);
+    let payload = encode_counts(&hist.counts);
+    let mut bytes = Vec::with_capacity(4 + 2 + (3 * 4) + 4 + payload.len());
     bytes.extend_from_slice(&HISTOGRAM_MAGIC);
     bytes.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
     bytes.extend_from_slice(&x_base.to_le_bytes());
     bytes.extend_from_slice(&hist.min.to_le_bytes());
     bytes.extend_from_slice(&hist.max.to_le_bytes());
     bytes.extend_from_slice(&(hist.counts.len() as u32).to_le_bytes());
-    for value in &hist.counts {
-        bytes.extend_from_slice(&value.to_le_bytes());
-    }
+    bytes.extend_from_slice(&payload);
     bytes
 }
 
 fn heat_bytes(heat: &HeatmapData, x_base: f32, y_base: f32) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(4 + 2 + (6 * 4) + (2 * 4) + heat.grid.len() * 4);
+    let payload = encode_counts(&heat.grid);
+    let mut bytes = Vec::with_capacity(4 + 2 + (6 * 4) + (2 * 4) + payload.len());
     bytes.extend_from_slice(&HEATMAP_MAGIC);
     bytes.extend_from_slice(&BINARY_FORMAT_VERSION.to_le_bytes());
     bytes.extend_from_slice(&x_base.to_le_bytes());
@@ -134,9 +136,7 @@ fn heat_bytes(heat: &HeatmapData, x_base: f32, y_base: f32) -> Vec<u8> {
     bytes.extend_from_slice(&heat.max_y.to_le_bytes());
     bytes.extend_from_slice(&(heat.width as u32).to_le_bytes());
     bytes.extend_from_slice(&(heat.height as u32).to_le_bytes());
-    for value in &heat.grid {
-        bytes.extend_from_slice(&value.to_le_bytes());
-    }
+    bytes.extend_from_slice(&payload);
     bytes
 }
 

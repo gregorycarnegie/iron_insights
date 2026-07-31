@@ -1,9 +1,10 @@
 use super::{
     BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC, HeatmapBin,
-    HistogramBin, TINY_COHORT_WARNING_THRESHOLD, bodyweight_conditioned_percentile, dots_points,
-    equivalent_value_for_same_percentile, goodlift_points, histogram_density_for_value,
-    histogram_diagnostics, parse_combined_bin, parse_heat_bin, parse_hist_bin,
-    percentile_for_value, rebin_1d, rebin_2d, value_for_percentile, wilks_points,
+    HistogramBin, TINY_COHORT_WARNING_THRESHOLD, bodyweight_conditioned_percentile,
+    decode_counts, dots_points, encode_counts, equivalent_value_for_same_percentile,
+    goodlift_points, histogram_density_for_value, histogram_diagnostics, parse_combined_bin,
+    parse_heat_bin, parse_hist_bin, percentile_for_value, rebin_1d, rebin_2d, value_for_percentile,
+    wilks_points,
 };
 use crate::bodyfat::siri_bf_from_density;
 use proptest::prelude::*;
@@ -14,6 +15,11 @@ fn push_f32(bytes: &mut Vec<u8>, v: f32) {
 
 fn push_u32(bytes: &mut Vec<u8>, v: u32) {
     bytes.extend_from_slice(&v.to_le_bytes());
+}
+
+/// Appends a varint/zero-run count payload, as the publisher writes it.
+fn push_counts(bytes: &mut Vec<u8>, counts: &[u32]) {
+    bytes.extend_from_slice(&encode_counts(counts));
 }
 
 fn bounded_count_vec() -> impl Strategy<Value = Vec<u32>> {
@@ -37,9 +43,7 @@ fn parse_hist_bin_accepts_valid_payload() {
     push_f32(&mut bytes, 100.0);
     push_f32(&mut bytes, 107.5);
     push_u32(&mut bytes, 3);
-    push_u32(&mut bytes, 3);
-    push_u32(&mut bytes, 1);
-    push_u32(&mut bytes, 1);
+    push_counts(&mut bytes, &[3, 1, 1]);
 
     let hist = parse_hist_bin(&bytes).expect("valid payload should parse");
     assert_eq!(hist.base_bin, 2.5);
@@ -58,7 +62,7 @@ fn parse_hist_bin_rejects_invalid_payload_len() {
     push_f32(&mut bytes, 100.0);
     push_f32(&mut bytes, 105.0);
     push_u32(&mut bytes, 2);
-    push_u32(&mut bytes, 1);
+    push_counts(&mut bytes, &[1]); // header claims 2 bins, payload holds 1
 
     assert!(parse_hist_bin(&bytes).is_none());
 }
@@ -76,16 +80,14 @@ fn parse_heat_bin_accepts_valid_payload() {
     push_f32(&mut bytes, 82.0);
     push_u32(&mut bytes, 3);
     push_u32(&mut bytes, 2);
-    for v in [3, 1, 0, 0, 0, 1] {
-        push_u32(&mut bytes, v);
-    }
+    push_counts(&mut bytes, &[3, 1, 0, 0, 0, 1]);
 
     let heat = parse_heat_bin(&bytes).expect("valid payload should parse");
     assert_eq!(heat.base_x, 2.5);
     assert_eq!(heat.base_y, 1.0);
     assert_eq!(heat.width, 3);
     assert_eq!(heat.height, 2);
-    assert_eq!(heat.grid.len(), 6);
+    assert_eq!(heat.grid, vec![3, 1, 0, 0, 0, 1]);
 }
 
 fn make_hist_blob() -> Vec<u8> {
@@ -96,8 +98,7 @@ fn make_hist_blob() -> Vec<u8> {
     push_f32(&mut b, 100.0); // min
     push_f32(&mut b, 105.0); // max
     push_u32(&mut b, 2); // bins count
-    push_u32(&mut b, 4); // bin[0]
-    push_u32(&mut b, 1); // bin[1]
+    push_counts(&mut b, &[4, 1]);
     b
 }
 
@@ -113,7 +114,7 @@ fn make_heat_blob() -> Vec<u8> {
     push_f32(&mut b, 101.0); // min_y, max_y
     push_u32(&mut b, 1); // width
     push_u32(&mut b, 1); // height
-    push_u32(&mut b, 5); // grid[0]
+    push_counts(&mut b, &[5]);
     b
 }
 
@@ -170,9 +171,7 @@ fn parse_heat_bin_rejects_invalid_payload_len() {
     push_f32(&mut bytes, 82.0);
     push_u32(&mut bytes, 2);
     push_u32(&mut bytes, 2);
-    push_u32(&mut bytes, 1);
-    push_u32(&mut bytes, 2);
-    push_u32(&mut bytes, 3);
+    push_counts(&mut bytes, &[1, 2, 3]); // header claims 4 cells, payload holds 3
 
     assert!(parse_heat_bin(&bytes).is_none());
 }
@@ -188,7 +187,7 @@ fn parse_rejects_unsupported_version() {
     push_f32(&mut hist_bytes, 100.0);
     push_f32(&mut hist_bytes, 102.5);
     push_u32(&mut hist_bytes, 1);
-    push_u32(&mut hist_bytes, 1);
+    push_counts(&mut hist_bytes, &[1]);
     assert!(parse_hist_bin(&hist_bytes).is_none());
 
     let mut heat_bytes = Vec::new();
@@ -202,8 +201,36 @@ fn parse_rejects_unsupported_version() {
     push_f32(&mut heat_bytes, 81.0);
     push_u32(&mut heat_bytes, 1);
     push_u32(&mut heat_bytes, 1);
-    push_u32(&mut heat_bytes, 1);
+    push_counts(&mut heat_bytes, &[1]);
     assert!(parse_heat_bin(&heat_bytes).is_none());
+}
+
+#[test]
+fn encode_counts_collapses_zero_runs() {
+    // 1-byte literal, then a run marker + length, then a literal.
+    assert_eq!(encode_counts(&[7, 0, 0, 0, 9]), vec![7, 0, 3, 9]);
+    assert_eq!(encode_counts(&[]), Vec::<u8>::new());
+    // 300 needs two varint groups: 0xAC 0x02.
+    assert_eq!(encode_counts(&[300]), vec![0xAC, 0x02]);
+}
+
+#[test]
+fn decode_counts_rejects_malformed_payloads() {
+    let valid = encode_counts(&[1, 0, 0, 4]);
+    assert_eq!(decode_counts(&valid, 4), Some(vec![1, 0, 0, 4]));
+
+    // Truncated mid-payload.
+    assert!(decode_counts(&valid[..valid.len() - 1], 4).is_none());
+    // Trailing bytes after the declared count.
+    let mut trailing = valid.clone();
+    trailing.push(1);
+    assert!(decode_counts(&trailing, 4).is_none());
+    // A zero run that overruns the declared length.
+    assert!(decode_counts(&encode_counts(&[0, 0, 0, 0]), 2).is_none());
+    // Over-long varint (six groups) is refused rather than wrapping.
+    assert!(decode_counts(&[0x80, 0x80, 0x80, 0x80, 0x80, 0x01], 1).is_none());
+    // A header claiming more cells than any real grid must not drive an alloc.
+    assert!(decode_counts(&valid, usize::MAX).is_none());
 }
 
 #[test]
@@ -284,6 +311,27 @@ proptest! {
 
         prop_assert_eq!(out.iter().copied().sum::<u32>(), expected);
         prop_assert_eq!(out.len(), w2 * h2);
+    }
+
+    #[test]
+    fn encode_decode_counts_round_trips(counts in prop::collection::vec(
+        prop_oneof![Just(0u32), 0u32..5, 0u32..u32::MAX],
+        0..256,
+    )) {
+        let encoded = encode_counts(&counts);
+        let decoded = decode_counts(&encoded, counts.len());
+        prop_assert_eq!(decoded, Some(counts));
+    }
+
+    #[test]
+    fn decode_counts_never_panics_on_arbitrary_bytes(
+        bytes in prop::collection::vec(any::<u8>(), 0..128),
+        len in 0usize..256,
+    ) {
+        // Garbage must come back as None, never a panic or a wrong-length vec.
+        if let Some(decoded) = decode_counts(&bytes, len) {
+            prop_assert_eq!(decoded.len(), len);
+        }
     }
 
     #[test]

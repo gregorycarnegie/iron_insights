@@ -15,7 +15,7 @@ mod weight_class;
 
 pub use binary::{
     BINARY_FORMAT_VERSION, COMBINED_MAGIC, HEATMAP_MAGIC, HISTOGRAM_MAGIC, HeatmapBin,
-    HistogramBin, parse_combined_bin, parse_heat_bin, parse_hist_bin,
+    HistogramBin, decode_counts, encode_counts, parse_combined_bin, parse_heat_bin, parse_hist_bin,
 };
 pub use bodyfat::{
     BodyfatResult, JacksonPollock7SiteSkinfolds, bodyfat_category, calc_bodyfat_female,

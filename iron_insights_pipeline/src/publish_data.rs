@@ -54,6 +54,13 @@ pub fn run() -> Result<()> {
     let version = resolve_version(args.version, build_meta.as_ref());
     let version_dir = args.data_dir.join(&version);
 
+    // Republishing a version must not inherit its predecessor's files. Which
+    // slices get their own .bin depends on the payload size, so a re-run can
+    // leave orphans the fresh index no longer references.
+    if version_dir.exists() {
+        fs::remove_dir_all(&version_dir)
+            .with_context(|| format!("failed clearing {}", version_dir.display()))?;
+    }
     fs::create_dir_all(&version_dir)
         .with_context(|| format!("failed to create {}", version_dir.display()))?;
 

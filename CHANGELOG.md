@@ -5,6 +5,67 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-07-31
+
+### Changed
+
+- **Published payload encoding: varints with zero runs collapsed replace
+  fixed-width `u32` counts.** `BINARY_FORMAT_VERSION` is now 2; both parsers
+  reject v1 payloads, so republishing is required.
+
+  The heatmap grid is 97% of every `.bin` and 87% of its cells are zero, but
+  every count was stored as a 4-byte `u32`. `encode_counts`/`decode_counts`
+  write a LEB128 varint per count, with a zero varint marking a run followed by
+  its length. Across all 23,343 published files the largest heatmap cell is
+  2,565 and the largest histogram count 44,157, so nearly every count fits in
+  one or two bytes.
+
+  Measured A/B republish from identical `records/` input:
+
+  | | before | after |
+  |---|---|---|
+  | version bundle | 378.4 MB | **29.1 MB** (-92.3%) |
+  | `.bin` bytes | 373.3 MB | **21.6 MB** |
+  | index JSON | 5.1 MB | 7.5 MB |
+  | files | 23,372 | **12,369** |
+  | gzipped on the wire | 100% | **74.9%** |
+
+  The file count drops because 13,252 slices now fall under `INLINE_THRESHOLD`
+  and are base64-inlined into their index shard, costing those slices no HTTP
+  request at all. That moves bytes from `.bin` into JSON, which is why the index
+  grew.
+
+  GitHub Pages already gzips `.bin` responses, so this is primarily a bundle-size
+  change: the published site was approaching the documented 1 GB Pages limit,
+  which planned per-era time slices would have multiplied.
+
+- Removed the dead root `iron_insights` package: `main.rs` was `Hello, world!`
+  and `lib.rs` re-exported only `binary_counts` (a second, now-divergent copy of
+  the binary format that still wrote fixed-width `u32` under the same `IIH1`
+  /`IIM1` magic) and `rebin` (a duplicate of `iron_insights_core::rebin`).
+  Nothing depended on either. The root manifest is now a virtual workspace, so
+  `default-members` — which existed only to keep this package out of default
+  builds — went with it.
+
+### Fixed
+
+- **`03_publish_data` left orphaned files when republishing a version.** The
+  version directory was created but never cleared, so files written by an
+  earlier run survived even when the fresh index no longer referenced them.
+  Which slices get their own `.bin` depends on payload size, so the encoding
+  change made this visible: republishing `v2026-07-30` stranded 11,003
+  unreferenced files (42.9 MB). The workflow versions by UTC date, so any
+  same-day re-run hit this. The directory is now removed before publishing.
+
+- **`scripts/qa.sh` dropped inlined slices from its aggregate total.** The TSV
+  it builds guarded `meta` against empty fields but not `bin`, and inlined
+  slices carry no `bin`. Bash collapses adjacent tabs, so every field after it
+  shifted by one: `bin_rel` picked up the shard path, and the slice's total was
+  never counted. Verified against the published index — the guard recovers all
+  13,252 inlined slices and makes the reported total exact (87,607,416 rather
+  than 85,919,053). Pre-existing, but it affected 52 slices before this release
+  and 13,252 after.
+
 ## [1.1.0] - 2026-07-30
 
 ### Added
