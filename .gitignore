@@ -2,6 +2,10 @@
 /.vscode
 /.idea
 /target
+# `cargo mutants` output: default location plus the per-shard dirs.
+/mutants.out
+/mutants.out.old
+/mutants-*
 /iron_insights_pipeline/Cargo.lock
 /dist
 .codex

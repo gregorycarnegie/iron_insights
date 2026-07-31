@@ -809,3 +809,85 @@ fn ipf_weight_class_invalid_sex_returns_none() {
     assert!(ipf_weight_class(80.0, "X").is_none());
     assert!(ipf_weight_class(80.0, "").is_none());
 }
+
+// ===== SCORING COEFFICIENT PINS =====
+//
+// Characterisation tests: they lock in the values the transcribed polynomial
+// coefficients currently produce, so an accidental edit to any one of them
+// fails loudly. They are NOT independently verified against the federations'
+// published tables. The point is to detect drift, not to certify correctness.
+//
+// Mutation testing found 74 surviving mutants in `scoring.rs`: the other tests
+// assert only that scores rise with total and stay positive, which almost any
+// corrupted coefficient still satisfies. If a formula is deliberately updated,
+// regenerate these numbers in the same commit.
+
+/// Tight enough to catch a single-coefficient change, loose enough to survive
+/// f32 rounding differences between platforms.
+fn assert_score(actual: f32, expected: f32, what: &str) {
+    assert!(
+        (actual - expected).abs() < 0.01,
+        "{what}: expected {expected}, got {actual}"
+    );
+}
+
+#[test]
+fn dots_matches_pinned_coefficients() {
+    assert_score(dots_points("M", 93.0, 700.0), 445.3757, "dots M");
+    assert_score(dots_points("F", 63.0, 400.0), 430.206, "dots F");
+}
+
+#[test]
+fn wilks_matches_pinned_coefficients() {
+    assert_score(wilks_points("M", 93.0, 700.0), 528.0868, "wilks M");
+    assert_score(wilks_points("F", 63.0, 400.0), 447.7654, "wilks F");
+}
+
+#[test]
+fn goodlift_matches_pinned_coefficients_per_equipment() {
+    // Equipment splits classic from equipped, so all four combinations differ.
+    assert_score(goodlift_points("M", "Raw", 93.0, 700.0), 91.5748, "gl M raw");
+    assert_score(
+        goodlift_points("M", "Single-ply", 93.0, 700.0),
+        75.9133,
+        "gl M equipped",
+    );
+    assert_score(goodlift_points("F", "Raw", 63.0, 400.0), 87.5133, "gl F raw");
+    assert_score(
+        goodlift_points("F", "Single-ply", 63.0, 400.0),
+        72.214,
+        "gl F equipped",
+    );
+
+    // Wraps and Straps count as classic, so they must match Raw exactly.
+    for classic in ["Wraps", "Straps"] {
+        assert_eq!(
+            goodlift_points("M", classic, 93.0, 700.0),
+            goodlift_points("M", "Raw", 93.0, 700.0),
+            "{classic} should score as classic"
+        );
+    }
+}
+
+#[test]
+fn bodyweight_is_clamped_to_each_formulas_valid_range() {
+    // Outside the range the score must saturate rather than extrapolate off the
+    // end of a 4th or 5th order polynomial.
+    assert_score(dots_points("M", 30.0, 500.0), 635.5549, "dots below range");
+    assert_score(dots_points("M", 250.0, 500.0), 247.8104, "dots above range");
+    assert_score(wilks_points("F", 20.0, 300.0), 918.7693, "wilks below range");
+
+    // Clamping means anything past the bound scores identically.
+    assert_eq!(dots_points("M", 10.0, 500.0), dots_points("M", 40.0, 500.0));
+    assert_eq!(dots_points("M", 400.0, 500.0), dots_points("M", 210.0, 500.0));
+
+    // The female curve clamps at 150 kg, not the default 210. A heavyweight
+    // woman is the only input where the two ranges disagree, so without this
+    // the sex-specific arm could be deleted entirely and every other assertion
+    // would still pass.
+    assert_eq!(dots_points("F", 200.0, 400.0), dots_points("F", 150.0, 400.0));
+    assert!(
+        dots_points("F", 200.0, 400.0) > dots_points("M", 200.0, 400.0),
+        "the female clamp must keep her score above the male curve at 200 kg"
+    );
+}

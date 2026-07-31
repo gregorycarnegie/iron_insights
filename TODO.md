@@ -37,7 +37,32 @@ Bumping `wasm-bindgen` means bumping the pinned version in the workflow too.
   - **03** — records parquet in, published tree out, read back as raw JSON with payloads decoded by `iron_insights_core::parse_combined_bin`
   - **04** — runs a real stage 3 publish first, then generates against it, so the 03 → 04 seam is covered. The fixture is deliberately wide enough to exceed `INLINE_THRESHOLD`, otherwise no `.bin` files exist and stage 4 would silently test only its statless fallback
 - [ ] No test spans 01 → 04 in one run. Each stage is covered against fixtures of the next one's input shape, which catches schema drift but not a stage that is skipped entirely
-- [ ] Consider `cargo-mutants` as an occasional audit rather than a CI gate; it is the only way to tell whether these tests actually catch anything, and a manual spot-check (breaking a published total, confirming a red test) is the cheap version
+### Mutation testing
+
+Run as an occasional audit, not a CI gate. Four shards over the two native
+crates, ~7 min each on 32 cores. **Shards are 0-indexed and an out-of-range
+shard fails silently** — `--shard 4/4` returns a handful of stray mutants
+instead of erroring, so `0/4`..`3/4` is the correct set:
+
+```sh
+cargo mutants -p iron_insights_core -p iron_insights_pipeline \
+  --test-tool=nextest -j 8 --shard 0/4 --output mutants-0   # ...1/4, 2/4, 3/4
+cat mutants-*/mutants.out/missed.txt | sort -u
+```
+
+The web crate cannot be included: it has no native `cargo test` build.
+
+Baseline run (966 mutants): 547 caught, 191 timeout, 43 unviable, 185 missed.
+Timeouts are almost all loop conditions mutated into infinite loops, so they
+are detected in practice. `scoring.rs` accounted for 74 of the survivors and is
+now 113/113 caught. Remaining survivors, largest first:
+
+- [ ] `bodyfat.rs` (24) — mostly `>` vs `>=` on skinfold validation bounds; a zero-width caliper reading is the only input that tells them apart
+- [ ] `seo_geo/snippets.rs` (14) — HTML string assembly; low value, the page invariants already cover the shape
+- [ ] `publish_data/versioning.rs` (13) — version-name validation and prune arithmetic; worth doing, these decide which published versions get deleted
+- [ ] `publish_data/histogram.rs` (11) — bin-edge arithmetic; a wrong edge shifts every published percentile
+- [ ] `iron_insights_core/binary.rs` (11) — parser length guards (`<` vs `<=`, `||` vs `&&`) on malformed payloads
+- [ ] `publish_data/metric.rs` (8), `aggregate.rs` (6), `seo_geo/stats.rs` (5), then a long tail of 1-3
 - [ ] 4 pre-existing `clippy::float_cmp` warnings in `helpers.rs` proptests — exact float equality is intentional there, so either `#[allow]` them with a reason or switch to an epsilon compare
 
 ## GEO (Generative Engine Optimization)
