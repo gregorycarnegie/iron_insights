@@ -76,6 +76,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus the unused `Clipboard`, `History`, `Navigator` and `HtmlAnchorElement`
   `web-sys` features.
 
+- **The QA scripts no longer reimplement the published-data contract.**
+  `qa.sh` and `qa.ps1` each carried their own slice-key parser — a third and
+  fourth copy of what `iron_insights_core::parse_slice_key` owns, in two
+  languages — to serve the legacy key-list index form. That form has not been
+  published since 1.2.0 dropped it, so both parsers are gone along with the
+  branch that used them, and with the `meta/` handling in both scripts and in
+  the CI safeguard: `SliceIndexEntry` has no `meta` field and no `meta/` tree
+  is written.
+
+  `qa.ps1` had drifted further than that. It read `hist` and `heat` off each
+  index entry, fields that no longer exist, so every payload path came back
+  empty and its file-existence check silently verified nothing. It now reads
+  `bin` and checks all 25,597 published slices.
+
 - **SEO pages and the ranking view now quote the same percentile.**
   `seo_geo/stats.rs` had its own `percentile_value`/`value_percentile` using an
   upper-edge CDF convention, while the app uses `iron_insights_core`, which
@@ -178,12 +192,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     7-site one, and each of the seven skinfold sites gets its own zero-reading
     case: with six other positive readings, a single dropped bound is invisible.
 
+- **One test now runs all four stages back to back.** Every other stage test
+  drives a single stage against a fixture shaped like its input, which catches
+  schema drift between neighbours but not a stage dropped from the workflow.
+  `chain_tests.rs` puts a synthetic CSV into stage 1 and asserts on the page
+  stage 4 renders — the weekly refresh's whole path minus the HTTP GET.
+
+  It pins the two things only a full run can see: that the `dataset_version`
+  stage 1 stamps is the version stage 3 publishes under (nothing else covers
+  that link), and that all 160 lifters per cohort survive four rounds of
+  filtering, grouping, binning and encoding into the published histogram.
+  Verified non-vacuous by deleting stage 2's `Place != DQ` filter, which fails
+  it at 161 lifters against 160.
+
+  Building it turned up two traps worth recording. A fixture whose `Place`
+  values are all numeric infers as `i64` and makes stage 2's own filters fail
+  to plan, so the DQ/DD/NS rows are load-bearing as well as filtered. And the
+  first draft's assertion on the bare result count passed vacuously, because
+  "960" also occurs among the rendered figures; it now matches the whole
+  sentence.
+
 - The four `clippy::float_cmp` warnings in the web helpers are now `#[expect]`
   with a reason rather than silenced or loosened. `comparable_lift_value`
   returns the lift verbatim, so exact equality is the property under test; an
   epsilon would let a rounded or scaled value pass.
 
 ### Fixed
+
+- **Every female Wilks score was wrong.** Three of the six coefficients in the
+  2020 Wilks female polynomial were transcribed incorrectly, as were both
+  bodyweight clamps. The module documents OpenPowerlifting's `coefficients`
+  crate as its source; checking each literal against that source found the
+  divergence.
+
+  | | published | ours (before) |
+  |---|---|---|
+  | c | -0.0330725063103405 | -0.0330325867486886 |
+  | d | -0.0010504000506583 | -0.00194553856286427 |
+  | e | 0.00000938773881462799 | 0.0000412975938587791 |
+  | f | -0.000000023334613884954 | -0.000000237218925425762 |
+  | clamp (F) | 40.0 - 150.95 | 26.51 - 154.53 |
+  | clamp (M) | 40.0 - 200.95 | 40.0 - 201.9 |
+
+  A 63 kg woman with a 400 kg total scored 447.8 instead of 511.5 — every
+  female Wilks figure was understated by roughly 14%. Worse, the wrong cubic
+  term drove the denominator negative above about 144 kg, where the `denom <=
+  0.0` guard returned a flat **zero**; the too-wide 154.53 clamp let real
+  lifters reach it.
+
+  That made it a data-loss bug, not only an accuracy one. `accumulate_row`
+  drops any score at or below zero or above the 1000-point validity ceiling, so
+  those lifters left the rankings altogether. Republishing measures it, raw
+  open totals:
+
+  | | before | after |
+  |---|---|---|
+  | women in the Wilks histogram | 166,828 | **169,109** |
+  | women in the DOTS histogram | 169,109 | 169,109 |
+  | highest female Wilks | 1000.0 (the ceiling) | 840.0 |
+  | men, either metric | unchanged | unchanged |
+
+  2,281 women — 1.3% — were missing from that cohort, and the maximum sat
+  pinned exactly at the ceiling. Republishing against an unchanged source dump
+  isolates it further: summed over all 25,597 slices, the `Kg`, `Dots` and `GL`
+  totals are identical before and after, while `Wilks` rises by 44,336 to
+  11,846,336 — exactly the `Dots` total, which is what it should have been all
+  along, since both score the same rows.
+
+  DOTS and IPF Goodlift were checked the same way and match their published
+  coefficients exactly, including the Goodlift classic/equipped split. So does
+  every coefficient in `bodyfat.rs` — the Navy metric forms for both sexes,
+  YMCA, Jackson-Pollock 3-site and 7-site, and Siri. Wilks was the only one
+  wrong.
+
+- **DOTS and Wilks published fabricated scores for typo'd bodyweights.** The
+  three score metrics disagreed about what to do with an implausible
+  bodyweight: DOTS and Wilks clamp into their valid range, so a lifter recorded
+  at 15 kg was scored as though they weighed 40, while Goodlift has no clamp,
+  its denominator went non-positive below ~17.7 kg, and the row was dropped
+  instead.
+
+  Found by chasing a 48-entry gap between the published `GL` and `Dots` totals,
+  which only became visible once the Wilks fix brought Wilks and DOTS into exact
+  agreement. It traced to four female rows. `publish_data/records.rs` now
+  declines to score any bodyweight outside `VALID_BW_RANGE_KG`, the constant the
+  heatmap axes already used, so all three metrics count the same lifters. The kg
+  histogram still counts the lift — it needs no bodyweight, and losing a real
+  lift over a bad bodyweight would be the wrong trade.
+
+  Left deliberately unchanged: OpenPowerlifting's Goodlift returns zero below
+  35 kg. Matching it would drop 635 real children in the 20-35 kg band from GL
+  while DOTS and Wilks keep scoring them, trading one inconsistency for another.
 
 - **The `iron_insights_web` test suite never ran.** CI invoked it with
   `--no-run` and no WebDriver runner was configured, so all 29

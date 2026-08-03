@@ -36,7 +36,14 @@ Bumping `wasm-bindgen` means bumping the pinned version in the workflow too.
   - **02** — a synthetic source parquet through filtering, per-lifter best aggregation and cohort splitting, asserting the output columns are exactly the seven stage 3 reads
   - **03** — records parquet in, published tree out, read back as raw JSON with payloads decoded by `iron_insights_core::parse_combined_bin`
   - **04** — runs a real stage 3 publish first, then generates against it, so the 03 → 04 seam is covered. The fixture is deliberately wide enough to exceed `INLINE_THRESHOLD`, otherwise no `.bin` files exist and stage 4 would silently test only its statless fallback
-- [ ] No test spans 01 → 04 in one run. Each stage is covered against fixtures of the next one's input shape, which catches schema drift but not a stage that is skipped entirely
+- [x] One test spans 01 → 04 in a single run (`src/chain_tests.rs`): a synthetic
+  CSV in at stage 1, assertions on the page stage 4 renders. It covers the two
+  things the per-stage tests cannot — that stage 1's `dataset_version` is the
+  version stage 3 publishes under, and that every lifter survives all four
+  stages into the published histogram. The fixture must stay wide on both axes
+  or its payload drops under `INLINE_THRESHOLD`, gets inlined, and leaves stage
+  4 asserting only its statless fallback
+
 ### Mutation testing
 
 Run as an occasional audit, not a CI gate. Four shards over the two native
@@ -67,11 +74,66 @@ Addressed so far — re-verified per file, `missed` before to after:
 | `publish_data/metric.rs` | 8 | 0 |
 | `publish_data/histogram.rs` | 11 | 2 (equivalent) |
 | `iron_insights_core/binary.rs` | 11 | 1 (equivalent) |
+| `seo_geo/stats.rs` | 5 | 0 |
+
+`stats.rs` came down to 2 by way of the stage 4 end-to-end tests, and the last
+two were both the `100 * f / m` sex ratio — a second copy of the arithmetic in
+`snippets.rs`, which was already covered. Deleting the copy killed them: both
+call sites now go through `stats::ratio_pct`, so the existing snippets test
+reaches it. Verified by mutating `*` to `+` and watching that test fail.
+
+Re-run over both files together after the Wilks correction changed
+`scoring.rs`: **136 mutants, 133 caught, 3 unviable, 0 missed.**
+
+```sh
+cargo mutants -p iron_insights_core -p iron_insights_pipeline \
+  --file iron_insights_core/src/scoring.rs \
+  --file iron_insights_pipeline/src/seo_geo/stats.rs \
+  --test-tool=nextest -j 8
+```
 
 Not yet addressed (the whole-repo number has not been re-measured since):
 
-- [ ] `seo_geo/stats.rs` (5) — the `100 * f / m` sex-comparison ratio in `load_stats`. The same arithmetic in `snippets.rs` is now covered, but this copy is not; needs a `load_stats` test over a published tree carrying both sexes for one lift
 - [ ] a long tail of 1-3 each in `seo_geo/render.rs`, `trends.rs`, `records.rs`, `accumulation.rs`, `rebin.rs`, `histogram.rs` (core)
+
+### Beyond mutation: are the numbers actually right?
+
+Mutation testing proves the tests notice when the code changes. It says nothing
+about whether the code was right to begin with — a coefficient mistyped before
+the first test was written is stable, so every test agrees with it.
+
+Closing that gap for `scoring.rs` meant checking each literal against the
+reference implementation the module names, OpenPowerlifting's `coefficients`
+crate. DOTS and IPF Goodlift matched exactly. **The 2020 Wilks female
+polynomial did not** — three coefficients and both clamps were wrong, and the
+bad cubic term drove the denominator negative above ~144 kg, scoring those
+lifters zero. See the CHANGELOG.
+
+`wilks_matches_the_published_reference_multipliers` now asserts against the
+multipliers OpenPowerlifting tabulates, so it is a real verification rather
+than a recording of our own output. The remaining pins (DOTS, Goodlift,
+bodyfat) still only detect drift — their coefficients are verified, but the
+sources publish no worked values to check the outputs against.
+
+- [x] `bodyfat.rs` had the same literal-by-literal check: Navy (both sexes,
+  metric form), YMCA, Jackson-Pollock 3-site and 7-site (both sexes), and Siri.
+  **All match their published sources** — no second Wilks. Worth knowing that
+  Jackson-Pollock was validated on ages 18-61 while these functions accept
+  0-120, and that the Navy `495/450` form is the centimetre variant, which is
+  what the callers feed it
+- [x] `GL` published 48 fewer rows than `Dots` and `Wilks`. Traced to four
+  female rows with a typo'd bodyweight under 17.7 kg, where the female Goodlift
+  denominator turns negative. Not a Goodlift bug — the reverse: DOTS and Wilks
+  were *clamping* those bodyweights to 40 kg and publishing a fabricated score,
+  while Goodlift dropped them. `records.rs` now declines to score any bodyweight
+  outside `VALID_BW_RANGE_KG`, so all three agree; the kg histogram still counts
+  the lift, since it needs no bodyweight
+
+Deliberately not changed: OpenPowerlifting's Goodlift returns zero below 35 kg,
+so it publishes no GL for any lifter under that weight. Ours scores them.
+Matching the reference would drop 635 real children in the 20-35 kg band from
+GL while DOTS and Wilks keep scoring them (clamped to 40), trading one
+inconsistency for another. Left as-is on purpose.
 
 Known equivalent mutants — no test can kill these, do not chase them:
 
@@ -112,5 +174,4 @@ P4 — polish:
 - [ ] Revisit content-addressed `.bin` filenames if hosting moves from GitHub Pages to a CDN with immutable cache headers
 - [ ] Keep the published-data contract in the root `README.md` and `iron_insights_web/README.md` synchronized
 - [ ] Track payload size, slice counts, and refresh safety rails as the dataset grows
-- [ ] `scripts/qa.sh` and `scripts/qa.ps1` each reimplement the slice-key to path mapping that `iron_insights_core::parse_slice_key` owns — a third and fourth copy, in two languages
-- [ ] The CI safeguard's `meta/`-directory branch and `qa.sh`'s key-list index branch are both dead: no `meta/` tree is written and every shard uses the map form
+- [x] Both QA scripts reimplemented the slice-key to path mapping that `iron_insights_core::parse_slice_key` owns. Those parsers existed only for the legacy key-list index form, which is no longer published, so they were deleted along with that branch and the dead `meta/` handling in both scripts and the CI safeguard. `qa.ps1` had also drifted to reading `hist`/`heat` fields that no longer exist, so its file check was verifying nothing
