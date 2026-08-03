@@ -5,6 +5,7 @@ use polars::prelude::*;
 
 use super::{
     accumulation::{AccumulationRow, MetricPublisher},
+    constants::VALID_BW_RANGE_KG,
     metric::{metric_value, metrics_for_lift},
     model::SliceIndexEntry,
     trends::parse_year_bucket,
@@ -72,7 +73,16 @@ pub(super) fn publish_records_for_lift(job: PublishRecordsJob<'_>) -> Result<()>
             continue;
         }
 
-        let valid_bw = bw_col.get(i).filter(|&bw| bw > 0.0);
+        // A bodyweight outside the plausible range is a typo, and the three
+        // score metrics disagreed about what to do with it: DOTS and Wilks
+        // clamp into range and publish a fabricated score, while Goodlift's
+        // denominator goes non-positive and the row vanishes. Declining to
+        // score it at all is the one answer that is right for each of them —
+        // `metric_value` returns `None` without a bodyweight, so the row still
+        // counts toward the kg histogram, which does not use one.
+        let valid_bw = bw_col
+            .get(i)
+            .filter(|bw| bw.is_finite() && VALID_BW_RANGE_KG.contains(bw));
         let year = parse_year_bucket(date_col.get(i));
 
         for publisher in &mut publishers {

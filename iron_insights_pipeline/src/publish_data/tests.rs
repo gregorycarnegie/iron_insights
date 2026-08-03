@@ -184,7 +184,11 @@ fn build_heatmap_places_points_in_the_expected_cells() {
     // Row-major, so index = y_bin * width + x_bin.
     assert_eq!(heat.grid[0], 1, "(100, 80) belongs at the origin cell");
     assert_eq!(heat.grid[3 * 3 + 2], 1, "(105, 86) belongs at x=2, y=3");
-    assert_eq!(heat.grid[10 * 3 + 1], 1, "(102.5, 100) belongs at x=1, y=10");
+    assert_eq!(
+        heat.grid[10 * 3 + 1],
+        1,
+        "(102.5, 100) belongs at x=1, y=10"
+    );
     assert_eq!(heat.grid.iter().sum::<u32>(), 3, "no point may be lost");
     assert_eq!(heat.grid.len(), 3 * 11);
 }
@@ -330,7 +334,9 @@ fn read_json(path: &Path) -> Value {
 fn payload_bytes(version_dir: &Path, entry: &Value) -> Vec<u8> {
     let inline = entry["inline"].as_str().unwrap_or_default();
     if !inline.is_empty() {
-        return BASE64.decode(inline).expect("inline payload is valid base64");
+        return BASE64
+            .decode(inline)
+            .expect("inline payload is valid base64");
     }
     let bin = entry["bin"].as_str().expect("entry has bin or inline");
     assert!(!bin.is_empty(), "entry has neither bin nor inline");
@@ -442,7 +448,54 @@ fn prune_keeps_only_the_newest_versions() {
         .expect("publish should succeed");
     }
 
-    assert!(!data_dir.join("v2026-07-29").exists(), "oldest should prune");
+    assert!(
+        !data_dir.join("v2026-07-29").exists(),
+        "oldest should prune"
+    );
     assert!(data_dir.join("v2026-07-30").exists());
     assert!(data_dir.join("v2026-07-31").exists());
+}
+
+#[test]
+fn the_three_score_metrics_count_the_same_lifters() {
+    // DOTS, Wilks and Goodlift are all defined for exactly the rows that have a
+    // bodyweight, so their published totals must agree. They did not: a typo'd
+    // bodyweight was clamped into range by the first two and published as a
+    // real score, while Goodlift's denominator went non-positive and the row
+    // disappeared. Across the live dataset four corrupt rows put Wilks and DOTS
+    // 48 slice-entries ahead of Goodlift.
+    let (_temp, data_dir) = publish_tree(
+        "v2026-07-31",
+        &[(
+            "total",
+            vec![
+                RecordRow::new("F", "63", 400.0, 62.0),
+                RecordRow::new("F", "63", 380.0, 61.0),
+                // Nobody competes at 15 kg. Below ~17.7 kg the female Goodlift
+                // denominator turns negative, which is what made the three
+                // disagree.
+                RecordRow::new("F", "63", 300.0, 15.0),
+            ],
+        )],
+    );
+
+    let shard = read_json(
+        &data_dir
+            .join("v2026-07-31")
+            .join("index_shards/f/raw/index.json"),
+    );
+    let total_for = |metric: &str| -> u64 {
+        let key = format!("sex=F|equip=Raw|wc=All|age=All Ages|tested=All|lift=T|metric={metric}");
+        shard["slices"][&key]["summary"]["total"]
+            .as_u64()
+            .unwrap_or_else(|| panic!("no published slice for {metric}"))
+    };
+
+    assert_eq!(total_for("Dots"), total_for("GL"), "DOTS and GL disagree");
+    assert_eq!(total_for("Wilks"), total_for("GL"), "Wilks and GL disagree");
+    assert_eq!(total_for("GL"), 2, "the 15 kg row must not be scored");
+
+    // The kg histogram needs no bodyweight, so the row still belongs there.
+    // Dropping it everywhere would lose a real lift over a bad bodyweight.
+    assert_eq!(total_for("Kg"), 3, "the kg histogram should keep all three");
 }
