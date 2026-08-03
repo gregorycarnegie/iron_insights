@@ -59,6 +59,16 @@ fn read_hist(
     parse_combined_bin(&bytes).map(|(hist, _heat)| hist)
 }
 
+/// The female-to-male figure the comparison page is built around, as a
+/// percentage. One copy: the standards table and the DOTS note quote the same
+/// number from the same arithmetic, so they cannot drift apart.
+pub(super) fn ratio_pct(male: f32, female: f32) -> f32 {
+    if male == 0.0 {
+        return 0.0;
+    }
+    100.0 * female / male
+}
+
 pub(super) fn percentile_value(hist: &HistogramBin, q: f32) -> f32 {
     value_for_percentile(Some(hist), q).unwrap_or(0.0)
 }
@@ -98,8 +108,7 @@ pub(super) fn load_stats(bins: &Path) -> Option<Stats> {
         if let (Some(m), Some(f)) = (m, f) {
             let mv = percentile_value(&m, 0.5);
             let fv = percentile_value(&f, 0.5);
-            let ratio = if mv != 0.0 { 100.0 * fv / mv } else { 0.0 };
-            comparison.push((lift, mv, fv, ratio));
+            comparison.push((lift, mv, fv, ratio_pct(mv, fv)));
         }
     }
     let dots = |sex: &str| {

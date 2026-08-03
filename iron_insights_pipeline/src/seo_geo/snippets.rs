@@ -1,6 +1,6 @@
 use super::{
     constants::LIFT_LABELS,
-    stats::{ClassRow, Stats},
+    stats::{ClassRow, Stats, ratio_pct},
 };
 
 pub(super) fn wc_label(wc: &str) -> String {
@@ -66,7 +66,7 @@ pub(super) fn comparison_table_html(stats: &Stats) -> String {
     );
     let note = match (stats.dots_m, stats.dots_f) {
         (Some(m), Some(f)) => {
-            let pct = if m != 0.0 { 100.0 * f / m } else { 0.0 };
+            let pct = ratio_pct(m, f);
             format!(
                 "<p>Raw kilograms understate women's relative strength because the median \
 female lifter is lighter. On bodyweight-adjusted <strong>DOTS</strong> points the gap \
