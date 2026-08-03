@@ -17,22 +17,27 @@ use polars::prelude::{
 
 use crate::{BuildMetadata, DEFAULT_ZIP_URL};
 
+#[cfg(test)]
+pub(crate) use Args as DownloadArgs;
+
+/// Crate-visible so the stage-chain test can drive a conversion; the binary
+/// still reaches it only through [`run`].
 #[derive(Debug, Parser)]
-struct Args {
+pub(crate) struct Args {
     #[arg(long, default_value = DEFAULT_ZIP_URL)]
-    zip_url: String,
+    pub(crate) zip_url: String,
 
     #[arg(long, default_value = "iron_insights_pipeline/tmp")]
-    temp_dir: PathBuf,
+    pub(crate) temp_dir: PathBuf,
 
     #[arg(long, default_value = "iron_insights_pipeline/output")]
-    output_dir: PathBuf,
+    pub(crate) output_dir: PathBuf,
 
     #[arg(long, default_value = "auto")]
-    dataset_version: String,
+    pub(crate) dataset_version: String,
 
     #[arg(long)]
-    dataset_revision: Option<String>,
+    pub(crate) dataset_revision: Option<String>,
 }
 
 pub fn run() -> Result<()> {
@@ -52,7 +57,7 @@ pub fn run() -> Result<()> {
 /// Everything after the network fetch: zip in, canonical parquet plus metadata
 /// out, temporaries removed. Split from [`run`] so it can be tested against a
 /// hand-built zip without reaching for the network.
-fn convert_downloaded_zip(args: &Args, zip_path: &Path) -> Result<()> {
+pub(crate) fn convert_downloaded_zip(args: &Args, zip_path: &Path) -> Result<()> {
     let csv_path = args.temp_dir.join("openpowerlifting-latest.csv");
     let parquet_path = args.output_dir.join("openpowerlifting-latest.parquet");
     let metadata_path = args.output_dir.join("build_metadata.json");
@@ -302,7 +307,9 @@ Alan Turing,M,SBD,Raw,Yes,Yes,1,2026-04-01,35,92,200,210,220,,220,130,135,140,,1
         assert_eq!(metadata["dataset_version"], "v2026-07-31");
         assert_eq!(metadata["dataset_revision"], "abc123");
         assert!(
-            metadata["built_at_utc"].as_str().is_some_and(|s| !s.is_empty()),
+            metadata["built_at_utc"]
+                .as_str()
+                .is_some_and(|s| !s.is_empty()),
             "built_at_utc should be stamped"
         );
 

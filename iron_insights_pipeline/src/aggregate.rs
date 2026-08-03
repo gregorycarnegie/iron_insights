@@ -12,16 +12,21 @@ use clap::Parser;
 use iron_insights_core::{IPF_FEMALE_WEIGHT_CLASSES, IPF_MALE_WEIGHT_CLASSES};
 use polars::prelude::*;
 
+#[cfg(test)]
+pub(crate) use Args as AggregateArgs;
+
+/// Crate-visible so the stage-chain test can drive a build; the binary still
+/// reaches it only through [`run`].
 #[derive(Debug, Parser)]
-struct Args {
+pub(crate) struct Args {
     #[arg(
         long,
         default_value = "iron_insights_pipeline/output/openpowerlifting-latest.parquet"
     )]
-    input_parquet: PathBuf,
+    pub(crate) input_parquet: PathBuf,
 
     #[arg(long, default_value = "iron_insights_pipeline/output/records")]
-    output_dir: PathBuf,
+    pub(crate) output_dir: PathBuf,
 }
 
 #[derive(Clone, Copy)]
@@ -74,7 +79,7 @@ fn build_all() -> Result<()> {
 }
 
 /// Split from [`build_all`] so tests can drive a build without going through argv.
-fn build_aggregates(args: &Args) -> Result<()> {
+pub(crate) fn build_aggregates(args: &Args) -> Result<()> {
     fs::create_dir_all(&args.output_dir)
         .with_context(|| format!("failed to create {}", args.output_dir.display()))?;
 
@@ -220,7 +225,9 @@ fn bounded_class_chain(value: Expr, classes: &[(f32, &'static str)]) -> Expr {
         .then(lit(*l1));
     for (upper, label) in iter {
         if upper.is_finite() {
-            expr = expr.when(value.clone().lt_eq(lit(*upper))).then(lit(*label));
+            expr = expr
+                .when(value.clone().lt_eq(lit(*upper)))
+                .then(lit(*label));
         } else {
             return expr.otherwise(lit(*label));
         }
@@ -247,8 +254,9 @@ fn derive_age_class_expr() -> Expr {
 
 #[cfg(test)]
 mod tests {
-    use super::{Args, build_aggregates, derive_age_class_expr, derive_ipf_weight_class_expr,
-        event_filter};
+    use super::{
+        Args, build_aggregates, derive_age_class_expr, derive_ipf_weight_class_expr, event_filter,
+    };
     use polars::prelude::*;
     use std::path::Path;
     use tempfile::TempDir;
@@ -425,7 +433,11 @@ mod tests {
         // `publish_data::collect_records_frame` selects these by name. Name and
         // TestedBucket are grouping keys only and must not survive: Name alone
         // was 45% of the written file.
-        let mut columns: Vec<_> = df.get_column_names().iter().map(|c| c.to_string()).collect();
+        let mut columns: Vec<_> = df
+            .get_column_names()
+            .iter()
+            .map(|c| c.to_string())
+            .collect();
         columns.sort();
         assert_eq!(
             columns,
@@ -457,7 +469,11 @@ mod tests {
         let df = read_records(&records, "all", "squat");
 
         assert_eq!(df.height(), 1, "one row per lifter per cohort");
-        let best = df.column("best_lift").expect("best_lift").f32().expect("f32");
+        let best = df
+            .column("best_lift")
+            .expect("best_lift")
+            .f32()
+            .expect("f32");
         assert_eq!(best.get(0), Some(215.0));
     }
 

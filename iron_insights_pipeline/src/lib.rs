@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 pub mod aggregate;
+#[cfg(test)]
+mod chain_tests;
 pub mod download;
 pub mod publish_data;
 pub mod seo_geo;
