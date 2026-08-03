@@ -166,13 +166,6 @@ jobs:
               return
             }
 
-            if [[ -d "${version_dir}/meta" ]]; then
-              find "${version_dir}/meta" -type f -name '*.json' -print0 \
-                | xargs -0 -r jq -r '.hist.total // 0' \
-                | sum_totals
-              return
-            fi
-
             local mode
             mode="$(jq -r 'if has("slices") then "flat" elif has("shards") then "sharded" else "unknown" end' "${index_json}")"
 
@@ -197,8 +190,7 @@ jobs:
             echo "0"
           }
 
-          # Aggregate row-count proxy (sum of histogram totals across slices).
-          # Prefer meta files when present, otherwise read compact summary totals from index/shards.
+          # Aggregate row-count proxy: sum of the per-slice summary totals.
           NEW_TOTAL="$(aggregate_total_for_version "${DATA_VERSION}")"
 
           if [[ -z "${NEW_TOTAL}" || "${NEW_TOTAL}" == "0" ]]; then

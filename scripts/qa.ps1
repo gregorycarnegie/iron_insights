@@ -25,49 +25,6 @@ function Join-Url([string]$Left, [string]$Right) {
   return "$l/$r"
 }
 
-function Resolve-PathsFromSliceKey([string]$Key) {
-  $parts = @{}
-  foreach ($segment in ($Key -split '\|')) {
-    $kv = $segment -split '=', 2
-    if ($kv.Count -eq 2) {
-      $parts[$kv[0]] = $kv[1]
-    }
-  }
-
-  foreach ($required in @('sex', 'equip', 'wc', 'age', 'tested', 'lift')) {
-    if (-not $parts.ContainsKey($required)) {
-      return $null
-    }
-  }
-
-  $lift = switch ($parts['lift']) {
-    'S' { 'squat' }
-    'B' { 'bench' }
-    'D' { 'deadlift' }
-    'T' { 'total' }
-    default { $null }
-  }
-  if (-not $lift) { return $null }
-
-  $slug = {
-    param([string]$s)
-    return (($s.ToLowerInvariant()) -replace '[^a-z0-9-]', '_')
-  }
-
-  $testedDir = if ($parts['tested'].Equals('Yes', [System.StringComparison]::OrdinalIgnoreCase)) { 'tested' } else { & $slug $parts['tested'] }
-  $metricDir = ""
-  if ($parts.ContainsKey('metric') -and -not [string]::IsNullOrWhiteSpace($parts['metric'])) {
-    $metricDir = "/" + (& $slug $parts['metric'])
-  }
-  $base = "{0}/{1}/{2}/{3}/{4}{5}/{6}" -f (& $slug $parts['sex']), (& $slug $parts['equip']), (& $slug $parts['wc']), (& $slug $parts['age']), $testedDir, $metricDir, $lift
-
-  return [PSCustomObject]@{
-    Meta = "meta/$base.json"
-    Hist = "hist/$base.bin"
-    Heat = "heat/$base.bin"
-  }
-}
-
 if (-not (Test-Path $DataDir)) { Fail "data directory not found: $DataDir" }
 
 $latestPath = Join-Path $DataDir 'latest.json'
@@ -88,7 +45,6 @@ if (-not $index.slices -and -not $index.shards) { Fail "index.json missing .slic
 
 $isSharded = [bool]$index.shards
 $indexRootBytes = (Get-Item $indexPath).Length
-$indexBudgetBytes = $indexRootBytes
 $sliceEntries = [System.Collections.Generic.List[object]]::new()
 $shardSizeByRel = @{}
 
@@ -100,29 +56,11 @@ $appendSlices = {
 
   if ($null -eq $sliceNode) { return }
 
-  if ($sliceNode -is [System.Array]) {
-    foreach ($k in @($sliceNode)) {
-      $key = [string]$k
-      $paths = Resolve-PathsFromSliceKey $key
-      if ($null -eq $paths) { Fail "invalid compact slice key: $key" }
-      $sliceEntries.Add([PSCustomObject]@{
-        Key = $key
-        Meta = [string]$paths.Meta
-        Hist = [string]$paths.Hist
-        Heat = [string]$paths.Heat
-        ShardRel = $shardRel
-        SummaryTotal = 0
-      })
-    }
-    return
-  }
-
   foreach ($p in @($sliceNode.PSObject.Properties)) {
     $sliceEntries.Add([PSCustomObject]@{
       Key = [string]$p.Name
-      Meta = [string]$p.Value.meta
-      Hist = [string]$p.Value.hist
-      Heat = [string]$p.Value.heat
+      # Empty when the payload is inlined into the shard as base64.
+      Bin = [string]$p.Value.bin
       ShardRel = $shardRel
       SummaryTotal = [int64]$p.Value.summary.total
     })
@@ -138,9 +76,7 @@ if ($index.slices) {
     if ($rel.StartsWith('/')) { Fail "invalid absolute shard path for $($sp.Name): $rel" }
     $shardPath = Join-Path $versionDir $rel
     if (-not (Test-Path $shardPath)) { Fail "missing shard file for $($sp.Name): $rel" }
-    $shardSize = (Get-Item $shardPath).Length
-    $indexBudgetBytes += $shardSize
-    $shardSizeByRel[$rel] = $shardSize
+    $shardSizeByRel[$rel] = (Get-Item $shardPath).Length
     $shard = Get-Content $shardPath -Raw | ConvertFrom-Json
     & $appendSlices $shard.slices $rel
   }
@@ -153,67 +89,34 @@ Write-Host "[qa] Slice entries: $($sliceEntries.Count)"
 
 $missing = 0
 $invalid = 0
-$histTotalSum = 0
+$summaryTotalSum = [int64]0
 
 foreach ($entry in $sliceEntries) {
   $key = $entry.Key
+  $rel = $entry.Bin
 
-  foreach ($rel in @($entry.Meta, $entry.Hist, $entry.Heat)) {
-    if ([string]::IsNullOrWhiteSpace($rel)) {
-      continue
-    }
-
+  if (-not [string]::IsNullOrWhiteSpace($rel)) {
     if ($rel.StartsWith('/')) {
       Write-Host "[qa] invalid absolute path in index ($key): $rel" -ForegroundColor Yellow
       $invalid++
-      continue
-    }
-
-    $full = Join-Path $versionDir $rel
-    if (-not (Test-Path $full)) {
-      Write-Host "[qa] missing file for ${key}: $rel" -ForegroundColor Yellow
-      $missing++
-      continue
-    }
-
-    $len = (Get-Item $full).Length
-    if ($len -le 0) {
-      Write-Host "[qa] empty file for ${key}: $rel" -ForegroundColor Yellow
-      $missing++
-    }
-  }
-
-  $metaPath = if (-not [string]::IsNullOrWhiteSpace($entry.Meta)) { Join-Path $versionDir $entry.Meta } else { $null }
-  if ($metaPath -and (Test-Path $metaPath)) {
-    $meta = Get-Content $metaPath -Raw | ConvertFrom-Json
-    $bins = [int]($meta.hist.bins)
-    $total = [int64]($meta.hist.total)
-    $w = [int]($meta.heat.width)
-    $h = [int]($meta.heat.height)
-
-    if ($bins -lt 1) {
-      Write-Host "[qa] bad histogram bins for ${key}: $bins" -ForegroundColor Yellow
-      $invalid++
-    }
-
-    if ($total -lt 0) {
-      Write-Host "[qa] bad hist.total for ${key}: $total" -ForegroundColor Yellow
-      $invalid++
     } else {
-      $histTotalSum += $total
+      $full = Join-Path $versionDir $rel
+      if (-not (Test-Path $full)) {
+        Write-Host "[qa] missing file for ${key}: $rel" -ForegroundColor Yellow
+        $missing++
+      } elseif ((Get-Item $full).Length -le 0) {
+        Write-Host "[qa] empty file for ${key}: $rel" -ForegroundColor Yellow
+        $missing++
+      }
     }
-
-    if ($w -eq 0 -or $h -eq 0) {
-      Write-Host "[qa] warning: zero-dimension heatmap for $key (${w}x${h})"
-    }
-  } elseif ($entry.SummaryTotal -gt 0) {
-    $histTotalSum += [int64]$entry.SummaryTotal
   }
+
+  $summaryTotalSum += [int64]$entry.SummaryTotal
 }
 
 if ($missing -gt 0) { Fail "found $missing missing/empty referenced files" }
 if ($invalid -gt 0) { Fail "found $invalid invalid slice entries" }
-if ($histTotalSum -le 0) { Fail "aggregate hist.total is zero" }
+if ($summaryTotalSum -le 0) { Fail "aggregate summary.total is zero" }
 
 $allFiles = Get-ChildItem $versionDir -Recurse -File | Where-Object { $_.Name -match '\.(bin|json)$' }
 $binBytes = ($allFiles | Where-Object { $_.Extension -eq '.bin' } | Measure-Object -Property Length -Sum).Sum
@@ -222,28 +125,27 @@ if (-not $binBytes) { $binBytes = 0 }
 if (-not $jsonBytes) { $jsonBytes = 0 }
 $totalBytes = $binBytes + $jsonBytes
 
-Write-Host "[qa] Aggregate hist.total sum: $histTotalSum"
+Write-Host "[qa] Aggregate summary.total sum: $summaryTotalSum"
 Write-Host "[qa] Files checked: $($allFiles.Count)"
 Write-Host "[qa] Data payload: total=$(Format-Bytes $totalBytes) (bin=$(Format-Bytes $binBytes), json=$(Format-Bytes $jsonBytes))"
 
-$selectedProp = $null
+$selectedEntry = $null
 if ($SliceKey) {
-  $selectedProp = $sliceEntries | Where-Object { $_.Key -eq $SliceKey } | Select-Object -First 1
-  if (-not $selectedProp) {
+  $selectedEntry = $sliceEntries | Where-Object { $_.Key -eq $SliceKey } | Select-Object -First 1
+  if (-not $selectedEntry) {
     Write-Host "[qa] warning: requested SliceKey not found, using first slice."
   }
 }
-if (-not $selectedProp) {
-  $selectedProp = $sliceEntries | Where-Object { $_.Key -like 'sex=F|equip=All|wc=*|age=24-34|tested=All|lift=B' } | Select-Object -First 1
+if (-not $selectedEntry) {
+  $selectedEntry = $sliceEntries | Where-Object { $_.Key -like 'sex=F|equip=All|wc=*|age=24-34|tested=All|lift=B' } | Select-Object -First 1
 }
-if (-not $selectedProp) {
-  $selectedProp = $sliceEntries | Where-Object { $_.Key -like 'sex=F|equip=Raw|wc=*|age=24-34|tested=All|lift=B' } | Select-Object -First 1
+if (-not $selectedEntry) {
+  $selectedEntry = $sliceEntries | Where-Object { $_.Key -like 'sex=F|equip=Raw|wc=*|age=24-34|tested=All|lift=B' } | Select-Object -First 1
 }
-if (-not $selectedProp) {
-  $selectedProp = $sliceEntries | Select-Object -First 1
+if (-not $selectedEntry) {
+  $selectedEntry = $sliceEntries | Select-Object -First 1
 }
-$selectedEntry = $selectedProp
-$selectedName = $selectedProp.Key
+$selectedName = $selectedEntry.Key
 
 $sampleIndexBytes = $indexRootBytes
 $sampleShardRel = $null
@@ -255,14 +157,14 @@ if ($isSharded) {
   $sampleIndexBytes += [int64]($shardSizeByRel[$sampleShardRel])
 }
 
-$sampleMetaPath = if (-not [string]::IsNullOrWhiteSpace($selectedEntry.Meta)) { Join-Path $versionDir $selectedEntry.Meta } else { $null }
-$sampleHistPath = Join-Path $versionDir $selectedEntry.Hist
-$sampleHeatPath = Join-Path $versionDir $selectedEntry.Heat
-$sampleMetaBytes = if ($sampleMetaPath -and (Test-Path $sampleMetaPath)) { (Get-Item $sampleMetaPath).Length } else { 0 }
-$sampleHistBytes = if (Test-Path $sampleHistPath) { (Get-Item $sampleHistPath).Length } else { 0 }
-$sampleHeatBytes = if (Test-Path $sampleHeatPath) { (Get-Item $sampleHeatPath).Length } else { 0 }
+# Inlined slice: the payload is already counted inside the index shard.
+$sampleBinBytes = 0
+if (-not [string]::IsNullOrWhiteSpace($selectedEntry.Bin)) {
+  $sampleBinPath = Join-Path $versionDir $selectedEntry.Bin
+  if (Test-Path $sampleBinPath) { $sampleBinBytes = (Get-Item $sampleBinPath).Length }
+}
 $latestBytes = (Get-Item $latestPath).Length
-$sampleDataBytes = $latestBytes + $sampleIndexBytes + $sampleMetaBytes + $sampleHistBytes + $sampleHeatBytes
+$sampleDataBytes = $latestBytes + $sampleIndexBytes + $sampleBinBytes
 
 $maleProbe = $sliceEntries | Where-Object { $_.Key -like 'sex=M|equip=All|wc=*|age=24-34|tested=All|lift=B' } | Select-Object -First 1
 if (-not $maleProbe) {
@@ -277,17 +179,9 @@ if (-not $maleProbe) {
 
 Write-Host "[qa] Sample slice: $selectedName"
 if ($isSharded) {
-  if ($sampleMetaBytes -gt 0) {
-    Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index_root+index_shard+meta+hist+heat)"
-  } else {
-    Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index_root+index_shard+summary+hist+heat)"
-  }
+  Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index_root+index_shard+bin)"
 } else {
-  if ($sampleMetaBytes -gt 0) {
-    Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index+meta+hist+heat)"
-  } else {
-    Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index+summary+hist+heat)"
-  }
+  Write-Host "[qa] Sample data request budget: $(Format-Bytes $sampleDataBytes) (latest+index+bin)"
 }
 
 $siteBudgetBytes = 0
@@ -315,22 +209,18 @@ if (-not [string]::IsNullOrWhiteSpace($BaseUrl)) {
   if ($isSharded -and -not [string]::IsNullOrWhiteSpace($sampleShardRel)) {
     $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $sampleShardRel.Replace('\', '/'))) })
   }
-  if (-not [string]::IsNullOrWhiteSpace($selectedEntry.Meta)) {
-    $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Meta.Replace('\', '/'))) })
+  if (-not [string]::IsNullOrWhiteSpace($selectedEntry.Bin)) {
+    $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Bin.Replace('\', '/'))) })
   }
-  $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Hist.Replace('\', '/'))) })
-  $probeItems.Add([PSCustomObject]@{ Label = "f_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $selectedEntry.Heat.Replace('\', '/'))) })
 
   if ($maleProbe -and ($maleProbe.Key -ne $selectedEntry.Key)) {
     Write-Host "[qa] Probe sample (M/All): $($maleProbe.Key)"
     if ($isSharded -and -not [string]::IsNullOrWhiteSpace([string]$maleProbe.ShardRel)) {
       $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.ShardRel.Replace('\', '/'))) })
     }
-    if (-not [string]::IsNullOrWhiteSpace([string]$maleProbe.Meta)) {
-      $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.Meta.Replace('\', '/'))) })
+    if (-not [string]::IsNullOrWhiteSpace([string]$maleProbe.Bin)) {
+      $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.Bin.Replace('\', '/'))) })
     }
-    $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.Hist.Replace('\', '/'))) })
-    $probeItems.Add([PSCustomObject]@{ Label = "m_all"; Url = (Join-Url $BaseUrl ("data/$version/" + $maleProbe.Heat.Replace('\', '/'))) })
   }
 
   foreach ($item in $probeItems) {

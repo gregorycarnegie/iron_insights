@@ -34,57 +34,6 @@ INDEX_JSON="$VERSION_DIR/index.json"
 mode="$(jq -r 'if has("slices") then "flat" elif has("shards") then "sharded" else "unknown" end' "$INDEX_JSON")"
 [[ "$mode" != "unknown" ]] || fail "index.json missing .slices or .shards"
 
-slug() {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]/_/g'
-}
-
-lift_name_from_code() {
-  case "$1" in
-    S) echo "squat" ;;
-    B) echo "bench" ;;
-    D) echo "deadlift" ;;
-    T) echo "total" ;;
-    *) return 1 ;;
-  esac
-}
-
-field_from_key() {
-  local key="$1"
-  local name="$2"
-  awk -F'=' -v n="$name" '
-    {
-      for (i=1; i<=NF; i++) {
-        if (i % 2 == 1 && $i == n) { print $(i+1); exit }
-      }
-    }' <<<"$(printf '%s' "$key" | tr '|' '=')"
-}
-
-paths_from_key() {
-  local key="$1"
-  local sex equip wc age tested tested_dir lift_code lift metric metric_dir
-  sex="$(field_from_key "$key" "sex")"
-  equip="$(field_from_key "$key" "equip")"
-  wc="$(field_from_key "$key" "wc")"
-  age="$(field_from_key "$key" "age")"
-  tested="$(field_from_key "$key" "tested")"
-  metric="$(field_from_key "$key" "metric")"
-  if [[ "${tested,,}" == "yes" ]]; then
-    tested_dir="tested"
-  else
-    tested_dir="$(slug "$tested")"
-  fi
-  if [[ -n "$metric" ]]; then
-    metric_dir="/$(slug "$metric")"
-  else
-    metric_dir=""
-  fi
-  lift_code="$(field_from_key "$key" "lift")"
-  lift="$(lift_name_from_code "$lift_code")" || return 1
-  local base
-  base="$(slug "$sex")/$(slug "$equip")/$(slug "$wc")/$(slug "$age")/$tested_dir${metric_dir}/$lift"
-  printf 'meta/%s.json\tbin/%s.bin' "$base" "$base"
-}
-
 index_root_bytes="$(wc -c < "$INDEX_JSON")"
 index_budget_all_bytes="$index_root_bytes"
 index_budget_sample_bytes="$index_root_bytes"
@@ -113,32 +62,18 @@ trap 'rm -f "$entries_tsv"' EXIT
 for i in "${!slice_source_files[@]}"; do
   src="${slice_source_files[$i]}"
   rel="${slice_source_rels[$i]}"
-  slice_type="$(jq -r '.slices | type' "$src")"
   # Keep all TSV columns non-empty to avoid bash read collapsing empty tab fields.
-  if [[ "$slice_type" == "object" ]]; then
-    jq -r --arg rel "$rel" '
-      .slices
-      | to_entries[]
-      | [
-          .key,
-          (if ((.value.meta // "") | length) > 0 then .value.meta else "-" end),
-          (if ((.value.bin // "") | length) > 0 then .value.bin else "-" end),
-          $rel,
-          (if .value.summary.total == null then "-" else (.value.summary.total | tostring) end)
-        ]
-      | @tsv
-    ' "$src" >> "$entries_tsv"
-  elif [[ "$slice_type" == "array" ]]; then
-    while IFS= read -r key; do
-      [[ -n "$key" ]] || continue
-      if ! paths="$(paths_from_key "$key")"; then
-        fail "invalid compact slice key: $key"
-      fi
-      printf '%s\t%s\t%s\t-\n' "$key" "$paths" "$rel" >> "$entries_tsv"
-    done < <(jq -r '.slices[]' "$src")
-  else
-    fail "unsupported .slices type in $src: $slice_type"
-  fi
+  jq -r --arg rel "$rel" '
+    .slices
+    | to_entries[]
+    | [
+        .key,
+        (if ((.value.bin // "") | length) > 0 then .value.bin else "-" end),
+        $rel,
+        (if .value.summary.total == null then "-" else (.value.summary.total | tostring) end)
+      ]
+    | @tsv
+  ' "$src" >> "$entries_tsv"
 done
 
 ENTRY_COUNT="$(wc -l < "$entries_tsv" | awk '{print $1}')"
@@ -149,66 +84,35 @@ echo "[qa] Slice entries: $ENTRY_COUNT"
 
 missing=0
 invalid=0
-meta_total_sum=0
+summary_total_sum=0
 
-while IFS=$'\t' read -r key meta_rel bin_rel shard_rel summary_total; do
-  [[ "$meta_rel" == "-" ]] && meta_rel=""
+while IFS=$'\t' read -r key bin_rel shard_rel summary_total; do
   # Inlined slices carry no .bin file; the placeholder keeps the TSV columns
   # non-empty so bash's read does not collapse the adjacent tabs.
   [[ "$bin_rel" == "-" ]] && bin_rel=""
   [[ "$summary_total" == "-" ]] && summary_total=""
 
-  for rel in "$meta_rel" "$bin_rel"; do
-    [[ -n "$rel" ]] || continue
-    [[ "$rel" != /* ]] || {
-      echo "[qa] invalid absolute path in index ($key): $rel" >&2
+  if [[ -n "$bin_rel" ]]; then
+    if [[ "$bin_rel" == /* ]]; then
+      echo "[qa] invalid absolute path in index ($key): $bin_rel" >&2
       invalid=$((invalid + 1))
-      continue
-    }
-    [[ -s "$VERSION_DIR/$rel" ]] || {
-      echo "[qa] missing/empty file for $key: $rel" >&2
+    elif [[ ! -s "$VERSION_DIR/$bin_rel" ]]; then
+      echo "[qa] missing/empty file for $key: $bin_rel" >&2
       missing=$((missing + 1))
-    }
-  done
-
-  if [[ -n "$meta_rel" && -s "$VERSION_DIR/$meta_rel" ]]; then
-    if [[ "$meta_rel" != *.json ]]; then
-      echo "[qa] invalid meta path (not json) for $key: $meta_rel" >&2
-      invalid=$((invalid + 1))
-      continue
     fi
+  fi
 
-    if ! meta_fields="$(jq -r '[.hist.total // 0, .hist.bins // 0, .heat.width // 0, .heat.height // 0] | @tsv' "$VERSION_DIR/$meta_rel" 2>/dev/null)"; then
-      echo "[qa] failed to parse meta json for $key: $meta_rel" >&2
-      invalid=$((invalid + 1))
-      continue
-    fi
-
-    IFS=$'\t' read -r total bins h_width h_height <<<"$meta_fields"
-
-    [[ "$bins" -ge 1 ]] || {
-      echo "[qa] bad histogram bins for $key: $bins" >&2
-      invalid=$((invalid + 1))
-    }
-
-    if [[ "$total" =~ ^[0-9]+$ ]]; then
-      meta_total_sum=$((meta_total_sum + total))
-    else
-      echo "[qa] non-numeric hist.total for $key: $total" >&2
-      invalid=$((invalid + 1))
-    fi
-
-    if [[ "$h_width" -eq 0 || "$h_height" -eq 0 ]]; then
-      echo "[qa] warning: zero-dimension heatmap for $key (${h_width}x${h_height})"
-    fi
-  elif [[ "$summary_total" =~ ^[0-9]+$ ]]; then
-    meta_total_sum=$((meta_total_sum + summary_total))
+  if [[ "$summary_total" =~ ^[0-9]+$ ]]; then
+    summary_total_sum=$((summary_total_sum + summary_total))
+  elif [[ -n "$summary_total" ]]; then
+    echo "[qa] non-numeric summary.total for $key: $summary_total" >&2
+    invalid=$((invalid + 1))
   fi
 done < "$entries_tsv"
 
 [[ "$missing" -eq 0 ]] || fail "found $missing missing/empty referenced files"
 [[ "$invalid" -eq 0 ]] || fail "found $invalid invalid slice entries"
-[[ "$meta_total_sum" -gt 0 ]] || fail "aggregate hist.total is zero"
+[[ "$summary_total_sum" -gt 0 ]] || fail "aggregate summary.total is zero"
 
 bin_bytes=0
 json_bytes=0
@@ -251,8 +155,7 @@ fi
 if [[ -z "$sample_line" ]]; then
   sample_line="$(head -n1 "$entries_tsv")"
 fi
-IFS=$'\t' read -r sample_name sample_meta_rel sample_bin_rel sample_shard_rel sample_summary_total <<<"$sample_line"
-[[ "$sample_meta_rel" == "-" ]] && sample_meta_rel=""
+IFS=$'\t' read -r sample_name sample_bin_rel sample_shard_rel sample_summary_total <<<"$sample_line"
 [[ "$sample_bin_rel" == "-" ]] && sample_bin_rel=""
 [[ "$sample_summary_total" == "-" ]] && sample_summary_total=""
 
@@ -264,18 +167,13 @@ else
 fi
 
 latest_bytes="$(wc -c < "$LATEST_JSON")"
-if [[ -n "$sample_meta_rel" && -s "$VERSION_DIR/$sample_meta_rel" ]]; then
-  sample_meta_bytes="$(wc -c < "$VERSION_DIR/$sample_meta_rel")"
-else
-  sample_meta_bytes=0
-fi
 if [[ -n "$sample_bin_rel" && -s "$VERSION_DIR/$sample_bin_rel" ]]; then
   sample_bin_bytes="$(wc -c < "$VERSION_DIR/$sample_bin_rel")"
 else
   # Inlined slice: the payload is already counted inside the index shard.
   sample_bin_bytes=0
 fi
-sample_data_bytes=$((latest_bytes + index_budget_sample_bytes + sample_meta_bytes + sample_bin_bytes))
+sample_data_bytes=$((latest_bytes + index_budget_sample_bytes + sample_bin_bytes))
 
 male_probe_line="$(awk -F'\t' '$1 ~ /^sex=M\|equip=All\|wc=[^|]+\|age=24-34\|tested=All\|lift=B$/ {print; exit}' "$entries_tsv")"
 if [[ -z "$male_probe_line" ]]; then
@@ -288,12 +186,10 @@ if [[ -z "$male_probe_line" ]]; then
   male_probe_line="$(awk -F'\t' '$1 ~ /^sex=M\|equip=Raw\|/ {print; exit}' "$entries_tsv")"
 fi
 male_probe_name=""
-male_probe_meta_rel=""
 male_probe_bin_rel=""
 male_probe_shard_rel=""
 if [[ -n "$male_probe_line" ]]; then
-  IFS=$'\t' read -r male_probe_name male_probe_meta_rel male_probe_bin_rel male_probe_shard_rel male_probe_summary_total <<<"$male_probe_line"
-  [[ "$male_probe_meta_rel" == "-" ]] && male_probe_meta_rel=""
+  IFS=$'\t' read -r male_probe_name male_probe_bin_rel male_probe_shard_rel male_probe_summary_total <<<"$male_probe_line"
   [[ "$male_probe_bin_rel" == "-" ]] && male_probe_bin_rel=""
   [[ "$male_probe_summary_total" == "-" ]] && male_probe_summary_total=""
 fi
@@ -309,14 +205,14 @@ fi
 
 first_view_bytes=$((site_budget_bytes + sample_data_bytes))
 
-echo "[qa] Aggregate hist.total sum: $meta_total_sum"
+echo "[qa] Aggregate summary.total sum: $summary_total_sum"
 echo "[qa] Files checked: $file_count"
 echo "[qa] Data payload: total=$(fmt_bytes "$total_bytes") (bin=$(fmt_bytes "$bin_bytes"), json=$(fmt_bytes "$json_bytes"))"
 echo "[qa] Sample slice: $sample_name"
 if [[ "$mode" == "sharded" ]]; then
-  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index_root+index_shard+summary/meta+bin)"
+  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index_root+index_shard+bin)"
 else
-  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index+summary/meta+bin)"
+  echo "[qa] Sample data request budget: $(fmt_bytes "$sample_data_bytes") (latest+index+bin)"
 fi
 if [[ "$site_budget_bytes" -gt 0 ]]; then
   echo "[qa] Site static payload (.html/.css/.js/.wasm): $(fmt_bytes "$site_budget_bytes")"
@@ -339,10 +235,6 @@ if [[ -n "$BASE_URL" ]]; then
     urls+=("$base/data/$VERSION/$sample_shard_rel")
     labels+=("sample")
   fi
-  if [[ -n "$sample_meta_rel" ]]; then
-    urls+=("$base/data/$VERSION/$sample_meta_rel")
-    labels+=("sample")
-  fi
   if [[ -n "$sample_bin_rel" ]]; then
     urls+=("$base/data/$VERSION/$sample_bin_rel")
     labels+=("sample")
@@ -352,10 +244,6 @@ if [[ -n "$BASE_URL" ]]; then
     echo "[qa] Probe sample (M/All): $male_probe_name"
     if [[ "$mode" == "sharded" && -n "$male_probe_shard_rel" ]]; then
       urls+=("$base/data/$VERSION/$male_probe_shard_rel")
-      labels+=("m_all")
-    fi
-    if [[ -n "$male_probe_meta_rel" ]]; then
-      urls+=("$base/data/$VERSION/$male_probe_meta_rel")
       labels+=("m_all")
     fi
     if [[ -n "$male_probe_bin_rel" ]]; then
