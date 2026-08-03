@@ -911,17 +911,20 @@ fn ipf_weight_class_invalid_sex_returns_none() {
     assert!(ipf_weight_class(80.0, "").is_none());
 }
 
-// ===== SCORING COEFFICIENT PINS =====
-//
-// Characterisation tests: they lock in the values the transcribed polynomial
-// coefficients currently produce, so an accidental edit to any one of them
-// fails loudly. They are NOT independently verified against the federations'
-// published tables. The point is to detect drift, not to certify correctness.
+// ===== SCORING COEFFICIENTS =====
 //
 // Mutation testing found 74 surviving mutants in `scoring.rs`: the other tests
 // assert only that scores rise with total and stay positive, which almost any
-// corrupted coefficient still satisfies. If a formula is deliberately updated,
-// regenerate these numbers in the same commit.
+// corrupted coefficient still satisfies.
+//
+// Every coefficient in `scoring.rs` has since been checked literal-by-literal
+// against the reference implementation this module names, OpenPowerlifting's
+// `coefficients` crate. DOTS and IPF Goodlift matched; the 2020 Wilks female
+// polynomial did not, and neither did either Wilks clamp (see
+// `wilks_matches_the_published_reference_multipliers`). So these are no longer
+// only characterisation tests — where the reference publishes usable numbers,
+// they are asserted directly. If a formula is deliberately updated, regenerate
+// in the same commit.
 
 /// Tight enough to catch a single-coefficient change, loose enough to survive
 /// f32 rounding differences between platforms.
@@ -938,22 +941,60 @@ fn dots_matches_pinned_coefficients() {
     assert_score(dots_points("F", 63.0, 400.0), 430.206, "dots F");
 }
 
+/// The one genuinely independent check in this file.
+///
+/// `wilks_points(sex, bw, 1.0)` is exactly the per-bodyweight multiplier
+/// OpenPowerlifting tabulates for the 2020 formula, so these expectations come
+/// from outside this repository rather than from a previous run of this code.
+/// That is what caught the transcription error: the old female polynomial
+/// understated every woman's score by ~14% and produced a negative denominator
+/// — scoring a flat zero — above about 144 kg.
 #[test]
-fn wilks_matches_pinned_coefficients() {
-    assert_score(wilks_points("M", 93.0, 700.0), 528.0868, "wilks M");
-    assert_score(wilks_points("F", 63.0, 400.0), 447.7654, "wilks F");
+fn wilks_matches_the_published_reference_multipliers() {
+    /// The reference multipliers are quoted to four decimal places.
+    fn assert_multiplier(actual: f32, expected: f32, what: &str, bw: f32) {
+        assert!(
+            (actual - expected).abs() < 5e-4,
+            "{what} at {bw} kg: expected {expected}, got {actual}"
+        );
+    }
+
+    for (bw, expected) in [
+        (40.0, 1.3895),
+        (80.0, 0.8191),
+        (100.0, 0.7294),
+        (200.95, 0.6122),
+    ] {
+        assert_multiplier(wilks_points("M", bw, 1.0), expected, "wilks M", bw);
+    }
+    for (bw, expected) in [
+        (40.0, 1.8486),
+        (80.0, 1.1318),
+        (100.0, 1.0525),
+        (150.0, 0.9635),
+    ] {
+        assert_multiplier(wilks_points("F", bw, 1.0), expected, "wilks F", bw);
+    }
 }
 
 #[test]
 fn goodlift_matches_pinned_coefficients_per_equipment() {
     // Equipment splits classic from equipped, so all four combinations differ.
-    assert_score(goodlift_points("M", "Raw", 93.0, 700.0), 91.5748, "gl M raw");
+    assert_score(
+        goodlift_points("M", "Raw", 93.0, 700.0),
+        91.5748,
+        "gl M raw",
+    );
     assert_score(
         goodlift_points("M", "Single-ply", 93.0, 700.0),
         75.9133,
         "gl M equipped",
     );
-    assert_score(goodlift_points("F", "Raw", 63.0, 400.0), 87.5133, "gl F raw");
+    assert_score(
+        goodlift_points("F", "Raw", 63.0, 400.0),
+        87.5133,
+        "gl F raw",
+    );
     assert_score(
         goodlift_points("F", "Single-ply", 63.0, 400.0),
         72.214,
@@ -976,17 +1017,42 @@ fn bodyweight_is_clamped_to_each_formulas_valid_range() {
     // end of a 4th or 5th order polynomial.
     assert_score(dots_points("M", 30.0, 500.0), 635.5549, "dots below range");
     assert_score(dots_points("M", 250.0, 500.0), 247.8104, "dots above range");
-    assert_score(wilks_points("F", 20.0, 300.0), 918.7693, "wilks below range");
 
     // Clamping means anything past the bound scores identically.
     assert_eq!(dots_points("M", 10.0, 500.0), dots_points("M", 40.0, 500.0));
-    assert_eq!(dots_points("M", 400.0, 500.0), dots_points("M", 210.0, 500.0));
+    assert_eq!(
+        dots_points("M", 400.0, 500.0),
+        dots_points("M", 210.0, 500.0)
+    );
+    assert_eq!(
+        wilks_points("F", 20.0, 300.0),
+        wilks_points("F", 40.0, 300.0)
+    );
+    assert_eq!(
+        wilks_points("M", 20.0, 300.0),
+        wilks_points("M", 40.0, 300.0)
+    );
+
+    // Wilks clamps the sexes at different upper bounds too, and the female curve
+    // turns over shortly past its own: without this the sex-specific arm could
+    // be replaced by the male range and nothing else here would notice.
+    assert_eq!(
+        wilks_points("F", 300.0, 300.0),
+        wilks_points("F", 150.95, 300.0)
+    );
+    assert_eq!(
+        wilks_points("M", 300.0, 300.0),
+        wilks_points("M", 200.95, 300.0)
+    );
 
     // The female curve clamps at 150 kg, not the default 210. A heavyweight
     // woman is the only input where the two ranges disagree, so without this
     // the sex-specific arm could be deleted entirely and every other assertion
     // would still pass.
-    assert_eq!(dots_points("F", 200.0, 400.0), dots_points("F", 150.0, 400.0));
+    assert_eq!(
+        dots_points("F", 200.0, 400.0),
+        dots_points("F", 150.0, 400.0)
+    );
     assert!(
         dots_points("F", 200.0, 400.0) > dots_points("M", 200.0, 400.0),
         "the female clamp must keep her score above the male curve at 200 kg"
@@ -998,6 +1064,16 @@ fn bodyweight_is_clamped_to_each_formulas_valid_range() {
 // Same reasoning as the scoring pins above: the body-density polynomial has its
 // own set of transcribed coefficients that the range assertions elsewhere cannot
 // distinguish from a corrupted one.
+//
+// Every literal in `bodyfat.rs` was checked against its published source after
+// the Wilks transcription error turned up, and all of them match: the Navy
+// metric forms (1.0324/0.19077/0.15456 and 1.29579/0.35004/0.22100, both taking
+// centimetres), YMCA's -98.42/-76.76 with 4.15 x waist(in) and 0.082 x
+// weight(lb), Jackson-Pollock 3-site and 7-site for both sexes, and Siri's
+// 495/BD - 450. The pins below therefore guard coefficients known to be right.
+//
+// Caveat the formulas carry themselves: Jackson-Pollock was validated on ages
+// 18-61, and these functions accept 0-120.
 
 fn jp7_reference_sites() -> JacksonPollock7SiteSkinfolds {
     JacksonPollock7SiteSkinfolds {
@@ -1028,12 +1104,16 @@ fn navy_and_ymca_match_pinned_coefficients() {
     assert_score(female.fat_mass_kg, 17.4961, "navy female fat");
 
     assert_score(
-        calc_bodyfat_ymca(85.0, 90.0, true).expect("ymca male").body_fat_pct,
+        calc_bodyfat_ymca(85.0, 90.0, true)
+            .expect("ymca male")
+            .body_fat_pct,
         17.7493,
         "ymca male",
     );
     assert_score(
-        calc_bodyfat_ymca(65.0, 75.0, false).expect("ymca female").body_fat_pct,
+        calc_bodyfat_ymca(65.0, 75.0, false)
+            .expect("ymca female")
+            .body_fat_pct,
         23.7464,
         "ymca female",
     );
@@ -1090,13 +1170,55 @@ fn jp7_rejects_a_zero_reading_at_any_single_site() {
     // dropped bound is invisible unless that site is the one set to zero.
     let sites = jp7_reference_sites();
     let zeroed: [(&str, JacksonPollock7SiteSkinfolds); 7] = [
-        ("chest", JacksonPollock7SiteSkinfolds { chest_mm: 0.0, ..sites }),
-        ("midaxillary", JacksonPollock7SiteSkinfolds { midaxillary_mm: 0.0, ..sites }),
-        ("tricep", JacksonPollock7SiteSkinfolds { tricep_mm: 0.0, ..sites }),
-        ("subscapular", JacksonPollock7SiteSkinfolds { subscapular_mm: 0.0, ..sites }),
-        ("abdomen", JacksonPollock7SiteSkinfolds { abdomen_mm: 0.0, ..sites }),
-        ("suprailiac", JacksonPollock7SiteSkinfolds { suprailiac_mm: 0.0, ..sites }),
-        ("thigh", JacksonPollock7SiteSkinfolds { thigh_mm: 0.0, ..sites }),
+        (
+            "chest",
+            JacksonPollock7SiteSkinfolds {
+                chest_mm: 0.0,
+                ..sites
+            },
+        ),
+        (
+            "midaxillary",
+            JacksonPollock7SiteSkinfolds {
+                midaxillary_mm: 0.0,
+                ..sites
+            },
+        ),
+        (
+            "tricep",
+            JacksonPollock7SiteSkinfolds {
+                tricep_mm: 0.0,
+                ..sites
+            },
+        ),
+        (
+            "subscapular",
+            JacksonPollock7SiteSkinfolds {
+                subscapular_mm: 0.0,
+                ..sites
+            },
+        ),
+        (
+            "abdomen",
+            JacksonPollock7SiteSkinfolds {
+                abdomen_mm: 0.0,
+                ..sites
+            },
+        ),
+        (
+            "suprailiac",
+            JacksonPollock7SiteSkinfolds {
+                suprailiac_mm: 0.0,
+                ..sites
+            },
+        ),
+        (
+            "thigh",
+            JacksonPollock7SiteSkinfolds {
+                thigh_mm: 0.0,
+                ..sites
+            },
+        ),
     ];
 
     for (site, skinfolds) in zeroed {
@@ -1106,5 +1228,3 @@ fn jp7_rejects_a_zero_reading_at_any_single_site() {
         );
     }
 }
-
-

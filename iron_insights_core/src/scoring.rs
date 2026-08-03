@@ -28,7 +28,8 @@ pub fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
 
 /// Calculates the Wilks score for a given sex, bodyweight (kg), and total (kg).
 ///
-/// Uses the updated 2020 Wilks coefficients (600-point scale) as published by OpenPowerlifting.
+/// Uses the updated 2020 Wilks coefficients (600-point scale) as published by
+/// OpenPowerlifting (`crates/coefficients/src/wilks2020.rs`).
 ///
 /// ```
 /// use iron_insights_core::wilks_points;
@@ -39,15 +40,15 @@ pub fn dots_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
 #[allow(clippy::excessive_precision)]
 pub fn wilks_points(sex: &str, bodyweight_kg: f32, total_kg: f32) -> f32 {
     let bw = match sex {
-        "F" => bodyweight_kg.clamp(26.51, 154.53),
-        _ => bodyweight_kg.clamp(40.0, 201.9),
+        "F" => bodyweight_kg.clamp(40.0, 150.95),
+        _ => bodyweight_kg.clamp(40.0, 200.95),
     };
     let denom = if sex == "F" {
         -125.425539779509 + 13.7121941940668 * bw
-            - 0.0330325867486886 * bw.powi(2)
-            - 0.00194553856286427 * bw.powi(3)
-            + 0.0000412975938587791 * bw.powi(4)
-            - 0.000000237218925425762 * bw.powi(5)
+            - 0.0330725063103405 * bw.powi(2)
+            - 0.0010504000506583 * bw.powi(3)
+            + 0.00000938773881462799 * bw.powi(4)
+            - 0.000000023334613884954 * bw.powi(5)
     } else {
         47.4617885411949 + 8.47206137941125 * bw + 0.073694103462609 * bw.powi(2)
             - 0.00139583381094385 * bw.powi(3)
