@@ -46,8 +46,7 @@ pub(super) fn DecimalInput(
             .get_untracked()
             .trim()
             .parse::<f32>()
-            .ok()
-            .is_some_and(|v| (display_to_kg(v, lbs) - kg).abs() <= 0.05);
+            .is_ok_and(|v| (display_to_kg(v, lbs) - kg).abs() <= 0.05);
         if !in_sync {
             raw.set(format_input_bound(kg, lbs));
         }

@@ -590,7 +590,7 @@ fn draw_heatmap_axes(
     ctx.set_text_baseline("top");
     for (value, x) in [
         (min_x, left),
-        ((min_x + max_x) * 0.5, left + plot_w * 0.5),
+        (min_x.midpoint(max_x), left + plot_w * 0.5),
         (max_x, left + plot_w),
     ] {
         let _ = ctx.fill_text(&format_axis_tick(value as f32), x, top + plot_h + 8.0);
@@ -600,7 +600,7 @@ fn draw_heatmap_axes(
     ctx.set_text_baseline("middle");
     for (value, y) in [
         (min_y, top + plot_h),
-        ((min_y + max_y) * 0.5, top + plot_h * 0.5),
+        (min_y.midpoint(max_y), top + plot_h * 0.5),
         (max_y, top),
     ] {
         let _ = ctx.fill_text(&format_axis_tick(value as f32), left - 8.0, y);
