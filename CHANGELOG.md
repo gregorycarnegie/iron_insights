@@ -5,6 +5,33 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-10-11
+
+### Added
+
+- 27 parameterized `rstest` suites across the core, pipeline, and web crates,
+  with separately reported cases for binary encoding and malformed payloads,
+  calculator formulas, body-fat and weight-class boundaries, scoring references,
+  metric mapping, dates, quantiles, formatting, and ranking thresholds.
+- Edge cases for missing and out-of-range query parameters, year limits,
+  leap dates, empty distributions, and maximum formatted counts. Existing
+  property tests, pipeline integration tests, and browser smoke tests remain.
+
+### Changed
+
+- Updated workspace dependencies, including Polars 0.55.2, Leptos 0.8.22,
+  wasm-bindgen 0.2.129, and proptest 1.12.0.
+- Refreshed the READMEs to describe the virtual workspace, current published
+  data layout, supported calculators, and native/browser test commands.
+
+### Fixed
+
+- Restricted Polars imports to avoid its new `with_context` method conflicting
+  with `anyhow::Context`.
+- Updated `server_fn_macro_default` to 0.8.6 so Leptos macro dependencies agree
+  on `syn` 3, and matched the CI browser-test runner to wasm-bindgen 0.2.129.
+- Updated plate-calculator assertions for Rust 1.99 Clippy compatibility.
+
 ## [1.2.0] - 2026-07-31
 
 ### Changed

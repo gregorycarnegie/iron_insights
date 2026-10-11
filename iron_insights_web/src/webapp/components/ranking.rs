@@ -89,57 +89,37 @@ fn next_unlock(current_pct: f32) -> Option<(f32, &'static str)> {
 #[cfg(test)]
 mod tests {
     use super::{format_count, next_unlock};
+    use rstest::rstest;
     use wasm_bindgen_test::wasm_bindgen_test;
 
-    #[wasm_bindgen_test]
-    fn format_count_zero() {
-        assert_eq!(format_count(0), "0");
+    #[rstest]
+    #[case::zero(0, "0")]
+    #[case::below_thousand(999, "999")]
+    #[case::thousand(1_000, "1,000")]
+    #[case::thousands(12_345, "12,345")]
+    #[case::millions(1_234_567, "1,234,567")]
+    #[case::maximum(u32::MAX, "4,294,967,295")]
+    #[test_attr(wasm_bindgen_test)]
+    fn format_count_groups_thousands(#[case] value: u32, #[case] expected: &str) {
+        assert_eq!(format_count(value), expected);
     }
 
-    #[wasm_bindgen_test]
-    fn format_count_below_thousand() {
-        assert_eq!(format_count(999), "999");
-    }
-
-    #[wasm_bindgen_test]
-    fn format_count_thousands() {
-        assert_eq!(format_count(1_000), "1,000");
-        assert_eq!(format_count(12_345), "12,345");
-    }
-
-    #[wasm_bindgen_test]
-    fn format_count_millions() {
-        assert_eq!(format_count(1_234_567), "1,234,567");
-    }
-
-    #[wasm_bindgen_test]
-    fn next_unlock_at_zero_is_intermediate() {
-        let (pct, label) = next_unlock(0.0).expect("should have a next unlock");
-        assert!((pct - 0.60).abs() < 0.001);
-        assert_eq!(label, "INTERMEDIATE");
-    }
-
-    #[wasm_bindgen_test]
-    fn next_unlock_past_intermediate_is_advanced() {
-        let (_, label) = next_unlock(0.61).expect("should have a next unlock");
-        assert_eq!(label, "ADVANCED");
-    }
-
-    #[wasm_bindgen_test]
-    fn next_unlock_past_advanced_is_elite() {
-        let (_, label) = next_unlock(0.81).expect("should have a next unlock");
-        assert_eq!(label, "ELITE");
-    }
-
-    #[wasm_bindgen_test]
-    fn next_unlock_past_elite_is_legend() {
-        let (_, label) = next_unlock(0.96).expect("should have a next unlock");
-        assert_eq!(label, "LEGEND");
-    }
-
-    #[wasm_bindgen_test]
-    fn next_unlock_at_legend_is_none() {
-        assert!(next_unlock(0.99).is_none());
+    #[rstest]
+    #[case::zero(0.0, Some((0.60, "INTERMEDIATE")))]
+    #[case::at_intermediate(0.60, Some((0.80, "ADVANCED")))]
+    #[case::past_intermediate(0.61, Some((0.80, "ADVANCED")))]
+    #[case::at_advanced(0.80, Some((0.95, "ELITE")))]
+    #[case::past_advanced(0.81, Some((0.95, "ELITE")))]
+    #[case::at_elite(0.95, Some((0.99, "LEGEND")))]
+    #[case::past_elite(0.96, Some((0.99, "LEGEND")))]
+    #[case::at_legend(0.99, None)]
+    #[case::maximum(1.0, None)]
+    #[test_attr(wasm_bindgen_test)]
+    fn next_unlock_follows_thresholds(
+        #[case] percentile: f32,
+        #[case] expected: Option<(f32, &str)>,
+    ) {
+        assert_eq!(next_unlock(percentile), expected);
     }
 }
 

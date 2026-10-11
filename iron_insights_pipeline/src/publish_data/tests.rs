@@ -7,6 +7,7 @@ use super::{
 };
 use iron_insights_core::{dots_points, goodlift_points, parse_combined_bin, wilks_points};
 use proptest::prelude::*;
+use rstest::rstest;
 use std::collections::BTreeMap;
 
 fn generated_lift_values() -> impl Strategy<Value = Vec<f32>> {
@@ -102,56 +103,70 @@ fn build_histogram_uses_expected_edges_and_total() {
 // wrong answer here does not fail anything: it silently files a cohort under
 // the wrong key, or bins it at the wrong resolution.
 
-#[test]
-fn lift_codes_are_stable_for_every_published_lift() {
+#[rstest]
+#[case::squat("squat", "S")]
+#[case::bench("bench", "B")]
+#[case::deadlift("deadlift", "D")]
+#[case::total("total", "T")]
+#[case::unknown("cartwheel", "U")]
+fn lift_codes_are_stable_for_every_published_lift(#[case] lift: &str, #[case] expected: &str) {
     use super::metric::lift_code;
 
     // These letters go straight into slice keys the app parses back.
-    assert_eq!(lift_code("squat"), "S");
-    assert_eq!(lift_code("bench"), "B");
-    assert_eq!(lift_code("deadlift"), "D");
-    assert_eq!(lift_code("total"), "T");
-    assert_eq!(lift_code("cartwheel"), "U");
+    assert_eq!(lift_code(lift), expected);
 }
 
-#[test]
-fn only_total_carries_the_score_metrics() {
-    use super::metric::{Metric, metric_base_bin, metrics_for_lift};
+#[rstest]
+#[case::total("total", &["Kg", "Dots", "Wilks", "GL"])]
+#[case::squat("squat", &["Kg"])]
+#[case::bench("bench", &["Kg"])]
+#[case::deadlift("deadlift", &["Kg"])]
+fn only_total_carries_the_score_metrics(#[case] lift: &str, #[case] expected: &[&str]) {
+    use super::metric::{metric_code, metrics_for_lift};
 
-    assert_eq!(metrics_for_lift("total").len(), 4);
-    for lift in ["squat", "bench", "deadlift"] {
-        assert_eq!(metrics_for_lift(lift).len(), 1, "{lift} should be kg only");
-    }
-
-    // Kilograms and points need different bin widths.
-    assert_eq!(metric_base_bin(Metric::Kg), LIFT_BIN_BASE_KG);
-    assert_eq!(metric_base_bin(Metric::Dots), SCORE_BIN_BASE_POINTS);
+    let codes: Vec<_> = metrics_for_lift(lift)
+        .iter()
+        .copied()
+        .map(metric_code)
+        .collect();
+    assert_eq!(codes, expected);
 }
 
-#[test]
-fn score_metrics_are_only_computed_for_the_total() {
-    use super::metric::{Metric, metric_value};
+#[rstest]
+#[case::kg(Metric::Kg, LIFT_BIN_BASE_KG)]
+#[case::dots(Metric::Dots, SCORE_BIN_BASE_POINTS)]
+#[case::wilks(Metric::Wilks, SCORE_BIN_BASE_POINTS)]
+#[case::gl(Metric::Gl, SCORE_BIN_BASE_POINTS)]
+fn metric_bin_width_matches_units(#[case] metric: Metric, #[case] expected: f32) {
+    assert_eq!(super::metric::metric_base_bin(metric), expected);
+}
+
+#[rstest]
+fn score_metrics_are_only_computed_for_the_total(
+    #[values(Metric::Dots, Metric::Wilks, Metric::Gl)] metric: Metric,
+    #[values("squat", "bench", "deadlift")] lift: &str,
+) {
+    use super::metric::metric_value;
 
     // A DOTS score for a bench press alone is meaningless, so the guard must
     // refuse it rather than score the single lift as though it were a total.
-    for metric in [Metric::Dots, Metric::Wilks, Metric::Gl] {
-        assert!(
-            metric_value(metric, "bench", "M", "Raw", 140.0, Some(93.0)).is_none(),
-            "{metric:?} should not be computed for a single lift"
-        );
-        assert!(
-            metric_value(metric, "total", "M", "Raw", 700.0, Some(93.0)).is_some(),
-            "{metric:?} should be computed for a total"
-        );
-    }
+    assert!(metric_value(metric, lift, "M", "Raw", 140.0, Some(93.0)).is_none());
+    assert!(metric_value(metric, "total", "M", "Raw", 700.0, Some(93.0)).is_some());
+    assert!(metric_value(metric, "total", "M", "Raw", 700.0, None).is_none());
+}
 
+#[test]
+fn kg_metric_passes_through_without_bodyweight() {
+    use super::metric::metric_value;
     // Kg passes the lift value straight through, for any lift.
     assert_eq!(
         metric_value(Metric::Kg, "bench", "M", "Raw", 140.0, Some(93.0)),
         Some(140.0)
     );
-    // ...and a score needs a bodyweight to divide by.
-    assert!(metric_value(Metric::Dots, "total", "M", "Raw", 700.0, None).is_none());
+    assert_eq!(
+        metric_value(Metric::Kg, "bench", "M", "Raw", 140.0, None),
+        Some(140.0)
+    );
 }
 
 #[test]
@@ -271,25 +286,34 @@ proptest! {
     }
 }
 
-#[test]
-fn parse_year_bucket_accepts_valid_dates() {
-    assert_eq!(parse_year_bucket(Some("2026-03-07")), Some(2026));
-    assert_eq!(parse_year_bucket(Some("1999-12-31")), Some(1999));
+#[rstest]
+#[case::recent(Some("2026-03-07"), Some(2026))]
+#[case::older(Some("1999-12-31"), Some(1999))]
+#[case::lower_limit(Some("1900-01-01"), Some(1900))]
+#[case::upper_limit(Some("2100-12-31"), Some(2100))]
+#[case::below_limit(Some("1899-12-31"), None)]
+#[case::above_limit(Some("2101-01-01"), None)]
+#[case::malformed(Some("bad"), None)]
+#[case::too_old(Some("1800-01-01"), None)]
+#[case::missing(None, None)]
+fn parse_year_bucket_handles_bounds(#[case] value: Option<&str>, #[case] expected: Option<i32>) {
+    assert_eq!(parse_year_bucket(value), expected);
 }
 
-#[test]
-fn parse_year_bucket_rejects_invalid_dates() {
-    assert_eq!(parse_year_bucket(Some("bad")), None);
-    assert_eq!(parse_year_bucket(Some("1800-01-01")), None);
-    assert_eq!(parse_year_bucket(None), None);
-}
-
-#[test]
-fn quantile_sorted_uses_nearest_rank_on_sorted_data() {
-    let values = vec![10.0, 20.0, 30.0, 40.0, 50.0];
-    assert_eq!(quantile_sorted(&values, 0.0), 10.0);
-    assert_eq!(quantile_sorted(&values, 0.5), 30.0);
-    assert_eq!(quantile_sorted(&values, 0.9), 50.0);
+#[rstest]
+#[case::minimum(&[10.0, 20.0, 30.0, 40.0, 50.0], 0.0, 10.0)]
+#[case::median(&[10.0, 20.0, 30.0, 40.0, 50.0], 0.5, 30.0)]
+#[case::high_percentile(&[10.0, 20.0, 30.0, 40.0, 50.0], 0.9, 50.0)]
+#[case::below_range(&[10.0, 20.0], -0.1, 10.0)]
+#[case::above_range(&[10.0, 20.0], 1.1, 20.0)]
+#[case::singleton(&[42.0], 0.5, 42.0)]
+#[case::empty(&[], 0.5, 0.0)]
+fn quantile_sorted_uses_nearest_rank_on_sorted_data(
+    #[case] values: &[f32],
+    #[case] quantile: f32,
+    #[case] expected: f32,
+) {
+    assert_eq!(quantile_sorted(values, quantile), expected);
 }
 
 // ===== END-TO-END PUBLISH =====

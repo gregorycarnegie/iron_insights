@@ -418,7 +418,7 @@ mod tests {
     #[wasm_bindgen_test]
     fn just_the_bar_no_plates() {
         let r = calc_plates(20.0, 20.0, 0.0, false);
-        assert!(r.plates_per_side.is_empty());
+        assert_eq!(r.plates_per_side, []);
         assert!(!r.below_bar);
         assert!((r.achieved_kg - 20.0).abs() < 0.01);
         assert!(r.remainder_kg < 0.01);
@@ -428,7 +428,7 @@ mod tests {
     fn below_bar_weight_flags_below_bar() {
         let r = calc_plates(15.0, 20.0, 0.0, false);
         assert!(r.below_bar);
-        assert!(r.plates_per_side.is_empty());
+        assert_eq!(r.plates_per_side, []);
     }
 
     #[wasm_bindgen_test]

@@ -10,7 +10,9 @@ use std::{
 use anyhow::{Context, Result};
 use clap::Parser;
 use iron_insights_core::{IPF_FEMALE_WEIGHT_CLASSES, IPF_MALE_WEIGHT_CLASSES};
-use polars::prelude::*;
+use polars::prelude::{
+    DataFrame, DataType, Expr, LazyFrame, ParquetWriter, ScanArgsParquet, col, lit, when,
+};
 
 #[cfg(test)]
 pub(crate) use Args as AggregateArgs;

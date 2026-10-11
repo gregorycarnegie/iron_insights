@@ -3,7 +3,7 @@ members = ["iron_insights_web", "iron_insights_pipeline", "iron_insights_core"]
 resolver = "3"
 
 [workspace.package]
-version = "1.2.0"
+version = "1.2.1"
 edition = "2024"
 rust-version = "1.96.0"
 
@@ -15,7 +15,7 @@ iron_insights_core = { path = "iron_insights_core" }
 anyhow = "1.0.104"
 
 # CLI
-clap = { version = "4.6.4", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive"] }
 
 # Date & time
 chrono = { version = "0.4.45", default-features = false, features = [
@@ -24,7 +24,7 @@ chrono = { version = "0.4.45", default-features = false, features = [
 ] }
 
 # Data processing
-polars = { version = "0.54.4", default-features = false, features = [
+polars = { version = "0.55.2", default-features = false, features = [
   "lazy",
   "csv",
   "parquet",
@@ -34,25 +34,25 @@ polars = { version = "0.54.4", default-features = false, features = [
 ] }
 
 # HTTP client
-reqwest = { version = "0.13.4", default-features = false, features = [
+reqwest = { version = "0.13.5", default-features = false, features = [
   "blocking",
   "rustls",
 ] }
 
 # Serialization, encoding & compression
-base64 = "0.23.0"
+base64 = "0.23.1"
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.151"
-zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+serde_json = "1.0.154"
+zip = { version = "9.0.1", default-features = false, features = ["deflate"] }
 
 # Web framework (frontend)
-leptos = { version = "0.8.20", features = ["csr"] }
+leptos = { version = "0.8.22", features = ["csr"] }
 
 # WASM & browser bindings
 gloo-net = "0.7.0"
-js-sys = "0.3.103"
-wasm-bindgen = "0.2.126"
-web-sys = { version = "0.3.103", features = [
+js-sys = "0.3.106"
+wasm-bindgen = "0.2.129"
+web-sys = { version = "0.3.106", features = [
   "AbortController",
   "AbortSignal",
   "CanvasGradient",
@@ -69,9 +69,10 @@ web-sys = { version = "0.3.103", features = [
 ] }
 
 # Testing
-proptest = { version = "1.11.0", default-features = false, features = [
+rstest = { version = "0.27.0", default-features = false }
+proptest = { version = "1.12.0", default-features = false, features = [
   "alloc",
   "no_std",
 ] }
-tempfile = "3.24.0"
-wasm-bindgen-test = "0.3.76"
+tempfile = "3.27.0"
+wasm-bindgen-test = "0.3.79"

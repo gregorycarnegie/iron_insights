@@ -59,24 +59,26 @@ mod tests {
         prelude::*,
         test_runner::{Config, TestRunner},
     };
+    use rstest::rstest;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     fn property_runner() -> TestRunner {
         TestRunner::new(Config::with_cases(128))
     }
 
-    #[wasm_bindgen_test]
-    fn kg_display_converts_both_directions() {
-        // (kg, use_lbs, expected display value)
-        for (kg, use_lbs, expected) in [
-            (100.0, false, 100.0),
-            (100.0, true, 220.462),
-            (0.0, true, 0.0),
-        ] {
-            let shown = kg_to_display(kg, use_lbs);
-            assert!((shown - expected).abs() < 0.01, "{kg} kg -> {shown}");
-            assert!((display_to_kg(shown, use_lbs) - kg).abs() < 0.01, "{shown}");
-        }
+    #[rstest]
+    #[case::kg(100.0, false, 100.0)]
+    #[case::lbs(100.0, true, 220.462)]
+    #[case::zero(0.0, true, 0.0)]
+    #[test_attr(wasm_bindgen_test)]
+    fn kg_display_converts_both_directions(
+        #[case] kg: f32,
+        #[case] use_lbs: bool,
+        #[case] expected: f32,
+    ) {
+        let shown = kg_to_display(kg, use_lbs);
+        assert!((shown - expected).abs() < 0.01, "{kg} kg -> {shown}");
+        assert!((display_to_kg(shown, use_lbs) - kg).abs() < 0.01, "{shown}");
     }
 
     #[wasm_bindgen_test]
@@ -92,19 +94,24 @@ mod tests {
             .expect("kg/display conversion property should hold");
     }
 
-    #[wasm_bindgen_test]
-    fn parse_query_f32_parses_clamps_and_falls_back() {
-        // (raw param, default, expected)
-        for (raw, default, expected) in [
-            (None, 50.0, 50.0),                    // absent
-            (Some("75.5"), 0.0, 75.5),             // valid
-            (Some("200.0"), 0.0, 100.0),           // above max
-            (Some("-10.0"), 0.0, 0.0),             // below min
-            (Some("abc"), 42.0, 42.0),             // unparseable
-        ] {
-            let got = parse_query_f32(raw.map(Into::into), default, 0.0, 100.0);
-            assert!((got - expected).abs() < 0.001, "{raw:?} -> {got}");
-        }
+    #[rstest]
+    #[case::absent(None, 50.0, 50.0)]
+    #[case::valid(Some("75.5"), 0.0, 75.5)]
+    #[case::above_max(Some("200.0"), 0.0, 100.0)]
+    #[case::below_min(Some("-10.0"), 0.0, 0.0)]
+    #[case::unparseable(Some("abc"), 42.0, 42.0)]
+    #[case::lower_bound(Some("0"), 42.0, 0.0)]
+    #[case::upper_bound(Some("100"), 42.0, 100.0)]
+    #[case::default_above_max(None, 200.0, 100.0)]
+    #[case::default_below_min(Some("abc"), -10.0, 0.0)]
+    #[test_attr(wasm_bindgen_test)]
+    fn parse_query_f32_parses_clamps_and_falls_back(
+        #[case] raw: Option<&str>,
+        #[case] default: f32,
+        #[case] expected: f32,
+    ) {
+        let got = parse_query_f32(raw.map(Into::into), default, 0.0, 100.0);
+        assert!((got - expected).abs() < 0.001, "{raw:?} -> {got}");
     }
 
     #[wasm_bindgen_test]
@@ -123,8 +130,14 @@ mod tests {
             .expect("query parsing clamp property should hold");
     }
 
-    #[wasm_bindgen_test]
-    fn comparable_lift_value_selects_the_named_lift() {
+    #[rstest]
+    #[case::squat("S", 200.0)]
+    #[case::bench("B", 130.0)]
+    #[case::deadlift("D", 240.0)]
+    #[case::total("T", 570.0)]
+    #[case::unknown("X", 0.0)]
+    #[test_attr(wasm_bindgen_test)]
+    fn comparable_lift_value_selects_the_named_lift(#[case] lift: &str, #[case] expected: f32) {
         let lifter = ComparableLifter {
             sex: "M",
             equipment: "Raw",
@@ -133,17 +146,8 @@ mod tests {
             bench: 130.0,
             deadlift: 240.0,
         };
-        // (lift code, expected kg); "X" is an unknown code.
-        for (lift, expected) in [
-            ("S", 200.0),
-            ("B", 130.0),
-            ("D", 240.0),
-            ("T", 570.0),
-            ("X", 0.0),
-        ] {
-            let got = comparable_lift_value(lifter, lift, "Kg");
-            assert!((got - expected).abs() < 0.001, "{lift} -> {got}");
-        }
+        let got = comparable_lift_value(lifter, lift, "Kg");
+        assert!((got - expected).abs() < 0.001, "{lift} -> {got}");
     }
 
     #[wasm_bindgen_test]
@@ -179,9 +183,16 @@ mod tests {
             .expect("comparable lift property should hold");
     }
 
-    #[wasm_bindgen_test]
-    fn format_input_bound_drops_trailing_zero_decimals() {
-        assert_eq!(format_input_bound(100.0, false), "100");
-        assert_eq!(format_input_bound(102.3, false), "102.3");
+    #[rstest]
+    #[case::integer_kg(100.0, false, "100")]
+    #[case::decimal_kg(102.3, false, "102.3")]
+    #[case::decimal_lbs(100.0, true, "220.5")]
+    #[test_attr(wasm_bindgen_test)]
+    fn format_input_bound_drops_trailing_zero_decimals(
+        #[case] value: f32,
+        #[case] use_lbs: bool,
+        #[case] expected: &str,
+    ) {
+        assert_eq!(format_input_bound(value, use_lbs), expected);
     }
 }

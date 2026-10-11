@@ -61,23 +61,22 @@ Useful options:
 
 - `--records-dir iron_insights_pipeline/output/records`
 - `--build-metadata-path iron_insights_pipeline/output/build_metadata.json`
-- `--write-meta-files true` to restore legacy per-slice JSON metadata
 
 Outputs:
 
 - `data/vYYYY-MM-DD/index.json`
 - `data/vYYYY-MM-DD/index_shards/<sex>/<equip>/index.json`
-- `data/vYYYY-MM-DD/hist/<sex>/<equip>/<wc>/<age>/<tested>/<metric>/<lift>.bin`
-- `data/vYYYY-MM-DD/heat/<sex>/<equip>/<wc>/<age>/<tested>/<metric>/<lift>.bin`
-- `data/vYYYY-MM-DD/trends.json`
-- optional `data/vYYYY-MM-DD/meta/<sex>/<equip>/<wc>/<age>/<tested>/<metric>/<lift>.json`
+- `data/vYYYY-MM-DD/bin/<sex>/<equip>/<wc>/<age>/<tested>/<metric>/<lift>.bin` (combined histogram and heatmap)
+- `data/vYYYY-MM-DD/trends_shards/<sex>/<equip>/trends.json`
 - `data/latest.json`
 
 Metric behavior:
 
 - squat, bench, and deadlift publish only `Kg`
 - total publishes `Kg`, `Dots`, `Wilks`, and `GL`
-- shard indexes embed summary totals, min, and max for each slice by default
+- shard indexes embed summary totals, min, and max for each slice; sparse cohorts
+  also embed the combined binary payload as base64 instead of writing a `.bin`
+- no separate `meta/` tree is written
 
 Retention behavior:
 
@@ -117,7 +116,7 @@ Audit the result with `python scripts/seo_audit.py iron_insights_web`.
 - Histograms use a compact binary format with 2.5 kg base bins for `Kg` metrics.
 - Heatmaps store lift metric on the x-axis and bodyweight on the y-axis.
 - Total-score metrics (`Dots`, `Wilks`, `GL`) use 2.5-point base bins.
-- `trends.json` stores yearly cohort sizes plus p50 and p90 thresholds per series.
+- Each shard's `trends.json` stores yearly cohort sizes plus p50 and p90 thresholds per series.
 
 ## Typical End-To-End Run
 

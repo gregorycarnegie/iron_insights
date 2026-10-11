@@ -7,6 +7,7 @@ use super::{
 use crate::binary::{parse_heat_bin, parse_hist_bin};
 use crate::bodyfat::siri_bf_from_density;
 use proptest::prelude::*;
+use rstest::rstest;
 
 fn push_f32(bytes: &mut Vec<u8>, v: f32) {
     bytes.extend_from_slice(&v.to_le_bytes());
@@ -305,32 +306,27 @@ fn decode_counts_accepts_exactly_the_maximum_cell_count() {
     assert!(decode_counts(&payload, MAX_CELLS + 1).is_none());
 }
 
-#[test]
-fn encode_counts_collapses_zero_runs() {
-    // 1-byte literal, then a run marker + length, then a literal.
-    assert_eq!(encode_counts(&[7, 0, 0, 0, 9]), vec![7, 0, 3, 9]);
-    assert_eq!(encode_counts(&[]), Vec::<u8>::new());
-    // 300 needs two varint groups: 0xAC 0x02.
-    assert_eq!(encode_counts(&[300]), vec![0xAC, 0x02]);
+#[rstest]
+#[case::empty(&[], &[])]
+#[case::zero_run(&[7, 0, 0, 0, 9], &[7, 0, 3, 9])]
+#[case::multibyte_literal(&[300], &[0xAC, 0x02])]
+#[case::mixed_counts(&[1, 0, 0, 4], &[1, 0, 2, 4])]
+fn encode_counts_collapses_zero_runs(#[case] counts: &[u32], #[case] expected: &[u8]) {
+    assert_eq!(encode_counts(counts), expected);
+    assert_eq!(
+        decode_counts(expected, counts.len()).as_deref(),
+        Some(counts)
+    );
 }
 
-#[test]
-fn decode_counts_rejects_malformed_payloads() {
-    let valid = encode_counts(&[1, 0, 0, 4]);
-    assert_eq!(decode_counts(&valid, 4), Some(vec![1, 0, 0, 4]));
-
-    // Truncated mid-payload.
-    assert!(decode_counts(&valid[..valid.len() - 1], 4).is_none());
-    // Trailing bytes after the declared count.
-    let mut trailing = valid.clone();
-    trailing.push(1);
-    assert!(decode_counts(&trailing, 4).is_none());
-    // A zero run that overruns the declared length.
-    assert!(decode_counts(&encode_counts(&[0, 0, 0, 0]), 2).is_none());
-    // Over-long varint (six groups) is refused rather than wrapping.
-    assert!(decode_counts(&[0x80, 0x80, 0x80, 0x80, 0x80, 0x01], 1).is_none());
-    // A header claiming more cells than any real grid must not drive an alloc.
-    assert!(decode_counts(&valid, usize::MAX).is_none());
+#[rstest]
+#[case::truncated(&[1, 0, 2], 4)]
+#[case::trailing_bytes(&[1, 0, 2, 4, 1], 4)]
+#[case::zero_run_overrun(&[0, 4], 2)]
+#[case::overlong_varint(&[0x80, 0x80, 0x80, 0x80, 0x80, 0x01], 1)]
+#[case::excessive_cell_count(&[1, 0, 2, 4], usize::MAX)]
+fn decode_counts_rejects_malformed_payloads(#[case] payload: &[u8], #[case] len: usize) {
+    assert!(decode_counts(payload, len).is_none());
 }
 
 #[test]
@@ -481,18 +477,19 @@ use super::{
 
 // ===== PERCENTILE TIER =====
 
-#[test]
-fn tier_boundaries_are_correct() {
-    assert_eq!(tier_for_percentile(0.0), "Novice");
-    assert_eq!(tier_for_percentile(0.599), "Novice");
-    assert_eq!(tier_for_percentile(0.6), "Intermediate");
-    assert_eq!(tier_for_percentile(0.799), "Intermediate");
-    assert_eq!(tier_for_percentile(0.8), "Advanced");
-    assert_eq!(tier_for_percentile(0.949), "Advanced");
-    assert_eq!(tier_for_percentile(0.95), "Elite");
-    assert_eq!(tier_for_percentile(0.989), "Elite");
-    assert_eq!(tier_for_percentile(0.99), "Legend");
-    assert_eq!(tier_for_percentile(1.0), "Legend");
+#[rstest]
+#[case::minimum(0.0, "Novice")]
+#[case::below_intermediate(0.599, "Novice")]
+#[case::intermediate(0.6, "Intermediate")]
+#[case::below_advanced(0.799, "Intermediate")]
+#[case::advanced(0.8, "Advanced")]
+#[case::below_elite(0.949, "Advanced")]
+#[case::elite(0.95, "Elite")]
+#[case::below_legend(0.989, "Elite")]
+#[case::legend(0.99, "Legend")]
+#[case::maximum(1.0, "Legend")]
+fn tier_boundaries_are_correct(#[case] percentile: f32, #[case] expected: &str) {
+    assert_eq!(tier_for_percentile(percentile), expected);
 }
 
 // ===== BODYFAT =====
@@ -554,32 +551,33 @@ fn calc_bodyfat_female_rejects_invalid_inputs() {
     );
 }
 
-#[test]
-fn bodyfat_category_male_boundaries() {
-    assert_eq!(bodyfat_category(5.9, true), "Essential");
-    assert_eq!(bodyfat_category(6.0, true), "Elite Athlete");
-    assert_eq!(bodyfat_category(10.9, true), "Elite Athlete");
-    assert_eq!(bodyfat_category(11.0, true), "Athlete");
-    assert_eq!(bodyfat_category(14.9, true), "Athlete");
-    assert_eq!(bodyfat_category(15.0, true), "Fitness");
-    assert_eq!(bodyfat_category(19.9, true), "Fitness");
-    assert_eq!(bodyfat_category(20.0, true), "Average");
-    assert_eq!(bodyfat_category(24.9, true), "Average");
-    assert_eq!(bodyfat_category(25.0, true), "Obese");
-}
-
-#[test]
-fn bodyfat_category_female_boundaries() {
-    assert_eq!(bodyfat_category(13.9, false), "Essential");
-    assert_eq!(bodyfat_category(14.0, false), "Elite Athlete");
-    assert_eq!(bodyfat_category(17.9, false), "Elite Athlete");
-    assert_eq!(bodyfat_category(18.0, false), "Athlete");
-    assert_eq!(bodyfat_category(21.9, false), "Athlete");
-    assert_eq!(bodyfat_category(22.0, false), "Fitness");
-    assert_eq!(bodyfat_category(25.9, false), "Fitness");
-    assert_eq!(bodyfat_category(26.0, false), "Average");
-    assert_eq!(bodyfat_category(31.9, false), "Average");
-    assert_eq!(bodyfat_category(32.0, false), "Obese");
+#[rstest]
+#[case::male_essential(5.9, true, "Essential")]
+#[case::male_elite_start(6.0, true, "Elite Athlete")]
+#[case::male_elite_end(10.9, true, "Elite Athlete")]
+#[case::male_athlete_start(11.0, true, "Athlete")]
+#[case::male_athlete_end(14.9, true, "Athlete")]
+#[case::male_fitness_start(15.0, true, "Fitness")]
+#[case::male_fitness_end(19.9, true, "Fitness")]
+#[case::male_average_start(20.0, true, "Average")]
+#[case::male_average_end(24.9, true, "Average")]
+#[case::male_obese(25.0, true, "Obese")]
+#[case::female_essential(13.9, false, "Essential")]
+#[case::female_elite_start(14.0, false, "Elite Athlete")]
+#[case::female_elite_end(17.9, false, "Elite Athlete")]
+#[case::female_athlete_start(18.0, false, "Athlete")]
+#[case::female_athlete_end(21.9, false, "Athlete")]
+#[case::female_fitness_start(22.0, false, "Fitness")]
+#[case::female_fitness_end(25.9, false, "Fitness")]
+#[case::female_average_start(26.0, false, "Average")]
+#[case::female_average_end(31.9, false, "Average")]
+#[case::female_obese(32.0, false, "Obese")]
+fn bodyfat_category_boundaries(
+    #[case] body_fat_pct: f32,
+    #[case] is_male: bool,
+    #[case] expected: &str,
+) {
+    assert_eq!(bodyfat_category(body_fat_pct, is_male), expected);
 }
 
 // ===== BODYFAT: ADDITIONAL METHODS =====
@@ -778,52 +776,31 @@ fn calc_bodyfat_jp7_rejects_invalid_inputs() {
 
 // ===== 1RM FORMULAS =====
 
-#[test]
-fn calc_1rm_returns_weight_for_one_rep() {
-    assert_eq!(calc_1rm(100.0, 1.0, "epley"), 100.0);
-    assert_eq!(calc_1rm(100.0, 0.5, "brzycki"), 100.0);
-    assert_eq!(calc_1rm(100.0, 1.0, "lombardi"), 100.0);
+#[rstest]
+fn calc_1rm_returns_weight_for_at_most_one_rep(
+    #[values("epley", "brzycki", "mayhew", "lombardi", "unknown")] formula: &str,
+    #[values(0.0, 0.5, 1.0)] reps: f32,
+) {
+    assert_eq!(calc_1rm(100.0, reps, formula), 100.0);
 }
 
-#[test]
-fn calc_1rm_epley_formula() {
-    // w * (1 + r/30)
-    let expected = 100.0 * (1.0 + 5.0 / 30.0);
-    assert!((calc_1rm(100.0, 5.0, "epley") - expected).abs() < 1e-4);
-    assert!(
-        (calc_1rm(100.0, 5.0, "unknown") - expected).abs() < 1e-4,
-        "defaults to epley"
-    );
+#[rstest]
+#[case::epley("epley", 100.0 * (1.0 + 5.0 / 30.0), 1e-4)]
+#[case::default("unknown", 100.0 * (1.0 + 5.0 / 30.0), 1e-4)]
+#[case::brzycki("brzycki", 100.0 / (1.0278 - 0.0278 * 5.0), 1e-3)]
+#[case::mayhew("mayhew", 10_000.0 / (52.2 + 41.9 * (-0.055_f32 * 5.0).exp()), 1e-3)]
+#[case::lombardi("lombardi", 100.0 * 5.0_f32.powf(0.1), 1e-4)]
+fn calc_1rm_matches_formula(#[case] formula: &str, #[case] expected: f32, #[case] tolerance: f32) {
+    assert!((calc_1rm(100.0, 5.0, formula) - expected).abs() < tolerance);
 }
 
-#[test]
-fn calc_1rm_brzycki_formula() {
-    // w / (1.0278 - 0.0278 * r)
-    let expected = 100.0 / (1.0278 - 0.0278 * 5.0);
-    assert!((calc_1rm(100.0, 5.0, "brzycki") - expected).abs() < 1e-3);
-}
-
-#[test]
-fn calc_1rm_mayhew_formula() {
-    // (100 * w) / (52.2 + 41.9 * e^(-0.055 * r))
-    let expected = (100.0 * 100.0) / (52.2 + 41.9 * (-0.055_f32 * 5.0).exp());
-    assert!((calc_1rm(100.0, 5.0, "mayhew") - expected).abs() < 1e-3);
-}
-
-#[test]
-fn calc_1rm_lombardi_formula() {
-    // w * r^0.1
-    let expected = 100.0f32 * 5.0f32.powf(0.1);
-    assert!((calc_1rm(100.0, 5.0, "lombardi") - expected).abs() < 1e-4);
-}
-
-#[test]
-fn calc_1rm_is_monotonic_with_reps() {
-    for formula in &["epley", "brzycki", "mayhew", "lombardi"] {
-        let low = calc_1rm(100.0, 3.0, formula);
-        let high = calc_1rm(100.0, 10.0, formula);
-        assert!(high > low, "formula {formula} should increase with reps");
-    }
+#[rstest]
+fn calc_1rm_is_monotonic_with_reps(
+    #[values("epley", "brzycki", "mayhew", "lombardi")] formula: &str,
+) {
+    let low = calc_1rm(100.0, 3.0, formula);
+    let high = calc_1rm(100.0, 10.0, formula);
+    assert!(high > low, "formula {formula} should increase with reps");
 }
 
 // ===== PLATE CALCULATOR =====
@@ -888,27 +865,28 @@ fn ipf_plates_kg_is_sorted_descending() {
 
 // ===== IPF WEIGHT CLASS =====
 
-#[test]
-fn ipf_weight_class_male_boundaries() {
-    assert_eq!(ipf_weight_class(53.0, "M"), Some("53"));
-    assert_eq!(ipf_weight_class(53.1, "M"), Some("59"));
-    assert_eq!(ipf_weight_class(120.0, "M"), Some("120"));
-    assert_eq!(ipf_weight_class(120.1, "M"), Some("120+"));
-    assert_eq!(ipf_weight_class(200.0, "M"), Some("120+"));
-}
-
-#[test]
-fn ipf_weight_class_female_boundaries() {
-    assert_eq!(ipf_weight_class(43.0, "F"), Some("43"));
-    assert_eq!(ipf_weight_class(43.1, "F"), Some("47"));
-    assert_eq!(ipf_weight_class(84.0, "F"), Some("84"));
-    assert_eq!(ipf_weight_class(84.1, "F"), Some("84+"));
-}
-
-#[test]
-fn ipf_weight_class_invalid_sex_returns_none() {
-    assert!(ipf_weight_class(80.0, "X").is_none());
-    assert!(ipf_weight_class(80.0, "").is_none());
+#[rstest]
+#[case::male_lightest_limit(53.0, "M", Some("53"))]
+#[case::male_next_class(53.1, "M", Some("59"))]
+#[case::male_middle_limit(83.0, "M", Some("83"))]
+#[case::male_middle_above_limit(83.1, "M", Some("93"))]
+#[case::male_heaviest_limit(120.0, "M", Some("120"))]
+#[case::male_open_class(120.1, "M", Some("120+"))]
+#[case::male_heavyweight(200.0, "M", Some("120+"))]
+#[case::female_lightest_limit(43.0, "F", Some("43"))]
+#[case::female_next_class(43.1, "F", Some("47"))]
+#[case::female_middle_limit(57.0, "F", Some("57"))]
+#[case::female_middle_above_limit(57.1, "F", Some("63"))]
+#[case::female_heaviest_limit(84.0, "F", Some("84"))]
+#[case::female_open_class(84.1, "F", Some("84+"))]
+#[case::unknown_sex(80.0, "X", None)]
+#[case::empty_sex(80.0, "", None)]
+fn ipf_weight_class_boundaries(
+    #[case] bodyweight: f32,
+    #[case] sex: &str,
+    #[case] expected: Option<&str>,
+) {
+    assert_eq!(ipf_weight_class(bodyweight, sex), expected);
 }
 
 // ===== SCORING COEFFICIENTS =====
@@ -949,32 +927,26 @@ fn dots_matches_pinned_coefficients() {
 /// That is what caught the transcription error: the old female polynomial
 /// understated every woman's score by ~14% and produced a negative denominator
 /// — scoring a flat zero — above about 144 kg.
-#[test]
-fn wilks_matches_the_published_reference_multipliers() {
-    /// The reference multipliers are quoted to four decimal places.
-    fn assert_multiplier(actual: f32, expected: f32, what: &str, bw: f32) {
-        assert!(
-            (actual - expected).abs() < 5e-4,
-            "{what} at {bw} kg: expected {expected}, got {actual}"
-        );
-    }
-
-    for (bw, expected) in [
-        (40.0, 1.3895),
-        (80.0, 0.8191),
-        (100.0, 0.7294),
-        (200.95, 0.6122),
-    ] {
-        assert_multiplier(wilks_points("M", bw, 1.0), expected, "wilks M", bw);
-    }
-    for (bw, expected) in [
-        (40.0, 1.8486),
-        (80.0, 1.1318),
-        (100.0, 1.0525),
-        (150.0, 0.9635),
-    ] {
-        assert_multiplier(wilks_points("F", bw, 1.0), expected, "wilks F", bw);
-    }
+#[rstest]
+#[case::male_light("M", 40.0, 1.3895)]
+#[case::male_medium("M", 80.0, 0.8191)]
+#[case::male_heavy("M", 100.0, 0.7294)]
+#[case::male_upper_limit("M", 200.95, 0.6122)]
+#[case::female_light("F", 40.0, 1.8486)]
+#[case::female_medium("F", 80.0, 1.1318)]
+#[case::female_heavy("F", 100.0, 1.0525)]
+#[case::female_heavyweight("F", 150.0, 0.9635)]
+fn wilks_matches_the_published_reference_multipliers(
+    #[case] sex: &str,
+    #[case] bw: f32,
+    #[case] expected: f32,
+) {
+    let actual = wilks_points(sex, bw, 1.0);
+    // The reference multipliers are quoted to four decimal places.
+    assert!(
+        (actual - expected).abs() < 5e-4,
+        "wilks {sex} at {bw} kg: expected {expected}, got {actual}"
+    );
 }
 
 #[test]
@@ -1163,68 +1135,19 @@ fn jp7_accepts_the_oldest_valid_age_and_rejects_past_it() {
     assert!(calc_bodyfat_jp7(0.0, 85.0, true, jp7_reference_sites()).is_none());
 }
 
-#[test]
-fn jp7_rejects_a_zero_reading_at_any_single_site() {
+#[rstest]
+#[case::chest(0)]
+#[case::midaxillary(1)]
+#[case::tricep(2)]
+#[case::subscapular(3)]
+#[case::abdomen(4)]
+#[case::suprailiac(5)]
+#[case::thigh(6)]
+fn jp7_rejects_a_zero_reading_at_any_single_site(#[case] site: usize) {
     // A caliper reading of exactly zero is impossible and would skew the sum.
     // Each site needs its own case: with six other positive readings, a single
     // dropped bound is invisible unless that site is the one set to zero.
-    let sites = jp7_reference_sites();
-    let zeroed: [(&str, JacksonPollock7SiteSkinfolds); 7] = [
-        (
-            "chest",
-            JacksonPollock7SiteSkinfolds {
-                chest_mm: 0.0,
-                ..sites
-            },
-        ),
-        (
-            "midaxillary",
-            JacksonPollock7SiteSkinfolds {
-                midaxillary_mm: 0.0,
-                ..sites
-            },
-        ),
-        (
-            "tricep",
-            JacksonPollock7SiteSkinfolds {
-                tricep_mm: 0.0,
-                ..sites
-            },
-        ),
-        (
-            "subscapular",
-            JacksonPollock7SiteSkinfolds {
-                subscapular_mm: 0.0,
-                ..sites
-            },
-        ),
-        (
-            "abdomen",
-            JacksonPollock7SiteSkinfolds {
-                abdomen_mm: 0.0,
-                ..sites
-            },
-        ),
-        (
-            "suprailiac",
-            JacksonPollock7SiteSkinfolds {
-                suprailiac_mm: 0.0,
-                ..sites
-            },
-        ),
-        (
-            "thigh",
-            JacksonPollock7SiteSkinfolds {
-                thigh_mm: 0.0,
-                ..sites
-            },
-        ),
-    ];
-
-    for (site, skinfolds) in zeroed {
-        assert!(
-            calc_bodyfat_jp7(30.0, 85.0, true, skinfolds).is_none(),
-            "a zero {site} reading should be rejected"
-        );
-    }
+    let mut sites = [12.0, 10.0, 14.0, 16.0, 20.0, 18.0, 22.0];
+    sites[site] = 0.0;
+    assert!(calc_bodyfat_jp7(30.0, 85.0, true, jp7_sites(sites)).is_none());
 }

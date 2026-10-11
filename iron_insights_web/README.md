@@ -23,16 +23,13 @@ versioned lookup chain:
    - Loaded after the user selects sex and equipment.
    - Contains slice keys for weight class, age class, tested status, lift, and
      metric.
-   - The app accepts both supported shard shapes:
-     - map form: slice key -> entry metadata
-     - key list form: slice key only, with paths derived from the key
+   - The `slices` map associates each slice key with its entry metadata.
 
 4. Slice entry
    - Resolves the selected cohort to a combined binary payload and optional
      summary metadata.
    - Important fields:
      - `bin`: relative path to the combined `.bin` payload.
-     - `meta`: optional path to JSON metadata when the summary is not inlined.
      - `inline`: optional base64-encoded combined payload for sparse cohorts.
      - `summary`: optional `{ min_kg, max_kg, total }` cohort summary.
 
@@ -41,6 +38,9 @@ versioned lookup chain:
    - Contains both the one-dimensional lift histogram and the two-dimensional
      lift-by-bodyweight heatmap.
    - The app caches fetched binary payloads by URL for the life of the page.
+   - Binary format version 2 encodes counts as varints with collapsed zero runs.
+
+Shard entries carry summaries directly; there is no separate `meta/` tree.
 
 ## Runtime loading flow
 

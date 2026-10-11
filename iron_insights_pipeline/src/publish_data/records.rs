@@ -1,7 +1,9 @@
 use std::{collections::BTreeMap, path::Path};
 
 use anyhow::{Context, Result};
-use polars::prelude::*;
+use polars::prelude::{
+    ChunkedArray, DataFrame, Float32Type, LazyFrame, ScanArgsParquet, StringType, col,
+};
 
 use super::{
     accumulation::{AccumulationRow, MetricPublisher},

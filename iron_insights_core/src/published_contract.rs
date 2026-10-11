@@ -121,6 +121,7 @@ pub fn slug(input: &str) -> String {
 mod tests {
     use super::{parse_shard_key, parse_slice_key};
     use proptest::prelude::*;
+    use rstest::rstest;
 
     #[test]
     fn parse_slice_key_defaults_metric_to_kg() {
@@ -136,16 +137,13 @@ mod tests {
         assert!(!key.metric_explicit);
     }
 
-    #[test]
-    fn parse_slice_key_rejects_malformed_segment() {
-        assert!(
-            parse_slice_key("sex=M|equip=Raw|broken|wc=93|age=Open|tested=Yes|lift=T").is_none()
-        );
-    }
-
-    #[test]
-    fn parse_slice_key_rejects_empty_values() {
-        assert!(parse_slice_key("sex=M|equip=Raw|wc=|age=Open|tested=Yes|lift=T").is_none());
+    #[rstest]
+    #[case::missing_separator("sex=M|equip=Raw|broken|wc=93|age=Open|tested=Yes|lift=T")]
+    #[case::empty_value("sex=M|equip=Raw|wc=|age=Open|tested=Yes|lift=T")]
+    #[case::empty_key("sex=M|equip=Raw|wc=93|age=Open|tested=Yes|lift=T|=Kg")]
+    #[case::trailing_separator("sex=M|equip=Raw|wc=93|age=Open|tested=Yes|lift=T|")]
+    fn parse_slice_key_rejects_malformed_segment(#[case] raw: &str) {
+        assert!(parse_slice_key(raw).is_none());
     }
 
     #[test]

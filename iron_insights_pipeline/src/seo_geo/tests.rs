@@ -8,6 +8,7 @@ use super::{
     stats::{percentile_value, value_percentile},
 };
 use iron_insights_core::HistogramBin;
+use rstest::rstest;
 
 fn test_site() -> Site<'static> {
     Site {
@@ -20,44 +21,50 @@ fn test_site() -> Site<'static> {
     }
 }
 
-#[test]
-fn human_date_formats_iso() {
-    assert_eq!(human_date("2026-06-19"), "19 June 2026");
-    assert_eq!(human_date("2026-01-01"), "1 January 2026");
+#[rstest]
+#[case::june("2026-06-19", "19 June 2026")]
+#[case::january("2026-01-01", "1 January 2026")]
+#[case::leap_day("2024-02-29", "29 February 2024")]
+#[case::malformed("nope", "nope")]
+#[case::invalid_month("2026-13-01", "2026-13-01")]
+#[case::invalid_day("2026-02-29", "2026-02-29")]
+fn human_date_formats_iso_or_passes_through(#[case] input: &str, #[case] expected: &str) {
+    assert_eq!(human_date(input), expected);
 }
 
-#[test]
-fn human_date_passes_through_bad_input() {
-    assert_eq!(human_date("nope"), "nope");
-    assert_eq!(human_date("2026-13-01"), "2026-13-01");
+#[rstest]
+#[case::zero(0, "0")]
+#[case::below_thousand(999, "999")]
+#[case::thousand(1000, "1,000")]
+#[case::millions(2844167, "2,844,167")]
+#[case::maximum(u64::MAX, "18,446,744,073,709,551,615")]
+fn group_thousands_inserts_separators(#[case] value: u64, #[case] expected: &str) {
+    assert_eq!(group_thousands(value), expected);
 }
 
-#[test]
-fn group_thousands_inserts_separators() {
-    assert_eq!(group_thousands(0), "0");
-    assert_eq!(group_thousands(999), "999");
-    assert_eq!(group_thousands(1000), "1,000");
-    assert_eq!(group_thousands(2844167), "2,844,167");
+#[rstest]
+#[case::first(1, "1st")]
+#[case::second(2, "2nd")]
+#[case::third(3, "3rd")]
+#[case::eleventh(11, "11th")]
+#[case::twelfth(12, "12th")]
+#[case::thirteenth(13, "13th")]
+#[case::twenty_first(21, "21st")]
+#[case::forty_fifth(45, "45th")]
+#[case::ninetieth(90, "90th")]
+#[case::hundred_eleventh(111, "111th")]
+#[case::hundred_twelfth(112, "112th")]
+#[case::hundred_thirteenth(113, "113th")]
+fn ordinal_uses_correct_suffix(#[case] value: i64, #[case] expected: &str) {
+    assert_eq!(ordinal(value), expected);
 }
 
-#[test]
-fn ordinal_uses_correct_suffix() {
-    assert_eq!(ordinal(1), "1st");
-    assert_eq!(ordinal(2), "2nd");
-    assert_eq!(ordinal(3), "3rd");
-    assert_eq!(ordinal(11), "11th");
-    assert_eq!(ordinal(12), "12th");
-    assert_eq!(ordinal(13), "13th");
-    assert_eq!(ordinal(21), "21st");
-    assert_eq!(ordinal(45), "45th");
-    assert_eq!(ordinal(90), "90th");
-}
-
-#[test]
-fn wc_label_handles_plus_classes() {
-    assert_eq!(wc_label("93"), "93 kg");
-    assert_eq!(wc_label("120_"), "120 kg+");
-    assert_eq!(wc_label("84_"), "84 kg+");
+#[rstest]
+#[case::standard("93", "93 kg")]
+#[case::male_open("120_", "120 kg+")]
+#[case::female_open("84_", "84 kg+")]
+fn wc_label_handles_plus_classes(#[case] class: &str, #[case] expected: &str) {
+    assert_eq!(wc_label(class), expected);
 }
 
 #[test]
@@ -238,7 +245,11 @@ fn writes_every_page_plus_robots_and_sitemap() {
         assert!(out.is_file(), "stage 4 did not write {}", out.display());
 
         let html = std::fs::read_to_string(&out).expect("read page");
-        assert!(html.starts_with("<!doctype html>"), "{} lacks a doctype", page.slug);
+        assert!(
+            html.starts_with("<!doctype html>"),
+            "{} lacks a doctype",
+            page.slug
+        );
         assert!(
             html.contains("application/ld+json"),
             "{} lost its structured data",
@@ -304,7 +315,10 @@ fn degrades_to_generic_copy_when_the_published_bins_are_missing() {
             .join("index.html"),
     )
     .expect("read percentile page");
-    assert!(html.contains("over 2 million"), "expected the fallback count");
+    assert!(
+        html.contains("over 2 million"),
+        "expected the fallback count"
+    );
 }
 
 // ===== SNIPPET RENDERING =====
@@ -359,7 +373,10 @@ fn comparison_table_reports_the_female_to_male_ratio() {
     // The ratio column and the DOTS note are both `100 * f / m`; a swapped
     // operator here would publish a plausible but wrong headline number.
     assert!(html.contains("60%"), "expected the 60% ratio:\n{html}");
-    assert!(html.contains("about 90%"), "expected the 90% DOTS gap:\n{html}");
+    assert!(
+        html.contains("about 90%"),
+        "expected the 90% DOTS gap:\n{html}"
+    );
 }
 
 #[test]
@@ -373,13 +390,19 @@ fn comparison_table_is_empty_without_figures() {
 fn percentile_examples_render_each_worked_case() {
     let html = percentile_examples_html(&synthetic_stats());
 
-    assert!(html.contains("83 kg"), "weight class label missing:\n{html}");
+    assert!(
+        html.contains("83 kg"),
+        "weight class label missing:\n{html}"
+    );
     assert!(html.contains("180 kg squat"), "{html}");
     assert!(html.contains("42nd percentile"), "{html}");
 
     // The sex word is chosen by a string compare; both branches must render.
     assert!(html.contains("83 kg male"), "male wording missing:\n{html}");
-    assert!(html.contains("63 kg female"), "female wording missing:\n{html}");
+    assert!(
+        html.contains("63 kg female"),
+        "female wording missing:\n{html}"
+    );
     assert!(html.contains("71st percentile"), "{html}");
 
     let mut empty = synthetic_stats();

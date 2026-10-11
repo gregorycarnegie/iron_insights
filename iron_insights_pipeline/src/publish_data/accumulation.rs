@@ -1,4 +1,7 @@
-use std::{collections::{BTreeMap, HashMap}, path::Path};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::Path,
+};
 
 use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -156,17 +159,17 @@ impl<'a> MetricPublisher<'a> {
                 .entry(format!("sex={sex}|equip={equipment}"))
                 .or_default()
                 .insert(
-                key,
-                SliceIndexEntry {
-                    bin: bin_rel,
-                    inline,
-                    summary: SliceSummary {
-                        min_kg: hist_data.min,
-                        max_kg: hist_data.max,
-                        total: hist_data.total.min(u32::MAX as u64) as u32,
+                    key,
+                    SliceIndexEntry {
+                        bin: bin_rel,
+                        inline,
+                        summary: SliceSummary {
+                            min_kg: hist_data.min,
+                            max_kg: hist_data.max,
+                            total: hist_data.total.min(u32::MAX as u64) as u32,
+                        },
                     },
-                },
-            );
+                );
         }
 
         Ok(())

@@ -25,7 +25,12 @@ pub(crate) struct RecordRow {
 }
 
 impl RecordRow {
-    pub(crate) fn new(sex: &'static str, weight_class: &'static str, best_lift: f32, bodyweight: f32) -> Self {
+    pub(crate) fn new(
+        sex: &'static str,
+        weight_class: &'static str,
+        best_lift: f32,
+        bodyweight: f32,
+    ) -> Self {
         Self {
             sex,
             equipment: "Raw",
@@ -67,7 +72,10 @@ pub(crate) fn publish_tree(version: &str, lifts: &[(&str, Vec<RecordRow>)]) -> (
     let data_dir = temp.path().join("data");
 
     for (lift, rows) in lifts {
-        write_records_parquet(&records_dir.join("all").join(format!("{lift}.parquet")), rows);
+        write_records_parquet(
+            &records_dir.join("all").join(format!("{lift}.parquet")),
+            rows,
+        );
     }
 
     publish(&PublishArgs {
@@ -88,7 +96,11 @@ pub(crate) fn publish_tree(version: &str, lifts: &[(&str, Vec<RecordRow>)]) -> (
 /// Stage 4 reads figures off disk by path, so a fixture small enough to be
 /// inlined into the index would leave it with nothing to find — and the test
 /// would pass while asserting only the degraded, statless path.
-pub(crate) fn wide_cohort(sex: &'static str, weight_class: &'static str, base_lift: f32) -> Vec<RecordRow> {
+pub(crate) fn wide_cohort(
+    sex: &'static str,
+    weight_class: &'static str,
+    base_lift: f32,
+) -> Vec<RecordRow> {
     (0..160u16)
         .map(|i| {
             RecordRow::new(
